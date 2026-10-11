@@ -26,7 +26,7 @@ for directory in working_dir.iterdir():
                 md2html.convert(markdown, html)
                 rs.HTMLEmbedder(html).process()
                 ihg.add(
-                    rs.Recipe(md2html.metadata_json, html)
+                    rs.Recipe(md2html.metadata, html)
                 )  # TODO: Recipe is scoped poorly, IndexHTMLGenerator should be the module with Recipe and Generator inside
 
-ihg.convert(recipe_files)
+ihg.convert()

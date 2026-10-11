@@ -1,0 +1,83 @@
+.recipe-scaler {
+  display: inline-flex;
+  align-items: baseline;
+  color: var(--food-color);
+  font-size: 32px;
+  line-height: 1;
+}
+
+/* Preset dropdown */
+#recipe-scale-select {
+  color: var(--food-color);
+  font-size: 32px;
+  font-family: inherit;
+  font-weight: 500;
+
+  background: transparent;
+  border: none;
+  outline: none;
+
+  padding: 0;
+  margin: 0;
+
+  cursor: pointer;
+  text-align: right;
+  text-align-last: right;
+}
+
+/* Remove browser's native select styling/arrow */
+#recipe-scale-select {
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: right;
+}
+
+#recipe-scale-select option {
+  font-size: 16px;
+  font-family: "Lato", sans-serif;
+  color: #444;
+}
+
+/* Custom number input */
+#recipe-scale-custom {
+  color: var(--food-color);
+  font-size: 32px;
+  font-family: inherit;
+  font-weight: 500;
+
+  background: transparent;
+  border: none;
+  outline: none;
+
+  width: 3ch;
+  padding: 0;
+  margin: 0;
+
+  text-align: center;
+  appearance: textfield;
+}
+
+#recipe-scale-custom::-webkit-inner-spin-button,
+#recipe-scale-custom::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+#recipe-scale-custom[hidden] {
+  display: none;
+}
+
+/* The multiplication symbol */
+.scale-symbol {
+  margin-left: 0.1em;
+  font-size: 32px;
+}
+
+@media (min-width: 768px) {
+  .recipe-scaler,
+  #recipe-scale-select,
+  #recipe-scale-custom,
+  .scale-symbol {
+    font-size: 40px;
+  }
+}
