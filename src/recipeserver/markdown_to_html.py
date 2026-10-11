@@ -1,7 +1,7 @@
 from pathlib import Path
 from .pallette import Pallette
 from .image_handler import ImageToColorConverter, get_first_image_in_dir
-import markdown, re
+import markdown, re, frontmatter
 from textwrap import dedent
 from dataclasses import dataclass
 from slugify import slugify
@@ -9,7 +9,7 @@ from enum import Enum, auto
 from bs4 import BeautifulSoup
 from fractions import Fraction
 from ._logger import logger
-import re
+import re, json
 
 FILE_PATH = Path(__file__)
 CSS_PATH = FILE_PATH.parent / "assets" / "style.css"
@@ -116,6 +116,8 @@ class Configuration:
 class MarkdownToHTMLConverter:
     def __init__(self, cfg: Configuration = Configuration()):
         self.cfg = cfg
+        self.metadata: dict[str, object] = {}
+        self.metadata_json: str = ""
 
     def _get_title_from_markdown_content(self, content: list[str]) -> str:
 
@@ -219,9 +221,7 @@ class MarkdownToHTMLConverter:
 
         logger.file(f"Converting {markdown_file.relative_to(Path.cwd())}")
 
-        markdown_content = markdown_file.read_text(
-            encoding="UTF-8", newline="\n"
-        ).splitlines()
+        markdown_content = markdown_file.read_text(encoding="UTF-8", newline="\n").splitlines()
         self._preprocess(markdown_content)
         title = self._get_title_from_markdown_content(markdown_content)
 
@@ -230,9 +230,16 @@ class MarkdownToHTMLConverter:
         image = get_first_image_in_dir(dir)
         if image:
             logger.file(f"Found image: {image}")
-            self.cfg.heading_color = ImageToColorConverter().get_hex_color_from_image(
-                image
-            )
+            self.cfg.heading_color = ImageToColorConverter().get_hex_color_from_image(image)
+
+        content = "\n".join(markdown_content)
+
+        post = frontmatter.loads(content)
+
+        self.metadata = post.metadata
+        self.metadata_json = json.dumps(self.metadata).replace("<", "\\u003c")  # sanitize input so it is not executable
+
+        markdown_body = post.content
 
         md = markdown.Markdown(
             extensions=[
@@ -242,7 +249,8 @@ class MarkdownToHTMLConverter:
                 "pymdownx.arithmatex",
             ]
         )
-        body = md.convert("\n".join(markdown_content))
+
+        body = md.convert(markdown_body)
 
         # Build HTML
         html = dedent(f"""<!DOCTYPE html>
@@ -258,6 +266,9 @@ class MarkdownToHTMLConverter:
             {MATHJAX}
         </head>
         <body>
+            <script id="recipe-metadata" type="application/json">
+                {self.metadata_json}
+            </script>
             <main class="recipe">
                 <header class="recipe-header">
                     {HOME_PAGE_ICON_HTML}

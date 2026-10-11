@@ -8,21 +8,30 @@ FILE_PATH = Path(__file__)
 INDEX_CSS_PATH = FILE_PATH.parent / "assets" / "index.css"
 
 
+class Recipe:
+    def __init__(self, metadata: str, html_file: Path):
+        self.metadata: str = metadata
+        self.html_file: Path = html_file
+
+
 class IndexHTMLGenerator:
     def __init__(self):
-        pass
+        self.recipes: list[Recipe] = []
+
+    def add(self, recipe: Recipe):
+        self.recipes.append(recipe)
 
     @staticmethod
     def deslugify(slug: str) -> str:
         return slug.replace("-", " ").title()
 
-    def convert(self, html_files: list[Path]):
+    def convert(self):
         links: list[str] = []
-        for html_file in html_files:
-            file = html_file.relative_to(Path.cwd())
-            link = (
-                f'<li><a href="{file}">{self.deslugify(str(file.parent.name))}</a></li>'
-            )
+
+        for i, recipe in enumerate(self.recipes):
+
+            file = recipe.html_file.relative_to(Path.cwd())
+            link = f'<li><a href="{file}">{self.deslugify(str(file.parent.name))}</a></li>'
             links.append(link)
 
         html = dedent(f"""<!DOCTYPE html>
