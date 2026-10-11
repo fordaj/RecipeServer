@@ -9,6 +9,24 @@
   src: url("./fonts/Playfair/Playfair-VariableFont_opsz,wdth,wght.ttf") format("truetype");
   font-weight: 400;
 }
+:root {
+  --food-color: #8d5542;
+}
+
+.recipe-icon {
+  color: var(--food-color);
+  width: 36px;
+  height: 36px;
+}
+@media (min-width: 768px) {
+  .recipe-icon {
+    width: 48px;
+    height: 48px;
+  }
+}
+.recipe-home {
+  display: inline-flex;
+}
 
 body {
   font-family: "Lato", sans-serif;
@@ -49,6 +67,18 @@ body {
   line-height: 1.7;
 }
 
+/* -------- Header -------- */
+
+.recipe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 20px;
+}
+
 /* ---------- Page ---------- */
 
 body > main,
@@ -64,7 +94,7 @@ body > a {
   width: min(100% - 2rem, var(--page-width));
   margin: 1.5rem auto 0;
 
-  color: #8d5542;
+  color: var(--food-color);
   text-decoration: none;
   font-size: 0.95rem;
 }
@@ -101,7 +131,7 @@ body > a:hover {
 }
 
 .recipe-meta dt {
-  color: #8d5542;
+  color: var(--food-color);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -172,12 +202,19 @@ body > a:hover {
   padding-left: 1.5rem;
 }
 
+/* Strikethrough and italicize checked items */
+.recipe li:has(input[type="checkbox"]:checked) {
+  text-decoration: line-through;
+  font-style: italic;
+  opacity: 0.65;
+}
+
 .recipe li {
   margin-bottom: 0.65rem;
 }
 
 .recipe li::marker {
-  color: #8d5542;
+  color: var(--food-color);
   font-weight: bold;
 }
 
@@ -188,6 +225,49 @@ body > a:hover {
   padding: 1.5rem 1.5rem 1.5rem 3rem;
   border-radius: 10px;
   box-shadow: 0 2px 10px rgb(0 0 0 / 5%);
+}
+
+/* ---------- Checkboxes ---------- */
+
+/* Recipe ingredient checkboxes */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+
+  width: 1.2em;
+  height: 1.2em;
+  border: 2px solid var(--food-color);
+  border-radius: 3px; /* Use 0 for perfectly square corners */
+  background-color: transparent;
+
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Checked state */
+input[type="checkbox"]:checked {
+  background-color: var(--food-color);
+  border-color: var(--food-color);
+}
+
+/* White checkmark */
+input[type="checkbox"]:checked::before {
+  content: "";
+  width: 0.3em;
+  height: 0.6em;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-top: -0.1em;
+}
+
+/* Keyboard accessibility */
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 3px;
 }
 
 /* ---------- Preparation ---------- */

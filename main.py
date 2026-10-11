@@ -19,6 +19,6 @@ for directory in working_dir.iterdir():
                 html = markdown.with_suffix(".html")
                 recipe_files.append(html)
                 rs.MarkdownToHTMLConverter().convert(markdown, html)
-                # rs.HTMLEmbedder(html).process()
+                rs.HTMLEmbedder(html).process()
 
 rs.IndexHTMLGenerator().convert(recipe_files)
