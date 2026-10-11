@@ -1,6 +1,9 @@
 class RecipeScaler {
   constructor() {
     this.scaleInput = document.getElementById("recipe-scale");
+    this.scaleInput.addEventListener("focus", () => {
+      this.scaleInput.select();
+    });
     this.quantities = document.querySelectorAll(".quantity");
 
     if (!this.scaleInput) {
@@ -16,46 +19,74 @@ class RecipeScaler {
     this.update(false);
   }
 
-  async update(retypeset = true) {
+  async update() {
+    const mathJax = window.MathJax;
+
+    // Do not modify quantities until MathJax is ready.
+    if (!mathJax?.startup?.promise) {
+      console.warn("RecipeScaler: MathJax hasn't loaded. Check script order.");
+      return;
+    }
+
+    await mathJax.startup.promise;
+
     const scale = parseFloat(this.scaleInput.value);
 
     if (!Number.isFinite(scale) || scale <= 0) {
       return;
     }
 
+    // Clear MathJax's bookkeeping for the old rendered content.
+    if (typeof mathJax.typesetClear === "function") {
+      mathJax.typesetClear([...this.quantities]);
+    }
     for (const element of this.quantities) {
       const quantity = parseFloat(element.dataset.quantity);
       const unit = element.dataset.unit ?? "";
+      const quantityEnd = element.dataset.quantityEnd;
 
       if (!Number.isFinite(quantity)) {
         continue;
       }
 
-      const scaled = quantity * scale;
-      const rounded = this.roundQuantity(scaled, unit);
+      const scaled = this.roundQuantity(quantity * scale, unit);
+      let formatted = this.formatQuantity(scaled, unit);
 
-      element.innerHTML = this.formatQuantity(rounded, unit);
+      if (quantityEnd !== undefined) {
+        const end = parseFloat(quantityEnd);
+
+        if (Number.isFinite(end)) {
+          const scaledEnd = this.roundQuantity(end * scale, unit);
+
+          // Format the endpoint as a quantity, then remove its repeated unit.
+          const formattedEnd = this.formatQuantity(scaledEnd, unit);
+          const unitSuffix = unit ? ` ${unit}` : "";
+
+          const endText =
+            unitSuffix && formattedEnd.endsWith(unitSuffix)
+              ? formattedEnd.slice(0, -unitSuffix.length)
+              : formattedEnd;
+
+          formatted = `${formatted.replace(unitSuffix, "")}-${endText}${unitSuffix}`;
+        }
+      }
+
+      element.innerHTML = formatted;
     }
 
-    if (retypeset) {
-      await this.typesetMath();
-    }
+    await this.typesetMath();
   }
 
   async typesetMath() {
-    if (!window.MathJax?.startup?.promise) {
-      console.warn("MathJax is not initialized yet");
+    const mathJax = window.MathJax;
+
+    if (typeof mathJax?.typesetPromise !== "function") {
+      console.warn("RecipeScaler: MathJax typesetting is unavailable.");
       return;
     }
 
-    await MathJax.startup.promise;
-
-    if (typeof MathJax.typesetPromise !== "function") {
-      console.warn("MathJax.typesetPromise is not available");
-      return;
-    }
-
-    await MathJax.typesetPromise(this.quantities);
+    await mathJax.startup.promise;
+    await mathJax.typesetPromise([...this.quantities]);
   }
 
   roundQuantity(value, unit) {
