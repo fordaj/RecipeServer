@@ -12,8 +12,10 @@ from ._logger import logger
 import re, json
 
 FILE_PATH = Path(__file__)
+RECIPE_SCALER_HTML = FILE_PATH.parent / "assets" / "recipe-scaler.html"
+RECIPE_SCALER_CSS = FILE_PATH.parent / "assets" / "recipe-scaler.css"
+RECIPE_SCALER_JS = FILE_PATH.parent / "assets" / "recipe-scaler.js"
 CSS_PATH = FILE_PATH.parent / "assets" / "style.css"
-SCRIPT_JS_PATH = FILE_PATH.parent / "assets" / "script.js"
 PULL_DOWN_PAGE_REFRESH_JS = FILE_PATH.parent / "assets" / "pull-down-page-refresh.js"
 BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
 
@@ -27,60 +29,6 @@ MATHJAX = """
 </script>
 
 <script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
-"""
-RECIPE_SCALAR_HTML = """
-<style>
-#recipe-scale {
-    color: var(--food-color);
-    font-size: 32px;
-    font-family: inherit;
-    font-weight: 500;
-
-    background: transparent;
-    border: none;
-    outline: none;
-
-    width: 4ch;
-    padding: 0;
-    margin: 0;
-
-    text-align: right;
-    appearance: textfield;
-}
-
-#recipe-scale::-webkit-inner-spin-button,
-#recipe-scale::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-}
-
-.recipe-scaler {
-    display: inline-flex;
-    align-items: baseline;
-    color: var(--food-color);
-    font-size: 32px;
-}
-
-.recipe-scaler span {
-    font-size: 32px;
-}
-
-/* Larger screens */
-@media (min-width: 768px) {
-    #recipe-scale {
-        font-size: 40px;
-    }
-
-    .recipe-scaler,
-    .recipe-scaler span {
-        font-size: 40px;
-    }
-}
-</style>
-<div class="recipe-scaler">
-    <input id="recipe-scale" min="0.125" step="0.125" type="number" value="1.0">
-    <span>×</span>
-</div>
 """
 
 HOME_PAGE_ICON_HTML = """
@@ -272,12 +220,13 @@ class MarkdownToHTMLConverter:
             <main class="recipe">
                 <header class="recipe-header">
                     {HOME_PAGE_ICON_HTML}
-                    {RECIPE_SCALAR_HTML}
+                    <style>{RECIPE_SCALER_CSS.read_text(encoding="UTF-8", newline="\n")}</style>
+                    {RECIPE_SCALER_HTML.read_text(encoding="UTF-8", newline="\n")}
                 </header>
                 {body}
             </main>
             <script defer>
-            {SCRIPT_JS_PATH.read_text(encoding="UTF-8", newline="\n")}
+            {RECIPE_SCALER_JS.read_text(encoding="UTF-8", newline="\n")}
             </script>
             <script defer>
             {PULL_DOWN_PAGE_REFRESH_JS.read_text(encoding="UTF-8", newline="\n")}

@@ -1,7 +1,7 @@
 # python_common/logger.py
 
 from loguru import logger
-import socket, sys, os, atexit
+import socket, sys, os, atexit, shutil
 
 hostname = socket.gethostname()
 file_sink_id = None
@@ -18,16 +18,35 @@ _is_configured = False
 # | `CRITICAL` |          `50` |
 
 logger.level("COMMAND", no=6, color="<dim><magenta>")
-logger.command = lambda msg, *args, **kwargs: logger.opt(depth=1).log(
-    "COMMAND", msg, *args, **kwargs
-)
+logger.command = lambda msg, *args, **kwargs: logger.opt(depth=1).log("COMMAND", msg, *args, **kwargs)
 
 logger.level("FILE", no=7, color="<dim><fg 208>")
-logger.file = lambda msg, *args, **kwargs: logger.opt(depth=1).log(
-    "FILE", msg, *args, **kwargs
-)
+logger.file = lambda msg, *args, **kwargs: logger.opt(depth=1).log("FILE", msg, *args, **kwargs)
 
 logger.level("TRACE", color="<cyan>")
+
+
+TINY_CONSOLE_FORMAT = "<bold><black>[{level}]</black></> <level>{message}</level>\n"
+COMPACT_CONSOLE_FORMAT = "<blue>{file}:{line}</blue> " + TINY_CONSOLE_FORMAT
+FULL_CONSOLE_FORMAT = (
+    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> "
+    f"<magenta>{hostname}</magenta> "
+    "<blue>{file}:{line} [{thread.name}]</blue> "
+) + TINY_CONSOLE_FORMAT
+
+
+def console_format(record):
+    width = shutil.get_terminal_size().columns
+
+    # Switch to compact output on narrow terminals.
+    if width < 120:
+        return TINY_CONSOLE_FORMAT
+
+    # Switch to compact output on narrow terminals.
+    if width < 180:
+        return COMPACT_CONSOLE_FORMAT
+
+    return FULL_CONSOLE_FORMAT
 
 
 def setup_logger(log_level="INFO"):
@@ -40,11 +59,7 @@ def setup_logger(log_level="INFO"):
 
     logger.add(
         sys.stdout,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> "
-        f"<magenta>{hostname}</magenta> "
-        "<blue>{file}:{line} [{thread.name}]</blue> "
-        "<bold><black>[{level}]</black></> "
-        "<level>{message}</level>",
+        format=console_format,
         level=log_level.upper(),
         colorize=True,
         enqueue=True,
@@ -59,10 +74,7 @@ def setup_logger(log_level="INFO"):
 
     file_sink_id = logger.add(
         log_file,
-        format="{time:YYYY-MM-DD HH:mm:ss.SSS} "
-        f"{hostname} "
-        "{file}:{line} "
-        "[{level}] {message}",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} " f"{hostname} " "{file}:{line} " "[{level}] {message}",
         level="TRACE",
         colorize=False,
         enqueue=True,

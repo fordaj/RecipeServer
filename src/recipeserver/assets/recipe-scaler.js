@@ -1,28 +1,44 @@
 class RecipeScaler {
   constructor() {
-    this.scaleInput = document.getElementById("recipe-scale");
-    this.scaleInput.addEventListener("focus", () => {
-      this.scaleInput.select();
-    });
+    this.scaleSelect = document.getElementById("recipe-scale-select");
+    this.customInput = document.getElementById("recipe-scale-custom");
     this.quantities = document.querySelectorAll(".quantity");
 
-    if (!this.scaleInput) {
-      console.warn("RecipeScaler: #recipe-scale not found");
+    if (!this.scaleSelect || !this.customInput) {
+      console.warn("RecipeScaler: scale controls not found");
       return;
     }
 
-    this.scaleInput.addEventListener("input", () => {
+    this.scaleSelect.addEventListener("change", () => {
+      const isCustom = this.scaleSelect.value === "custom";
+
+      this.scaleSelect.hidden = isCustom;
+      this.customInput.hidden = !isCustom;
+
+      if (isCustom) {
+        this.customInput.focus();
+        this.customInput.select();
+      }
+
+      this.update();
+    });
+
+    this.customInput.addEventListener("focus", () => {
+      this.customInput.select();
+    });
+
+    this.customInput.addEventListener("input", () => {
       this.update();
     });
 
     // Initial render
+    this.customInput.hidden = true;
     this.update(false);
   }
 
   async update() {
     const mathJax = window.MathJax;
 
-    // Do not modify quantities until MathJax is ready.
     if (!mathJax?.startup?.promise) {
       console.warn("RecipeScaler: MathJax hasn't loaded. Check script order.");
       return;
@@ -30,7 +46,10 @@ class RecipeScaler {
 
     await mathJax.startup.promise;
 
-    const scale = parseFloat(this.scaleInput.value);
+    const scale =
+      this.scaleSelect.value === "custom"
+        ? parseFloat(this.customInput.value)
+        : parseFloat(this.scaleSelect.value);
 
     if (!Number.isFinite(scale) || scale <= 0) {
       return;
@@ -92,7 +111,7 @@ class RecipeScaler {
   roundQuantity(value, unit) {
     // Measurements that commonly use fractional amounts.
     if (["tsp", "tbsp", "cup"].includes(unit)) {
-      return Math.round(value * 8) / 8;
+      return value;
     }
 
     // Weight measurements.
@@ -101,7 +120,7 @@ class RecipeScaler {
     }
 
     // Eggs, sticks of butter, etc
-    return Math.round(value * 8) / 8;
+    return value;
   }
 
   formatQuantity(value, unit) {
@@ -118,30 +137,45 @@ class RecipeScaler {
 
   formatNumber(value) {
     const whole = Math.floor(value);
-    const fraction = Math.round((value - whole) * 8);
+    const decimal = value - whole;
 
-    const fractions = {
-      1: "\\frac{1}{8}",
-      2: "\\frac{1}{4}",
-      3: "\\frac{3}{8}",
-      4: "\\frac{1}{2}",
-      5: "\\frac{5}{8}",
-      6: "\\frac{3}{4}",
-      7: "\\frac{7}{8}",
-    };
+    const fractions = [
+      { value: 0, latex: "" },
+      { value: 1 / 8, latex: "\\frac{1}{8}" },
+      // { value: 1 / 6, latex: "\\frac{1}{6}" },
+      { value: 1 / 4, latex: "\\frac{1}{4}" },
+      { value: 1 / 3, latex: "\\frac{1}{3}" },
+      { value: 3 / 8, latex: "\\frac{3}{8}" },
+      { value: 1 / 2, latex: "\\frac{1}{2}" },
+      { value: 5 / 8, latex: "\\frac{5}{8}" },
+      { value: 2 / 3, latex: "\\frac{2}{3}" },
+      { value: 3 / 4, latex: "\\frac{3}{4}" },
+      // { value: 5 / 6, latex: "\\frac{5}{6}" },
+      { value: 7 / 8, latex: "\\frac{7}{8}" },
+      { value: 1, latex: "" },
+    ];
+
+    const nearest = fractions.reduce((best, current) =>
+      Math.abs(current.value - decimal) < Math.abs(best.value - decimal) ? current : best,
+    );
+
+    // Rounding up to the next whole number.
+    if (nearest.value === 1) {
+      return `${whole + 1}`;
+    }
 
     // Exact whole number.
-    if (fraction === 0) {
+    if (nearest.value === 0) {
       return `${whole}`;
     }
 
     // Fraction less than one.
     if (whole === 0) {
-      return fractions[fraction];
+      return nearest.latex;
     }
 
     // Mixed number.
-    return `${whole}\\,${fractions[fraction]}`;
+    return `${whole}\\,${nearest.latex}`;
   }
 
   formatUnit(unit, quantity) {
