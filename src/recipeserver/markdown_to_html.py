@@ -1,5 +1,6 @@
 from pathlib import Path
 from .pallette import Pallette
+from .config import Configuration
 from .image_handler import ImageToColorConverter, get_first_image_in_dir
 import markdown, re, frontmatter
 from textwrap import dedent
@@ -15,6 +16,7 @@ FILE_PATH = Path(__file__)
 RECIPE_SCALER_HTML = FILE_PATH.parent / "assets" / "recipe-scaler.html"
 RECIPE_SCALER_CSS = FILE_PATH.parent / "assets" / "recipe-scaler.css"
 RECIPE_SCALER_JS = FILE_PATH.parent / "assets" / "recipe-scaler.js"
+RECIPE_JS = FILE_PATH.parent / "assets" / "recipe.js"
 CSS_PATH = FILE_PATH.parent / "assets" / "style.css"
 PULL_DOWN_PAGE_REFRESH_JS = FILE_PATH.parent / "assets" / "pull-down-page-refresh.js"
 BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
@@ -40,9 +42,12 @@ HOME_PAGE_ICON_HTML = """
 """
 
 
-@dataclass
-class Configuration:
-    heading_color: str = Pallette.DEFAULT_TITLE
+class MarkdownToHTMLConverter:
+    def __init__(self, cfg: Configuration):
+        self.cfg = cfg
+        self.metadata: dict[str, object] = {}
+        self.metadata_json: str = ""
+        self.heading_color: str = Pallette.DEFAULT_TITLE
 
     def get_doc_specific_overrides(self) -> str:
         return dedent(f"""
@@ -59,13 +64,6 @@ class Configuration:
                 }}
             </style>
         """)
-
-
-class MarkdownToHTMLConverter:
-    def __init__(self, cfg: Configuration = Configuration()):
-        self.cfg = cfg
-        self.metadata: dict[str, object] = {}
-        self.metadata_json: str = ""
 
     def _get_title_from_markdown_content(self, content: list[str]) -> str:
 
@@ -167,7 +165,7 @@ class MarkdownToHTMLConverter:
         #     if old_hash == self._get_file_hash(markdown_file):
         #         logger.debug(f"Skipping {markdown_file}, hashes match")
 
-        logger.file(f"Converting {markdown_file.relative_to(Path.cwd())}")
+        logger.file(f"Converting {markdown_file.relative_to(self.cfg.working_directory)}")
 
         markdown_content = markdown_file.read_text(encoding="UTF-8", newline="\n").splitlines()
         self._preprocess(markdown_content)
@@ -178,13 +176,14 @@ class MarkdownToHTMLConverter:
         image = get_first_image_in_dir(dir)
         if image:
             logger.file(f"Found image: {image}")
-            self.cfg.heading_color = ImageToColorConverter().get_hex_color_from_image(image)
+            self.heading_color = ImageToColorConverter().get_hex_color_from_image(image)
 
         content = "\n".join(markdown_content)
 
         post = frontmatter.loads(content)
 
         self.metadata = post.metadata
+        self._lint_metadata(markdown_file)
         self.metadata_json = json.dumps(self.metadata).replace("<", "\\u003c")  # sanitize input so it is not executable
 
         markdown_body = post.content
@@ -207,16 +206,12 @@ class MarkdownToHTMLConverter:
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>{title}</title>
-            <style>
-            {CSS_PATH.read_text(encoding="UTF-8", newline="\n")}
-            </style>
-            {self.cfg.get_doc_specific_overrides()}
+            <style>{CSS_PATH.read_text(encoding="UTF-8", newline="\n")}</style>
+            {self.get_doc_specific_overrides()}
             {MATHJAX}
         </head>
         <body>
-            <script id="recipe-metadata" type="application/json">
-                {self.metadata_json}
-            </script>
+            <script id="recipe-metadata" type="application/json">{self.metadata_json}</script>
             <main class="recipe">
                 <header class="recipe-header">
                     {HOME_PAGE_ICON_HTML}
@@ -225,12 +220,9 @@ class MarkdownToHTMLConverter:
                 </header>
                 {body}
             </main>
-            <script defer>
-            {RECIPE_SCALER_JS.read_text(encoding="UTF-8", newline="\n")}
-            </script>
-            <script defer>
-            {PULL_DOWN_PAGE_REFRESH_JS.read_text(encoding="UTF-8", newline="\n")}
-            </script>
+            <script defer>{RECIPE_JS.read_text(encoding="UTF-8", newline="\n")}</script>
+            <script defer>{RECIPE_SCALER_JS.read_text(encoding="UTF-8", newline="\n")}</script>
+            <script defer>{PULL_DOWN_PAGE_REFRESH_JS.read_text(encoding="UTF-8", newline="\n")}</script>
         </body>
         </html>
         """)
@@ -240,9 +232,13 @@ class MarkdownToHTMLConverter:
 
         # Write to file
         html_file.write_text(html, encoding="UTF-8", newline="\n")
-        logger.info(f"Created {html_file.relative_to(Path.cwd())}")
+        logger.info(f"Created {html_file.relative_to(self.cfg.working_directory)}")
 
         self.lint_html(html_file)
+
+    def _lint_metadata(self, markdown_file: Path):
+        if "meals" not in self.metadata.keys():
+            logger.warning(f'[MetadataWarning]{markdown_file}: Missing key "meals:"')
 
     def lint_html(self, html_file: Path):
         content = html_file.read_text(encoding="UTF-8", newline="\n").splitlines()

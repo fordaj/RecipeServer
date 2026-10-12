@@ -2,7 +2,7 @@ import html
 import json
 from pathlib import Path
 from textwrap import dedent
-
+from .config import Configuration
 from .pallette import Pallette
 
 FILE_PATH = Path(__file__)
@@ -17,8 +17,9 @@ class Recipe:
 
 
 class IndexHTMLGenerator:
-    def __init__(self):
+    def __init__(self, cfg: Configuration):
         self.recipes: list[Recipe] = []
+        self.cfg = cfg
 
     def add(self, recipe: Recipe):
         self.recipes.append(recipe)
@@ -52,7 +53,7 @@ class IndexHTMLGenerator:
 
         for recipe in self.recipes:
             metadata = recipe.metadata
-            file = recipe.html_file.relative_to(Path.cwd())
+            file = recipe.html_file.relative_to(self.cfg.working_directory)
 
             title = str(metadata.get("title") or self.deslugify(file.parent.name))
 
@@ -218,4 +219,5 @@ class IndexHTMLGenerator:
             </html>
         """)
 
-        Path("./index.html").write_text(html_page, encoding="UTF-8", newline="\n")
+        index_html = self.cfg.working_directory / "index.html"
+        index_html.write_text(html_page, encoding="UTF-8", newline="\n")

@@ -1,9 +1,9 @@
 *.html
-breakfast/
-dessert/
-dinner/
-ingredient/
-lunch/
+# breakfast/
+# dessert/
+# dinner/
+# ingredient/
+# lunch/
 
 # ==========================================
 # Byte-compiled / optimized / DLL files
