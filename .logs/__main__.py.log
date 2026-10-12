@@ -1810,3 +1810,361 @@
 2026-10-11 20:26:56.913 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\tuna-casserole\recipe.md
 2026-10-11 20:26:56.913 forte markdown_to_html.py:178 [FILE] Found image: C:\Users\andrewford\Recipes\kristy-and-evan\tuna-casserole\image.png
 2026-10-11 20:26:57.007 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\tuna-casserole\recipe.html
+2026-10-11 20:34:08.613 forte _logger.py:91 [TRACE] Logger setup complete
+2026-10-11 20:34:08.616 forte config.py:42 [INFO] Reading C:\Users\andrewford\AppData\Local\recipe-server\config.txt
+2026-10-11 20:34:46.421 forte markdown_to_html.py:168 [FILE] Converting breakfast\egg-cups-bites\recipe.md
+2026-10-11 20:34:46.422 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\egg-cups-bites\image.png
+2026-10-11 20:34:46.667 forte markdown_to_html.py:235 [INFO] Created breakfast\egg-cups-bites\recipe.html
+2026-10-11 20:34:46.759 forte markdown_to_html.py:168 [FILE] Converting breakfast\french-toast\recipe.md
+2026-10-11 20:34:46.760 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\french-toast\image.png
+2026-10-11 20:34:46.831 forte markdown_to_html.py:235 [INFO] Created breakfast\french-toast\recipe.html
+2026-10-11 20:34:46.885 forte markdown_to_html.py:168 [FILE] Converting breakfast\pancakes\recipe.md
+2026-10-11 20:34:46.886 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\pancakes\image.png
+2026-10-11 20:34:46.979 forte markdown_to_html.py:235 [INFO] Created breakfast\pancakes\recipe.html
+2026-10-11 20:34:47.035 forte markdown_to_html.py:168 [FILE] Converting breakfast\peanut-butter-and-berries-overnight-oats\recipe.md
+2026-10-11 20:34:47.036 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\peanut-butter-and-berries-overnight-oats\image.png
+2026-10-11 20:34:47.311 forte markdown_to_html.py:235 [INFO] Created breakfast\peanut-butter-and-berries-overnight-oats\recipe.html
+2026-10-11 20:34:47.367 forte markdown_to_html.py:168 [FILE] Converting breakfast\waffles\recipe.md
+2026-10-11 20:34:47.367 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\waffles\image.png
+2026-10-11 20:34:47.452 forte markdown_to_html.py:235 [INFO] Created breakfast\waffles\recipe.html
+2026-10-11 20:34:47.508 forte markdown_to_html.py:168 [FILE] Converting dessert\banana-bread\recipe.md
+2026-10-11 20:34:47.508 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\banana-bread\image.png
+2026-10-11 20:34:47.579 forte markdown_to_html.py:235 [INFO] Created dessert\banana-bread\recipe.html
+2026-10-11 20:34:47.640 forte markdown_to_html.py:168 [FILE] Converting dessert\brownies\recipe.md
+2026-10-11 20:34:47.640 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\brownies\image.png
+2026-10-11 20:34:47.788 forte markdown_to_html.py:235 [INFO] Created dessert\brownies\recipe.html
+2026-10-11 20:34:47.894 forte markdown_to_html.py:168 [FILE] Converting dessert\chocolate-chip-cookies\recipe.md
+2026-10-11 20:34:47.895 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\chocolate-chip-cookies\image.png
+2026-10-11 20:34:47.991 forte markdown_to_html.py:235 [INFO] Created dessert\chocolate-chip-cookies\recipe.html
+2026-10-11 20:34:48.057 forte markdown_to_html.py:168 [FILE] Converting dessert\cinnamon-streussel-coffee-cake\recipe.md
+2026-10-11 20:34:48.058 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\cinnamon-streussel-coffee-cake\image.png
+2026-10-11 20:34:48.212 forte markdown_to_html.py:235 [INFO] Created dessert\cinnamon-streussel-coffee-cake\recipe.html
+2026-10-11 20:34:48.324 forte markdown_to_html.py:168 [FILE] Converting dessert\cottage-cheese-pb-chocolate-ice-cream\recipe.md
+2026-10-11 20:34:48.325 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\cottage-cheese-pb-chocolate-ice-cream\image.png
+2026-10-11 20:34:48.387 forte markdown_to_html.py:235 [INFO] Created dessert\cottage-cheese-pb-chocolate-ice-cream\recipe.html
+2026-10-11 20:34:48.444 forte markdown_to_html.py:168 [FILE] Converting dessert\joyfoodsunshine-chocolate-chip-cookies\recipe.md
+2026-10-11 20:34:48.445 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\joyfoodsunshine-chocolate-chip-cookies\image.png
+2026-10-11 20:34:48.583 forte markdown_to_html.py:235 [INFO] Created dessert\joyfoodsunshine-chocolate-chip-cookies\recipe.html
+2026-10-11 20:34:48.691 forte markdown_to_html.py:168 [FILE] Converting dessert\no-bake-lactation-bites\recipe.md
+2026-10-11 20:34:48.691 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\no-bake-lactation-bites\image.png
+2026-10-11 20:34:48.788 forte markdown_to_html.py:235 [INFO] Created dessert\no-bake-lactation-bites\recipe.html
+2026-10-11 20:34:48.855 forte markdown_to_html.py:168 [FILE] Converting dessert\protein-energy-balls-cookie-dough-bites\recipe.md
+2026-10-11 20:34:48.856 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\protein-energy-balls-cookie-dough-bites\image.png
+2026-10-11 20:34:48.930 forte markdown_to_html.py:235 [INFO] Created dessert\protein-energy-balls-cookie-dough-bites\recipe.html
+2026-10-11 20:34:48.986 forte markdown_to_html.py:168 [FILE] Converting dinner\buffalo-chicken-casserole\recipe.md
+2026-10-11 20:34:48.987 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\buffalo-chicken-casserole\image.png
+2026-10-11 20:34:49.098 forte markdown_to_html.py:235 [INFO] Created dinner\buffalo-chicken-casserole\recipe.html
+2026-10-11 20:34:49.164 forte markdown_to_html.py:168 [FILE] Converting dinner\butter-chicken\recipe.md
+2026-10-11 20:34:49.165 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\butter-chicken\image.png
+2026-10-11 20:34:49.268 forte markdown_to_html.py:235 [INFO] Created dinner\butter-chicken\recipe.html
+2026-10-11 20:34:49.337 forte markdown_to_html.py:168 [FILE] Converting dinner\cast-iron-pizza\recipe.md
+2026-10-11 20:34:49.337 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\cast-iron-pizza\image.png
+2026-10-11 20:34:49.443 forte markdown_to_html.py:235 [INFO] Created dinner\cast-iron-pizza\recipe.html
+2026-10-11 20:34:49.510 forte markdown_to_html.py:168 [FILE] Converting dinner\chicken-satay\recipe.md
+2026-10-11 20:34:49.511 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\chicken-satay\image.png
+2026-10-11 20:34:49.655 forte markdown_to_html.py:235 [INFO] Created dinner\chicken-satay\recipe.html
+2026-10-11 20:34:49.764 forte markdown_to_html.py:168 [FILE] Converting dinner\chipotle-chicken-thighs-with-honey-mustard-sauce\recipe.md
+2026-10-11 20:34:49.765 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\chipotle-chicken-thighs-with-honey-mustard-sauce\image.png
+2026-10-11 20:34:49.858 forte markdown_to_html.py:235 [INFO] Created dinner\chipotle-chicken-thighs-with-honey-mustard-sauce\recipe.html
+2026-10-11 20:34:49.925 forte markdown_to_html.py:168 [FILE] Converting dinner\cilantro-lime-chicken-thighs\recipe.md
+2026-10-11 20:34:49.926 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\cilantro-lime-chicken-thighs\image.png
+2026-10-11 20:34:50.006 forte markdown_to_html.py:235 [INFO] Created dinner\cilantro-lime-chicken-thighs\recipe.html
+2026-10-11 20:34:50.069 forte markdown_to_html.py:168 [FILE] Converting dinner\corn-flake-fried-chicken\recipe.md
+2026-10-11 20:34:50.070 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\corn-flake-fried-chicken\image.png
+2026-10-11 20:34:50.160 forte markdown_to_html.py:235 [INFO] Created dinner\corn-flake-fried-chicken\recipe.html
+2026-10-11 20:34:50.224 forte markdown_to_html.py:168 [FILE] Converting dinner\greek-lemon-garlic-and-herb-chicken-with-tzatziki\recipe.md
+2026-10-11 20:34:50.225 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\greek-lemon-garlic-and-herb-chicken-with-tzatziki\image.png
+2026-10-11 20:34:50.315 forte markdown_to_html.py:235 [INFO] Created dinner\greek-lemon-garlic-and-herb-chicken-with-tzatziki\recipe.html
+2026-10-11 20:34:50.387 forte markdown_to_html.py:168 [FILE] Converting dinner\korean-style-ground-beef-over-rice\recipe.md
+2026-10-11 20:34:50.387 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\korean-style-ground-beef-over-rice\image.png
+2026-10-11 20:34:50.458 forte markdown_to_html.py:235 [INFO] Created dinner\korean-style-ground-beef-over-rice\recipe.html
+2026-10-11 20:34:50.520 forte markdown_to_html.py:168 [FILE] Converting dinner\lemon-garlic-butter-chicken-and-green-beans\recipe.md
+2026-10-11 20:34:50.520 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\lemon-garlic-butter-chicken-and-green-beans\image.png
+2026-10-11 20:34:50.603 forte markdown_to_html.py:235 [INFO] Created dinner\lemon-garlic-butter-chicken-and-green-beans\recipe.html
+2026-10-11 20:34:50.669 forte markdown_to_html.py:168 [FILE] Converting dinner\sheet-pan-gnocchi-with-chicken-sausage\recipe.md
+2026-10-11 20:34:50.670 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\sheet-pan-gnocchi-with-chicken-sausage\image.png
+2026-10-11 20:34:50.756 forte markdown_to_html.py:235 [INFO] Created dinner\sheet-pan-gnocchi-with-chicken-sausage\recipe.html
+2026-10-11 20:34:50.828 forte markdown_to_html.py:168 [FILE] Converting dinner\slow-cooker-barbacoa\recipe.md
+2026-10-11 20:34:50.828 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\slow-cooker-barbacoa\image.png
+2026-10-11 20:34:50.907 forte markdown_to_html.py:235 [INFO] Created dinner\slow-cooker-barbacoa\recipe.html
+2026-10-11 20:34:50.968 forte markdown_to_html.py:168 [FILE] Converting dinner\slow-cooker-carnitas\recipe.md
+2026-10-11 20:34:50.969 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\slow-cooker-carnitas\image.png
+2026-10-11 20:34:51.049 forte markdown_to_html.py:235 [INFO] Created dinner\slow-cooker-carnitas\recipe.html
+2026-10-11 20:34:51.106 forte markdown_to_html.py:168 [FILE] Converting dinner\slow-cooker-pulled-pork\recipe.md
+2026-10-11 20:34:51.107 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\slow-cooker-pulled-pork\image.png
+2026-10-11 20:34:51.189 forte markdown_to_html.py:235 [INFO] Created dinner\slow-cooker-pulled-pork\recipe.html
+2026-10-11 20:34:51.253 forte markdown_to_html.py:168 [FILE] Converting dinner\stuffed-pepper-pizza-casserole\recipe.md
+2026-10-11 20:34:51.254 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\stuffed-pepper-pizza-casserole\image.png
+2026-10-11 20:34:51.329 forte markdown_to_html.py:235 [INFO] Created dinner\stuffed-pepper-pizza-casserole\recipe.html
+2026-10-11 20:34:51.400 forte markdown_to_html.py:168 [FILE] Converting dinner\taco-mac-n-cheese-high-protein\recipe.md
+2026-10-11 20:34:51.401 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\taco-mac-n-cheese-high-protein\image.png
+2026-10-11 20:34:51.489 forte markdown_to_html.py:235 [INFO] Created dinner\taco-mac-n-cheese-high-protein\recipe.html
+2026-10-11 20:34:51.555 forte markdown_to_html.py:168 [FILE] Converting ingredient\basil-pizza-sauce\recipe.md
+2026-10-11 20:34:51.555 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\basil-pizza-sauce\image.png
+2026-10-11 20:34:51.662 forte markdown_to_html.py:235 [INFO] Created ingredient\basil-pizza-sauce\recipe.html
+2026-10-11 20:34:51.726 forte markdown_to_html.py:168 [FILE] Converting ingredient\butter\recipe.md
+2026-10-11 20:34:51.727 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\butter\image.png
+2026-10-11 20:34:51.803 forte markdown_to_html.py:235 [INFO] Created ingredient\butter\recipe.html
+2026-10-11 20:34:51.853 forte markdown_to_html.py:168 [FILE] Converting ingredient\homeade-yogurt\recipe.md
+2026-10-11 20:34:51.854 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\homeade-yogurt\image.png
+2026-10-11 20:34:51.945 forte markdown_to_html.py:235 [INFO] Created ingredient\homeade-yogurt\recipe.html
+2026-10-11 20:34:52.023 forte markdown_to_html.py:168 [FILE] Converting ingredient\pizza-dough-and-sauce\recipe.md
+2026-10-11 20:34:52.024 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\pizza-dough-and-sauce\image.png
+2026-10-11 20:34:52.132 forte markdown_to_html.py:235 [INFO] Created ingredient\pizza-dough-and-sauce\recipe.html
+2026-10-11 20:34:52.199 forte markdown_to_html.py:168 [FILE] Converting ingredient\taco-seasoning\recipe.md
+2026-10-11 20:34:52.200 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\taco-seasoning\image.png
+2026-10-11 20:34:52.553 forte markdown_to_html.py:235 [INFO] Created ingredient\taco-seasoning\recipe.html
+2026-10-11 20:34:52.843 forte markdown_to_html.py:168 [FILE] Converting ingredient\whipped-cream\recipe.md
+2026-10-11 20:34:52.844 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\whipped-cream\image.png
+2026-10-11 20:34:52.905 forte markdown_to_html.py:235 [INFO] Created ingredient\whipped-cream\recipe.html
+2026-10-11 20:34:52.953 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\braised-chicken-thighs-with-potataoes-fennel-and-tarragon\recipe.md
+2026-10-11 20:34:52.954 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\braised-chicken-thighs-with-potataoes-fennel-and-tarragon\image.png
+2026-10-11 20:34:53.050 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\braised-chicken-thighs-with-potataoes-fennel-and-tarragon\recipe.html
+2026-10-11 20:34:53.134 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\sausage-and-tortellini-florentine-soup\recipe.md
+2026-10-11 20:34:53.135 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\sausage-and-tortellini-florentine-soup\image.png
+2026-10-11 20:34:53.231 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\sausage-and-tortellini-florentine-soup\recipe.html
+2026-10-11 20:34:53.302 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\sugar-cookies\recipe.md
+2026-10-11 20:34:53.302 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\sugar-cookies\image.png
+2026-10-11 20:34:53.387 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\sugar-cookies\recipe.html
+2026-10-11 20:34:53.453 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\tuna-casserole\recipe.md
+2026-10-11 20:34:53.453 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\tuna-casserole\image.png
+2026-10-11 20:34:53.553 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\tuna-casserole\recipe.html
+2026-10-11 20:43:55.745 forte _logger.py:91 [TRACE] Logger setup complete
+2026-10-11 20:43:55.747 forte config.py:42 [INFO] Reading C:\Users\andrewford\AppData\Local\recipe-server\config.txt
+2026-10-11 20:43:55.754 forte markdown_to_html.py:168 [FILE] Converting breakfast\egg-cups-bites\recipe.md
+2026-10-11 20:43:55.755 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\egg-cups-bites\image.png
+2026-10-11 20:43:55.888 forte markdown_to_html.py:235 [INFO] Created breakfast\egg-cups-bites\recipe.html
+2026-10-11 20:43:55.964 forte markdown_to_html.py:168 [FILE] Converting breakfast\french-toast\recipe.md
+2026-10-11 20:43:55.965 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\french-toast\image.png
+2026-10-11 20:43:56.010 forte markdown_to_html.py:235 [INFO] Created breakfast\french-toast\recipe.html
+2026-10-11 20:43:56.050 forte markdown_to_html.py:168 [FILE] Converting breakfast\pancakes\recipe.md
+2026-10-11 20:43:56.051 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\pancakes\image.png
+2026-10-11 20:43:56.124 forte markdown_to_html.py:235 [INFO] Created breakfast\pancakes\recipe.html
+2026-10-11 20:43:56.166 forte markdown_to_html.py:168 [FILE] Converting breakfast\peanut-butter-and-berries-overnight-oats\recipe.md
+2026-10-11 20:43:56.167 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\peanut-butter-and-berries-overnight-oats\image.png
+2026-10-11 20:43:56.245 forte markdown_to_html.py:235 [INFO] Created breakfast\peanut-butter-and-berries-overnight-oats\recipe.html
+2026-10-11 20:43:56.285 forte markdown_to_html.py:168 [FILE] Converting breakfast\waffles\recipe.md
+2026-10-11 20:43:56.285 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\waffles\image.png
+2026-10-11 20:43:56.345 forte markdown_to_html.py:235 [INFO] Created breakfast\waffles\recipe.html
+2026-10-11 20:43:56.387 forte markdown_to_html.py:168 [FILE] Converting dessert\banana-bread\recipe.md
+2026-10-11 20:43:56.388 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\banana-bread\image.png
+2026-10-11 20:43:56.433 forte markdown_to_html.py:235 [INFO] Created dessert\banana-bread\recipe.html
+2026-10-11 20:43:56.476 forte markdown_to_html.py:168 [FILE] Converting dessert\brownies\recipe.md
+2026-10-11 20:43:56.477 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\brownies\image.png
+2026-10-11 20:43:56.589 forte markdown_to_html.py:235 [INFO] Created dessert\brownies\recipe.html
+2026-10-11 20:43:56.678 forte markdown_to_html.py:168 [FILE] Converting dessert\chocolate-chip-cookies\recipe.md
+2026-10-11 20:43:56.679 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\chocolate-chip-cookies\image.png
+2026-10-11 20:43:56.749 forte markdown_to_html.py:235 [INFO] Created dessert\chocolate-chip-cookies\recipe.html
+2026-10-11 20:43:56.796 forte markdown_to_html.py:168 [FILE] Converting dessert\cinnamon-streussel-coffee-cake\recipe.md
+2026-10-11 20:43:56.798 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\cinnamon-streussel-coffee-cake\image.png
+2026-10-11 20:43:56.913 forte markdown_to_html.py:235 [INFO] Created dessert\cinnamon-streussel-coffee-cake\recipe.html
+2026-10-11 20:43:57.010 forte markdown_to_html.py:168 [FILE] Converting dessert\cottage-cheese-pb-chocolate-ice-cream\recipe.md
+2026-10-11 20:43:57.011 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\cottage-cheese-pb-chocolate-ice-cream\image.png
+2026-10-11 20:43:57.054 forte markdown_to_html.py:235 [INFO] Created dessert\cottage-cheese-pb-chocolate-ice-cream\recipe.html
+2026-10-11 20:43:57.098 forte markdown_to_html.py:168 [FILE] Converting dessert\joyfoodsunshine-chocolate-chip-cookies\recipe.md
+2026-10-11 20:43:57.099 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\joyfoodsunshine-chocolate-chip-cookies\image.png
+2026-10-11 20:43:57.211 forte markdown_to_html.py:235 [INFO] Created dessert\joyfoodsunshine-chocolate-chip-cookies\recipe.html
+2026-10-11 20:43:57.293 forte markdown_to_html.py:168 [FILE] Converting dessert\no-bake-lactation-bites\recipe.md
+2026-10-11 20:43:57.294 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\no-bake-lactation-bites\image.png
+2026-10-11 20:43:57.371 forte markdown_to_html.py:235 [INFO] Created dessert\no-bake-lactation-bites\recipe.html
+2026-10-11 20:43:57.429 forte markdown_to_html.py:168 [FILE] Converting dessert\protein-energy-balls-cookie-dough-bites\recipe.md
+2026-10-11 20:43:57.429 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\protein-energy-balls-cookie-dough-bites\image.png
+2026-10-11 20:43:57.486 forte markdown_to_html.py:235 [INFO] Created dessert\protein-energy-balls-cookie-dough-bites\recipe.html
+2026-10-11 20:43:57.527 forte markdown_to_html.py:168 [FILE] Converting dinner\buffalo-chicken-casserole\recipe.md
+2026-10-11 20:43:57.527 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\buffalo-chicken-casserole\image.png
+2026-10-11 20:43:57.611 forte markdown_to_html.py:235 [INFO] Created dinner\buffalo-chicken-casserole\recipe.html
+2026-10-11 20:43:57.658 forte markdown_to_html.py:168 [FILE] Converting dinner\butter-chicken\recipe.md
+2026-10-11 20:43:57.659 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\butter-chicken\image.png
+2026-10-11 20:43:57.731 forte markdown_to_html.py:235 [INFO] Created dinner\butter-chicken\recipe.html
+2026-10-11 20:43:57.787 forte markdown_to_html.py:168 [FILE] Converting dinner\cast-iron-pizza\recipe.md
+2026-10-11 20:43:57.788 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\cast-iron-pizza\image.png
+2026-10-11 20:43:57.864 forte markdown_to_html.py:235 [INFO] Created dinner\cast-iron-pizza\recipe.html
+2026-10-11 20:43:57.914 forte markdown_to_html.py:168 [FILE] Converting dinner\chicken-satay\recipe.md
+2026-10-11 20:43:57.915 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\chicken-satay\image.png
+2026-10-11 20:43:58.030 forte markdown_to_html.py:235 [INFO] Created dinner\chicken-satay\recipe.html
+2026-10-11 20:43:58.116 forte markdown_to_html.py:168 [FILE] Converting dinner\chipotle-chicken-thighs-with-honey-mustard-sauce\recipe.md
+2026-10-11 20:43:58.117 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\chipotle-chicken-thighs-with-honey-mustard-sauce\image.png
+2026-10-11 20:43:58.178 forte markdown_to_html.py:235 [INFO] Created dinner\chipotle-chicken-thighs-with-honey-mustard-sauce\recipe.html
+2026-10-11 20:43:58.230 forte markdown_to_html.py:168 [FILE] Converting dinner\cilantro-lime-chicken-thighs\recipe.md
+2026-10-11 20:43:58.230 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\cilantro-lime-chicken-thighs\image.png
+2026-10-11 20:43:58.287 forte markdown_to_html.py:235 [INFO] Created dinner\cilantro-lime-chicken-thighs\recipe.html
+2026-10-11 20:43:58.337 forte markdown_to_html.py:168 [FILE] Converting dinner\corn-flake-fried-chicken\recipe.md
+2026-10-11 20:43:58.337 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\corn-flake-fried-chicken\image.png
+2026-10-11 20:43:58.407 forte markdown_to_html.py:235 [INFO] Created dinner\corn-flake-fried-chicken\recipe.html
+2026-10-11 20:43:58.465 forte markdown_to_html.py:168 [FILE] Converting dinner\greek-lemon-garlic-and-herb-chicken-with-tzatziki\recipe.md
+2026-10-11 20:43:58.466 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\greek-lemon-garlic-and-herb-chicken-with-tzatziki\image.png
+2026-10-11 20:43:58.540 forte markdown_to_html.py:235 [INFO] Created dinner\greek-lemon-garlic-and-herb-chicken-with-tzatziki\recipe.html
+2026-10-11 20:43:58.602 forte markdown_to_html.py:168 [FILE] Converting dinner\korean-style-ground-beef-over-rice\recipe.md
+2026-10-11 20:43:58.603 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\korean-style-ground-beef-over-rice\image.png
+2026-10-11 20:43:58.655 forte markdown_to_html.py:235 [INFO] Created dinner\korean-style-ground-beef-over-rice\recipe.html
+2026-10-11 20:43:58.703 forte markdown_to_html.py:168 [FILE] Converting dinner\lemon-garlic-butter-chicken-and-green-beans\recipe.md
+2026-10-11 20:43:58.703 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\lemon-garlic-butter-chicken-and-green-beans\image.png
+2026-10-11 20:43:58.762 forte markdown_to_html.py:235 [INFO] Created dinner\lemon-garlic-butter-chicken-and-green-beans\recipe.html
+2026-10-11 20:43:58.817 forte markdown_to_html.py:168 [FILE] Converting dinner\sheet-pan-gnocchi-with-chicken-sausage\recipe.md
+2026-10-11 20:43:58.818 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\sheet-pan-gnocchi-with-chicken-sausage\image.png
+2026-10-11 20:43:58.877 forte markdown_to_html.py:235 [INFO] Created dinner\sheet-pan-gnocchi-with-chicken-sausage\recipe.html
+2026-10-11 20:43:58.931 forte markdown_to_html.py:168 [FILE] Converting dinner\slow-cooker-barbacoa\recipe.md
+2026-10-11 20:43:58.937 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\slow-cooker-barbacoa\image.png
+2026-10-11 20:43:58.987 forte markdown_to_html.py:235 [INFO] Created dinner\slow-cooker-barbacoa\recipe.html
+2026-10-11 20:43:59.034 forte markdown_to_html.py:168 [FILE] Converting dinner\slow-cooker-carnitas\recipe.md
+2026-10-11 20:43:59.035 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\slow-cooker-carnitas\image.png
+2026-10-11 20:43:59.082 forte markdown_to_html.py:235 [INFO] Created dinner\slow-cooker-carnitas\recipe.html
+2026-10-11 20:43:59.127 forte markdown_to_html.py:168 [FILE] Converting dinner\slow-cooker-pulled-pork\recipe.md
+2026-10-11 20:43:59.128 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\slow-cooker-pulled-pork\image.png
+2026-10-11 20:43:59.182 forte markdown_to_html.py:235 [INFO] Created dinner\slow-cooker-pulled-pork\recipe.html
+2026-10-11 20:43:59.230 forte markdown_to_html.py:168 [FILE] Converting dinner\stuffed-pepper-pizza-casserole\recipe.md
+2026-10-11 20:43:59.231 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\stuffed-pepper-pizza-casserole\image.png
+2026-10-11 20:43:59.284 forte markdown_to_html.py:235 [INFO] Created dinner\stuffed-pepper-pizza-casserole\recipe.html
+2026-10-11 20:43:59.328 forte markdown_to_html.py:168 [FILE] Converting dinner\taco-mac-n-cheese-high-protein\recipe.md
+2026-10-11 20:43:59.329 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\taco-mac-n-cheese-high-protein\image.png
+2026-10-11 20:43:59.388 forte markdown_to_html.py:235 [INFO] Created dinner\taco-mac-n-cheese-high-protein\recipe.html
+2026-10-11 20:43:59.439 forte markdown_to_html.py:168 [FILE] Converting ingredient\basil-pizza-sauce\recipe.md
+2026-10-11 20:43:59.440 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\basil-pizza-sauce\image.png
+2026-10-11 20:43:59.513 forte markdown_to_html.py:235 [INFO] Created ingredient\basil-pizza-sauce\recipe.html
+2026-10-11 20:43:59.567 forte markdown_to_html.py:168 [FILE] Converting ingredient\butter\recipe.md
+2026-10-11 20:43:59.567 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\butter\image.png
+2026-10-11 20:43:59.625 forte markdown_to_html.py:235 [INFO] Created ingredient\butter\recipe.html
+2026-10-11 20:43:59.665 forte markdown_to_html.py:168 [FILE] Converting ingredient\homeade-yogurt\recipe.md
+2026-10-11 20:43:59.666 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\homeade-yogurt\image.png
+2026-10-11 20:43:59.733 forte markdown_to_html.py:235 [INFO] Created ingredient\homeade-yogurt\recipe.html
+2026-10-11 20:43:59.796 forte markdown_to_html.py:168 [FILE] Converting ingredient\pizza-dough-and-sauce\recipe.md
+2026-10-11 20:43:59.796 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\pizza-dough-and-sauce\image.png
+2026-10-11 20:43:59.879 forte markdown_to_html.py:235 [INFO] Created ingredient\pizza-dough-and-sauce\recipe.html
+2026-10-11 20:43:59.929 forte markdown_to_html.py:168 [FILE] Converting ingredient\taco-seasoning\recipe.md
+2026-10-11 20:43:59.930 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\taco-seasoning\image.png
+2026-10-11 20:44:00.270 forte markdown_to_html.py:235 [INFO] Created ingredient\taco-seasoning\recipe.html
+2026-10-11 20:44:00.589 forte markdown_to_html.py:168 [FILE] Converting ingredient\whipped-cream\recipe.md
+2026-10-11 20:44:00.591 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\whipped-cream\image.png
+2026-10-11 20:44:00.631 forte markdown_to_html.py:235 [INFO] Created ingredient\whipped-cream\recipe.html
+2026-10-11 20:44:00.673 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\braised-chicken-thighs-with-potataoes-fennel-and-tarragon\recipe.md
+2026-10-11 20:44:00.674 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\braised-chicken-thighs-with-potataoes-fennel-and-tarragon\image.png
+2026-10-11 20:44:00.738 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\braised-chicken-thighs-with-potataoes-fennel-and-tarragon\recipe.html
+2026-10-11 20:44:00.821 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\sausage-and-tortellini-florentine-soup\recipe.md
+2026-10-11 20:44:00.821 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\sausage-and-tortellini-florentine-soup\image.png
+2026-10-11 20:44:00.907 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\sausage-and-tortellini-florentine-soup\recipe.html
+2026-10-11 20:44:00.973 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\sugar-cookies\recipe.md
+2026-10-11 20:44:00.975 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\sugar-cookies\image.png
+2026-10-11 20:44:01.041 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\sugar-cookies\recipe.html
+2026-10-11 20:44:01.098 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\tuna-casserole\recipe.md
+2026-10-11 20:44:01.099 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\tuna-casserole\image.png
+2026-10-11 20:44:01.188 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\tuna-casserole\recipe.html
+2026-10-11 20:55:30.518 forte _logger.py:91 [TRACE] Logger setup complete
+2026-10-11 20:55:30.520 forte config.py:42 [INFO] Reading C:\Users\andrewford\AppData\Local\recipe-server\config.txt
+2026-10-11 20:55:30.523 forte markdown_to_html.py:168 [FILE] Converting breakfast\egg-cups-bites\recipe.md
+2026-10-11 20:55:30.523 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\egg-cups-bites\image.png
+2026-10-11 20:55:30.659 forte markdown_to_html.py:235 [INFO] Created breakfast\egg-cups-bites\recipe.html
+2026-10-11 20:55:30.742 forte markdown_to_html.py:168 [FILE] Converting breakfast\french-toast\recipe.md
+2026-10-11 20:55:30.743 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\french-toast\image.png
+2026-10-11 20:55:30.790 forte markdown_to_html.py:235 [INFO] Created breakfast\french-toast\recipe.html
+2026-10-11 20:55:30.836 forte markdown_to_html.py:168 [FILE] Converting breakfast\pancakes\recipe.md
+2026-10-11 20:55:30.837 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\pancakes\image.png
+2026-10-11 20:55:30.912 forte markdown_to_html.py:235 [INFO] Created breakfast\pancakes\recipe.html
+2026-10-11 20:55:30.961 forte markdown_to_html.py:168 [FILE] Converting breakfast\peanut-butter-and-berries-overnight-oats\recipe.md
+2026-10-11 20:55:30.961 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\peanut-butter-and-berries-overnight-oats\image.png
+2026-10-11 20:55:31.042 forte markdown_to_html.py:235 [INFO] Created breakfast\peanut-butter-and-berries-overnight-oats\recipe.html
+2026-10-11 20:55:31.087 forte markdown_to_html.py:168 [FILE] Converting breakfast\waffles\recipe.md
+2026-10-11 20:55:31.088 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\breakfast\waffles\image.png
+2026-10-11 20:55:31.149 forte markdown_to_html.py:235 [INFO] Created breakfast\waffles\recipe.html
+2026-10-11 20:55:31.197 forte markdown_to_html.py:168 [FILE] Converting dessert\banana-bread\recipe.md
+2026-10-11 20:55:31.198 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\banana-bread\image.png
+2026-10-11 20:55:31.243 forte markdown_to_html.py:235 [INFO] Created dessert\banana-bread\recipe.html
+2026-10-11 20:55:31.295 forte markdown_to_html.py:168 [FILE] Converting dessert\brownies\recipe.md
+2026-10-11 20:55:31.296 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\brownies\image.png
+2026-10-11 20:55:31.411 forte markdown_to_html.py:235 [INFO] Created dessert\brownies\recipe.html
+2026-10-11 20:55:31.513 forte markdown_to_html.py:168 [FILE] Converting dessert\chocolate-chip-cookies\recipe.md
+2026-10-11 20:55:31.513 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\chocolate-chip-cookies\image.png
+2026-10-11 20:55:31.587 forte markdown_to_html.py:235 [INFO] Created dessert\chocolate-chip-cookies\recipe.html
+2026-10-11 20:55:31.645 forte markdown_to_html.py:168 [FILE] Converting dessert\cinnamon-streussel-coffee-cake\recipe.md
+2026-10-11 20:55:31.647 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\cinnamon-streussel-coffee-cake\image.png
+2026-10-11 20:55:31.764 forte markdown_to_html.py:235 [INFO] Created dessert\cinnamon-streussel-coffee-cake\recipe.html
+2026-10-11 20:55:31.870 forte markdown_to_html.py:168 [FILE] Converting dessert\cottage-cheese-pb-chocolate-ice-cream\recipe.md
+2026-10-11 20:55:31.871 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\cottage-cheese-pb-chocolate-ice-cream\image.png
+2026-10-11 20:55:31.915 forte markdown_to_html.py:235 [INFO] Created dessert\cottage-cheese-pb-chocolate-ice-cream\recipe.html
+2026-10-11 20:55:31.967 forte markdown_to_html.py:168 [FILE] Converting dessert\joyfoodsunshine-chocolate-chip-cookies\recipe.md
+2026-10-11 20:55:31.968 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\joyfoodsunshine-chocolate-chip-cookies\image.png
+2026-10-11 20:55:32.077 forte markdown_to_html.py:235 [INFO] Created dessert\joyfoodsunshine-chocolate-chip-cookies\recipe.html
+2026-10-11 20:55:32.167 forte markdown_to_html.py:168 [FILE] Converting dessert\no-bake-lactation-bites\recipe.md
+2026-10-11 20:55:32.168 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\no-bake-lactation-bites\image.png
+2026-10-11 20:55:32.243 forte markdown_to_html.py:235 [INFO] Created dessert\no-bake-lactation-bites\recipe.html
+2026-10-11 20:55:32.302 forte markdown_to_html.py:168 [FILE] Converting dessert\protein-energy-balls-cookie-dough-bites\recipe.md
+2026-10-11 20:55:32.302 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dessert\protein-energy-balls-cookie-dough-bites\image.png
+2026-10-11 20:55:32.358 forte markdown_to_html.py:235 [INFO] Created dessert\protein-energy-balls-cookie-dough-bites\recipe.html
+2026-10-11 20:55:32.404 forte markdown_to_html.py:168 [FILE] Converting dinner\buffalo-chicken-casserole\recipe.md
+2026-10-11 20:55:32.404 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\buffalo-chicken-casserole\image.png
+2026-10-11 20:55:32.485 forte markdown_to_html.py:235 [INFO] Created dinner\buffalo-chicken-casserole\recipe.html
+2026-10-11 20:55:32.537 forte markdown_to_html.py:168 [FILE] Converting dinner\butter-chicken\recipe.md
+2026-10-11 20:55:32.538 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\butter-chicken\image.png
+2026-10-11 20:55:32.610 forte markdown_to_html.py:235 [INFO] Created dinner\butter-chicken\recipe.html
+2026-10-11 20:55:32.669 forte markdown_to_html.py:168 [FILE] Converting dinner\cast-iron-pizza\recipe.md
+2026-10-11 20:55:32.670 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\cast-iron-pizza\image.png
+2026-10-11 20:55:32.751 forte markdown_to_html.py:235 [INFO] Created dinner\cast-iron-pizza\recipe.html
+2026-10-11 20:55:32.807 forte markdown_to_html.py:168 [FILE] Converting dinner\chicken-satay\recipe.md
+2026-10-11 20:55:32.808 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\chicken-satay\image.png
+2026-10-11 20:55:32.922 forte markdown_to_html.py:235 [INFO] Created dinner\chicken-satay\recipe.html
+2026-10-11 20:55:33.017 forte markdown_to_html.py:168 [FILE] Converting dinner\chipotle-chicken-thighs-with-honey-mustard-sauce\recipe.md
+2026-10-11 20:55:33.018 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\chipotle-chicken-thighs-with-honey-mustard-sauce\image.png
+2026-10-11 20:55:33.080 forte markdown_to_html.py:235 [INFO] Created dinner\chipotle-chicken-thighs-with-honey-mustard-sauce\recipe.html
+2026-10-11 20:55:33.140 forte markdown_to_html.py:168 [FILE] Converting dinner\cilantro-lime-chicken-thighs\recipe.md
+2026-10-11 20:55:33.140 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\cilantro-lime-chicken-thighs\image.png
+2026-10-11 20:55:33.200 forte markdown_to_html.py:235 [INFO] Created dinner\cilantro-lime-chicken-thighs\recipe.html
+2026-10-11 20:55:33.255 forte markdown_to_html.py:168 [FILE] Converting dinner\corn-flake-fried-chicken\recipe.md
+2026-10-11 20:55:33.255 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\corn-flake-fried-chicken\image.png
+2026-10-11 20:55:33.330 forte markdown_to_html.py:235 [INFO] Created dinner\corn-flake-fried-chicken\recipe.html
+2026-10-11 20:55:33.389 forte markdown_to_html.py:168 [FILE] Converting dinner\greek-lemon-garlic-and-herb-chicken-with-tzatziki\recipe.md
+2026-10-11 20:55:33.390 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\greek-lemon-garlic-and-herb-chicken-with-tzatziki\image.png
+2026-10-11 20:55:33.454 forte markdown_to_html.py:235 [INFO] Created dinner\greek-lemon-garlic-and-herb-chicken-with-tzatziki\recipe.html
+2026-10-11 20:55:33.517 forte markdown_to_html.py:168 [FILE] Converting dinner\korean-style-ground-beef-over-rice\recipe.md
+2026-10-11 20:55:33.517 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\korean-style-ground-beef-over-rice\image.png
+2026-10-11 20:55:33.572 forte markdown_to_html.py:235 [INFO] Created dinner\korean-style-ground-beef-over-rice\recipe.html
+2026-10-11 20:55:33.634 forte markdown_to_html.py:168 [FILE] Converting dinner\lemon-garlic-butter-chicken-and-green-beans\recipe.md
+2026-10-11 20:55:33.635 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\lemon-garlic-butter-chicken-and-green-beans\image.png
+2026-10-11 20:55:33.695 forte markdown_to_html.py:235 [INFO] Created dinner\lemon-garlic-butter-chicken-and-green-beans\recipe.html
+2026-10-11 20:55:33.754 forte markdown_to_html.py:168 [FILE] Converting dinner\sheet-pan-gnocchi-with-chicken-sausage\recipe.md
+2026-10-11 20:55:33.755 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\sheet-pan-gnocchi-with-chicken-sausage\image.png
+2026-10-11 20:55:33.818 forte markdown_to_html.py:235 [INFO] Created dinner\sheet-pan-gnocchi-with-chicken-sausage\recipe.html
+2026-10-11 20:55:33.879 forte markdown_to_html.py:168 [FILE] Converting dinner\slow-cooker-barbacoa\recipe.md
+2026-10-11 20:55:33.885 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\slow-cooker-barbacoa\image.png
+2026-10-11 20:55:33.938 forte markdown_to_html.py:235 [INFO] Created dinner\slow-cooker-barbacoa\recipe.html
+2026-10-11 20:55:33.993 forte markdown_to_html.py:168 [FILE] Converting dinner\slow-cooker-carnitas\recipe.md
+2026-10-11 20:55:33.994 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\slow-cooker-carnitas\image.png
+2026-10-11 20:55:34.044 forte markdown_to_html.py:235 [INFO] Created dinner\slow-cooker-carnitas\recipe.html
+2026-10-11 20:55:34.101 forte markdown_to_html.py:168 [FILE] Converting dinner\slow-cooker-pulled-pork\recipe.md
+2026-10-11 20:55:34.102 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\slow-cooker-pulled-pork\image.png
+2026-10-11 20:55:34.160 forte markdown_to_html.py:235 [INFO] Created dinner\slow-cooker-pulled-pork\recipe.html
+2026-10-11 20:55:34.213 forte markdown_to_html.py:168 [FILE] Converting dinner\stuffed-pepper-pizza-casserole\recipe.md
+2026-10-11 20:55:34.214 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\stuffed-pepper-pizza-casserole\image.png
+2026-10-11 20:55:34.269 forte markdown_to_html.py:235 [INFO] Created dinner\stuffed-pepper-pizza-casserole\recipe.html
+2026-10-11 20:55:34.320 forte markdown_to_html.py:168 [FILE] Converting dinner\taco-mac-n-cheese-high-protein\recipe.md
+2026-10-11 20:55:34.320 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\dinner\taco-mac-n-cheese-high-protein\image.png
+2026-10-11 20:55:34.382 forte markdown_to_html.py:235 [INFO] Created dinner\taco-mac-n-cheese-high-protein\recipe.html
+2026-10-11 20:55:34.446 forte markdown_to_html.py:168 [FILE] Converting ingredient\basil-pizza-sauce\recipe.md
+2026-10-11 20:55:34.446 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\basil-pizza-sauce\image.png
+2026-10-11 20:55:34.527 forte markdown_to_html.py:235 [INFO] Created ingredient\basil-pizza-sauce\recipe.html
+2026-10-11 20:55:34.587 forte markdown_to_html.py:168 [FILE] Converting ingredient\butter\recipe.md
+2026-10-11 20:55:34.588 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\butter\image.png
+2026-10-11 20:55:34.647 forte markdown_to_html.py:235 [INFO] Created ingredient\butter\recipe.html
+2026-10-11 20:55:34.692 forte markdown_to_html.py:168 [FILE] Converting ingredient\homeade-yogurt\recipe.md
+2026-10-11 20:55:34.693 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\homeade-yogurt\image.png
+2026-10-11 20:55:34.762 forte markdown_to_html.py:235 [INFO] Created ingredient\homeade-yogurt\recipe.html
+2026-10-11 20:55:34.832 forte markdown_to_html.py:168 [FILE] Converting ingredient\pizza-dough-and-sauce\recipe.md
+2026-10-11 20:55:34.832 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\pizza-dough-and-sauce\image.png
+2026-10-11 20:55:34.912 forte markdown_to_html.py:235 [INFO] Created ingredient\pizza-dough-and-sauce\recipe.html
+2026-10-11 20:55:34.974 forte markdown_to_html.py:168 [FILE] Converting ingredient\taco-seasoning\recipe.md
+2026-10-11 20:55:34.975 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\taco-seasoning\image.png
+2026-10-11 20:55:35.304 forte markdown_to_html.py:235 [INFO] Created ingredient\taco-seasoning\recipe.html
+2026-10-11 20:55:35.598 forte markdown_to_html.py:168 [FILE] Converting ingredient\whipped-cream\recipe.md
+2026-10-11 20:55:35.599 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\ingredient\whipped-cream\image.png
+2026-10-11 20:55:35.653 forte markdown_to_html.py:235 [INFO] Created ingredient\whipped-cream\recipe.html
+2026-10-11 20:55:35.704 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\braised-chicken-thighs-with-potataoes-fennel-and-tarragon\recipe.md
+2026-10-11 20:55:35.705 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\braised-chicken-thighs-with-potataoes-fennel-and-tarragon\image.png
+2026-10-11 20:55:35.773 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\braised-chicken-thighs-with-potataoes-fennel-and-tarragon\recipe.html
+2026-10-11 20:55:35.852 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\sausage-and-tortellini-florentine-soup\recipe.md
+2026-10-11 20:55:35.852 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\sausage-and-tortellini-florentine-soup\image.png
+2026-10-11 20:55:35.934 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\sausage-and-tortellini-florentine-soup\recipe.html
+2026-10-11 20:55:35.997 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\sugar-cookies\recipe.md
+2026-10-11 20:55:35.999 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\sugar-cookies\image.png
+2026-10-11 20:55:36.057 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\sugar-cookies\recipe.html
+2026-10-11 20:55:36.115 forte markdown_to_html.py:168 [FILE] Converting kristy-and-evan\tuna-casserole\recipe.md
+2026-10-11 20:55:36.115 forte markdown_to_html.py:178 [FILE] Found image: D:\Media\Recipes\kristy-and-evan\tuna-casserole\image.png
+2026-10-11 20:55:36.193 forte markdown_to_html.py:235 [INFO] Created kristy-and-evan\tuna-casserole\recipe.html
+2026-10-11 20:55:36.255 forte server.py:21 [ERROR] Port 8000 is already in use
