@@ -1,4 +1,7 @@
 *.html
+*.logs/
+*.log
+*.py.log
 # breakfast/
 # dessert/
 # dinner/
