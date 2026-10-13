@@ -77,7 +77,10 @@ Serves
 - [ ] `1 potato`
 - [ ] `1 3/4 cups` (`415mL`) milk or buttermilk
 - [ ] `1/3 cup` (`75 mL`) vegetable oil or melted butter
-- [ ] `1 teaspoon` vanilla extract
+- [ ] `1 - 2 tbsp` 1 - 2 tbsp
+- [ ] `1-2 tbsp` 1-2 tbsp
+- [ ] `1 1/2 - 2 1/2 tbsp` 1 1/2 - 2 1/2 tbsp
+- [ ] `1 1/2-2 1/2 tbsp` 1 1/2-2 1/2 tbsp
 
 ## Instructions
 
