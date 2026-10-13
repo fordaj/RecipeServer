@@ -5,6 +5,7 @@ from .index_html_generator import IndexHTMLGenerator, Recipe
 from ._logger import logger, setup_logger
 from .config import Configuration
 from .server import Server
+from .tray import Tray
 
 
 def main(cfg: Configuration):
@@ -23,4 +24,7 @@ def main(cfg: Configuration):
             ihg.add(Recipe(md2html.metadata, html))
 
     ihg.convert()
-    Server(cfg).run()  # TODO: Put this on another thread and monitor recipes for changes
+    server = Server(cfg)
+    server.start()
+
+    Tray(server).run()
