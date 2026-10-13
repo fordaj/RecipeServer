@@ -12,6 +12,24 @@ from fractions import Fraction
 from ._logger import logger
 import re, json
 
+# TODO: Move to definitions.py
+_UNIT_ALIASES = {
+    "tablespoons": "tbsp",
+    "tablespoon": "tbsp",
+    "teaspoons": "tsp",
+    "teaspoon": "tsp",
+    "cups": "cup",
+    "milliliters": "mL",
+    "milliliter": "mL",
+    "ml": "mL",
+    "l": "L",
+    "lbs": "lb",
+    "ounces": "oz",
+    "ounce": "oz",
+    "grams": "g",
+    "gram": "g",
+}
+
 FILE_PATH = Path(__file__)
 RECIPE_SCALER_HTML = FILE_PATH.parent / "assets" / "recipe-scaler.html"
 RECIPE_SCALER_CSS = FILE_PATH.parent / "assets" / "recipe-scaler.css"
@@ -80,8 +98,12 @@ class MarkdownToHTMLConverter:
     def _preprocess(self, content: list[str]) -> None:
         self._break_up_div_comments(content)
 
-    def _mathjaxify_inline_code_blocks(self, content: str) -> str:
+    @staticmethod
+    def _get_sanitized_unit(unit: str) -> str:
+        normalized = unit.strip().lower()
+        return _UNIT_ALIASES.get(normalized, unit.strip())
 
+    def _mathjaxify_inline_code_blocks(self, content: str) -> str:
         def parse_quantity(
             value: str,
         ) -> tuple[float, str, float | None] | None:
@@ -90,6 +112,24 @@ class MarkdownToHTMLConverter:
                 return None
 
             number = r"(?:\d+/\d+|\d+(?:\.\d+)?)"
+            mixed_number = rf"(?:\d+\s+\d+/\d+|{number})"
+
+            # Range: "1-2 tbsp", "1/2-3/4 tsp",
+            #        "1 1/2 - 2 1/2 tbsp", "1 1/2-2 1/2 tbsp"
+            ranged = re.fullmatch(
+                rf"({mixed_number})\s*[-–—]\s*({mixed_number})\s*(.*)",
+                value,
+            )
+            if ranged:
+                start, end, unit = ranged.groups()
+
+                def to_float(amount: str) -> float:
+                    parts = amount.split()
+                    if len(parts) == 2:
+                        return float(Fraction(parts[0])) + float(Fraction(parts[1]))
+                    return float(Fraction(amount))
+
+                return to_float(start), unit.strip(), to_float(end)
 
             # Mixed number: "1 1/2 tbsp"
             mixed = re.fullmatch(
@@ -103,15 +143,6 @@ class MarkdownToHTMLConverter:
                     unit.strip(),
                     None,
                 )
-
-            # Range: "2-3 pizzas", "1/2-3/4 tsp"
-            ranged = re.fullmatch(
-                rf"({number})\s*[-–—]\s*({number})\s*(.*)",
-                value,
-            )
-            if ranged:
-                start, end, unit = ranged.groups()
-                return float(Fraction(start)), unit.strip(), float(Fraction(end))
 
             # Single number/fraction with optional attached or spaced unit
             single = re.fullmatch(rf"({number})\s*(.*)", value)
@@ -130,6 +161,8 @@ class MarkdownToHTMLConverter:
                 continue
 
             quantity, unit, quantity_end = parsed
+
+            unit = self._get_sanitized_unit(unit)
 
             span = soup.new_tag("span")
             span["class"] = "quantity"
@@ -237,8 +270,9 @@ class MarkdownToHTMLConverter:
         self.lint_html(html_file)
 
     def _lint_metadata(self, markdown_file: Path):
-        if "meals" not in self.metadata.keys():
-            logger.warning(f'[MetadataWarning]{markdown_file}: Missing key "meals:"')
+        has_meal_or_cuisine = "meals" in self.metadata or "cuisine" in self.metadata
+        if not has_meal_or_cuisine:
+            logger.warning(f'[MetadataWarning]{markdown_file}: Missing key "meals:" or "cuisine:"')
 
     def lint_html(self, html_file: Path):
         content = html_file.read_text(encoding="UTF-8", newline="\n").splitlines()

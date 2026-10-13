@@ -79,14 +79,18 @@ class RecipeScaler {
 
           // Format the endpoint as a quantity, then remove its repeated unit.
           const formattedEnd = this.formatQuantity(scaledEnd, unit);
-          const unitSuffix = unit ? ` ${unit}` : "";
+          const formattedUnit = this.formatUnit(unit, scaled);
+
+          const separator = formattedUnit && this.requiresSpaceBeforeUnit(formattedUnit) ? " " : "";
+          const unitSuffix = formattedUnit ? `${separator}${formattedUnit}` : "";
 
           const endText =
             unitSuffix && formattedEnd.endsWith(unitSuffix)
               ? formattedEnd.slice(0, -unitSuffix.length)
               : formattedEnd;
 
-          formatted = `${formatted.replace(unitSuffix, "")}-${endText}${unitSuffix}`;
+          const startText = formatted.replace(unitSuffix, "").replace(/^\$(.*?)\$$/, "$1");
+          formatted = `$${startText}\\text{ - }${endText.replace(/^\$(.*?)\$$/, "$1")}$${unitSuffix ? separator + formattedUnit : ""}`;
         }
       }
 
@@ -122,6 +126,27 @@ class RecipeScaler {
     // Eggs, sticks of butter, etc
     return value;
   }
+  requiresSpaceBeforeUnit(unit) {
+    const attachedUnits = [
+      "lb",
+      "lbs",
+      "oz",
+      "g",
+      "gram",
+      "grams",
+      "kg",
+      "mg",
+      "mcg",
+      "μg",
+      "mL",
+      "L",
+      "ml",
+      "cl",
+      "dl",
+    ];
+
+    return !attachedUnits.includes(unit);
+  }
 
   formatQuantity(value, unit) {
     const quantity = this.formatNumber(value);
@@ -131,10 +156,10 @@ class RecipeScaler {
       return `$${quantity}$`;
     }
 
-    // MathJax handles the number; normal HTML handles the ingredient text.
-    return `$${quantity}$ ${formattedUnit}`;
-  }
+    const separator = this.requiresSpaceBeforeUnit(formattedUnit) ? " " : "";
 
+    return `$${quantity}$${separator}${formattedUnit}`;
+  }
   formatNumber(value) {
     const whole = Math.floor(value);
     const decimal = value - whole;
@@ -188,13 +213,16 @@ class RecipeScaler {
       "tbsp",
       "cup",
       "cups",
+      "oz",
+      "lb",
+      "lbs",
       "g",
       "gram",
       "grams",
       "kg",
       "mg",
-      "ml",
-      "l",
+      "mL",
+      "L",
     ];
 
     if (measurementUnits.includes(unit)) {
@@ -212,16 +240,19 @@ class RecipeScaler {
         cup: "cup",
         tsp: "tsp",
         tbsp: "tbsp",
+        oz: "oz",
+        lb: "lb",
+        lbs: "lb",
         g: "g",
-        gram: "gram",
-        grams: "gram",
+        gram: "g",
+        grams: "g",
         kg: "kg",
         mg: "mg",
-        ml: "ml",
-        l: "l",
+        mL: "mL",
+        L: "L",
       }[unit] ?? unit;
 
-    if (quantity === 1) {
+    if (quantity <= 1) {
       return singular;
     }
 
