@@ -3,6 +3,7 @@ from ._logger import logger
 from pathlib import Path
 from platformdirs import user_data_path
 from tkinter import Tk, filedialog
+from typing import Optional
 
 
 class Configuration:
@@ -28,12 +29,18 @@ class Configuration:
 
         return Path(selected)
 
-    def handle_configuration(self):
-        # Read config
+    def get_config_contents_path_from_user_dir(self) -> Path:
         DATA_DIR: Path = user_data_path("recipe-server", appauthor=False)
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-        config_file: Path = DATA_DIR / "config.txt"
+        return DATA_DIR / "config.txt"
+
+    def handle_configuration(self, optional_config_txt: Optional[Path] = None):
+        # Read config
+        if optional_config_txt:
+            config_file = optional_config_txt
+        else:
+            config_file = self.get_config_contents_path_from_user_dir()
 
         if not config_file.exists():
             logger.debug(f"Creating {config_file}")

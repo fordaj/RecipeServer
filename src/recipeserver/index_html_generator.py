@@ -29,16 +29,28 @@ class IndexHTMLGenerator:
         return slug.replace("-", " ").title()
 
     @staticmethod
-    def values(metadata: dict, key: str) -> list[str]:
+    def values(metadata: dict, *keys: str) -> list[str]:
         """Return metadata values consistently as a list of strings."""
-        value = metadata.get(key, [])
+        collected: list[str] = []
+        seen: set[str] = set()
 
-        if isinstance(value, str):
-            value = [value]
-        if not isinstance(value, list):
-            return []
+        for key in keys:
+            value = metadata.get(key, [])
 
-        return [str(item) for item in value if item is not None]
+            if isinstance(value, str):
+                value = [value]
+            if not isinstance(value, list):
+                continue
+
+            for item in value:
+                if item is None:
+                    continue
+                text = str(item)
+                if text not in seen:
+                    seen.add(text)
+                    collected.append(text)
+
+        return collected
 
     @staticmethod
     def json_attribute(value: list[str]) -> str:
@@ -60,12 +72,14 @@ class IndexHTMLGenerator:
             meals = self.values(metadata, "meals")
             categories = self.values(metadata, "categories")
             tags = self.values(metadata, "tags")
+            cuisine = self.values(metadata, "cuisine")
+            tag_values = tags + cuisine
 
             all_meals.update(meals)
             all_categories.update(categories)
-            all_tags.update(tags)
+            all_tags.update(tag_values)
 
-            search_text = " ".join([title, *meals, *categories, *tags])
+            search_text = " ".join([title, *meals, *categories, *tags, *cuisine])
 
             links.append(
                 f'<li class="recipe"'
@@ -73,7 +87,7 @@ class IndexHTMLGenerator:
                 f' data-search="{html.escape(search_text, quote=True)}"'
                 f' data-meals="{self.json_attribute(meals)}"'
                 f' data-categories="{self.json_attribute(categories)}"'
-                f' data-tags="{self.json_attribute(tags)}">'
+                f' data-tags="{self.json_attribute(tag_values)}">'
                 f'<a href="{html.escape(file.as_posix(), quote=True)}">'
                 f"{html.escape(title)}</a>"
                 f"</li>"

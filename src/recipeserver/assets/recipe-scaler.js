@@ -193,8 +193,8 @@ class RecipeScaler {
       "grams",
       "kg",
       "mg",
-      "ml",
-      "l",
+      "mL",
+      "L",
     ];
 
     if (measurementUnits.includes(unit)) {
@@ -217,11 +217,11 @@ class RecipeScaler {
         grams: "gram",
         kg: "kg",
         mg: "mg",
-        ml: "ml",
-        l: "l",
+        mL: "mL",
+        L: "L",
       }[unit] ?? unit;
 
-    if (quantity === 1) {
+    if (quantity <= 1) {
       return singular;
     }
 

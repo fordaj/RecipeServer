@@ -60,7 +60,7 @@ class ImageToColorConverter:
         # Reduce the image to a small palette.
         quantized = image.quantize(colors=16).convert("RGB")
 
-        pixels = list(quantized.getdata())
+        pixels = list(quantized.get_flattened_data())
 
         candidates = []
 
