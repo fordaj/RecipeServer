@@ -2,6 +2,7 @@
 *.logs/
 *.log
 *.py.log
+test/config.txt
 # breakfast/
 # dessert/
 # dinner/
