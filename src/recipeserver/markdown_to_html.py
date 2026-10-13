@@ -44,6 +44,13 @@ MATHJAX = """
   window.MathJax = {
     tex: {
       inlineMath: [["$", "$"]]
+    },
+    options: {
+      enableMenu: false,
+      enableEnrichment: false,
+      enableAssistiveMml: false,
+      enableExplorer: false,
+      enableExplorerHelp: false
     }
   };
 </script>
