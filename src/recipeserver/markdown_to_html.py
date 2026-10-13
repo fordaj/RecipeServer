@@ -104,7 +104,6 @@ class MarkdownToHTMLConverter:
         return _UNIT_ALIASES.get(normalized, unit.strip())
 
     def _mathjaxify_inline_code_blocks(self, content: str) -> str:
-
         def parse_quantity(
             value: str,
         ) -> tuple[float, str, float | None] | None:
@@ -113,6 +112,24 @@ class MarkdownToHTMLConverter:
                 return None
 
             number = r"(?:\d+/\d+|\d+(?:\.\d+)?)"
+            mixed_number = rf"(?:\d+\s+\d+/\d+|{number})"
+
+            # Range: "1-2 tbsp", "1/2-3/4 tsp",
+            #        "1 1/2 - 2 1/2 tbsp", "1 1/2-2 1/2 tbsp"
+            ranged = re.fullmatch(
+                rf"({mixed_number})\s*[-–—]\s*({mixed_number})\s*(.*)",
+                value,
+            )
+            if ranged:
+                start, end, unit = ranged.groups()
+
+                def to_float(amount: str) -> float:
+                    parts = amount.split()
+                    if len(parts) == 2:
+                        return float(Fraction(parts[0])) + float(Fraction(parts[1]))
+                    return float(Fraction(amount))
+
+                return to_float(start), unit.strip(), to_float(end)
 
             # Mixed number: "1 1/2 tbsp"
             mixed = re.fullmatch(
@@ -126,15 +143,6 @@ class MarkdownToHTMLConverter:
                     unit.strip(),
                     None,
                 )
-
-            # Range: "2-3 pizzas", "1/2-3/4 tsp"
-            ranged = re.fullmatch(
-                rf"({number})\s*[-–—]\s*({number})\s*(.*)",
-                value,
-            )
-            if ranged:
-                start, end, unit = ranged.groups()
-                return float(Fraction(start)), unit.strip(), float(Fraction(end))
 
             # Single number/fraction with optional attached or spaced unit
             single = re.fullmatch(rf"({number})\s*(.*)", value)
