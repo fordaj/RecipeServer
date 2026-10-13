@@ -3,7 +3,7 @@ from ._logger import logger
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
-import socket
+import socket, sys
 
 
 class Server:
@@ -12,6 +12,10 @@ class Server:
         self._http_server: ThreadingHTTPServer | None = None
         self._thread: Thread | None = None
 
+    def _port_in_use(self, port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            return sock.connect_ex(("localhost", port)) == 0
+
     @property
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
@@ -19,6 +23,10 @@ class Server:
     def start(self):
         if self.is_running:
             return
+
+        if self._port_in_use(8000):
+            logger.error("Port 8000 in use!")
+            sys.exit(1)
 
         handler = partial(
             SimpleHTTPRequestHandler,
