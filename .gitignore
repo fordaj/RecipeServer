@@ -1,4 +1,4 @@
-*.html
+
 *.logs/
 *.log
 *.py.log
