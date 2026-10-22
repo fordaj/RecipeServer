@@ -32,12 +32,23 @@ _UNIT_ALIASES = {
 
 FILE_PATH = Path(__file__)
 RECIPE_SCALER_HTML = FILE_PATH.parent / "assets" / "recipe-scaler.html"
-RECIPE_SCALER_CSS = FILE_PATH.parent / "assets" / "recipe-scaler.css"
-RECIPE_SCALER_JS = FILE_PATH.parent / "assets" / "recipe-scaler.js"
-RECIPE_JS = FILE_PATH.parent / "assets" / "recipe.js"
-CSS_PATH = FILE_PATH.parent / "assets" / "style.css"
-PULL_DOWN_PAGE_REFRESH_JS = FILE_PATH.parent / "assets" / "pull-down-page-refresh.js"
-BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
+# RECIPE_SCALER_CSS = FILE_PATH.parent / "assets" / "recipe-scaler.css"
+# RECIPE_SCALER_JS = FILE_PATH.parent / "assets" / "recipe-scaler.js"
+# RECIPE_JS = FILE_PATH.parent / "assets" / "recipe.js"
+# CSS_PATH = FILE_PATH.parent / "assets" / "style.css"
+# PULL_DOWN_PAGE_REFRESH_JS = FILE_PATH.parent / "assets" / "pull-down-page-refresh.js"
+# BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
+
+CSS_PATH = "/assets/style.css"
+RECIPE_JS = "/assets/recipe.js"
+RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
+RECIPE_EDITOR_JS = "/assets/recipe-editor.js"
+RECIPE_EDITOR_CSS = "/assets/recipe-editor.css"
+RECIPE_SCALER_JS = "/assets/recipe-scaler.js"
+PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
+BOOK_SVG = "/assets/book.svg"
+LOGO_SVG = "/assets/logo.svg"
+PENCIL_SVG = "/assets/pencil.svg"
 
 MATHJAX = """
 <script>
@@ -60,10 +71,18 @@ MATHJAX = """
 
 HOME_PAGE_ICON_HTML = """
 <a href="/index.html" class="recipe-home">
-    <svg class="recipe-icon" viewBox="0 0 24 24" aria-hidden="true" stroke-width="1.5" stroke="currentColor" fill="none">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+    <svg class="recipe-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M16 2v20"/>
     </svg>
 </a>
+"""
+
+EDIT_RECIPE_HTML = f"""
+<button id="edit-recipe"class="recipe-home" type="button" aria-label="Edit recipe" title="Edit recipe">
+    <svg class="recipe-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>
+    </svg>
+</button>
 """
 
 
@@ -246,7 +265,10 @@ class MarkdownToHTMLConverter:
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>{title}</title>
-            <style>{CSS_PATH.read_text(encoding="UTF-8", newline="\n")}</style>
+            <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
+            <link rel="stylesheet" href="{CSS_PATH}">
+            <link rel="stylesheet" href="{RECIPE_SCALER_CSS}">
+            <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">
             {self.get_doc_specific_overrides()}
             {MATHJAX}
         </head>
@@ -255,14 +277,15 @@ class MarkdownToHTMLConverter:
             <main class="recipe">
                 <header class="recipe-header">
                     {HOME_PAGE_ICON_HTML}
-                    <style>{RECIPE_SCALER_CSS.read_text(encoding="UTF-8", newline="\n")}</style>
                     {RECIPE_SCALER_HTML.read_text(encoding="UTF-8", newline="\n")}
+                    {EDIT_RECIPE_HTML}
                 </header>
                 {body}
             </main>
-            <script defer>{RECIPE_JS.read_text(encoding="UTF-8", newline="\n")}</script>
-            <script defer>{RECIPE_SCALER_JS.read_text(encoding="UTF-8", newline="\n")}</script>
-            <script defer>{PULL_DOWN_PAGE_REFRESH_JS.read_text(encoding="UTF-8", newline="\n")}</script>
+            <script defer src="{RECIPE_JS}"></script>
+            <script defer src="{RECIPE_SCALER_JS}"></script>
+            <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
+            <script defer src="{RECIPE_EDITOR_JS}"></script>
         </body>
         </html>
         """)
