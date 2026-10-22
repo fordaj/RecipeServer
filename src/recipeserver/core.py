@@ -6,25 +6,82 @@ from ._logger import logger, setup_logger
 from .config import Configuration
 from .server import Server
 from .tray import Tray
+# from .file_watcher import FileObserver
+from threading import Lock
+import time
+
+FILE_PATH = Path(__file__)
+
+cfg: Configuration
 
 
-def main(cfg: Configuration):
-    working_dir = cfg.working_directory
-    recipe_files: list[Path] = []
-    ihg = IndexHTMLGenerator(cfg)
-    for markdown in working_dir.rglob("recipe.md"):
-        if markdown.is_file():
-            # recipe_dir = markdown.parent
-            html = markdown.with_suffix(".html")
-            recipe_files.append(html)
-            md2html = MarkdownToHTMLConverter(cfg)
-            md2html.convert(markdown, html)
-            HTMLEmbedder(html).process()
-            # TODO: Recipe is scoped poorly, IndexHTMLGenerator should be the module with Recipe and Generator inside
-            ihg.add(Recipe(md2html.metadata, html))
+class Core:
+    def __init__(self, cfg: Configuration):
+        self.cfg = cfg
+        self._regen_lock = Lock()
 
-    ihg.convert()
-    server = Server(cfg)
+    def convert_recipe(
+        self, markdown: Path
+    ) -> tuple[Path, MarkdownToHTMLConverter]:
+        working_dir = self.cfg.working_directory.resolve()
+        markdown = markdown.resolve()
+
+        if not markdown.is_relative_to(working_dir):
+            raise ValueError("Recipe must be inside the working directory")
+
+        if markdown.name != "recipe.md" or not markdown.is_file():
+            raise ValueError("Invalid recipe Markdown file")
+
+        html = markdown.with_suffix(".html")
+        converter = MarkdownToHTMLConverter(self.cfg)
+        converter.convert(markdown, html)
+
+        return html, converter
+
+    def regen(self):
+        if not self._regen_lock.acquire(blocking=False):
+            logger.debug("Skipping regeneration because one is already running")
+            return
+
+        try:
+            working_dir = self.cfg.working_directory
+            index_generator = IndexHTMLGenerator(self.cfg)
+
+            for markdown in working_dir.rglob("recipe.md"):
+                if not markdown.is_file():
+                    continue
+
+                html, converter = self.convert_recipe(markdown)
+                index_generator.add(Recipe(converter.metadata, html))
+
+            index_generator.convert()
+
+        finally:
+            self._regen_lock.release()
+
+
+
+
+def main(_cfg: Configuration):
+    cfg = _cfg
+    # observer = FileObserver()
+    core = Core(cfg)
+
+    # def on_file_changed(path: Path):
+    #     print(path)
+    #     # observer.stop()
+
+    #     core.regen()
+
+    #     # time.sleep(2)
+
+    #     # observer.start()
+
+    # observer.setup([cfg.working_directory], on_file_changed=on_file_changed)
+    # observer.start()
+    core.regen()
+
+    server = Server(cfg, on_markdown_saved=core.convert_recipe)
     server.start()
 
     Tray(server).run()
