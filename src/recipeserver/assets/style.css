@@ -357,6 +357,68 @@ input[type="checkbox"]:focus-visible {
   outline-offset: 3px;
 }
 
+/* ---------- Recipe comments ---------- */
+
+.recipe-comments {
+  max-width: var(--text-width);
+  margin: 4rem auto 0;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.recipe-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.recipe-comment + .recipe-comment {
+  margin-top: 1.75rem;
+}
+
+.recipe-comment__avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 2.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+
+  background: color-mix(in srgb, var(--food-color) 12%, transparent);
+  color: var(--food-color);
+
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.recipe-comment__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.recipe-comment__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.recipe-comment__author {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.recipe-comment__date {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.recipe-comment__text {
+  margin: 0;
+  line-height: 1.7;
+}
+
 /* ---------- Mobile ---------- */
 
 @media (max-width: 600px) {
