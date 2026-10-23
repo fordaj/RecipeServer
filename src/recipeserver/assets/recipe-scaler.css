@@ -1,3 +1,5 @@
+/* ---------- Recipe scaler ---------- */
+
 .recipe-scaler {
   display: inline-flex;
   align-items: baseline;
@@ -20,6 +22,7 @@
   font: inherit;
   font-weight: 500;
 
+  color-scheme: inherit;
   background: transparent;
   border: none;
   outline: none;
@@ -44,7 +47,15 @@
 #recipe-scale-select option {
   font-size: 16px;
   font-family: "Lato", sans-serif;
-  color: #444;
+  color: var(--heading-color);
+  background: var(--card-bg);
+}
+
+#recipe-scale-select:focus-visible,
+#recipe-scale-custom:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 3px;
+  border-radius: 2px;
 }
 
 #recipe-scale-custom::-webkit-inner-spin-button,
