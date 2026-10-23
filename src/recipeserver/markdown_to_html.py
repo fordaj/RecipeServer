@@ -70,7 +70,7 @@ MATHJAX = """
   };
 </script>
 
-<script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-svg.js"></script>
 """
 
 HOME_PAGE_ICON_HTML = """

@@ -9,6 +9,7 @@ FILE_PATH = Path(__file__)
 THEME_CSS_PATH = "/assets/theme.css"
 INDEX_CSS_PATH = "/assets/index.css"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
+LOGO_SVG = "/assets/logo.svg"
 
 
 class Recipe:
@@ -107,6 +108,7 @@ class IndexHTMLGenerator:
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Recipe Server</title>
+                <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
                 <link rel="stylesheet" href="{THEME_CSS_PATH}">
                 <link rel="stylesheet" href="{INDEX_CSS_PATH}">
                 <script defer>
