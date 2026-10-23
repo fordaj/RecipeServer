@@ -1,0 +1,73 @@
+/* ---------- Theme ---------- */
+
+:root {
+  color-scheme: light;
+
+  /* Brand */
+  --food-color: #8d5542;
+  --food-color-hover: #754331;
+
+  /* Surfaces */
+  --page-bg: #faf9f7;
+  --card-bg: #ffffff;
+  --input-bg: var(--page-bg);
+
+  /* Text */
+  --text-color: #666666;
+  --heading-color: #333333;
+  --metadata-color: #444444;
+  --muted-color: #99918c;
+
+  /* Borders and details */
+  --border-color: #e5ddd8;
+  --heading-border-color: #e5ddd8;
+  --card-border-color: #f0ebe7;
+  --hover-border-color: #d8c2b7;
+  --hover-bg: #eeeeee;
+
+  /* Shadows */
+  --card-shadow: 0 2px 10px rgb(0 0 0 / 5%);
+  --subtle-shadow: 0 1px 4px rgb(0 0 0 / 3%);
+  --hover-shadow: 0 3px 10px rgb(0 0 0 / 5%);
+
+  /* Layout */
+  --page-width: 900px;
+  --spacing: 1.5rem;
+
+  --dialog-backdrop: rgb(0 0 0 / 45%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    /* Brand */
+    --food-color: #da9c87;
+    --food-color-hover: #efb9a5;
+
+    /* Surfaces */
+    --page-bg: #191817;
+    --card-bg: #262422;
+    --input-bg: #211f1d;
+
+    /* Text */
+    --text-color: #c4bfbb;
+    --heading-color: #f1e9e4;
+    --metadata-color: #ded6d0;
+    --muted-color: #aaa19a;
+
+    /* Borders and details */
+    --border-color: #403934;
+    --heading-border-color: #514139;
+    --card-border-color: #39332f;
+    --hover-border-color: #705347;
+    --hover-bg: #35312e;
+
+    /* Shadows */
+    --card-shadow: 0 2px 10px rgb(0 0 0 / 20%);
+    --subtle-shadow: 0 1px 4px rgb(0 0 0 / 15%);
+    --hover-shadow: 0 3px 10px rgb(0 0 0 / 20%);
+
+    --dialog-backdrop: rgb(0 0 0 / 65%);
+  }
+}

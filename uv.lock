@@ -16,6 +16,15 @@ wheels = [
 ]
 
 [[package]]
+name = "coloraide"
+version = "8.13.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/a9/61fc5c40307daf76f6c3aea925e497ba103a3fb7b3aa8b13c4d3a75917ef/coloraide-8.13.1.tar.gz", hash = "sha256:16e0341a6cd477bcd40e58e6af65cfb7a86614c215baa69132ae1847f6f2d34c", size = 22324797, upload-time = "2026-10-16T13:04:06.104Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/34/89/751889c050110c91ec7b4c2610617c459b20a69b2ba293575bb6ab641e01/coloraide-8.13.1-py3-none-any.whl", hash = "sha256:643dd6f7c2b7240b0f673f6655f5bd3ca7bc464dd33afe251a6bb5e50f87fae5", size = 349055, upload-time = "2026-10-16T13:04:04.109Z" },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -295,6 +304,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
+    { name = "coloraide" },
     { name = "loguru" },
     { name = "markdown" },
     { name = "pillow" },
@@ -313,6 +323,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.15.0" },
+    { name = "coloraide", specifier = ">=8.13.1" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "markdown", specifier = ">=3.11" },
     { name = "pillow", specifier = "==12.3.0" },

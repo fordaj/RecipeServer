@@ -10,7 +10,53 @@
   font-weight: 400;
 }
 :root {
+  color-scheme: light;
+
+  /* Brand */
   --food-color: #8d5542;
+
+  /* Surfaces */
+  --page-bg: #faf9f7;
+  --card-bg: #ffffff;
+
+  /* Text */
+  --text-color: #666666;
+  --heading-color: #333333;
+  --metadata-color: #444444;
+
+  /* Borders and details */
+  --border-color: #e5ddd8;
+  --heading-border-color: #e5ddd8;
+  --hover-bg: #eeeeee;
+
+  /* Shadows */
+  --card-shadow: 0 2px 10px rgb(0 0 0 / 5%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    /* Brand */
+    --food-color: #da9c87;
+
+    /* Surfaces */
+    --page-bg: #191817;
+    --card-bg: #262422;
+
+    /* Text */
+    --text-color: #c4bfbb;
+    --heading-color: #f1e9e4;
+    --metadata-color: #ded6d0;
+
+    /* Borders and details */
+    --border-color: #403934;
+    --heading-border-color: #514139;
+    --hover-bg: #35312e;
+
+    /* Shadows */
+    --card-shadow: 0 2px 10px rgb(0 0 0 / 20%);
+  }
 }
 
 .recipe-icon {
@@ -28,11 +74,6 @@
   display: inline-flex;
 }
 
-body {
-  font-family: "Lato", sans-serif;
-  color: #666666;
-}
-
 h1,
 h2,
 h3,
@@ -40,6 +81,7 @@ h4,
 h5,
 h6 {
   font-family: "Playfair Display", serif;
+  color: var(--heading-color);
 }
 
 /* ---------- Base ---------- */
@@ -61,8 +103,8 @@ html {
 body {
   margin: 0;
   padding: 0;
-  background: #faf9f7;
-  color: #666666;
+  background: var(--page-bg);
+  color: var(--text-color);
   font-family: "Lato", sans-serif;
   line-height: 1.7;
 }
@@ -80,28 +122,28 @@ body {
 }
 
 #edit-recipe {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.4rem;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    border-radius: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 0.25rem;
 }
 
 #edit-recipe img {
-    width: 1.25rem;
-    height: 1.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 #edit-recipe:hover {
-    background: #eee;
+  background: var(--hover-bg);
 }
 
 #edit-recipe:focus-visible {
-    outline: 2px solid var(--food-color);
-    outline-offset: 2px;
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
 }
 
 /* ---------- Page ---------- */
@@ -142,11 +184,17 @@ body > a:hover {
   max-width: var(--text-width);
   margin: 0 auto 2.5rem;
   padding: 1.25rem 1.5rem;
-  background: white;
+  background: var(--card-bg);
   border-radius: 10px;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 5%);
+  box-shadow: var(--card-shadow);
   text-align: center;
 }
+
+.recipe-meta dd {
+  margin: 0;
+  color: var(--metadata-color);
+}
+
 .recipe-meta dl {
   margin: 0;
 }
@@ -164,14 +212,9 @@ body > a:hover {
   text-transform: uppercase;
 }
 
-.recipe-meta dd {
-  margin: 0;
-  color: #444;
-}
-
 .recipe-meta dt:not(:first-child)::before {
   content: "\00a0\00a0\00a0\00a0•\00a0\00a0\00a0\00a0";
-  color: #e5ddd8;
+  color: var(--border-color);
 }
 
 /* ---------- Hero image ---------- */
@@ -212,7 +255,7 @@ body > a:hover {
   font-size: clamp(1.7rem, 4vw, 2.3rem);
   line-height: 1.2;
 
-  border-bottom: 2px solid #e5ddd8;
+  border-bottom: 2px solid var(--heading-border-color);
   padding-bottom: 0.4rem;
 }
 
@@ -228,13 +271,6 @@ body > a:hover {
   padding-left: 1.5rem;
 }
 
-/* Strikethrough and italicize checked items */
-.recipe li:has(input[type="checkbox"]:checked) {
-  text-decoration: line-through;
-  font-style: italic;
-  opacity: 0.65;
-}
-
 .recipe li {
   margin-bottom: 0.65rem;
 }
@@ -244,13 +280,38 @@ body > a:hover {
   font-weight: bold;
 }
 
+/* Ordered-list numbering: 1. → a. → i. */
+.recipe ol {
+  list-style-type: decimal;
+}
+
+.recipe ol ol {
+  margin-top: 0.08in;
+  list-style-type: lower-alpha;
+}
+
+.recipe ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.recipe ol ol ol ol {
+  list-style-type: decimal;
+}
+
 /* ---------- Ingredients ---------- */
 
 .recipe ul {
-  background: white;
+  background: var(--card-bg);
   padding: 1.5rem 1.5rem 1.5rem 3rem;
   border-radius: 10px;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 5%);
+  box-shadow: var(--card-shadow);
+}
+
+/* Strikethrough and italicize checked items */
+.recipe li:has(input[type="checkbox"]:checked) {
+  text-decoration: line-through;
+  font-style: italic;
+  opacity: 0.65;
 }
 
 /* ---------- Checkboxes ---------- */
@@ -294,16 +355,6 @@ input[type="checkbox"]:checked::before {
 input[type="checkbox"]:focus-visible {
   outline: 2px solid var(--food-color);
   outline-offset: 3px;
-}
-
-/* ---------- Preparation ---------- */
-
-.recipe ol {
-  padding-left: 2.5rem;
-}
-
-.recipe ol li {
-  padding-left: 0.4rem;
 }
 
 /* ---------- Mobile ---------- */
@@ -500,9 +551,11 @@ input[type="checkbox"]:focus-visible {
     text-decoration: none;
     font-style: normal;
     opacity: 1;
+    background: transparent;
   }
 
   .recipe input[type="checkbox"] {
+    background-color: var(--card-bg);
     display: none;
   }
 

@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from fractions import Fraction
 from ._logger import logger
 import re, json
+from coloraide import Color
 
 # TODO: Move to definitions.py
 _UNIT_ALIASES = {
@@ -40,6 +41,7 @@ RECIPE_SCALER_HTML = FILE_PATH.parent / "assets" / "recipe-scaler.html"
 # BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
 
 CSS_PATH = "/assets/style.css"
+THEME_CSS_PATH = "/assets/theme.css"
 RECIPE_JS = "/assets/recipe.js"
 RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
 RECIPE_EDITOR_JS = "/assets/recipe-editor.js"
@@ -86,6 +88,19 @@ EDIT_RECIPE_HTML = f"""
 """
 
 
+def dark_mode_color(hex_color):
+    color = Color(hex_color).convert("oklch")
+    L, C, H = color.coords()
+
+    # Map lightness into a brighter range for dark backgrounds.
+    new_L = 0.65 + (1.0 - L) * 0.20
+
+    result = Color("oklch", [new_L, C, H])
+    result = result.convert("srgb").fit()
+
+    return result.to_string(hex=True)
+
+
 class MarkdownToHTMLConverter:
     def __init__(self, cfg: Configuration):
         self.cfg = cfg
@@ -98,6 +113,10 @@ class MarkdownToHTMLConverter:
             <style>
                 :root {{
                     --food-color: {self.heading_color};
+                }}
+                @media (prefers-color-scheme: dark) {{
+                :root {{
+                    --food-color: {dark_mode_color(self.heading_color)};
                 }}
 
                 .recipe-icon {{
@@ -266,6 +285,7 @@ class MarkdownToHTMLConverter:
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>{title}</title>
             <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
+            <link rel="stylesheet" href="{THEME_CSS_PATH}">
             <link rel="stylesheet" href="{CSS_PATH}">
             <link rel="stylesheet" href="{RECIPE_SCALER_CSS}">
             <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">

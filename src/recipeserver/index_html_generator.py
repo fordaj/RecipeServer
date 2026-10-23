@@ -6,8 +6,9 @@ from .config import Configuration
 from .pallette import Pallette
 
 FILE_PATH = Path(__file__)
-INDEX_CSS_PATH = FILE_PATH.parent / "assets" / "index.css"
-PULL_DOWN_PAGE_REFRESH_JS = FILE_PATH.parent / "assets" / "pull-down-page-refresh.js"
+THEME_CSS_PATH = "/assets/theme.css"
+INDEX_CSS_PATH = "/assets/index.css"
+PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 
 
 class Recipe:
@@ -99,8 +100,6 @@ class IndexHTMLGenerator:
                 for v in sorted(values, key=str.casefold)
             )
 
-        css = INDEX_CSS_PATH.read_text(encoding="UTF-8")
-
         html_page = dedent(f"""\
             <!DOCTYPE html>
             <html lang="en">
@@ -108,9 +107,8 @@ class IndexHTMLGenerator:
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Recipe Server</title>
-                <style>
-                {css}
-                </style>
+                <link rel="stylesheet" href="{THEME_CSS_PATH}">
+                <link rel="stylesheet" href="{INDEX_CSS_PATH}">
                 <script defer>
                 const initRecipeIndex = () => {{
                     const list = document.querySelector("#recipe-list");
@@ -226,9 +224,8 @@ class IndexHTMLGenerator:
                         {"".join(links)}
                     </ul>
                 </main>
-                <script defer>
-                {PULL_DOWN_PAGE_REFRESH_JS.read_text(encoding="UTF-8", newline="\n")}
-                </script>
+                
+                <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
             </body>
             </html>
         """)
