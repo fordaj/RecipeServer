@@ -1,4 +1,6 @@
 from pathlib import Path
+from datetime import date
+from html import escape
 from .pallette import Pallette
 from .config import Configuration
 from .image_handler import ImageToColorConverter, get_first_image_in_dir
@@ -115,8 +117,9 @@ class MarkdownToHTMLConverter:
                     --food-color: {self.heading_color};
                 }}
                 @media (prefers-color-scheme: dark) {{
-                :root {{
-                    --food-color: {dark_mode_color(self.heading_color)};
+                    :root {{
+                        --food-color: {dark_mode_color(self.heading_color)};
+                    }}
                 }}
 
                 .recipe-icon {{
@@ -264,6 +267,42 @@ class MarkdownToHTMLConverter:
         self._lint_metadata(markdown_file)
         self.metadata_json = json.dumps(self.metadata).replace("<", "\\u003c")  # sanitize input so it is not executable
 
+        comments_html = ""
+        if self.metadata.get("comments"):
+            comments = []
+
+            for comment in self.metadata["comments"]:
+                author = comment.get("author", "Anonymous").strip() or "Anonymous"
+                initials = "".join(part[0].upper() for part in author.split() if part)
+
+                created = date.fromisoformat(comment["created"])
+                text = escape(comment["text"])
+                author = escape(author)
+                initials = escape(initials)
+
+                comments.append(dedent(f"""
+                    <article class="recipe-comment">
+                        <div class="recipe-comment__avatar" aria-hidden="true">{initials}</div>
+
+                        <div class="recipe-comment__content">
+                            <header class="recipe-comment__meta">
+                                <span class="recipe-comment__author">{author}</span>
+                                <time class="recipe-comment__date" datetime="{created.isoformat()}">
+                                    {created.strftime("%B")} {created.day}, {created.year}
+                                </time>
+                            </header>
+
+                            <p class="recipe-comment__text">{text}</p>
+                        </div>
+                    </article>
+                """).strip())
+
+            comments_html = dedent(f"""
+                <section class="recipe-comments">
+                <h2>Comments</h2>
+                    {"".join(comments)}
+                </section>
+            """).strip()
         markdown_body = post.content
 
         md = markdown.Markdown(
@@ -301,6 +340,7 @@ class MarkdownToHTMLConverter:
                     {EDIT_RECIPE_HTML}
                 </header>
                 {body}
+                {comments_html}
             </main>
             <script defer src="{RECIPE_JS}"></script>
             <script defer src="{RECIPE_SCALER_JS}"></script>
