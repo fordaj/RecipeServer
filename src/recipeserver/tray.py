@@ -75,5 +75,8 @@ class Tray:
     def run(self):
         self.icon.run()
 
+    def stop(self):
+        self.icon.stop()
+
     def run_detached(self):
         self.icon.run_detached()
