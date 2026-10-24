@@ -122,7 +122,7 @@ def main(_cfg: Configuration):
 
     try:
         if sys.platform == "darwin":  # Mac requires tray.run() to work at all and is KeyboardInterrupt-able
-            tray.run()
+            tray.run()  # TODO: KeyboardInterrupt isn't caught on Mac either!
         else:  # Windows won't handle KeyboardInterrupts properly unless you run detached
             tray.run_detached()
 
