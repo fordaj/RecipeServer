@@ -73,5 +73,7 @@ class Tray:
         self.on_quit()
 
     def run(self):
-        # self.icon.run_detached()
         self.icon.run()
+
+    def run_detached(self):
+        self.icon.run_detached()

@@ -126,7 +126,7 @@ def main(_cfg: Configuration):
         else:  # Windows won't handle KeyboardInterrupts properly unless you run detached
             tray.run_detached()
 
-            while not shutdown.wait(0.25):
+            while not shutdown_event.wait(0.25):
                 pass
 
     except KeyboardInterrupt:
