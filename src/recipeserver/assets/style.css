@@ -361,9 +361,8 @@ input[type="checkbox"]:focus-visible {
 
 .recipe-comments {
   max-width: var(--text-width);
-  margin: 4rem auto 0;
+  margin: 0 auto 0;
   padding-top: 1.5rem;
-  border-top: 1px solid var(--border-color);
 }
 
 .recipe-comment {
@@ -417,6 +416,118 @@ input[type="checkbox"]:focus-visible {
 .recipe-comment__text {
   margin: 0;
   line-height: 1.7;
+}
+
+/* ---------- Recipe overview ---------- */
+
+.recipe-overview {
+  max-width: var(--content-width, 70rem);
+  margin: 1rem auto 1.5rem;
+  padding: 0 1.5rem;
+
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.7;
+
+  text-align: center;
+}
+
+.recipe-overview__primary,
+.recipe-overview__secondary {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  column-gap: 0.65rem;
+  row-gap: 0.25rem;
+}
+
+.recipe-overview__primary {
+  color: var(--text-color);
+  font-size: 1rem;
+}
+
+.recipe-overview__secondary {
+  margin-top: 0.25rem;
+}
+
+/* Separators between metadata fields */
+
+.recipe-overview__primary > span + span::before,
+.recipe-overview__secondary > span + span::before {
+  content: "·";
+  margin-right: 0.65rem;
+  color: var(--border-color);
+}
+
+/* Average rating and rating count */
+
+.recipe-overview__rating {
+  color: var(--food-color);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.recipe-overview__rating-count {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-weight: 400;
+}
+
+/* Meals, difficulty, categories, and tags */
+
+.recipe-overview__meals,
+.recipe-overview__difficulty,
+.recipe-overview__categories,
+.recipe-overview__tags {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.recipe-overview__icon {
+  width: 0.95em;
+  height: 0.95em;
+  vertical-align: -0.1em;
+}
+
+.recipe-overview__categories {
+  color: var(--text-color);
+}
+
+/* Icons */
+
+.recipe-overview svg {
+  width: 0.95em;
+  height: 0.95em;
+  flex-shrink: 0;
+  vertical-align: -0.1em;
+  color: var(--text-muted);
+}
+
+/* ---------- Responsive layout ---------- */
+
+@media (max-width: 600px) {
+  .recipe-overview {
+    margin-top: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0 1rem;
+    font-size: 0.875rem;
+  }
+
+  .recipe-overview__primary {
+    font-size: 0.9375rem;
+  }
+
+  .recipe-overview__primary,
+  .recipe-overview__secondary {
+    column-gap: 0.45rem;
+  }
+
+  .recipe-overview__primary > span + span::before,
+  .recipe-overview__secondary > span + span::before {
+    margin-right: 0.45rem;
+  }
 }
 
 /* ---------- Mobile ---------- */
