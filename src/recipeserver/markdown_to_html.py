@@ -370,7 +370,7 @@ class MarkdownToHTMLConverter:
         #     if old_hash == self._get_file_hash(markdown_file):
         #         logger.debug(f"Skipping {markdown_file}, hashes match")
 
-        logger.file(f"Converting {markdown_file.relative_to(self.cfg.working_directory)}")
+        logger.file(f"Converting {markdown_file.relative_to(self.cfg.source_directory)}")
 
         markdown_content = markdown_file.read_text(encoding="UTF-8", newline="\n").splitlines()
         self._preprocess(markdown_content)
@@ -480,7 +480,7 @@ class MarkdownToHTMLConverter:
 
         # Write to file
         html_file.write_text(html, encoding="UTF-8", newline="\n")
-        logger.info(f"Created {html_file.relative_to(self.cfg.working_directory)}")
+        logger.info(f'Created "{html_file}"') # TODO get_pretty_path_str
 
         self.lint_html(html_file)
 

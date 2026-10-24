@@ -4,6 +4,7 @@
 *.py.log
 test/config.txt
 node_modules/*
+*.html
 
 # ==========================================
 # Byte-compiled / optimized / DLL files

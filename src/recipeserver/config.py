@@ -1,16 +1,22 @@
+
 import sys
-from ._logger import logger
 from pathlib import Path
 from platformdirs import user_data_path
 from tkinter import Tk, filedialog
 from typing import Optional
 
+from ._logger import logger
+
 
 class Configuration:
     def __init__(self):
-        self.working_directory: Path = Path()
+        self.source_directory: Path = Path()
+        
+    @property
+    def site_directory(self) -> Path:
+        return user_data_path("recipe-server", appauthor=False) / "site"
 
-    def get_working_dir_from_user(self) -> Path:
+    def get_source_dir_from_user(self) -> Path:
         root = Tk()
         root.withdraw()
 
@@ -23,42 +29,51 @@ class Configuration:
         finally:
             root.destroy()
 
-        if selected is None:
+        if not selected:
             logger.info("User cancelled operation, exiting")
             sys.exit(0)
 
-        return Path(selected)
+        return Path(selected).resolve()
 
     def get_config_contents_path_from_user_dir(self) -> Path:
-        DATA_DIR: Path = user_data_path("recipe-server", appauthor=False)
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        data_dir = user_data_path("recipe-server", appauthor=False)
+        data_dir.mkdir(parents=True, exist_ok=True)
 
-        return DATA_DIR / "config.txt"
+        return data_dir / "config.txt"
 
-    def handle_configuration(self, optional_config_txt: Optional[Path] = None):
-        # Read config
-        if optional_config_txt:
-            config_file = optional_config_txt
-        else:
-            config_file = self.get_config_contents_path_from_user_dir()
+    def handle_configuration(
+        self, optional_config_txt: Optional[Path] = None
+    ):
+        config_file = (
+            optional_config_txt
+            if optional_config_txt
+            else self.get_config_contents_path_from_user_dir()
+        )
+
+        config_file.parent.mkdir(parents=True, exist_ok=True)
 
         if not config_file.exists():
             logger.debug(f"Creating {config_file}")
             config_file.touch()
 
         logger.info(f"Reading {config_file}")
-        config_contents = config_file.read_text(encoding="UTF-8", newline="\n")
+        config_contents = config_file.read_text(encoding="UTF-8").strip()
 
-        # Load values
-        self.working_directory = Path(config_contents)
+        if config_contents:
+            source_directory = Path(config_contents).expanduser()
+        else:
+            source_directory = Path()
 
-        # Handle missing values
-        if config_contents == "" or not self.working_directory.is_dir():
-            print("Recipes directory not found, please select from the file dialogue")
-            self.working_directory = self.get_working_dir_from_user()
+        if not config_contents or not source_directory.is_dir():
+            print(
+                "Recipes directory not found, please select from the file dialogue"
+            )
+            source_directory = self.get_source_dir_from_user()
 
-        # Save values
-        config_contents = str(self.working_directory.absolute())
+        self.source_directory = source_directory.resolve()
 
-        # Write config
-        config_file.write_text(config_contents, encoding="UTF-8", newline="\n")
+        logger.info(f"Saving source directory to {config_file}")
+        config_file.write_text(
+            str(self.source_directory),
+            encoding="UTF-8",
+        )

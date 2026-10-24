@@ -4,6 +4,7 @@ from pathlib import Path
 from textwrap import dedent
 from .config import Configuration
 from .pallette import Pallette
+from ._logger import logger
 
 FILE_PATH = Path(__file__)
 THEME_CSS_PATH = "/assets/theme.css"
@@ -67,7 +68,10 @@ class IndexHTMLGenerator:
 
         for recipe in self.recipes:
             metadata = recipe.metadata
-            file = recipe.html_file.relative_to(self.cfg.working_directory)
+            file = recipe.html_file
+
+            relative_path = file.relative_to(self.cfg.site_directory)
+            url = "/" + relative_path.as_posix()
 
             title = str(metadata.get("title") or self.deslugify(file.parent.name))
 
@@ -90,7 +94,7 @@ class IndexHTMLGenerator:
                 f' data-meals="{self.json_attribute(meals)}"'
                 f' data-categories="{self.json_attribute(categories)}"'
                 f' data-tags="{self.json_attribute(tag_values)}">'
-                f'<a href="{html.escape(file.as_posix(), quote=True)}">'
+                f'<a href="{html.escape(url, quote=True)}">'
                 f"{html.escape(title)}</a>"
                 f"</li>"
             )
@@ -232,5 +236,6 @@ class IndexHTMLGenerator:
             </html>
         """)
 
-        index_html = self.cfg.working_directory / "index.html"
+        index_html = self.cfg.site_directory / "index.html"
         index_html.write_text(html_page, encoding="UTF-8", newline="\n")
+        logger.info(f"Created {index_html}")
