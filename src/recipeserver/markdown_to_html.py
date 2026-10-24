@@ -9,7 +9,7 @@ from textwrap import dedent
 from dataclasses import dataclass
 from slugify import slugify
 from enum import Enum, auto
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from fractions import Fraction
 from ._logger import logger
 import re, json
@@ -40,7 +40,10 @@ RECIPE_SCALER_HTML = FILE_PATH.parent / "assets" / "recipe-scaler.html"
 # RECIPE_JS = FILE_PATH.parent / "assets" / "recipe.js"
 # CSS_PATH = FILE_PATH.parent / "assets" / "style.css"
 # PULL_DOWN_PAGE_REFRESH_JS = FILE_PATH.parent / "assets" / "pull-down-page-refresh.js"
-# BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
+GAUGE_SVG = FILE_PATH.parent / "assets" / "gauge.svg"
+POT_SVG = FILE_PATH.parent / "assets" / "cooking-pot.svg"
+TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
+UTENSILS_SVG = FILE_PATH.parent / "assets" / "utensils.svg"
 
 CSS_PATH = "/assets/style.css"
 THEME_CSS_PATH = "/assets/theme.css"
@@ -53,6 +56,7 @@ PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 BOOK_SVG = "/assets/book.svg"
 LOGO_SVG = "/assets/logo.svg"
 PENCIL_SVG = "/assets/pencil.svg"
+# GAUGE_SVG = "/assets/gauge.svg"
 
 MATHJAX = """
 <script>
@@ -231,10 +235,131 @@ class MarkdownToHTMLConverter:
 
         return str(soup)
 
+    def _append_svg_icon(
+        self,
+        parent: Tag,
+        path: Path,
+    ) -> None:
+        svg = BeautifulSoup(path.read_text(encoding="utf-8"), "html.parser").find("svg")
+
+        if svg is None:
+            raise ValueError(f"No SVG element found in {path}")
+
+        svg["aria-hidden"] = "true"
+        svg["focusable"] = "false"
+
+        parent.append(svg)
+
+    def _build_recipe_overview(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
+        overview = soup.new_tag("div", attrs={"class": "recipe-overview"})
+
+        # First row: ratings, meals, difficulty
+        primary = soup.new_tag("div", attrs={"class": "recipe-overview__primary"})
+
+        ratings = metadata.get("ratings", [])
+
+        if ratings:
+            average = sum(item["rating"] for item in ratings) / len(ratings)
+
+            rating = soup.new_tag(
+                "span",
+                attrs={"class": "recipe-overview__rating"},
+            )
+            rating.string = f"★ {average:.1f}/10"
+            primary.append(rating)
+
+        difficulty = metadata.get("difficulty")
+        if difficulty is not None:
+            item = soup.new_tag(
+                "span",
+                attrs={"class": "recipe-overview__difficulty"},
+            )
+            self._append_svg_icon(
+                item,
+                GAUGE_SVG,
+            )
+            item.append(f"{difficulty}/10")
+
+            primary.append(item)
+
+        meals = metadata.get("meals", [])
+        if meals:
+            meal = soup.new_tag("span", attrs={"class": "recipe-overview__meals"})
+            self._append_svg_icon(
+                meal,
+                UTENSILS_SVG,
+            )
+            meal.append(", ".join(meals))
+            primary.append(meal)
+
+        if primary.contents:
+            overview.append(primary)
+
+        # Second row: categories and tags
+        secondary = soup.new_tag("div", attrs={"class": "recipe-overview__secondary"})
+
+        icons = {
+            "categories": POT_SVG,
+            "tags": TAG_SVG,
+        }
+
+        for key in ("categories", "tags"):
+            values = metadata.get(key, [])
+            if not values:
+                continue
+
+            group = soup.new_tag(
+                "span",
+                attrs={"class": f"recipe-overview__{key}"},
+            )
+
+            self._append_svg_icon(group, icons[key])
+
+            for index, value in enumerate(values):
+                if index:
+                    group.append(", ")
+
+                label = soup.new_tag("span")
+                label.string = str(value)
+                group.append(label)
+
+            secondary.append(group)
+
+        if secondary.contents:
+            overview.append(secondary)
+
+        return overview if overview.contents else None
+
+    def _inject_recipe_overview(self, content: str) -> str:
+        soup = BeautifulSoup(content, "html.parser")
+
+        title = soup.find("h1")
+        if title is None:
+            return str(soup)
+
+        # Find the hero image and its containing paragraph.
+        hero = title.find_next("img")
+        if hero is None:
+            return str(soup)
+
+        overview = soup.new_tag("div", attrs={"class": "recipe-overview"})
+
+        # Build and append the metadata rows here.
+        overview = self._build_recipe_overview(self.metadata, soup)
+        if overview:
+            hero.parent.insert_before(overview)
+
+        # Insert the overview between the title and hero image.
+        hero_parent = hero.parent
+        hero_parent.insert_before(overview)
+
+        return str(soup)
+
     def _postprocess(self, content: str) -> str:
         new_content = content
         new_content = self._mathjaxify_inline_code_blocks(new_content)
         new_content = self._enable_checkbox_inputs(new_content)
+        new_content = self._inject_recipe_overview(new_content)
         return new_content
 
     def convert(self, markdown_file: Path, html_file: Path):
@@ -302,6 +427,7 @@ class MarkdownToHTMLConverter:
                     {"".join(comments)}
                 </section>
             """).strip()
+
         markdown_body = post.content
 
         md = markdown.Markdown(
