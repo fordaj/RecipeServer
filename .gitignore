@@ -3,11 +3,7 @@
 *.log
 *.py.log
 test/config.txt
-# breakfast/
-# dessert/
-# dinner/
-# ingredient/
-# lunch/
+node_modules/*
 
 # ==========================================
 # Byte-compiled / optimized / DLL files

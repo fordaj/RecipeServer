@@ -63,14 +63,13 @@ MATHJAX = """
     options: {
       enableMenu: false,
       enableEnrichment: false,
-      enableAssistiveMml: false,
       enableExplorer: false,
       enableExplorerHelp: false
     }
   };
 </script>
 
-<script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-svg.js"></script>
+<script defer src="/assets/mathjax/tex-chtml.js"></script>
 """
 
 HOME_PAGE_ICON_HTML = """
