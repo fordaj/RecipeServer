@@ -1,5 +1,5 @@
 import webbrowser
-
+from pathlib import Path
 import pystray
 from PIL import Image, ImageDraw
 
@@ -7,9 +7,13 @@ from .server import Server
 from ._logger import logger
 
 
+FILE_PATH = Path(__file__) 
+LOGO_PNG = FILE_PATH.parent / "assets" / "logo.png"
+
 class Tray:
-    def __init__(self, server: Server):
+    def __init__(self, server: Server, on_quit):
         self.server = server
+        self.on_quit = on_quit
         self.icon = pystray.Icon(
             "RecipeServer",
             self._create_image(),
@@ -41,17 +45,9 @@ class Tray:
             ),
         )
 
-    def _create_image(self):
-        image = Image.new("RGB", (64, 64), "#8d5542")
-        draw = ImageDraw.Draw(image)
-
-        # Simple cookbook icon
-        draw.rectangle((13, 9, 51, 55), fill="#fff8ed")
-        draw.line((21, 22, 43, 22), fill="#8d5542", width=3)
-        draw.line((21, 31, 43, 31), fill="#8d5542", width=3)
-        draw.line((21, 40, 38, 40), fill="#8d5542", width=3)
-
-        return image
+    def _create_image(self) -> Image.Image:
+        with Image.open(LOGO_PNG) as image:
+            return image.convert("RGBA")
 
     def _open_recipes(self, icon, item):
         webbrowser.open("http://localhost:8000")
@@ -74,8 +70,7 @@ class Tray:
         icon.update_menu()
 
     def _quit(self, icon, item):
-        self.server.stop()
-        icon.stop()
+        self.on_quit()
 
     def run(self):
-        self.icon.run()
+        self.icon.run_detached()
