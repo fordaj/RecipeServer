@@ -1,4 +1,4 @@
-from recipeserver.core import setup_logger, main, Configuration
+from recipeserver.core import setup_logger, run, Configuration
 from pathlib import Path
 
 FILE_PATH = Path(__file__)
@@ -9,7 +9,7 @@ def test_recipeserver():
     setup_logger()
     cfg = Configuration()
     cfg.handle_configuration(CONFIG_TXT_PATH)
-    main(cfg)
+    run(cfg)
 
 
 if __name__ == "__main__":

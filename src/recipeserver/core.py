@@ -6,6 +6,7 @@ from ._logger import logger, setup_logger
 from .config import Configuration
 from .server import Server
 from .tray import Tray
+
 # from .file_watcher import FileObserver
 from threading import Lock
 import time
@@ -20,9 +21,7 @@ class Core:
         self.cfg = cfg
         self._regen_lock = Lock()
 
-    def convert_recipe(
-        self, markdown: Path
-    ) -> tuple[Path, MarkdownToHTMLConverter]:
+    def convert_recipe(self, markdown: Path) -> tuple[Path, MarkdownToHTMLConverter]:
         working_dir = self.cfg.working_directory.resolve()
         markdown = markdown.resolve()
 
@@ -60,9 +59,7 @@ class Core:
             self._regen_lock.release()
 
 
-
-
-def main(_cfg: Configuration):
+def run(_cfg: Configuration):
     cfg = _cfg
     # observer = FileObserver()
     core = Core(cfg)
