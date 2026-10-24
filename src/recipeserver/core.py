@@ -7,7 +7,7 @@ from .config import Configuration
 from .server import Server
 from .tray import Tray
 # from .file_watcher import FileObserver
-from threading import Lock
+from threading import Lock, Event
 import time
 
 FILE_PATH = Path(__file__)
@@ -82,6 +82,22 @@ def main(_cfg: Configuration):
     core.regen()
 
     server = Server(cfg, on_markdown_saved=core.convert_recipe)
-    server.start()
+    server.start() 
 
-    Tray(server).run()
+    shutdown_event = Event()
+    tray = Tray(server, on_quit=shutdown_event.set)
+
+    tray.run()
+
+    logger.debug("RecipeServer is running.")
+
+    try:
+        while not shutdown_event.wait():
+            pass
+    except KeyboardInterrupt:
+        logger.info("Keyboard interrupt received.")
+    finally:
+        logger.info("Shutting down RecipeServer...")
+        server.stop()
+        tray.icon.stop()
+        logger.info("RecipeServer stopped.")
