@@ -120,17 +120,20 @@ def main(_cfg: Configuration):
     shutdown_event = Event()
     tray = Tray(server, on_quit=shutdown_event.set)
 
-    tray.run()
-
-    logger.debug("RecipeServer is running.")
-
     try:
-        while not shutdown_event.wait():
-            pass
+        if sys.platform == "darwin":  # Mac requires tray.run() to work at all and is KeyboardInterrupt-able
+            tray.run()  # TODO: KeyboardInterrupt isn't caught on Mac either!
+        else:  # Windows won't handle KeyboardInterrupts properly unless you run detached
+            tray.run_detached()
+
+            while not shutdown_event.wait(0.25):
+                pass
+
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received.")
     finally:
         logger.info("Shutting down RecipeServer...")
+        shutdown_event.set()
+        tray.stop()
         server.stop()
-        tray.icon.stop()
         logger.info("RecipeServer stopped.")
