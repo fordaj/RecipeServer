@@ -120,17 +120,20 @@ def main(_cfg: Configuration):
     shutdown_event = Event()
     tray = Tray(server, on_quit=shutdown_event.set)
 
-    tray.run()
-
-    logger.debug("RecipeServer is running.")
-
     try:
-        while not shutdown_event.wait():
-            pass
+        if sys.platform == "darwin":
+            tray.run()  # Native macOS event loop on the main thread
+        else:
+            tray.run_detached()
+
+            while not shutdown.wait(0.25):
+                pass
+
     except KeyboardInterrupt:
         logger.info("Keyboard interrupt received.")
     finally:
         logger.info("Shutting down RecipeServer...")
+        shutdown_event.set()
+        tray.stop()
         server.stop()
-        tray.icon.stop()
         logger.info("RecipeServer stopped.")
