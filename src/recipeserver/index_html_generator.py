@@ -238,4 +238,4 @@ class IndexHTMLGenerator:
 
         index_html = self.cfg.site_directory / "index.html"
         index_html.write_text(html_page, encoding="UTF-8", newline="\n")
-        logger.info(f"Created {index_html}")
+        logger.debug(f"Created {index_html}")

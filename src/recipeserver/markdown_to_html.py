@@ -480,7 +480,7 @@ class MarkdownToHTMLConverter:
 
         # Write to file
         html_file.write_text(html, encoding="UTF-8", newline="\n")
-        logger.info(f'Created "{html_file}"') # TODO get_pretty_path_str
+        logger.debug(f'Created "{html_file}"')  # TODO get_pretty_path_str
 
         self.lint_html(html_file)
 
