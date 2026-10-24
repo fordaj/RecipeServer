@@ -121,9 +121,9 @@ def main(_cfg: Configuration):
     tray = Tray(server, on_quit=shutdown_event.set)
 
     try:
-        if sys.platform == "darwin":
-            tray.run()  # Native macOS event loop on the main thread
-        else:
+        if sys.platform == "darwin":  # Mac requires tray.run() to work at all and is KeyboardInterrupt-able
+            tray.run()
+        else:  # Windows won't handle KeyboardInterrupts properly unless you run detached
             tray.run_detached()
 
             while not shutdown.wait(0.25):
