@@ -41,6 +41,7 @@ RECIPE_SCALER_HTML = FILE_PATH.parent / "assets" / "recipe-scaler.html"
 # CSS_PATH = FILE_PATH.parent / "assets" / "style.css"
 # PULL_DOWN_PAGE_REFRESH_JS = FILE_PATH.parent / "assets" / "pull-down-page-refresh.js"
 GAUGE_SVG = FILE_PATH.parent / "assets" / "gauge.svg"
+CHEF_HAT_SVG = FILE_PATH.parent / "assets" / "chef-hat.svg"
 POT_SVG = FILE_PATH.parent / "assets" / "cooking-pot.svg"
 TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
 UTENSILS_SVG = FILE_PATH.parent / "assets" / "utensils.svg"
@@ -267,6 +268,21 @@ class MarkdownToHTMLConverter:
             )
             rating.string = f"★ {average:.1f}/10"
             primary.append(rating)
+
+        makes = metadata.get("makes", [])
+
+        if makes:
+            item = soup.new_tag(
+                "span",
+                attrs={"class": "recipe-overview__difficulty"},
+            )
+            self._append_svg_icon(
+                item,
+                CHEF_HAT_SVG,
+            )
+            item.append(f"x{makes}")
+
+            primary.append(item)
 
         difficulty = metadata.get("difficulty")
         if difficulty is not None:
