@@ -6,9 +6,9 @@ from PIL import Image, ImageDraw
 from .server import Server
 from ._logger import logger
 
-
-FILE_PATH = Path(__file__) 
+FILE_PATH = Path(__file__)
 LOGO_PNG = FILE_PATH.parent / "assets" / "logo.png"
+
 
 class Tray:
     def __init__(self, server: Server, on_quit):
@@ -73,4 +73,5 @@ class Tray:
         self.on_quit()
 
     def run(self):
-        self.icon.run_detached()
+        # self.icon.run_detached()
+        self.icon.run()
