@@ -1,566 +1,128 @@
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Recipe Server</title>
-                <style>
-                /* ---------- Fonts ---------- */
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Server</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.svg">
+    <link rel="stylesheet" href="/assets/theme.css">
+    <link rel="stylesheet" href="/assets/index.css">
+    <script defer>
+    const initRecipeIndex = () => {
+        const list = document.querySelector("#recipe-list");
+        const recipes = [...list.querySelectorAll(".recipe")];
+        const search = document.querySelector("#recipe-search");
+        const meal = document.querySelector("#filter-meal");
+        const category = document.querySelector("#filter-category");
+        const tag = document.querySelector("#filter-tag");
+        const sort = document.querySelector("#sort-recipes");
+        const count = document.querySelector("#recipe-count");
+
+        const getValues = (recipe, key) =>
+            JSON.parse(recipe.dataset[key] || "[]")
+                .map(value => value.toLowerCase());
+
+        const update = () => {
+            const query = search.value.trim().toLowerCase();
+            const selectedMeal = meal.value;
+            const selectedCategory = category.value;
+            const selectedTag = tag.value;
+
+            const visible = recipes.filter(recipe => {
+                const matchesSearch =
+                    recipe.dataset.search.toLowerCase().includes(query);
+
+                const matchesMeal =
+                    !selectedMeal ||
+                    getValues(recipe, "meals").includes(selectedMeal);
+
+                const matchesCategory =
+                    !selectedCategory ||
+                    getValues(recipe, "categories").includes(selectedCategory);
+
+                const matchesTag =
+                    !selectedTag ||
+                    getValues(recipe, "tags").includes(selectedTag);
+
+                return matchesSearch && matchesMeal &&
+                    matchesCategory && matchesTag;
+            });
+
+            const direction = sort.value === "za" ? -1 : 1;
+            visible.sort((a, b) =>
+                direction * a.dataset.title.localeCompare(
+                    b.dataset.title, undefined,
+                    { sensitivity: "base" }
+                )
+            );
+
+            for (const recipe of visible) {
+                list.appendChild(recipe);
+                recipe.hidden = false;
+            }
+
+            for (const recipe of recipes) {
+                if (!visible.includes(recipe)) {
+                    recipe.hidden = true;
+                }
+            }
+
+            count.textContent =
+                `${visible.length} of ${recipes.length} recipes`;
+        };
+
+        [search, meal, category, tag, sort].forEach(control =>
+            control.addEventListener(
+                control === search ? "input" : "change", update
+            )
+        );
+
+        update();
+    };
+
+    document.addEventListener("DOMContentLoaded", initRecipeIndex);
+    </script>
+</head>
+<body>
+    <main class="recipes">
+        <h1>Recipes</h1>
+
+        <div class="recipe-controls">
+            <input
+                id="recipe-search"
+                type="search"
+                placeholder="Search recipes, ingredients, tags..."
+                aria-label="Search recipes"
+            >
+
+            <select id="filter-meal" aria-label="Filter by meal">
+                <option value="">All meals</option>
+                <option value="breakfast">Breakfast</option>
+            </select>
 
-@font-face {
-  font-family: "Lato";
-  src: url("./fonts/Lato/Lato-Regular.ttf") format("truetype");
-  font-weight: 400;
-}
+            <select id="filter-category" aria-label="Filter by category">
+                <option value="">All categories</option>
 
-@font-face {
-  font-family: "Playfair Display";
-  src: url("./fonts/Playfair/Playfair-VariableFont_opsz,wdth,wght.ttf") format("truetype");
-  font-weight: 400;
-}
+            </select>
 
-/* ---------- Theme ---------- */
+            <select id="filter-tag" aria-label="Filter by tag">
+                <option value="">All tags</option>
 
-:root {
-  --food-color: #8d5542;
-  --food-color-hover: #754331;
+            </select>
 
-  --page-background: #faf9f7;
-  --surface: #ffffff;
-  --text-color: #666666;
-  --heading-color: #444444;
-  --border-color: #e5ddd8;
-  --muted-color: #99918c;
+            <select id="sort-recipes" aria-label="Sort recipes">
+                <option value="az">Name: A–Z</option>
+                <option value="za">Name: Z–A</option>
+            </select>
+        </div>
 
-  --page-width: 900px;
-  --spacing: 1.5rem;
-}
+        <p id="recipe-count" aria-live="polite"></p>
 
-* {
-  box-sizing: border-box;
-}
+        <ul id="recipe-list">
+            <li class="recipe" data-title="Sample" data-search="Sample Breakfast" data-meals="[&quot;Breakfast&quot;]" data-categories="[]" data-tags="[]"><a href="/Users/andrewford/Library/Application Support/recipe-server/site/sample/recipe.html">Sample</a></li>
+        </ul>
+    </main>
 
-html {
-  font-size: 16px;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-
-  background: var(--page-background);
-  color: var(--text-color);
-
-  font-family: "Lato", sans-serif;
-  line-height: 1.7;
-}
-
-/* ---------- Page ---------- */
-
-.recipes {
-  width: min(100% - 2rem, var(--page-width));
-  margin: 0 auto;
-  padding: 1.5rem 0 4rem;
-}
-
-/* ---------- Heading ---------- */
-
-.recipes h1 {
-  margin: 0 0 2rem;
-
-  color: var(--food-color);
-  font-family: "Playfair Display", serif;
-  font-size: clamp(2.75rem, 8vw, 4.5rem);
-  font-weight: 400;
-  line-height: 1.1;
-  text-align: center;
-}
-
-/* ---------- Search and filters ---------- */
-
-.recipe-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-
-  margin: 0 auto 1rem;
-  padding: 1rem;
-
-  background: var(--surface);
-  border: 1px solid #f0ebe7;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgb(0 0 0 / 4%);
-}
-
-.recipe-controls input,
-.recipe-controls select {
-  min-width: 0;
-  max-width: 100%;
-  padding: 0.7rem 0.8rem;
-
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background-color: var(--page-background);
-
-  color: var(--heading-color);
-  font: inherit;
-  line-height: 1.4;
-}
-
-.recipe-controls input {
-  flex: 1 1 100%;
-}
-
-.recipe-controls input::placeholder {
-  color: var(--muted-color);
-}
-
-.recipe-controls select {
-  flex: 1 1 auto;
-  cursor: pointer;
-}
-
-.recipe-controls input:focus-visible,
-.recipe-controls select:focus-visible {
-  outline: 2px solid var(--food-color);
-  outline-offset: 2px;
-  border-color: var(--food-color);
-}
-
-/* ---------- Recipe count ---------- */
-
-#recipe-count {
-  margin: 0.75rem 0 1rem;
-  color: var(--muted-color);
-  font-size: 0.9rem;
-}
-
-/* ---------- Recipe list ---------- */
-
-#recipe-list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.65rem;
-
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-#recipe-list li {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-
-  background: var(--surface);
-  border: 1px solid #f0ebe7;
-  border-radius: 8px;
-
-  box-shadow: 0 1px 4px rgb(0 0 0 / 3%);
-  transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
-}
-
-#recipe-list li:hover {
-  border-color: #d8c2b7;
-  box-shadow: 0 3px 10px rgb(0 0 0 / 5%);
-}
-
-#recipe-list li[hidden] {
-  display: none;
-}
-
-#recipe-list a {
-  display: block;
-  padding: 0.85rem 1rem;
-
-  color: var(--food-color);
-  font-size: 1.05rem;
-  line-height: 1.45;
-  text-decoration: none;
-
-  overflow-wrap: anywhere;
-}
-
-#recipe-list a:hover {
-  color: var(--food-color-hover);
-}
-
-#recipe-list a:focus-visible {
-  outline: 2px solid var(--food-color);
-  outline-offset: -3px;
-  border-radius: 8px;
-}
-
-/* ---------- Empty results ---------- */
-
-#recipe-list:empty::after {
-  content: "No recipes found.";
-  display: block;
-  padding: 1.5rem;
-
-  color: var(--muted-color);
-  text-align: center;
-}
-
-/* ---------- Desktop ---------- */
-
-@media (min-width: 768px) {
-  .recipes {
-    padding-top: 2.5rem;
-  }
-
-  .recipes h1 {
-    margin-bottom: 2.5rem;
-  }
-
-  .recipe-controls {
-    padding: 1.25rem;
-    gap: 0.75rem;
-  }
-
-  .recipe-controls input {
-    flex: 2 1 240px;
-  }
-
-  .recipe-controls select {
-    flex: 1 1 auto;
-  }
-
-  #recipe-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-}
-
-/* ---------- Reduced motion ---------- */
-
-@media (prefers-reduced-motion: reduce) {
-  #recipe-list li {
-    transition: none;
-  }
-}
-
-                </style>
-                <script defer>
-                const initRecipeIndex = () => {
-                    const list = document.querySelector("#recipe-list");
-                    const recipes = [...list.querySelectorAll(".recipe")];
-                    const search = document.querySelector("#recipe-search");
-                    const meal = document.querySelector("#filter-meal");
-                    const category = document.querySelector("#filter-category");
-                    const tag = document.querySelector("#filter-tag");
-                    const sort = document.querySelector("#sort-recipes");
-                    const count = document.querySelector("#recipe-count");
-
-                    const getValues = (recipe, key) =>
-                        JSON.parse(recipe.dataset[key] || "[]")
-                            .map(value => value.toLowerCase());
-
-                    const update = () => {
-                        const query = search.value.trim().toLowerCase();
-                        const selectedMeal = meal.value;
-                        const selectedCategory = category.value;
-                        const selectedTag = tag.value;
-
-                        const visible = recipes.filter(recipe => {
-                            const matchesSearch =
-                                recipe.dataset.search.toLowerCase().includes(query);
-
-                            const matchesMeal =
-                                !selectedMeal ||
-                                getValues(recipe, "meals").includes(selectedMeal);
-
-                            const matchesCategory =
-                                !selectedCategory ||
-                                getValues(recipe, "categories").includes(selectedCategory);
-
-                            const matchesTag =
-                                !selectedTag ||
-                                getValues(recipe, "tags").includes(selectedTag);
-
-                            return matchesSearch && matchesMeal &&
-                                matchesCategory && matchesTag;
-                        });
-
-                        const direction = sort.value === "za" ? -1 : 1;
-                        visible.sort((a, b) =>
-                            direction * a.dataset.title.localeCompare(
-                                b.dataset.title, undefined,
-                                { sensitivity: "base" }
-                            )
-                        );
-
-                        for (const recipe of visible) {
-                            list.appendChild(recipe);
-                            recipe.hidden = false;
-                        }
-
-                        for (const recipe of recipes) {
-                            if (!visible.includes(recipe)) {
-                                recipe.hidden = true;
-                            }
-                        }
-
-                        count.textContent =
-                            `${visible.length} of ${recipes.length} recipes`;
-                    };
-
-                    [search, meal, category, tag, sort].forEach(control =>
-                        control.addEventListener(
-                            control === search ? "input" : "change", update
-                        )
-                    );
-
-                    update();
-                };
-
-                document.addEventListener("DOMContentLoaded", initRecipeIndex);
-                </script>
-            </head>
-            <body>
-                <main class="recipes">
-                    <h1>Recipes</h1>
-
-                    <div class="recipe-controls">
-                        <input
-                            id="recipe-search"
-                            type="search"
-                            placeholder="Search recipes, ingredients, tags..."
-                            aria-label="Search recipes"
-                        >
-
-                        <select id="filter-meal" aria-label="Filter by meal">
-                            <option value="">All meals</option>
-                            <option value="breakfast">Breakfast</option>
-                        </select>
-
-                        <select id="filter-category" aria-label="Filter by category">
-                            <option value="">All categories</option>
-
-                        </select>
-
-                        <select id="filter-tag" aria-label="Filter by tag">
-                            <option value="">All tags</option>
-
-                        </select>
-
-                        <select id="sort-recipes" aria-label="Sort recipes">
-                            <option value="az">Name: A–Z</option>
-                            <option value="za">Name: Z–A</option>
-                        </select>
-                    </div>
-
-                    <p id="recipe-count" aria-live="polite"></p>
-
-                    <ul id="recipe-list">
-                        <li class="recipe" data-title="Sample" data-search="Sample Breakfast" data-meals="[&quot;Breakfast&quot;]" data-categories="[]" data-tags="[]"><a href="sample/recipe.html">Sample</a></li>
-                    </ul>
-                </main>
-                <script defer>
-                class PullToRefresh {
-  constructor({ threshold = 100, maxPull = 90 } = {}) {
-    this.threshold = threshold;
-    this.maxPull = maxPull;
-
-    this.startY = 0;
-    this.pullDistance = 0;
-    this.active = false;
-    this.tracking = false;
-
-    this.indicator = document.createElement("div");
-    this.indicator.id = "pull-to-refresh";
-    this.indicator.innerHTML = `
-      <span class="ptr-arrow">↓</span>
-      <span class="ptr-text">Pull to refresh</span>
-    `;
-
-    document.body.appendChild(this.indicator);
-
-    this.arrow = this.indicator.querySelector(".ptr-arrow");
-    this.text = this.indicator.querySelector(".ptr-text");
-
-    this.addStyles();
-    this.addListeners();
-  }
-
-  addStyles() {
-    const style = document.createElement("style");
-
-    style.textContent = `
-
-#pull-to-refresh {
-  position: fixed;
-  z-index: 9999;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 0;
-
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-
-  background: transparent;
-  color: #666666;
-  font: 14px sans-serif;
-
-  transform: translateY(0);
-  transition: none;
-  pointer-events: none;
-}
-
-#pull-to-refresh.ptr-active {
-  transition: none;
-}
-
-#pull-to-refresh > span {
-  position: relative;
-  top: -56px;
-
-  background: rgba(255, 255, 255, 0.96);
-  padding: 10px 16px;
-  border-radius: 24px;
-
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-}
-
-#pull-to-refresh .ptr-arrow {
-  display: inline-block;
-  font-size: 20px;
-  line-height: 20px;
-  transition: transform 0.15s ease;
-}
-
-#pull-to-refresh .ptr-text {
-  font-size: 14px;
-  line-height: 20px;
-}
-
-#pull-to-refresh.ptr-loading .ptr-arrow {
-  animation: ptr-spin 0.7s linear infinite;
-}
-
-@keyframes ptr-spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #pull-to-refresh,
-  #pull-to-refresh .ptr-arrow {
-    transition: none !important;
-    animation: none !important;
-  }
-}
-
-    `;
-
-    document.head.appendChild(style);
-  }
-
-  addListeners() {
-    document.addEventListener("touchstart", (event) => this.onTouchStart(event), { passive: true });
-
-    document.addEventListener("touchmove", (event) => this.onTouchMove(event), { passive: false });
-
-    document.addEventListener("touchend", () => this.onTouchEnd(), { passive: true });
-
-    document.addEventListener("touchcancel", () => this.reset(), { passive: true });
-  }
-
-  onTouchStart(event) {
-    if (event.touches.length !== 1) return;
-    if (window.scrollY > 0) return;
-
-    this.startY = event.touches[0].clientY;
-    this.pullDistance = 0;
-    this.tracking = true;
-    this.active = false;
-  }
-
-  onTouchMove(event) {
-    if (!this.tracking || event.touches.length !== 1) {
-      return;
-    }
-
-    const currentY = event.touches[0].clientY;
-    const deltaY = currentY - this.startY;
-
-    // Only respond to a downward pull at the top.
-    if (deltaY <= 0 || window.scrollY > 0) {
-      if (this.active) this.reset();
-      else this.tracking = false;
-      return;
-    }
-
-    // Stop native scrolling / rubber-banding during our pull.
-    event.preventDefault();
-
-    this.active = true;
-
-    // Dampen the movement for a natural feel.
-    this.pullDistance = Math.min(deltaY * 0.5, this.maxPull);
-
-    const pill = this.indicator.querySelector(".ptr-text");
-    const arrow = this.indicator.querySelector(".ptr-arrow");
-
-    pill.style.top = `${-56 + this.pullDistance}px`;
-    arrow.style.top = `${-56 + this.pullDistance}px`;
-
-    this.indicator.classList.add("ptr-active");
-
-    const ready = deltaY >= this.threshold;
-
-    this.indicator.classList.toggle("ptr-ready", ready);
-    this.arrow.textContent = ready ? "↑" : "↓";
-    this.text.textContent = ready ? "Release to refresh" : "Pull to refresh";
-  }
-
-  onTouchEnd() {
-    if (!this.tracking) return;
-
-    const shouldRefresh =
-      this.active &&
-      this.pullDistance >= this.maxPull &&
-      this.indicator.classList.contains("ptr-ready");
-
-    this.tracking = false;
-
-    if (shouldRefresh) {
-      this.indicator.classList.remove("ptr-active");
-      this.indicator.classList.add("ptr-loading");
-
-      this.arrow.textContent = "↻";
-      this.text.textContent = "Refreshing…";
-      this.indicator.querySelector(".ptr-text").style.top = "0";
-      this.indicator.querySelector(".ptr-arrow").style.top = "0";
-
-      // Allow the indicator to appear before reloading.
-      setTimeout(() => location.reload(), 150);
-    } else {
-      this.reset();
-    }
-  }
-
-  reset() {
-    this.tracking = false;
-    this.active = false;
-    this.pullDistance = 0;
-
-    this.indicator.classList.remove("ptr-active", "ptr-ready", "ptr-loading");
-
-    this.indicator.querySelector(".ptr-text").style.top = "-56px";
-    this.indicator.querySelector(".ptr-arrow").style.top = "-56px";
-    this.arrow.textContent = "↓";
-    this.text.textContent = "Pull to refresh";
-  }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  new PullToRefresh();
-});
-
-                </script>
-            </body>
-            </html>
+    <script defer src="/assets/pull-down-page-refresh.js"></script>
+</body>
+</html>

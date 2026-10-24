@@ -1,4 +1,3 @@
-
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -13,14 +12,20 @@ from ._logger import logger
 from .markdown_to_html import MarkdownToHTMLConverter
 from collections.abc import Callable
 
+RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
+
+
 class RecipeRequestHandler(SimpleHTTPRequestHandler):
-    MAX_REQUEST_SIZE = 5 * 1024 * 1024  # 5 MiB
+    MAX_REQUEST_SIZE = 5 * 1024 * 1024
+
     def __init__(
         self,
         *args,
+        source_directory: Path,
         on_markdown_saved: RecipeConverter | None = None,
         **kwargs,
     ):
+        self.source_directory = Path(source_directory).resolve()
         self.on_markdown_saved = on_markdown_saved
         super().__init__(*args, **kwargs)
 
@@ -127,17 +132,17 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         relative_path = Path(requested_path)
 
         if relative_path.is_absolute() or ".." in relative_path.parts:
-            raise ValueError("Path must stay inside the working directory")
+            raise ValueError("Path must stay inside the source directory")
 
         if relative_path.suffix.lower() != ".md":
             raise ValueError("Only Markdown (.md) files can be edited")
 
-        root = Path(self.directory).resolve()
+        root = self.source_directory
         file_path = (root / relative_path).resolve()
 
-        # Also blocks symlinks that point outside the working directory.
+        # Block symlinks that point outside the source directory.
         if not file_path.is_relative_to(root):
-            raise ValueError("Path must stay inside the working directory")
+            raise ValueError("Path must stay inside the source directory")
 
         return file_path
 
@@ -152,8 +157,6 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
-
-RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
 
 
 class Server:
@@ -185,7 +188,8 @@ class Server:
 
         handler = partial(
             RecipeRequestHandler,
-            directory=str(self.cfg.working_directory),
+            directory=str(self.cfg.site_directory),
+            source_directory=self.cfg.source_directory,
             on_markdown_saved=self.on_markdown_saved,
         )
 

@@ -6,12 +6,18 @@
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Sample</title>
 <link href="/assets/logo.svg" rel="icon" type="image/svg+xml"/>
+<link href="/assets/theme.css" rel="stylesheet"/>
 <link href="/assets/style.css" rel="stylesheet"/>
 <link href="/assets/recipe-scaler.css" rel="stylesheet"/>
 <link href="/assets/recipe-editor.css" rel="stylesheet"/>
 <style>
     :root {
         --food-color: #C27928;
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --food-color: #dd9245;
+        }
     }
 
     .recipe-icon {
@@ -29,21 +35,20 @@
     options: {
       enableMenu: false,
       enableEnrichment: false,
-      enableAssistiveMml: false,
       enableExplorer: false,
       enableExplorerHelp: false
     }
   };
 </script>
-<script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+<script defer="" src="/assets/mathjax/tex-chtml.js"></script>
 </head>
 <body>
 <script id="recipe-metadata" type="application/json">{"meals": ["Breakfast"]}</script>
 <main class="recipe">
 <header class="recipe-header">
 <a class="recipe-home" href="/index.html">
-<svg aria-hidden="true" class="recipe-icon" fill="none" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24">
-<path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" stroke-linecap="round" stroke-linejoin="round"></path>
+<svg class="recipe-icon" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+<path d="M2 6h4"></path><path d="M2 10h4"></path><path d="M2 14h4"></path><path d="M2 18h4"></path><rect height="20" rx="2" width="16" x="4" y="2"></rect><path d="M16 2v20"></path>
 </svg>
 </a>
 <div class="recipe-scaler">
@@ -58,14 +63,16 @@
 <input aria-label="Custom recipe scale" id="recipe-scale-custom" min="0.125" step="0.125" type="number" value="1"/>
 <span class="scale-symbol">×</span>
 </div>
-<button aria-label="Edit recipe" id="edit-recipe" title="Edit recipe" type="button">
-<svg class="lucide lucide-pencil preview-icon" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+<button aria-label="Edit recipe" class="recipe-home" id="edit-recipe" title="Edit recipe" type="button">
+<svg class="recipe-icon" fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
 <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"></path><path d="m15 5 4 4"></path>
 </svg>
 </button>
 </header>
 <h1>Sample</h1>
-<p><img alt="Sample" src="image.png"/></p>
+<div class="recipe-overview"><div class="recipe-overview__primary"><span class="recipe-overview__meals"><svg aria-hidden="true" class="lucide lucide-utensils preview-icon" fill="none" focusable="false" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">
+<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path>
+</svg>Breakfast</span></div></div><p><img alt="Sample" src="image.png"/></p>
 <div class="recipe-meta">
 <dl>
 <dt>Time</dt>

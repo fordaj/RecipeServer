@@ -6,9 +6,11 @@ from ._logger import logger, setup_logger
 from .config import Configuration
 from .server import Server
 from .tray import Tray
+
 # from .file_watcher import FileObserver
 from threading import Lock, Event
-import time
+from shutil import rmtree, copytree, copy2
+import time, sys
 
 FILE_PATH = Path(__file__)
 
@@ -20,10 +22,24 @@ class Core:
         self.cfg = cfg
         self._regen_lock = Lock()
 
-    def convert_recipe(
-        self, markdown: Path
-    ) -> tuple[Path, MarkdownToHTMLConverter]:
-        working_dir = self.cfg.working_directory.resolve()
+    @staticmethod
+    def get_assets_directory() -> Path:
+        if getattr(sys, "frozen", False):
+            # PyInstaller extracts bundled assets here.
+            return Path(sys._MEIPASS) / "recipeserver" / "assets"
+
+        # Local development: src/recipeserver/assets
+        return Path(__file__).resolve().parent / "assets"
+
+    @staticmethod
+    def copy_assets(site_directory: Path) -> None:
+        assets_directory = Core.get_assets_directory()
+        destination = site_directory / "assets"
+        copytree(assets_directory, destination, dirs_exist_ok=True)
+        logger.info(f'Copied "{assets_directory}" to "{destination}"')
+
+    def convert_recipe(self, markdown: Path) -> tuple[Path, MarkdownToHTMLConverter]:
+        working_dir = self.cfg.source_directory.resolve()
         markdown = markdown.resolve()
 
         if not markdown.is_relative_to(working_dir):
@@ -32,9 +48,18 @@ class Core:
         if markdown.name != "recipe.md" or not markdown.is_file():
             raise ValueError("Invalid recipe Markdown file")
 
-        html = markdown.with_suffix(".html")
+        # Preserve the source directory structure under site/.
+        relative_path = markdown.relative_to(working_dir)
+        html = (self.cfg.site_directory / relative_path).with_suffix(".html")
+        html.parent.mkdir(parents=True, exist_ok=True)
+
         converter = MarkdownToHTMLConverter(self.cfg)
         converter.convert(markdown, html)
+
+        # COPY IMAEGES OVER
+        for image in markdown.parent.iterdir():
+            if image.is_file() and image.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif"}:
+                copy2(image, html.parent / image.name)
 
         return html, converter
 
@@ -44,7 +69,17 @@ class Core:
             return
 
         try:
-            working_dir = self.cfg.working_directory
+            working_dir = self.cfg.source_directory.resolve()
+            if self.cfg.site_directory.exists():
+                logger.debug(f'Deleting "{self.cfg.site_directory}"')
+                rmtree(self.cfg.site_directory)
+            else:
+                logger.debug(f'"{self.cfg.site_directory}" does not exist. Skipping deletion')
+
+            self.cfg.site_directory.mkdir(parents=True)
+            logger.info(f'Created "{self.cfg.site_directory}"')
+            self.copy_assets(self.cfg.site_directory)
+
             index_generator = IndexHTMLGenerator(self.cfg)
 
             for markdown in working_dir.rglob("recipe.md"):
@@ -58,8 +93,6 @@ class Core:
 
         finally:
             self._regen_lock.release()
-
-
 
 
 def main(_cfg: Configuration):
@@ -82,7 +115,7 @@ def main(_cfg: Configuration):
     core.regen()
 
     server = Server(cfg, on_markdown_saved=core.convert_recipe)
-    server.start() 
+    server.start()
 
     shutdown_event = Event()
     tray = Tray(server, on_quit=shutdown_event.set)
