@@ -6,13 +6,28 @@ from ._logger import logger, setup_logger
 from .config import Configuration
 from .server import Server
 from .tray import Tray
-
-# from .file_watcher import FileObserver
+from concurrent.futures import ThreadPoolExecutor
 from threading import Lock, Event
 from shutil import rmtree, copytree, copy2
-import time, sys
+import time, sys, os
 
 FILE_PATH = Path(__file__)
+DEFAULT_WORKERS = 8
+MAX_WORKERS = 16
+
+
+def get_worker_count() -> int:
+
+    cpu_count = os.process_cpu_count() or 1
+
+    return min(
+        MAX_WORKERS,
+        max(DEFAULT_WORKERS, cpu_count),
+    )
+
+
+NUM_WORKERS = get_worker_count()
+
 
 cfg: Configuration
 
@@ -36,7 +51,7 @@ class Core:
         assets_directory = Core.get_assets_directory()
         destination = site_directory / "assets"
         copytree(assets_directory, destination, dirs_exist_ok=True)
-        logger.info(f'Copied "{assets_directory}" to "{destination}"')
+        logger.debug(f'Copied "{assets_directory}" to "{destination}"')
 
     def convert_recipe(self, markdown: Path) -> tuple[Path, MarkdownToHTMLConverter]:
         working_dir = self.cfg.source_directory.resolve()
@@ -64,33 +79,38 @@ class Core:
         return html, converter
 
     def regen(self):
+        start = time.perf_counter()
         if not self._regen_lock.acquire(blocking=False):
             logger.debug("Skipping regeneration because one is already running")
             return
 
         try:
             working_dir = self.cfg.source_directory.resolve()
+
             if self.cfg.site_directory.exists():
                 logger.debug(f'Deleting "{self.cfg.site_directory}"')
                 rmtree(self.cfg.site_directory)
-            else:
-                logger.debug(f'"{self.cfg.site_directory}" does not exist. Skipping deletion')
 
             self.cfg.site_directory.mkdir(parents=True)
-            logger.info(f'Created "{self.cfg.site_directory}"')
+            logger.debug(f'Created "{self.cfg.site_directory}"')
             self.copy_assets(self.cfg.site_directory)
+
+            markdown_files = [markdown for markdown in working_dir.rglob("recipe.md") if markdown.is_file()]
 
             index_generator = IndexHTMLGenerator(self.cfg)
 
-            for markdown in working_dir.rglob("recipe.md"):
-                if not markdown.is_file():
-                    continue
+            if markdown_files:
+                with ThreadPoolExecutor(max_workers=min(NUM_WORKERS, len(markdown_files))) as executor:
+                    results = executor.map(
+                        self.convert_recipe,
+                        markdown_files,
+                    )
 
-                html, converter = self.convert_recipe(markdown)
-                index_generator.add(Recipe(converter.metadata, html))
+                    for html, converter in results:
+                        index_generator.add(Recipe(converter.metadata, html))
 
             index_generator.convert()
-
+            logger.info(f"Regenerated site with {NUM_WORKERS} workers in {time.perf_counter() - start:.1f}s")
         finally:
             self._regen_lock.release()
 
