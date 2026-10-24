@@ -2,14 +2,14 @@ from pathlib import Path
 from .markdown_to_html import MarkdownToHTMLConverter
 from .html_embedder import HTMLEmbedder
 from .index_html_generator import IndexHTMLGenerator, Recipe
-from ._logger import logger, setup_logger
+from ._logger import logger, setup_logger, LogLevel
 from .config import Configuration
 from .server import Server
 from .tray import Tray
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock, Event
 from shutil import rmtree, copytree, copy2
-import time, sys, os
+import time, sys, os, argparse
 
 FILE_PATH = Path(__file__)
 DEFAULT_WORKERS = 8
@@ -113,6 +113,22 @@ class Core:
             logger.info(f"Regenerated site with {NUM_WORKERS} workers in {time.perf_counter() - start:.1f}s")
         finally:
             self._regen_lock.release()
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "-l",
+        "--log-level",
+        type=str.upper,
+        choices=[level.name for level in LogLevel],
+        default=LogLevel.INFO.name,
+        metavar="LEVEL",
+        help="Logging verbosity (default: INFO)",
+    )
+
+    return parser.parse_args()
 
 
 def main(_cfg: Configuration):
