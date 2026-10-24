@@ -1,7 +1,8 @@
-from .core import setup_logger, main, Configuration
+from .core import setup_logger, main, Configuration, parse_args
 
 if __name__ == "__main__":
-    setup_logger()
+    args = parse_args()
+    setup_logger(args.log_level)
     cfg = Configuration()
     cfg.handle_configuration()
     main(cfg)

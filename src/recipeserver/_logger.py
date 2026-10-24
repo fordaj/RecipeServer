@@ -2,20 +2,22 @@
 
 from loguru import logger
 import socket, sys, os, atexit, shutil
+from enum import IntEnum
 
 hostname = socket.gethostname()
 file_sink_id = None
 _is_configured = False
 
-# | Level      | Numeric value |
-# | ---------- | ------------: |
-# | `TRACE`    |           `5` |
-# | `DEBUG`    |          `10` |
-# | `INFO`     |          `20` |
-# | `SUCCESS`  |          `25` |
-# | `WARNING`  |          `30` |
-# | `ERROR`    |          `40` |
-# | `CRITICAL` |          `50` |
+
+class LogLevel(IntEnum):
+    TRACE = 5
+    DEBUG = 10
+    INFO = 20
+    SUCCESS = 25
+    WARNING = 30
+    ERROR = 40
+    CRITICAL = 50
+
 
 logger.level("COMMAND", no=6, color="<dim><magenta>")
 logger.command = lambda msg, *args, **kwargs: logger.opt(depth=1).log("COMMAND", msg, *args, **kwargs)
