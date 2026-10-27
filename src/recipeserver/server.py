@@ -6,10 +6,13 @@ from urllib.parse import parse_qs, urlsplit
 import json
 import socket
 import sys
+import frontmatter
 
 from .config import Configuration
 from ._logger import logger
 from .markdown_to_html import MarkdownToHTMLConverter
+
+# from .metadata import RecipeMetadata
 from collections.abc import Callable
 
 RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
@@ -32,7 +35,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlsplit(self.path)
 
-        if parsed.path != "/api/markdown":
+        if parsed.path != "/api/markdown" and not parsed.path.startswith("/api/metadata/"):
             if parsed.path.startswith("/api/"):
                 self.send_error(404, "Unknown API endpoint")
                 return
@@ -54,8 +57,45 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(404, {"error": "Markdown file not found"})
                 return
 
-            content = file_path.read_text(encoding="utf-8")
-            self._send_bytes(200, content.encode("utf-8"), "text/markdown; charset=utf-8")
+            # Handle metadata endpoint
+            if parsed.path == "/api/metadata":
+                # Read the file content and extract YAML front matter using frontmatter library
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                # Use frontmatter to parse the YAML front matter
+                try:
+                    post = frontmatter.loads(content)
+                    metadata = post.metadata
+                    self._send_json(200, {"metadata": metadata})
+                except Exception as e:
+                    logger.exception("Failed to parse YAML front matter")
+                    self._send_json(500, {"error": "Unable to parse YAML front matter"})
+            elif parsed.path.startswith("/api/metadata/"):
+                # Handle individual metadata field endpoints
+                field_name = parsed.path.split("/")[-1]
+
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                try:
+                    post = frontmatter.loads(content)
+                    metadata = post.metadata
+
+                    if field_name in metadata:
+                        # Return the specific field value
+                        self._send_json(200, {"value": metadata[field_name]})
+                    elif field_name == "comments":
+                        self._send_json(200, {"value": []})
+                    else:
+                        self._send_json(404, {"error": f"Metadata field '{field_name}' not found"})
+                except Exception as e:
+                    logger.exception(f"Failed to parse YAML front matter for field {field_name}")
+                    self._send_json(500, {"error": "Unable to parse YAML front matter"})
+            else:
+                # Handle markdown endpoint - return the raw markdown content
+                content = file_path.read_text(encoding="utf-8")
+                self._send_bytes(200, content.encode("utf-8"), "text/markdown; charset=utf-8")
 
         except ValueError as exc:
             self._send_json(400, {"error": str(exc)})
@@ -64,9 +104,92 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(500, {"error": "Unable to read Markdown file"})
 
     def do_POST(self):
-        if urlsplit(self.path).path != "/api/markdown":
+        parsed = urlsplit(self.path)
+
+        if parsed.path != "/api/markdown" and not parsed.path.startswith("/api/metadata/"):
             self.send_error(404, "Unknown API endpoint")
             return
+
+        # Handle POST to individual metadata fields
+        if parsed.path.startswith("/api/metadata/") and not parsed.path == "/api/metadata":
+            field_name = parsed.path.split("/")[-1]
+
+            content_length = self.headers.get("Content-Length")
+
+            try:
+                if content_length is None:
+                    raise ValueError("Missing Content-Length")
+
+                length = int(content_length)
+
+                if length < 0:
+                    raise ValueError("Invalid Content-Length")
+
+                if length > self.MAX_REQUEST_SIZE:
+                    self._send_json(413, {"error": "Request body too large"})
+                    return
+
+                body = self.rfile.read(length)
+                payload = json.loads(body)
+
+                if not isinstance(payload, dict):
+                    raise ValueError("Expected a JSON object")
+
+                path = payload.get("path")
+                value = payload.get("value")
+
+                if not isinstance(path, str):
+                    raise ValueError("Expected string field: path")
+
+                file_path = self._resolve_markdown_path(path)
+
+            except (ValueError, json.JSONDecodeError) as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+
+            try:
+                if not file_path.is_file():
+                    self._send_json(404, {"error": "Markdown file not found"})
+                    return
+
+                # Read existing content
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                # Parse the YAML front matter
+                try:
+                    post = frontmatter.loads(content)
+                    metadata = post.metadata
+
+                    # Update the specific field
+                    if value is not None:
+                        metadata[field_name] = value
+                    else:
+                        # If no value provided, remove the field
+                        metadata.pop(field_name, None)
+
+                    # Reconstruct the file with updated metadata
+                    new_content = frontmatter.dumps(post)
+
+                    # Write back to file
+                    file_path.write_text(new_content, encoding="utf-8", newline="")
+                    logger.info("Updated metadata field '{}' in file: {}", field_name, file_path)
+
+                    self._send_json(200, {"success": True, "field": field_name})
+
+                except Exception as e:
+                    logger.exception("Failed to update YAML front matter")
+                    self._send_json(500, {"error": "Unable to update YAML front matter"})
+
+            except OSError:
+                logger.exception("Failed to save Markdown file")
+                self._send_json(500, {"error": "Unable to save Markdown file"})
+            except Exception:
+                logger.exception("Failed to regenerate recipe HTML")
+                self._send_json(500, {"error": "Markdown saved, but HTML regeneration failed"})
+            return
+
+        # Handle regular POST to /api/markdown (existing functionality)
 
         content_length = self.headers.get("Content-Length")
 
