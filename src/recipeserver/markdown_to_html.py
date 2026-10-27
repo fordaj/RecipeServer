@@ -55,6 +55,8 @@ RECIPE_EDITOR_CSS = "/assets/recipe-editor.css"
 RECIPE_SCALER_JS = "/assets/recipe-scaler.js"
 COMMENTS_CSS = "/assets/comments.css"
 COMMENTS_JS = "/assets/comments.js"
+RATINGS_CSS = "/assets/ratings.css"
+RATINGS_JS = "/assets/ratings.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 BOOK_SVG = "/assets/book.svg"
 LOGO_SVG = "/assets/logo.svg"
@@ -419,6 +421,44 @@ class MarkdownToHTMLConverter:
             </section>
         """).strip()
 
+    def _get_ratings_html(self) -> str:
+        return dedent("""
+            <section class="recipe-ratings" id="recipe-ratings">
+                <h2 class="recipe-ratings__heading">
+                    <span>Ratings</span>
+                    <button class="recipe-ratings__add" type="button" aria-label="Add a rating" aria-expanded="false">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    </button>
+                </h2>
+                <form id="recipe-rating-form" class="recipe-rating-form" hidden>
+                    <div class="recipe-rating__avatar recipe-rating-form__avatar" aria-hidden="true">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20 21a8 8 0 0 0-16 0" />
+                            <circle cx="12" cy="8" r="4" />
+                        </svg>
+                    </div>
+                    <div class="recipe-rating-form__content">
+                        <div class="recipe-rating-form__meta">
+                            <input id="rating-author" type="text" placeholder="Your name" aria-label="Your name" maxlength="100" required />
+                        </div>
+                        <div class="recipe-rating__meter recipe-rating-form__meter">
+                            <input id="rating-score" type="text" inputmode="decimal" maxlength="16" value="5" aria-label="Rating out of 10" required />
+                            <span class="recipe-rating__stars" role="img" aria-label="5 out of 10">★★★★★</span>
+                            <output id="rating-score-value" class="recipe-rating__score">5/10</output>
+                        </div>
+                        <div class="recipe-rating__actions recipe-rating-form__actions">
+                            <button id="cancel-rating" type="button">Cancel</button>
+                            <button id="save-rating" type="submit">Post rating</button>
+                        </div>
+                        <p id="rating-status" role="status" aria-live="polite"></p>
+                    </div>
+                </form>
+                <div class="recipe-ratings__list" id="rating-list"></div>
+            </section>
+        """).strip()
+
     def convert(self, markdown_file: Path, html_file: Path):
         # markdown_hash_file = markdown_file.with_suffix(".md.hash")
         # if markdown_hash_file.exists():
@@ -449,6 +489,7 @@ class MarkdownToHTMLConverter:
         self.metadata_json = json.dumps(self.metadata).replace("<", "\\u003c")  # sanitize input so it is not executable
 
         comments_html = self._get_comments_html()
+        ratings_html = self._get_ratings_html()
 
         markdown_body = post.content
 
@@ -476,6 +517,7 @@ class MarkdownToHTMLConverter:
             <link rel="stylesheet" href="{RECIPE_SCALER_CSS}">
             <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">
             <link rel="stylesheet" href="{COMMENTS_CSS}">
+            <link rel="stylesheet" href="{RATINGS_CSS}">
             {self.get_doc_specific_overrides()}
             {MATHJAX}
         </head>
@@ -488,12 +530,14 @@ class MarkdownToHTMLConverter:
                     {EDIT_RECIPE_HTML}
                 </header>
                 {body}
+                {ratings_html}
                 {comments_html}
             </main>
             <script defer src="{RECIPE_JS}"></script>
             <script defer src="{RECIPE_SCALER_JS}"></script>
             <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
             <script defer src="{COMMENTS_JS}"></script>
+            <script defer src="{RATINGS_JS}"></script>
             <script defer src="{RECIPE_EDITOR_JS}"></script>
         </body>
         </html>
