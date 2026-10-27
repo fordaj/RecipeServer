@@ -3,9 +3,12 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from urllib.parse import parse_qs, urlsplit
+from datetime import datetime
 import json
+import math
 import socket
 import sys
+import unicodedata
 import frontmatter
 
 from .config import Configuration
@@ -55,6 +58,57 @@ def _validate_editor_metadata(metadata: object) -> dict:
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError(f"'{field}' must be a number or null")
             validated[field] = value
+
+    return validated
+
+
+def _validate_ratings(value: object) -> list[dict]:
+    if not isinstance(value, list):
+        raise ValueError("'ratings' must be a list")
+
+    validated = []
+    names = set()
+    ids = set()
+
+    for index, rating in enumerate(value):
+        if not isinstance(rating, dict):
+            raise ValueError(f"Rating {index + 1} must be an object")
+
+        name = rating.get("name")
+        rating_id = rating.get("id")
+        score = rating.get("rating")
+
+        if not isinstance(name, str) or not name.strip() or len(name.strip()) > 100:
+            raise ValueError(f"Rating {index + 1} must have a name of 1 to 100 characters")
+
+        normalized_name = unicodedata.normalize("NFKC", name.strip()).casefold()
+        if normalized_name in names:
+            raise ValueError("There can only be one rating per name")
+        names.add(normalized_name)
+
+        if not isinstance(rating_id, str) or not rating_id.strip() or rating_id != rating_id.strip():
+            raise ValueError(f"Rating {index + 1} must have an ID")
+        if rating_id in ids:
+            raise ValueError("Rating IDs must be unique")
+        ids.add(rating_id)
+
+        if isinstance(score, bool) or not isinstance(score, (int, float)):
+            raise ValueError(f"Rating {index + 1} must have a numeric score")
+        if score < 0 or score > 10 or not math.isfinite(score):
+            raise ValueError(f"Rating {index + 1} must be between 0 and 10")
+
+        for field in ("created", "updated"):
+            timestamp = rating.get(field)
+            if not isinstance(timestamp, str):
+                raise ValueError(f"Rating {index + 1} must have a {field} timestamp")
+            try:
+                datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            except ValueError as exc:
+                raise ValueError(f"Rating {index + 1} has an invalid {field} timestamp") from exc
+
+        normalized_rating = rating.copy()
+        normalized_rating["name"] = name.strip()
+        validated.append(normalized_rating)
 
     return validated
 
@@ -125,7 +179,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                     if field_name in metadata:
                         # Return the specific field value
                         self._send_json(200, {"value": metadata[field_name]})
-                    elif field_name == "comments":
+                    elif field_name in ("comments", "ratings"):
                         self._send_json(200, {"value": []})
                     else:
                         self._send_json(404, {"error": f"Metadata field '{field_name}' not found"})
@@ -266,6 +320,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 if not isinstance(path, str):
                     raise ValueError("Expected string field: path")
 
+                if field_name == "ratings":
+                    value = _validate_ratings(value)
+
                 file_path = self._resolve_markdown_path(path)
 
             except (ValueError, json.JSONDecodeError) as exc:
@@ -299,6 +356,17 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                     # Write back to file
                     file_path.write_text(new_content, encoding="utf-8", newline="")
                     logger.info("Updated metadata field '{}' in file: {}", field_name, file_path)
+
+                    if field_name == "ratings" and self.on_markdown_saved is not None:
+                        try:
+                            self.on_markdown_saved(file_path)
+                        except Exception:
+                            logger.exception("Ratings saved, but recipe HTML regeneration failed")
+                            self._send_json(
+                                500,
+                                {"error": "Ratings saved, but recipe HTML regeneration failed"},
+                            )
+                            return
 
                     self._send_json(200, {"success": True, "field": field_name})
 
