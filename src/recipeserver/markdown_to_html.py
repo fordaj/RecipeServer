@@ -53,6 +53,8 @@ RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
 RECIPE_EDITOR_JS = "/assets/recipe-editor.js"
 RECIPE_EDITOR_CSS = "/assets/recipe-editor.css"
 RECIPE_SCALER_JS = "/assets/recipe-scaler.js"
+COMMENTS_CSS = "/assets/comments.css"
+COMMENTS_JS = "/assets/comments.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 BOOK_SVG = "/assets/book.svg"
 LOGO_SVG = "/assets/logo.svg"
@@ -378,6 +380,45 @@ class MarkdownToHTMLConverter:
         new_content = self._inject_recipe_overview(new_content)
         return new_content
 
+    def _get_comments_html(self) -> str:
+        return dedent(f"""
+            <section class="recipe-comments" id="recipe-comments">
+                <h2 class="recipe-comments__heading">
+                    <span>Comments</span>
+                    <button class="recipe-comments__add" type="button" aria-label="Add a comment" aria-expanded="false">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    </button>
+                </h2>
+                <form id="recipe-comment-form" class="recipe-comment-form" hidden>
+                <div class="recipe-comment__avatar recipe-comment-form__avatar" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21a8 8 0 0 0-16 0" />
+                    <circle cx="12" cy="8" r="4" />
+                    </svg>
+                </div>
+
+                <div class="recipe-comment__content">
+                    <div class="recipe-comment__meta">
+                    <input id="comment-author" class="recipe-comment__author-input" type="text" placeholder="Your name" aria-label="Your name" required/>
+                    <span class="recipe-comment__date">Posting today</span>
+                    </div>
+
+                    <textarea id="comment-text" class="recipe-comment__text-input" placeholder="Write a comment..." aria-label="Comment" rows="3" required ></textarea>
+
+                    <div class="recipe-comment__actions recipe-comment-form__actions">
+                    <button id="cancel-comment" type="button">Cancel</button>
+                    <button id="save-comment" type="submit">Post comment</button>
+                    </div>
+
+                    <p id="comment-status" role="status" aria-live="polite"></p>
+                </div>
+                </form>
+                <div class="recipe-comments__list" id="comment-list"></div>
+            </section>
+        """).strip()
+
     def convert(self, markdown_file: Path, html_file: Path):
         # markdown_hash_file = markdown_file.with_suffix(".md.hash")
         # if markdown_hash_file.exists():
@@ -407,42 +448,7 @@ class MarkdownToHTMLConverter:
         self._lint_metadata(markdown_file)
         self.metadata_json = json.dumps(self.metadata).replace("<", "\\u003c")  # sanitize input so it is not executable
 
-        comments_html = ""
-        if self.metadata.get("comments"):
-            comments = []
-
-            for comment in self.metadata["comments"]:
-                author = comment.get("author", "Anonymous").strip() or "Anonymous"
-                initials = "".join(part[0].upper() for part in author.split() if part)
-
-                created = date.fromisoformat(comment["created"])
-                text = escape(comment["text"])
-                author = escape(author)
-                initials = escape(initials)
-
-                comments.append(dedent(f"""
-                    <article class="recipe-comment">
-                        <div class="recipe-comment__avatar" aria-hidden="true">{initials}</div>
-
-                        <div class="recipe-comment__content">
-                            <header class="recipe-comment__meta">
-                                <span class="recipe-comment__author">{author}</span>
-                                <time class="recipe-comment__date" datetime="{created.isoformat()}">
-                                    {created.strftime("%B")} {created.day}, {created.year}
-                                </time>
-                            </header>
-
-                            <p class="recipe-comment__text">{text}</p>
-                        </div>
-                    </article>
-                """).strip())
-
-            comments_html = dedent(f"""
-                <section class="recipe-comments">
-                <h2>Comments</h2>
-                    {"".join(comments)}
-                </section>
-            """).strip()
+        comments_html = self._get_comments_html()
 
         markdown_body = post.content
 
@@ -469,6 +475,7 @@ class MarkdownToHTMLConverter:
             <link rel="stylesheet" href="{CSS_PATH}">
             <link rel="stylesheet" href="{RECIPE_SCALER_CSS}">
             <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">
+            <link rel="stylesheet" href="{COMMENTS_CSS}">
             {self.get_doc_specific_overrides()}
             {MATHJAX}
         </head>
@@ -486,6 +493,7 @@ class MarkdownToHTMLConverter:
             <script defer src="{RECIPE_JS}"></script>
             <script defer src="{RECIPE_SCALER_JS}"></script>
             <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
+            <script defer src="{COMMENTS_JS}"></script>
             <script defer src="{RECIPE_EDITOR_JS}"></script>
         </body>
         </html>

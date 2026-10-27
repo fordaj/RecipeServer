@@ -1,0 +1,274 @@
+/* ---------- Recipe comments ---------- */
+
+.recipe-comments {
+  max-width: var(--text-width);
+  margin: 0 auto 0;
+  padding-top: 1.5rem;
+}
+
+.recipe-comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.recipe-comment + .recipe-comment {
+  margin-top: 1.75rem;
+}
+
+.recipe-comment__avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 2.5rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+
+  background: color-mix(in srgb, var(--food-color) 12%, transparent);
+  color: var(--food-color);
+
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+/* Comments heading and add button */
+
+.recipe-comments__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.recipe-comments__add {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0.25rem;
+
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--food-color);
+
+  cursor: pointer;
+  line-height: 0;
+}
+
+.recipe-comments__add:hover {
+  background: color-mix(in srgb, var(--food-color) 10%, transparent);
+}
+
+.recipe-comments__add:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 3px;
+}
+
+/* Comment actions */
+
+.recipe-comment__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 150ms ease;
+}
+
+.recipe-comment:hover .recipe-comment__actions,
+.recipe-comment:focus-within .recipe-comment__actions,
+.recipe-comment--actions-visible .recipe-comment__actions {
+  opacity: 1;
+  visibility: visible;
+}
+
+.recipe-comment__actions button {
+  padding: 0.25rem 0;
+  border: 0;
+  background: none;
+  color: var(--food-color);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.recipe-comment__actions button:hover {
+  text-decoration: underline;
+}
+
+.recipe-comment__actions button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+/* Touch devices don't have reliable hover.
+   JavaScript toggles this class when a comment is tapped. */
+@media (hover: none) {
+  .recipe-comment__actions {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+.recipe-comment__edit {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.recipe-comment__edit input,
+.recipe-comment__edit textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 0.25rem;
+  background: var(--input-background, transparent);
+  color: inherit;
+  font: inherit;
+}
+
+.recipe-comment__edit textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.recipe-comment__edit .recipe-comment__author-input {
+  font-weight: 600;
+}
+
+.recipe-comment__edit .recipe-comment__text-input {
+  min-height: 5rem;
+}
+
+.recipe-comment__actions button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.recipe-comment__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.recipe-comment__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.recipe-comment__author {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.recipe-comment__date {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.recipe-comment__text {
+  margin: 0;
+  line-height: 1.7;
+}
+
+/* Add-comment form */
+
+.recipe-comment-form {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.recipe-comment-form[hidden] {
+  display: none;
+}
+
+.recipe-comment-form__avatar {
+  flex-shrink: 0;
+  color: var(--food-color);
+}
+
+.recipe-comment-form__avatar svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.recipe-comment__meta input.recipe-comment__author-input {
+  width: min(100%, 16rem);
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border-color, #ccc);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.recipe-comment__meta input.recipe-comment__author-input:focus {
+  border-bottom-color: var(--food-color);
+  outline: none;
+}
+
+.recipe-comment__text-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 5rem;
+  padding: 0.5rem 0;
+  border: 0;
+  border-bottom: 1px solid var(--border-color, #ccc);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.recipe-comment__text-input:focus {
+  border-bottom-color: var(--food-color);
+  outline: none;
+}
+
+.recipe-comment__text-input::placeholder,
+.recipe-comment__author-input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.recipe-comment-form__actions {
+  justify-content: flex-start;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.recipe-comment-form__actions #save-comment {
+  font-weight: 700;
+}
+
+#comment-status {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 480px) {
+  .recipe-comment-form {
+    gap: 0.75rem;
+  }
+
+  .recipe-comment-form__avatar {
+    flex-basis: 2rem;
+    width: 2rem;
+    height: 2rem;
+  }
+}
