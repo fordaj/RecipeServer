@@ -18,6 +18,47 @@ from collections.abc import Callable
 RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
 
 
+EDITOR_METADATA_FIELDS = {
+    "tags": "string_list",
+    "cuisine": "string",
+    "category": "string_list",
+    "meals": "string_list",
+    "makes": "integer",
+    "difficulty": "number",
+}
+
+
+def _validate_editor_metadata(metadata: object) -> dict:
+    if not isinstance(metadata, dict):
+        raise ValueError("Expected a metadata object")
+
+    validated = {}
+
+    for field, expected_type in EDITOR_METADATA_FIELDS.items():
+        value = metadata.get(field)
+
+        if value is None:
+            validated[field] = None
+        elif expected_type == "string_list":
+            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                raise ValueError(f"'{field}' must be a list of strings or null")
+            validated[field] = value
+        elif expected_type == "string":
+            if not isinstance(value, str):
+                raise ValueError(f"'{field}' must be a string or null")
+            validated[field] = value
+        elif expected_type == "integer":
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"'{field}' must be an integer or null")
+            validated[field] = value
+        elif expected_type == "number":
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"'{field}' must be a number or null")
+            validated[field] = value
+
+    return validated
+
+
 class RecipeRequestHandler(SimpleHTTPRequestHandler):
     MAX_REQUEST_SIZE = 5 * 1024 * 1024
 
@@ -34,8 +75,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlsplit(self.path)
-
-        if parsed.path != "/api/markdown" and not parsed.path.startswith("/api/metadata/"):
+        if parsed.path not in ("/api/markdown", "/api/recipe-editor") and not parsed.path.startswith("/api/metadata/"):
             if parsed.path.startswith("/api/"):
                 self.send_error(404, "Unknown API endpoint")
                 return
@@ -92,6 +132,20 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 except Exception as e:
                     logger.exception(f"Failed to parse YAML front matter for field {field_name}")
                     self._send_json(500, {"error": "Unable to parse YAML front matter"})
+
+            elif parsed.path == "/api/recipe-editor":
+                post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+
+                metadata = {field: post.metadata.get(field) for field in EDITOR_METADATA_FIELDS}
+
+                self._send_json(
+                    200,
+                    {
+                        "metadata": metadata,
+                        "content": post.content,
+                    },
+                )
+
             else:
                 # Handle markdown endpoint - return the raw markdown content
                 content = file_path.read_text(encoding="utf-8")
@@ -106,12 +160,83 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urlsplit(self.path)
 
-        if parsed.path != "/api/markdown" and not parsed.path.startswith("/api/metadata/"):
+        if parsed.path not in ("/api/markdown", "/api/recipe-editor") and not parsed.path.startswith("/api/metadata/"):
             self.send_error(404, "Unknown API endpoint")
             return
 
+        # Handle POST to /api/recipe-editor
+        if parsed.path == "/api/recipe-editor":
+            content_length = self.headers.get("Content-Length")
+
+            try:
+                if content_length is None:
+                    raise ValueError("Missing Content-Length")
+
+                length = int(content_length)
+
+                if length < 0:
+                    raise ValueError("Invalid Content-Length")
+
+                if length > self.MAX_REQUEST_SIZE:
+                    self._send_json(413, {"error": "Request body too large"})
+                    return
+
+                body = self.rfile.read(length)
+                payload = json.loads(body)
+
+                if not isinstance(payload, dict):
+                    raise ValueError("Expected a JSON object")
+
+                path = payload.get("path")
+                content = payload.get("content")
+                metadata = _validate_editor_metadata(payload.get("metadata"))
+
+                if not isinstance(path, str) or not isinstance(content, str):
+                    raise ValueError("Expected string fields: path and content")
+
+                if "\x00" in content:
+                    raise ValueError("Markdown content contains a null character")
+
+                file_path = self._resolve_markdown_path(path)
+
+            except (ValueError, json.JSONDecodeError) as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+
+            try:
+                if not file_path.is_file():
+                    self._send_json(404, {"error": "Markdown file not found"})
+                    return
+
+                post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+
+                for field, value in metadata.items():
+                    post.metadata[field] = value
+
+                post.content = content
+                new_content = frontmatter.dumps(post)
+
+                file_path.write_text(new_content, encoding="utf-8", newline="")
+                logger.info("Saved recipe editor content: {}", file_path)
+
+                if self.on_markdown_saved is not None:
+                    self.on_markdown_saved(file_path)
+
+                self._send_json(200, {"success": True})
+
+            except OSError:
+                logger.exception("Failed to save recipe")
+                self._send_json(500, {"error": "Unable to save recipe"})
+            except Exception:
+                logger.exception("Failed to save or regenerate recipe HTML")
+                self._send_json(
+                    500,
+                    {"error": "Recipe saved, but HTML regeneration failed"},
+                )
+
+            return
         # Handle POST to individual metadata fields
-        if parsed.path.startswith("/api/metadata/") and not parsed.path == "/api/metadata":
+        elif parsed.path.startswith("/api/metadata/") and not parsed.path == "/api/metadata":
             field_name = parsed.path.split("/")[-1]
 
             content_length = self.headers.get("Content-Length")
