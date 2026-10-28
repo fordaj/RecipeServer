@@ -23,7 +23,7 @@ RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
 
 EDITOR_METADATA_FIELDS = {
     "tags": "string_list",
-    "cuisine": "string",
+    "cuisine": "string_list",
     "category": "string_list",
     "meals": "string_list",
     "makes": "integer",
