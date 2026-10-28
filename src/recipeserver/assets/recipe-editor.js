@@ -23,32 +23,32 @@
                         <label>
                             Tags
                             <input name="tags" type="text"
-                                placeholder="Quick, Vegetarian">
+                                placeholder="Chocolate, Sweet">
                         </label>
 
                         <label>
                             Cuisine
                             <input name="cuisine" type="text"
-                                placeholder="Italian">
+                                placeholder="American">
                         </label>
 
                         <label>
                             Categories
                             <input name="category" type="text"
-                                placeholder="Pasta, Main Course">
+                                placeholder="ex. Slow Cooker, Meat">
                         </label>
 
                         <label>
                             Meals
                             <input name="meals" type="text"
-                                placeholder="Dinner, Lunch">
+                                placeholder="ex. Dessert, Snack">
                         </label>
 
                         <div class="recipe-editor__numeric">
                             <label>
                                 Makes
                                 <input name="makes" type="number"
-                                    step="1" placeholder="4">
+                                    step="1" placeholder="0">
                             </label>
 
                             <label>
@@ -120,7 +120,7 @@
       const input = form.elements.namedItem(field);
       const value = metadata[field];
 
-      if (["tags", "category", "meals"].includes(field)) {
+      if (["tags", "category", "meals", "cuisine"].includes(field)) {
         input.value = listToInput(value);
       } else {
         input.value = value == null ? "" : String(value);
@@ -160,7 +160,7 @@
 
     return {
       tags: parseList("tags"),
-      cuisine: get("cuisine") || null,
+      cuisine: parseList("cuisine"),
       category: parseList("category"),
       meals: parseList("meals"),
       makes: parseNumber("makes", true),

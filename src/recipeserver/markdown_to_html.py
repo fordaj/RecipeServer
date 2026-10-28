@@ -45,6 +45,7 @@ CHEF_HAT_SVG = FILE_PATH.parent / "assets" / "chef-hat.svg"
 POT_SVG = FILE_PATH.parent / "assets" / "cooking-pot.svg"
 TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
 UTENSILS_SVG = FILE_PATH.parent / "assets" / "utensils.svg"
+PIN_SVG = FILE_PATH.parent / "assets" / "pin.svg"
 
 CSS_PATH = "/assets/style.css"
 THEME_CSS_PATH = "/assets/theme.css"
@@ -315,15 +316,16 @@ class MarkdownToHTMLConverter:
         if primary.contents:
             overview.append(primary)
 
-        # Second row: categories and tags
+        # Second row: cuisine, categories, and tags
         secondary = soup.new_tag("div", attrs={"class": "recipe-overview__secondary"})
 
         icons = {
+            "cuisine": PIN_SVG,
             "categories": POT_SVG,
             "tags": TAG_SVG,
         }
 
-        for key in ("categories", "tags"):
+        for key in ("cuisine", "categories", "tags"):
             values = metadata.get(key, [])
             if not values:
                 continue
@@ -357,21 +359,13 @@ class MarkdownToHTMLConverter:
         if title is None:
             return str(soup)
 
-        # Find the hero image and its containing paragraph.
         hero = title.find_next("img")
         if hero is None:
             return str(soup)
 
-        overview = soup.new_tag("div", attrs={"class": "recipe-overview"})
-
-        # Build and append the metadata rows here.
         overview = self._build_recipe_overview(self.metadata, soup)
         if overview:
             hero.parent.insert_before(overview)
-
-        # Insert the overview between the title and hero image.
-        hero_parent = hero.parent
-        hero_parent.insert_before(overview)
 
         return str(soup)
 
