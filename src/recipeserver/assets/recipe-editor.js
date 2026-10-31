@@ -253,6 +253,13 @@
       unlockBackgroundScroll();
     });
 
+    dialog.addEventListener("click", (event) => {
+      // Close when clicking the backdrop, but not the dialog itself.
+      if (event.target === dialog) {
+        closeEditor();
+      }
+    });
+
     button.addEventListener("click", openEditor);
     cancelButton.addEventListener("click", closeEditor);
     closeButton.addEventListener("click", closeEditor);
