@@ -43,6 +43,8 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert recipe_link.select_one(".recipe-card__image img") is not None
     assert len(recipe_link.find_all("a")) == 0
     assert recipe_link.select_one("h2").get_text(strip=True) == 'Cinnamon "Rolls"'
+    assert recipe_link.select_one(".recipe-card__heading .recipe-rating") is None
+    assert recipe_link.select_one(".recipe-card__details .recipe-rating") is not None
     assert 'class="recipe-icon"' in page and "currentColor" in page
     assert 'aria-label="Rated 8.5 out of 10 from 2 ratings"' in page
     assert "8.5/10" in page
@@ -60,6 +62,7 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert 'value="makes:desc"' in page
     assert 'value="difficulty:asc"' in page
     assert 'data-view="cards"' in page and 'data-view="list"' in page
+    assert 'list.classList.toggle("card-view", view === "cards")' in page
     assert 'id="clear-filters" type="button" hidden' in page
     assert 'filters.forEach(([, control]) => control.value = "")' in page
     assert 'data-title="Cinnamon &quot;Rolls&quot;"' in page

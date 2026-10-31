@@ -34,7 +34,7 @@ body {
 .recipes {
   width: min(100% - 2rem, 2400px);
   margin: 0 auto;
-  padding: 2rem 0 4rem;
+  padding: 2rem 1.5rem 4rem;
 }
 
 /* ---------- Heading ---------- */
@@ -413,30 +413,27 @@ body {
 
 #recipe-list.list-view .recipe-card {
   display: grid;
-  grid-template-columns: 5rem minmax(0, 1fr);
+  grid-template-columns: 4rem minmax(0, 1fr);
   grid-template-rows: auto auto;
-  align-items: center;
-  gap: 0.2rem 0.8rem;
+  align-items: start;
+  gap: 0.15rem 0.8rem;
   padding: 0.7rem 1rem;
 }
 
 #recipe-list.list-view .recipe-card__image {
   display: block;
   grid-column: 1;
-  grid-row: 1 / span 2;
-  width: 5rem;
-  height: 5rem;
+  grid-row: 1 / -1;
+  width: 4rem;
+  height: 4rem;
   margin: 0;
   aspect-ratio: auto;
 }
 
 #recipe-list.list-view .recipe-card__heading {
-  display: flex;
-  flex-direction: column;
+  display: block;
   grid-column: 2;
   grid-row: 1;
-  align-items: flex-start;
-  gap: 0.2rem;
   margin: 0;
 }
 
@@ -447,16 +444,18 @@ body {
   font-weight: 700;
 }
 
-#recipe-list.list-view .recipe-rating {
-  align-self: flex-start;
-}
-
 #recipe-list.list-view .recipe-card__details {
+  display: flex;
   grid-column: 2;
   grid-row: 2;
+  flex-wrap: wrap;
   gap: 0.25rem 0.8rem;
   border: 0;
   padding-top: 0;
+}
+
+#recipe-list.list-view .recipe-rating {
+  align-self: flex-start;
 }
 
 #recipe-list.list-view .recipe-detail--cuisine,
