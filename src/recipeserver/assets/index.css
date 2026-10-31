@@ -476,7 +476,7 @@ body {
 
 /* ---------- Responsive layout ---------- */
 
-@media (min-width: 640px) {
+@media (min-width: 500px) {
   .recipes {
     padding-top: 2.5rem;
   }
@@ -494,7 +494,7 @@ body {
   }
 }
 
-@media (min-width: 960px) {
+@media (min-width: 750px) {
   .recipes-header {
     margin-bottom: 2.25rem;
   }
@@ -512,13 +512,13 @@ body {
   }
 }
 
-@media (min-width: 1200px) {
+@media (min-width: 1000px) {
   #recipe-list.card-view {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 1680px) {
+@media (min-width: 1250px) {
   #recipe-list.card-view {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
