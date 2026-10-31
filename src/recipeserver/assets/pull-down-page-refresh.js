@@ -24,11 +24,15 @@ class PullToRefresh {
     this.addListeners();
   }
 
+  isDisabled() {
+    const editorDialog = document.getElementById("recipe-markdown-editor");
+    return editorDialog?.open === true;
+  }
+
   addStyles() {
     const style = document.createElement("style");
 
     style.textContent = `
-
 #pull-to-refresh {
   position: fixed;
   z-index: 9999;
@@ -57,22 +61,39 @@ class PullToRefresh {
 #pull-to-refresh > span {
   position: relative;
   top: -56px;
-
-  background: rgba(255, 255, 255, 0.96);
-  padding: 10px 16px;
-  border-radius: 24px;
-
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 #pull-to-refresh .ptr-arrow {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 40px;
+  height: 40px;
+
+  padding: 0;
+  margin-right: 8px;
+
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 50%;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+
   font-size: 20px;
-  line-height: 20px;
+  line-height: 1;
   transition: transform 0.15s ease;
 }
 
 #pull-to-refresh .ptr-text {
+  display: inline-block;
+
+  padding: 10px 16px;
+
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 24px;
+
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+
   font-size: 14px;
   line-height: 20px;
 }
@@ -92,7 +113,19 @@ class PullToRefresh {
     animation: none !important;
   }
 }
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  #pull-to-refresh {
+    color: #d4d0ca;
+  }
 
+  #pull-to-refresh .ptr-arrow,
+  #pull-to-refresh .ptr-text {
+    background: rgba(42, 40, 37, 0.96);
+    color: #e8e4de;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  }
+}
     `;
 
     document.head.appendChild(style);
@@ -109,6 +142,7 @@ class PullToRefresh {
   }
 
   onTouchStart(event) {
+    if (this.isDisabled()) return;
     if (event.touches.length !== 1) return;
     if (window.scrollY > 0) return;
 
@@ -119,6 +153,12 @@ class PullToRefresh {
   }
 
   onTouchMove(event) {
+    // Completely disable pull-to-refresh while the editor is open.
+    if (this.isDisabled()) {
+      this.reset();
+      return;
+    }
+
     if (!this.tracking || event.touches.length !== 1) {
       return;
     }
@@ -128,8 +168,11 @@ class PullToRefresh {
 
     // Only respond to a downward pull at the top.
     if (deltaY <= 0 || window.scrollY > 0) {
-      if (this.active) this.reset();
-      else this.tracking = false;
+      if (this.active) {
+        this.reset();
+      } else {
+        this.tracking = false;
+      }
       return;
     }
 
@@ -141,11 +184,10 @@ class PullToRefresh {
     // Dampen the movement for a natural feel.
     this.pullDistance = Math.min(deltaY * 0.5, this.maxPull);
 
-    const pill = this.indicator.querySelector(".ptr-text");
-    const arrow = this.indicator.querySelector(".ptr-arrow");
+    const offset = `${-56 + this.pullDistance}px`;
 
-    pill.style.top = `${-56 + this.pullDistance}px`;
-    arrow.style.top = `${-56 + this.pullDistance}px`;
+    this.text.style.top = offset;
+    this.arrow.style.top = offset;
 
     this.indicator.classList.add("ptr-active");
 
@@ -158,6 +200,12 @@ class PullToRefresh {
 
   onTouchEnd() {
     if (!this.tracking) return;
+
+    // Safety check in case the editor opened during the gesture.
+    if (this.isDisabled()) {
+      this.reset();
+      return;
+    }
 
     const shouldRefresh =
       this.active &&
@@ -172,8 +220,9 @@ class PullToRefresh {
 
       this.arrow.textContent = "↻";
       this.text.textContent = "Refreshing…";
-      this.indicator.querySelector(".ptr-text").style.top = "0";
-      this.indicator.querySelector(".ptr-arrow").style.top = "0";
+
+      this.text.style.top = "0";
+      this.arrow.style.top = "0";
 
       // Allow the indicator to appear before reloading.
       setTimeout(() => location.reload(), 150);
@@ -189,8 +238,9 @@ class PullToRefresh {
 
     this.indicator.classList.remove("ptr-active", "ptr-ready", "ptr-loading");
 
-    this.indicator.querySelector(".ptr-text").style.top = "-56px";
-    this.indicator.querySelector(".ptr-arrow").style.top = "-56px";
+    this.text.style.top = "-56px";
+    this.arrow.style.top = "-56px";
+
     this.arrow.textContent = "↓";
     this.text.textContent = "Pull to refresh";
   }
