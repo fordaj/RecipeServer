@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import date
+from datetime import datetime
 from html import escape
 from .pallette import Pallette
 from .config import Configuration
@@ -47,6 +47,7 @@ GAUGE_SVG = FILE_PATH.parent / "assets" / "gauge.svg"
 CHEF_HAT_SVG = FILE_PATH.parent / "assets" / "chef-hat.svg"
 POT_SVG = FILE_PATH.parent / "assets" / "cooking-pot.svg"
 TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
+QUILL_SVG = FILE_PATH.parent / "assets" / "quill.svg"
 UTENSILS_SVG = FILE_PATH.parent / "assets" / "utensils.svg"
 PIN_SVG = FILE_PATH.parent / "assets" / "pin.svg"
 BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
@@ -374,14 +375,65 @@ class MarkdownToHTMLConverter:
 
         return str(soup)
 
+    def _build_recipe_contributor(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
+        contributor = metadata.get("contributor", "").strip()
+        if not contributor:
+            return None
+
+        created_on = metadata.get("createdOn")
+
+        item = soup.new_tag(
+            "div",
+            attrs={"class": "recipe-contributor"},
+        )
+
+        self._append_svg_icon(item, QUILL_SVG)
+
+        label = soup.new_tag("span")
+        label.string = f"by {contributor}"
+
+        if created_on:
+            date = (
+                created_on
+                if isinstance(created_on, datetime)
+                else datetime.fromisoformat(str(created_on).replace("Z", "+00:00"))
+            )
+
+            separator = soup.new_tag(
+                "span",
+                attrs={"class": "recipe-meta__separator"},
+            )
+            separator.string = "·"
+            label.append(separator)
+
+            time = soup.new_tag("time", datetime=date.date().isoformat())
+            time.string = f"{date:%b} {date.day}"
+            if datetime.now().year != date.year:
+                time.string += f", {date.year}"
+            label.append(time)
+
+        item.append(label)
+
+        return item
+
+    def _inject_recipe_contributor(self, content: str) -> str:
+        soup = BeautifulSoup(content, "html.parser")
+
+        main = soup.find("main", class_="recipe")
+        if main is None:
+            return str(soup)
+
+        contributor = self._build_recipe_contributor(self.metadata, soup)
+        if contributor:
+            main.append(contributor)
+
+        return str(soup)
+
     def _build_recipe_sources(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
         sources = metadata.get("source", [])
 
         if isinstance(sources, dict):
             sources = [sources]
-
-        if not sources:
-            return None
 
         container = soup.new_tag(
             "div",
@@ -458,14 +510,39 @@ class MarkdownToHTMLConverter:
 
         return str(soup)
 
-    def _build_recipe_version(self, soup: BeautifulSoup) -> Tag:
+    def _build_recipe_version(self, metadata: dict, soup: BeautifulSoup) -> Tag:
         version = soup.new_tag(
             "div",
             attrs={"class": "recipe-version"},
         )
 
         self._append_svg_icon(version, TAG_SVG)
-        version.append(f"v{VERSION}")
+
+        label = soup.new_tag("span")
+
+        updated_on = metadata.get("updatedOn")
+        label.append(f"v{VERSION}")
+
+        if updated_on:
+            date = (
+                updated_on
+                if isinstance(updated_on, datetime)
+                else datetime.fromisoformat(str(updated_on).replace("Z", "+00:00"))
+            )
+            separator = soup.new_tag(
+                "span",
+                attrs={"class": "recipe-meta__separator"},
+            )
+            separator.string = "·"
+            label.append(separator)
+
+            time = soup.new_tag("time", datetime=date.date().isoformat())
+            time.string = f"Edited {date:%b} {date.day}"
+            if datetime.now().year != date.year:
+                time.string += f", {date.year}"
+            label.append(time)
+
+        version.append(label)
 
         return version
 
@@ -476,7 +553,7 @@ class MarkdownToHTMLConverter:
         if main is None:
             return str(soup)
 
-        version = self._build_recipe_version(soup)
+        version = self._build_recipe_version(self.metadata, soup)
         main.append(version)
 
         return str(soup)
@@ -486,6 +563,7 @@ class MarkdownToHTMLConverter:
         new_content = self._mathjaxify_inline_code_blocks(new_content)
         new_content = self._enable_checkbox_inputs(new_content)
         new_content = self._inject_recipe_overview(new_content)
+        new_content = self._inject_recipe_contributor(new_content)
         new_content = self._inject_recipe_sources(new_content)
         new_content = self._inject_recipe_version(new_content)
         return new_content
