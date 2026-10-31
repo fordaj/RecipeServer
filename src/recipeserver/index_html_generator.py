@@ -211,9 +211,8 @@ class IndexHTMLGenerator:
                 f"{image_html}"
                 '<div class="recipe-card__heading">'
                 f"<h2>{html.escape(title)}</h2>"
-                f"{rating_html}"
                 "</div>"
-                f'<div class="recipe-card__details">{details}</div>'
+                f'<div class="recipe-card__details">{rating_html}{details}</div>'
                 "</article>"
                 "</a>"
                 "</li>"
@@ -322,6 +321,7 @@ class IndexHTMLGenerator:
                     viewButtons.forEach(button => button.addEventListener("click", () => {{
                         const view = button.dataset.view;
                         list.classList.toggle("list-view", view === "list");
+                        list.classList.toggle("card-view", view === "cards");
                         viewButtons.forEach(item =>
                             item.setAttribute("aria-pressed", item === button)
                         );
