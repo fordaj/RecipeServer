@@ -14,6 +14,9 @@ from fractions import Fraction
 from ._logger import logger
 import re, json
 from coloraide import Color
+from importlib.metadata import version
+
+VERSION = version("recipeserver")
 
 # TODO: Move to definitions.py
 _UNIT_ALIASES = {
@@ -46,6 +49,9 @@ POT_SVG = FILE_PATH.parent / "assets" / "cooking-pot.svg"
 TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
 UTENSILS_SVG = FILE_PATH.parent / "assets" / "utensils.svg"
 PIN_SVG = FILE_PATH.parent / "assets" / "pin.svg"
+BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
+USER_SVG = FILE_PATH.parent / "assets" / "user.svg"
+LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 
 CSS_PATH = "/assets/style.css"
 THEME_CSS_PATH = "/assets/theme.css"
@@ -59,7 +65,6 @@ COMMENTS_JS = "/assets/comments.js"
 RATINGS_CSS = "/assets/ratings.css"
 RATINGS_JS = "/assets/ratings.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
-BOOK_SVG = "/assets/book.svg"
 LOGO_SVG = "/assets/logo.svg"
 PENCIL_SVG = "/assets/pencil.svg"
 # GAUGE_SVG = "/assets/gauge.svg"
@@ -369,11 +374,120 @@ class MarkdownToHTMLConverter:
 
         return str(soup)
 
+    def _build_recipe_sources(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
+        sources = metadata.get("source", [])
+
+        if isinstance(sources, dict):
+            sources = [sources]
+
+        if not sources:
+            return None
+
+        container = soup.new_tag(
+            "div",
+            attrs={"class": "recipe-sources"},
+        )
+
+        for source in sources:
+            source_format = source.get("format", "").lower()
+            title = source.get("title", "").strip()
+            author = source.get("author", "").strip()
+            url = source.get("url", "").strip()
+
+            if source_format == "website":
+                title = title or source.get("company", "").strip()
+                icon = LINK_SVG
+            elif source_format == "book":
+                icon = BOOK_SVG
+            else:
+                continue
+
+            if not title:
+                continue
+
+            item = soup.new_tag(
+                "span",
+                attrs={"class": "recipe-sources__item"},
+            )
+
+            self._append_svg_icon(item, icon)
+
+            if source_format == "website" and url:
+                label = soup.new_tag(
+                    "a",
+                    href=url,
+                    attrs={
+                        "target": "_blank",
+                        "rel": "noopener noreferrer",
+                    },
+                )
+            else:
+                label = soup.new_tag("span")
+
+            label.string = title
+            item.append(label)
+
+            if author:
+                author_group = soup.new_tag(
+                    "span",
+                    attrs={"class": "recipe-sources__author"},
+                )
+
+                self._append_svg_icon(author_group, USER_SVG)
+
+                label = soup.new_tag("span")
+                label.string = author
+                author_group.append(label)
+
+                item.append(author_group)
+
+            container.append(item)
+
+        return container if container.contents else None
+
+    def _inject_recipe_sources(self, content: str) -> str:
+        soup = BeautifulSoup(content, "html.parser")
+
+        main = soup.find("main", class_="recipe")
+        if main is None:
+            return str(soup)
+
+        sources = self._build_recipe_sources(self.metadata, soup)
+        if sources:
+            main.append(sources)
+
+        return str(soup)
+
+    def _build_recipe_version(self, soup: BeautifulSoup) -> Tag:
+        version = soup.new_tag(
+            "div",
+            attrs={"class": "recipe-version"},
+        )
+
+        self._append_svg_icon(version, TAG_SVG)
+        version.append(f"v{VERSION}")
+
+        return version
+
+    def _inject_recipe_version(self, content: str) -> str:
+        soup = BeautifulSoup(content, "html.parser")
+
+        main = soup.find("main", class_="recipe")
+        if main is None:
+            return str(soup)
+
+        version = self._build_recipe_version(soup)
+        main.append(version)
+
+        return str(soup)
+
     def _postprocess(self, content: str) -> str:
         new_content = content
         new_content = self._mathjaxify_inline_code_blocks(new_content)
         new_content = self._enable_checkbox_inputs(new_content)
         new_content = self._inject_recipe_overview(new_content)
+        new_content = self._inject_recipe_sources(new_content)
+        new_content = self._inject_recipe_version(new_content)
         return new_content
 
     def _get_comments_html(self) -> str:
