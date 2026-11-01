@@ -10,6 +10,7 @@ class MetadataWarning(TypedDict):
 
 
 _REQUIRED_FIELDS = (
+    ("ratings", "Ratings"),
     ("contributor", "Contributor"),
     ("meals", "Meals"),
     ("categories", "Category"),
