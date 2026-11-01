@@ -30,7 +30,6 @@
 
 .recipe-ratings__add:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 3px;
 }
 
 .recipe-rating,

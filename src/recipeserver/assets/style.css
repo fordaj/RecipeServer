@@ -143,7 +143,6 @@ body {
 
 #edit-recipe:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 2px;
 }
 
 /* ---------- Page ---------- */
@@ -354,7 +353,6 @@ input[type="checkbox"]:checked::before {
 /* Keyboard accessibility */
 input[type="checkbox"]:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 3px;
 }
 
 /* ---------- Recipe overview ---------- */
