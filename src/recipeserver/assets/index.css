@@ -123,6 +123,29 @@ body {
   border-color: var(--food-color);
 }
 
+.metadata-status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-color);
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.metadata-status-toggle input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--food-color);
+  cursor: pointer;
+}
+
+.metadata-status-toggle input:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -137,6 +160,7 @@ body {
 
 .recipe-results-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -386,6 +410,43 @@ body {
   font-size: 0.78rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+.recipe-warning-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+
+  border-color: color-mix(in srgb, #a66300 28%, var(--card-border-color));
+  background: color-mix(in srgb, #f3c96b 18%, var(--card-bg));
+  color: #805000;
+}
+
+.recipe-warning-chip .recipe-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+}
+
+/* Inline metadata warnings */
+
+.recipe-detail--warning[hidden] {
+  display: none !important;
+}
+
+.recipe-detail--warning .recipe-chip {
+  border-color: color-mix(in srgb, #a66300 28%, var(--card-border-color));
+  background: color-mix(in srgb, #f3c96b 18%, var(--card-bg));
+  color: #805000;
+}
+
+@media (prefers-color-scheme: dark) {
+  .recipe-detail--warning .recipe-chip {
+    border-color: color-mix(in srgb, #f3c96b 35%, var(--card-border-color));
+    background: color-mix(in srgb, #f3c96b 12%, var(--card-bg));
+    color: #f3c96b;
+  }
 }
 
 #recipe-list:empty::after {

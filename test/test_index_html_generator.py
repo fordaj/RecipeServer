@@ -4,7 +4,47 @@ from types import SimpleNamespace
 from bs4 import BeautifulSoup
 
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
+from recipeserver.metadata_linter import lint_recipe_metadata
 from recipeserver.markdown_to_html import MarkdownToHTMLConverter
+
+
+def test_lint_recipe_metadata_reports_missing_required_values():
+    warnings = lint_recipe_metadata(
+        {
+            "contributor": " ",
+            "meals": [],
+            "categories": ["Dinner"],
+            "makes": None,
+            "difficulty": 4,
+            "cuisine": [],
+            "tags": [],
+            "source": [],
+            "ratings": [],
+            "comments": [],
+            "createdOn": "",
+        }
+    )
+
+    assert warnings == [
+        {
+            "field": "contributor",
+            "label": "Contributor",
+            "severity": "warning",
+            "message": "Missing contributor",
+        },
+        {
+            "field": "meals",
+            "label": "Meals",
+            "severity": "warning",
+            "message": "Missing meals",
+        },
+        {
+            "field": "makes",
+            "label": "Makes",
+            "severity": "warning",
+            "message": "Missing makes",
+        },
+    ]
 
 
 def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
@@ -64,6 +104,11 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert source_link.get_text(strip=True) == "Family Baking"
     assert "The Baking Book" in recipe.select_one(".recipe-card__details").get_text()
     assert recipe.select_one(".recipe-card__details a a") is None
+    assert recipe.select_one(".recipe-metadata-warnings") is None
+    metadata_toggle = soup.select_one("#metadata-status")
+    assert metadata_toggle is not None
+    assert metadata_toggle.get("checked") is None
+    assert "Metadata Status" in soup.select_one(".metadata-status-toggle").get_text()
     assert 'class="recipe-icon"' in page and "currentColor" in page
     assert 'aria-label="Rated 8.5 out of 10 from 2 ratings"' in page
     assert "8.5/10" in page
@@ -113,6 +158,54 @@ def test_unrated_recipes_remain_sortable(tmp_path: Path):
     assert 'data-rating=""' in page
     assert 'data-makes=""' in page
     assert 'data-difficulty=""' in page
+    recipe = BeautifulSoup(page, "html.parser").select_one("#recipe-list .recipe")
+    assert recipe is not None
+    warning_group = recipe.select_one(".recipe-metadata-warnings")
+    assert warning_group is not None
+    assert warning_group.has_attr("hidden")
+    assert [chip.get_text(" ", strip=True) for chip in warning_group.select(".recipe-warning-chip")] == [
+        "⚠ Contributor",
+        "⚠ Meals",
+        "⚠ Category",
+        "⚠ Makes",
+        "⚠ Difficulty",
+    ]
+
+
+def test_metadata_warnings_refresh_when_index_is_regenerated(tmp_path: Path):
+    recipe_path = tmp_path / "cinnamon-rolls" / "index.html"
+    recipe_path.parent.mkdir()
+    recipe_path.write_text("<h1>Cinnamon Rolls</h1>", encoding="UTF-8")
+    metadata = {}
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.add(Recipe(metadata, recipe_path))
+
+    generator.convert()
+    first_page = BeautifulSoup(
+        (tmp_path / "index.html").read_text(encoding="UTF-8"),
+        "html.parser",
+    )
+    # Should have warnings for the 5 required fields (contributor, meals, categories, makes, difficulty)
+    assert len(first_page.select(".recipe-warning-chip")) == 5
+
+    # Update metadata to include all required fields with valid values
+    metadata.update(
+        {
+            "contributor": "Avery",
+            "meals": ["Dessert"],
+            "categories": ["Baking"],
+            "makes": 12,
+            "difficulty": 4,
+        }
+    )
+    generator.convert()
+
+    updated_page = BeautifulSoup(
+        (tmp_path / "index.html").read_text(encoding="UTF-8"),
+        "html.parser",
+    )
+    # All warnings should be gone now
+    assert updated_page.select_one(".recipe-metadata-warnings") is None
 
 
 def test_recipe_overview_shows_cuisine_before_categories_and_tags():

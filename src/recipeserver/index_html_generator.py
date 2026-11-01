@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 from .config import Configuration
 from ._logger import logger
 from .image_handler import get_first_image_in_dir
+from .metadata_linter import lint_recipe_metadata
 
 FILE_PATH = Path(__file__)
 THEME_CSS_PATH = "/assets/theme.css"
@@ -24,6 +25,7 @@ CALENDAR_SVG = FILE_PATH.parent / "assets" / "calendar.svg"
 BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
 USER_SVG = FILE_PATH.parent / "assets" / "user.svg"
 LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
+WARNING_SVG = FILE_PATH.parent / "assets" / "warning.svg"
 
 _DETAIL_ICONS = {
     "makes": "/assets/chef-hat.svg",
@@ -175,6 +177,32 @@ class IndexHTMLGenerator:
         )
 
     @classmethod
+    def _warning_detail(
+        cls,
+        key: str,
+        label: str,
+        warning: dict,
+        icon: Path | None = None,
+    ) -> str:
+        message = str(warning.get("message") or f"Missing {label}")
+        escaped_message = html.escape(message, quote=True)
+
+        icon_html = cls._icon_path(icon) if icon else cls._icon(key)
+
+        return (
+            f'<span class="recipe-detail recipe-detail--{key} '
+            f'recipe-detail--warning" hidden '
+            f'title="{escaped_message}" role="img" '
+            f'aria-label="{escaped_message}">'
+            f"{icon_html}"
+            f'<span class="recipe-detail__value">'
+            f'<span class="recipe-chip recipe-warning-chip">'
+            f"{cls._icon_path(WARNING_SVG)}"
+            f" {html.escape(label)}"
+            f"</span></span></span>"
+        )
+
+    @classmethod
     def _source_detail(cls, source: dict) -> str:
         source_format = str(source.get("format", "")).lower()
         title = cls._source_title(source)
@@ -206,6 +234,7 @@ class IndexHTMLGenerator:
         for recipe in self.recipes:
             metadata = recipe.metadata
             file = recipe.html_file
+            metadata_warnings = lint_recipe_metadata(metadata)
 
             relative_path = file.relative_to(self.cfg.site_directory)
             url = "/" + relative_path.as_posix()
@@ -262,29 +291,78 @@ class IndexHTMLGenerator:
                 else ""
             )
 
+            warnings_by_field = {warning["field"]: warning for warning in metadata_warnings}
+
+            def warning_for(*fields: str) -> dict | None:
+                return next(
+                    (warnings_by_field[field] for field in fields if field in warnings_by_field),
+                    None,
+                )
+
             details = "".join(
                 (
-                    self._detail("makes", "Makes", [f"x{makes_value}"] if makes_value else []),
+                    self._detail("makes", "Makes", [f"x{makes_value}"] if makes_value else [])
+                    or (self._warning_detail("makes", "Makes", warning) if (warning := warning_for("makes")) else ""),
                     self._detail(
                         "difficulty",
                         "Difficulty",
                         [f"{difficulty_value}/10"] if difficulty_value else [],
+                    )
+                    or (
+                        self._warning_detail("difficulty", "Difficulty", warning)
+                        if (warning := warning_for("difficulty"))
+                        else ""
                     ),
-                    self._detail("meals", "Meals", meals),
-                    self._detail("cuisine", "Cuisine", cuisine),
-                    self._detail("categories", "Categories", categories),
-                    self._detail("tags", "Tags", tags),
+                    self._detail("meals", "Meals", meals)
+                    or (self._warning_detail("meals", "Meals", warning) if (warning := warning_for("meals")) else ""),
+                    self._detail("cuisine", "Cuisine", cuisine)
+                    or (
+                        self._warning_detail("cuisine", "Cuisine", warning)
+                        if (warning := warning_for("cuisine"))
+                        else ""
+                    ),
+                    self._detail("categories", "Categories", categories)
+                    or (
+                        self._warning_detail("categories", "Categories", warning)
+                        if (warning := warning_for("categories", "category"))
+                        else ""
+                    ),
+                    self._detail("tags", "Tags", tags)
+                    or (self._warning_detail("tags", "Tags", warning) if (warning := warning_for("tags")) else ""),
                     self._metadata_detail(
                         QUILL_SVG,
                         "Contributor",
                         ", ".join(html.escape(value) for value in contributors),
+                    )
+                    or (
+                        self._warning_detail("contributor", "Contributor", warning, QUILL_SVG)
+                        if (warning := warning_for("contributor"))
+                        else ""
                     ),
                     self._metadata_detail(
                         CALENDAR_SVG,
                         "Contribution date",
                         html.escape(str(contribution_date.year)) if contribution_date else "",
+                    )
+                    or (
+                        self._warning_detail(
+                            "contribution-date",
+                            "Contribution date",
+                            warning,
+                            CALENDAR_SVG,
+                        )
+                        if (warning := warning_for("createdOn", "contribution_date"))
+                        else ""
                     ),
-                    *(self._source_detail(source) for source in sources),
+                    *(self._source_detail(source) for source in sources if self._source_title(source)),
+                    (
+                        self._warning_detail("source", "Source", warning, LINK_SVG)
+                        if (
+                            not any(self._source_title(source) for source in sources)
+                            and (warning := warning_for("source"))
+                        )
+                        else ""
+                    ),
                 )
             )
 
@@ -397,6 +475,14 @@ class IndexHTMLGenerator:
                     <div class="recipe-results-bar">
                         <p id="recipe-count" aria-live="polite"></p>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
+                        <label class="metadata-status-toggle">
+                            <input
+                                id="metadata-status"
+                                type="checkbox"
+                                aria-controls="recipe-list"
+                            >
+                            <span>Metadata Status</span>
+                        </label>
                         <div class="view-switcher" role="group" aria-label="Recipe view">
                             <button type="button" data-view="list" aria-pressed="true">List</button>
                             <button type="button" data-view="cards" aria-pressed="false">Cards</button>
