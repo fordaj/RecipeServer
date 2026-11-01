@@ -1,9 +1,11 @@
 import html
 import json
 import math
+from datetime import date, datetime
 from pathlib import Path
 from statistics import mean
 from textwrap import dedent
+from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 
@@ -17,6 +19,11 @@ INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
+QUILL_SVG = FILE_PATH.parent / "assets" / "quill.svg"
+CALENDAR_SVG = FILE_PATH.parent / "assets" / "calendar.svg"
+BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
+USER_SVG = FILE_PATH.parent / "assets" / "user.svg"
+LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 
 _DETAIL_ICONS = {
     "makes": "/assets/chef-hat.svg",
@@ -94,6 +101,10 @@ class IndexHTMLGenerator:
     def _icon(key: str) -> str:
         asset_url = _DETAIL_ICONS[key]
         asset_path = FILE_PATH.parent / "assets" / Path(asset_url).name
+        return IndexHTMLGenerator._icon_path(asset_path)
+
+    @staticmethod
+    def _icon_path(asset_path: Path) -> str:
         soup = BeautifulSoup(asset_path.read_text(encoding="UTF-8"), "html.parser")
         icon = soup.find("svg")
         if icon is None:
@@ -103,6 +114,36 @@ class IndexHTMLGenerator:
         icon["aria-hidden"] = "true"
         icon["focusable"] = "false"
         return str(icon)
+
+    @staticmethod
+    def _contribution_date(value: object) -> date | None:
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
+    def _sources(metadata: dict) -> list[dict]:
+        sources = metadata.get("source", [])
+        if isinstance(sources, dict):
+            sources = [sources]
+        if not isinstance(sources, list):
+            return []
+        return [source for source in sources if isinstance(source, dict)]
+
+    @staticmethod
+    def _source_title(source: dict) -> str:
+        source_format = str(source.get("format", "")).lower()
+        if source_format not in {"website", "book"}:
+            return ""
+        title = source.get("title") or (source.get("company") if source_format == "website" else "")
+        return str(title or "").strip()
 
     @classmethod
     def _detail(cls, key: str, label: str, values: list[str]) -> str:
@@ -122,12 +163,45 @@ class IndexHTMLGenerator:
             f"{content}</span></span>"
         )
 
+    @classmethod
+    def _metadata_detail(cls, icon: Path, label: str, content: str) -> str:
+        if not content:
+            return ""
+        class_name = label.lower().replace(" ", "-")
+        return (
+            f'<span class="recipe-detail recipe-detail--{class_name}" '
+            f'title="{html.escape(label, quote=True)}">'
+            f'{cls._icon_path(icon)}<span class="recipe-detail__value">{content}</span></span>'
+        )
+
+    @classmethod
+    def _source_detail(cls, source: dict) -> str:
+        source_format = str(source.get("format", "")).lower()
+        title = cls._source_title(source)
+        if not title:
+            return ""
+
+        content = html.escape(title)
+        if source_format == "website":
+            url = str(source.get("url") or "").strip()
+            parsed_url = urlsplit(url)
+            if parsed_url.scheme.lower() in {"http", "https"} and parsed_url.netloc:
+                content = (
+                    f'<a href="{html.escape(url, quote=True)}" '
+                    f'target="_blank" rel="noopener noreferrer">{content}</a>'
+                )
+
+        icon = LINK_SVG if source_format == "website" else BOOK_SVG
+        return cls._metadata_detail(icon, "Source", content)
+
     def convert(self):
         links: list[str] = []
         all_meals: set[str] = set()
         all_categories: set[str] = set()
         all_tags: set[str] = set()
         all_cuisine: set[str] = set()
+        all_contributors: set[str] = set()
+        all_source_titles: set[str] = set()
 
         for recipe in self.recipes:
             metadata = recipe.metadata
@@ -146,19 +220,26 @@ class IndexHTMLGenerator:
             categories = self.values(metadata, "categories")
             tags = self.values(metadata, "tags")
             cuisine = self.values(metadata, "cuisine")
+            contributors = [value.strip() for value in self.values(metadata, "contributor") if value.strip()]
+            sources = self._sources(metadata)
+            source_titles = [source_title for source in sources if (source_title := self._source_title(source))]
 
             all_meals.update(meals)
             all_categories.update(categories)
             all_tags.update(tags)
             all_cuisine.update(cuisine)
+            all_contributors.update(contributors)
+            all_source_titles.update(source_titles)
 
-            search_text = " ".join([title, *meals, *categories, *tags, *cuisine])
+            search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *contributors, *source_titles])
             average_rating, rating_count = self._average_rating(metadata)
             rating_attribute = f"{average_rating:.6g}" if average_rating is not None else ""
             makes = metadata.get("makes")
             difficulty = metadata.get("difficulty")
             makes_value = str(makes) if isinstance(makes, (int, float)) else ""
             difficulty_value = str(difficulty) if isinstance(difficulty, (int, float)) else ""
+            contribution_date = self._contribution_date(metadata.get("createdOn"))
+            date_value = contribution_date.isoformat() if contribution_date else ""
 
             rating_html = ""
             if average_rating:
@@ -173,9 +254,10 @@ class IndexHTMLGenerator:
                 )
 
             image_html = (
-                '<div class="recipe-card__image">'
+                f'<a class="recipe-card__image" href="{html.escape(url, quote=True)}" '
+                f'aria-label="View {html.escape(title, quote=True)} recipe">'
                 f'<img src="{html.escape(hero_url, quote=True)}" alt="" loading="lazy">'
-                "</div>"
+                "</a>"
                 if hero_url
                 else ""
             )
@@ -192,6 +274,17 @@ class IndexHTMLGenerator:
                     self._detail("cuisine", "Cuisine", cuisine),
                     self._detail("categories", "Categories", categories),
                     self._detail("tags", "Tags", tags),
+                    self._metadata_detail(
+                        QUILL_SVG,
+                        "Contributor",
+                        ", ".join(html.escape(value) for value in contributors),
+                    ),
+                    self._metadata_detail(
+                        CALENDAR_SVG,
+                        "Contribution date",
+                        html.escape(str(contribution_date.year)) if contribution_date else "",
+                    ),
+                    *(self._source_detail(source) for source in sources),
                 )
             )
 
@@ -203,19 +296,20 @@ class IndexHTMLGenerator:
                 f' data-categories="{self.json_attribute(categories)}"'
                 f' data-tags="{self.json_attribute(tags)}"'
                 f' data-cuisine="{self.json_attribute(cuisine)}"'
+                f' data-contributors="{self.json_attribute(contributors)}"'
+                f' data-source-titles="{self.json_attribute(source_titles)}"'
                 f' data-rating="{rating_attribute}"'
                 f' data-makes="{makes_value}"'
-                f' data-difficulty="{difficulty_value}">'
-                f'<a class="recipe-card__link" href="{html.escape(url, quote=True)}" '
-                f'aria-label="View {html.escape(title, quote=True)} recipe">'
+                f' data-difficulty="{difficulty_value}"'
+                f' data-date="{date_value}">'
                 '<article class="recipe-card">'
                 f"{image_html}"
                 '<div class="recipe-card__heading">'
-                f"<h2>{html.escape(title)}</h2>"
+                f'<h2><a class="recipe-card__link" href="{html.escape(url, quote=True)}">'
+                f"{html.escape(title)}</a></h2>"
                 "</div>"
                 f'<div class="recipe-card__details">{rating_html}{details}</div>'
                 "</article>"
-                "</a>"
                 "</li>"
             )
 
@@ -275,6 +369,16 @@ class IndexHTMLGenerator:
                                 {options(all_tags)}
                             </select>
 
+                            <select id="filter-contributor" aria-label="Filter by contributor">
+                                <option value="">All contributors</option>
+                                {options(all_contributors)}
+                            </select>
+
+                            <select id="filter-source-title" aria-label="Filter by source title">
+                                <option value="">All source titles</option>
+                                {options(all_source_titles)}
+                            </select>
+
                             <select id="sort-recipes" aria-label="Sort recipes">
                                 <option value="title:asc">Name: A–Z</option>
                                 <option value="title:desc">Name: Z–A</option>
@@ -284,6 +388,8 @@ class IndexHTMLGenerator:
                                 <option value="makes:asc">Makes: fewest first</option>
                                 <option value="difficulty:asc">Easiest first</option>
                                 <option value="difficulty:desc">Hardest first</option>
+                                <option value="date:desc">Contribution date: newest first</option>
+                                <option value="date:asc">Contribution date: oldest first</option>
                             </select>
                         </div>
                     </section>

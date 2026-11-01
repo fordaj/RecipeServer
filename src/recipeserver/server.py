@@ -61,6 +61,16 @@ def _validate_editor_metadata(metadata: object) -> dict:
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 raise ValueError(f"'{field}' must be a number or null")
             validated[field] = value
+        elif expected_type == "object" and field == "source":
+            if not isinstance(value, dict):
+                raise ValueError(f"'{field}' must be an object or null")
+
+            allowed_fields = {"author", "title", "format", "url"}
+
+            validated[field] = {
+                key: (value.get(key).strip() or None if isinstance(value.get(key), str) else None)
+                for key in allowed_fields
+            }
 
     return validated
 

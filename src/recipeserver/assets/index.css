@@ -267,7 +267,7 @@ body {
   transition: transform 200ms ease;
 }
 
-.recipe-card__link:hover .recipe-card__image img {
+.recipe-card__image:hover img {
   transform: scale(1.025);
 }
 
@@ -295,7 +295,7 @@ body {
 }
 
 #recipe-list > li:hover .recipe-card h2,
-#recipe-list .recipe-card__link:hover h2 {
+#recipe-list .recipe-card__link:hover {
   color: var(--food-color-hover);
   text-decoration: underline;
   text-decoration-thickness: 1px;
@@ -505,7 +505,7 @@ body {
   }
 
   .recipe-filters {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -516,6 +516,10 @@ body {
 }
 
 @media (min-width: 1250px) {
+  .recipe-filters {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
   #recipe-list.card-view {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
