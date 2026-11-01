@@ -270,8 +270,17 @@ class IndexHTMLGenerator:
             contribution_date = self._contribution_date(metadata.get("createdOn"))
             date_value = contribution_date.isoformat() if contribution_date else ""
 
+            warnings_by_field = {warning["field"]: warning for warning in metadata_warnings}
+
+            def warning_for(*fields: str) -> dict | None:
+                return next(
+                    (warnings_by_field[field] for field in fields if field in warnings_by_field),
+                    None,
+                )
+
             rating_html = ""
-            if average_rating:
+
+            if average_rating is not None and rating_count:
                 rating_html = (
                     f'<span class="recipe-rating" role="img" '
                     f'aria-label="Rated {average_rating:.1f} out of 10 '
@@ -281,6 +290,19 @@ class IndexHTMLGenerator:
                     f'<span class="recipe-rating__count">({rating_count})</span>'
                     "</span>"
                 )
+            elif warning := warning_for("ratings", "rating"):
+                rating_html = (
+                    '<span class="recipe-detail recipe-detail--rating '
+                    'recipe-detail--warning" hidden '
+                    f'title="{html.escape(warning.get("message") or "Missing rating", quote=True)}" '
+                    f'aria-label="{html.escape(warning.get("message") or "Missing rating", quote=True)}">'
+                    '<span class="recipe-detail__value">'
+                    '<span class="recipe-chip recipe-warning-chip">'
+                    f"{self._icon_path(WARNING_SVG)} Rating"
+                    "</span></span></span>"
+                )
+            else:
+                print("here")
 
             image_html = (
                 f'<a class="recipe-card__image" href="{html.escape(url, quote=True)}" '
@@ -290,14 +312,6 @@ class IndexHTMLGenerator:
                 if hero_url
                 else ""
             )
-
-            warnings_by_field = {warning["field"]: warning for warning in metadata_warnings}
-
-            def warning_for(*fields: str) -> dict | None:
-                return next(
-                    (warnings_by_field[field] for field in fields if field in warnings_by_field),
-                    None,
-                )
 
             details = "".join(
                 (
