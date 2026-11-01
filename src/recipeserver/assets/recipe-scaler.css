@@ -54,7 +54,6 @@
 #recipe-scale-select:focus-visible,
 #recipe-scale-custom:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 3px;
   border-radius: 2px;
 }
 

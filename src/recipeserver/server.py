@@ -3,7 +3,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 from urllib.parse import parse_qs, urlsplit
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import math
 import socket
@@ -20,7 +20,6 @@ from collections.abc import Callable
 
 RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
 
-
 EDITOR_METADATA_FIELDS = {
     "tags": "string_list",
     "cuisine": "string_list",
@@ -28,6 +27,10 @@ EDITOR_METADATA_FIELDS = {
     "meals": "string_list",
     "makes": "integer",
     "difficulty": "number",
+    "contributor": "string",
+    "createdOn": "string",
+    "updatedOn": "string",
+    "source": "object",
 }
 
 
@@ -264,8 +267,17 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
                 post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
 
+                # Update editable metadata.
                 for field, value in metadata.items():
-                    post.metadata[field] = value
+                    if field == "source" and value is None:
+                        post.metadata.pop(field, None)
+                    else:
+                        post.metadata[field] = value
+
+                # Update the modification timestamp.
+                post.metadata["updatedOn"] = (
+                    datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                )
 
                 post.content = content
                 new_content = frontmatter.dumps(post)

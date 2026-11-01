@@ -74,7 +74,6 @@
 .recipe-editor__close:focus-visible,
 .recipe-editor__footer button:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 2px;
 }
 
 /* ---------- Status ---------- */
@@ -122,7 +121,6 @@
 
 .recipe-editor__details > summary:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 3px;
 }
 
 /* ---------- Recipe metadata ---------- */
@@ -161,10 +159,11 @@
   font-weight: 500;
 }
 
-.recipe-editor__metadata input {
+.recipe-editor__metadata input,
+.recipe-editor__metadata select {
   width: 100%;
   min-width: 0;
-  min-height: 2.5rem;
+  height: 2.5rem;
   box-sizing: border-box;
   padding: 0.5rem 0.65rem;
 
@@ -177,14 +176,27 @@
   font-size: 1rem;
 }
 
+.recipe-editor__metadata select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-right: 2.5rem;
+}
+
+.recipe-editor__metadata select:focus,
+.recipe-editor__metadata input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 .recipe-editor__metadata input::placeholder {
   color: var(--text-muted, var(--text-color));
   opacity: 0.65;
 }
 
-.recipe-editor__metadata input:focus-visible {
+.recipe-editor__metadata input:focus-visible,
+.recipe-editor__metadata select:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 1px;
   border-color: var(--food-color);
 }
 
@@ -268,7 +280,6 @@
 
 .recipe-editor__source:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 1px;
   border-color: var(--food-color);
 }
 

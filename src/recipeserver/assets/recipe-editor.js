@@ -14,22 +14,25 @@
                         aria-label="Close editor">&times;</button>
                 </header>
 
-                <p class="recipe-editor__status" role="status"></p>
-
                 <details class="recipe-editor__details" open>
-                    <summary>Recipe Details</summary>
+                    <summary>Details</summary>
 
                     <fieldset class="recipe-editor__metadata">
                         <label>
-                            Tags
-                            <input name="tags" type="text"
-                                placeholder="Chocolate, Sweet">
+                            Contributor
+                            <input name="contributor" type="text"
+                                placeholder="Andy Ford">
                         </label>
 
                         <label>
-                            Cuisine
-                            <input name="cuisine" type="text"
-                                placeholder="American">
+                            Contribution Date
+                            <input name="createdOn" type="date">
+                        </label>
+
+                        <label>
+                            Meals
+                            <input name="meals" type="text"
+                                placeholder="ex. Dessert, Snack">
                         </label>
 
                         <label>
@@ -39,10 +42,17 @@
                         </label>
 
                         <label>
-                            Meals
-                            <input name="meals" type="text"
-                                placeholder="ex. Dessert, Snack">
+                            Cuisine
+                            <input name="cuisine" type="text"
+                                placeholder="American">
                         </label>
+
+                        <label>
+                            Tags
+                            <input name="tags" type="text"
+                                placeholder="Chocolate, Sweet">
+                        </label>
+
 
                         <div class="recipe-editor__numeric">
                             <label>
@@ -57,7 +67,42 @@
                                     step="any" placeholder="2.5">
                             </label>
                         </div>
+
                     </fieldset>
+                </details>
+                    
+                    <details class="recipe-editor__details" open>
+                        <summary>Sources</summary>
+
+                          <fieldset class="recipe-editor__metadata">
+
+                              <label>
+                                  Source Author
+                                  <input name="source.author" type="text"
+                                      placeholder="John Kanell">
+                              </label>
+
+                              <label>
+                                  Source Title
+                                  <input name="source.title" type="text"
+                                      placeholder="Preppy Kitchen">
+                              </label>
+
+                              <label>
+                                  Source Format
+                                  <select name="source.format">
+                                      <option value="">Select format</option>
+                                      <option value="Website">Website</option>
+                                      <option value="Book">Book</option>
+                                  </select>
+                              </label>
+
+                              <label>
+                                  Source URL
+                                  <input name="source.url" type="url"
+                                      placeholder="https://example.com">
+                              </label>
+                          </fieldset>
                 </details>
 
                 <label class="recipe-editor__markdown-label"
@@ -67,6 +112,9 @@
                     class="recipe-editor__source"
                     aria-label="Markdown source"
                     spellcheck="false" required></textarea>
+                    
+
+                <p class="recipe-editor__status" role="status"></p>
                 <footer class="recipe-editor__footer">
                     <button type="button" class="recipe-editor__cancel">
                         Cancel
@@ -126,6 +174,16 @@
         input.value = value == null ? "" : String(value);
       }
     }
+
+    form.elements.namedItem("contributor").value = metadata.contributor ?? "";
+
+    form.elements.namedItem("createdOn").value = metadata.createdOn?.slice(0, 10) ?? "";
+
+    const source = metadata.source || {};
+
+    for (const field of ["author", "title", "format", "url"]) {
+      form.elements.namedItem(`source.${field}`).value = source[field] ?? "";
+    }
   }
 
   function readMetadata(form) {
@@ -165,6 +223,17 @@
       meals: parseList("meals"),
       makes: parseNumber("makes", true),
       difficulty: parseNumber("difficulty"),
+
+      contributor: get("contributor") || null,
+
+      createdOn: get("createdOn") ? `${get("createdOn")}T00:00:00.000Z` : null,
+
+      source: {
+        author: get("source.author") || null,
+        title: get("source.title") || null,
+        format: get("source.format") || null,
+        url: get("source.url") || null,
+      },
     };
   }
 
@@ -211,9 +280,11 @@
       textarea.readOnly = value;
       button.disabled = value;
 
-      form.querySelectorAll(".recipe-editor__metadata input").forEach((input) => {
-        input.disabled = value;
-      });
+      form
+        .querySelectorAll(".recipe-editor__metadata input, .recipe-editor__metadata select")
+        .forEach((input) => {
+          input.disabled = value;
+        });
     }
 
     function closeEditor() {
@@ -233,6 +304,16 @@
 
       try {
         const result = await requestEditor(getMarkdownPath());
+        console.log("Recipe editor response:", result);
+        console.log("Metadata:", result.metadata);
+        console.log(
+          "Form elements:",
+          [...form.elements].map((el) => ({
+            name: el.name,
+            type: el.type,
+            value: el.value,
+          })),
+        );
 
         originalContent = result.content;
         originalMetadata = JSON.stringify(result.metadata);
