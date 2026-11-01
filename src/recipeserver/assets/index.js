@@ -9,6 +9,8 @@ const initRecipeIndex = () => {
       ["cuisine", document.querySelector("#filter-cuisine")],
       ["categories", document.querySelector("#filter-category")],
       ["tags", document.querySelector("#filter-tag")],
+      ["contributors", document.querySelector("#filter-contributor")],
+      ["sourceTitles", document.querySelector("#filter-source-title")],
     ];
     const sort = document.querySelector("#sort-recipes");
     const count = document.querySelector("#recipe-count");
@@ -42,6 +44,16 @@ const initRecipeIndex = () => {
               }
             }
 
+            if (key === "date") {
+              const aDate = a.dataset.date || null;
+              const bDate = b.dataset.date || null;
+              if (aDate === null && bDate !== null) return 1;
+              if (bDate === null && aDate !== null) return -1;
+              if (aDate !== bDate) {
+                return (direction === "desc" ? -1 : 1) * aDate.localeCompare(bDate);
+              }
+              return compareTitle(a, b);
+            }
             const aValue = a.dataset[key] === "" ? null : Number(a.dataset[key]);
             const bValue = b.dataset[key] === "" ? null : Number(b.dataset[key]);
             if (aValue === null && bValue !== null) return 1;

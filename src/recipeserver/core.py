@@ -71,7 +71,7 @@ class Core:
         converter = MarkdownToHTMLConverter(self.cfg)
         converter.convert(markdown, html)
 
-        # COPY IMAEGES OVER
+        # COPY IMAGES OVER
         for image in markdown.parent.iterdir():
             if image.is_file() and image.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif"}:
                 copy2(image, html.parent / image.name)

@@ -376,9 +376,12 @@ class MarkdownToHTMLConverter:
         return str(soup)
 
     def _build_recipe_contributor(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
-        contributor = metadata.get("contributor", "").strip()
+        contributor = metadata.get("contributor", "")
+
         if not contributor:
             return None
+
+        contributor = contributor.strip()
 
         created_on = metadata.get("createdOn")
 
@@ -441,10 +444,10 @@ class MarkdownToHTMLConverter:
         )
 
         for source in sources:
-            source_format = source.get("format", "").lower()
-            title = source.get("title", "").strip()
-            author = source.get("author", "").strip()
-            url = source.get("url", "").strip()
+            source_format = (source.get("format") or "").lower()
+            title = (source.get("title") or "").strip()
+            author = (source.get("author") or "").strip()
+            url = (source.get("url") or "").strip()
 
             if source_format == "website":
                 title = title or source.get("company", "").strip()
