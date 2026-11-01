@@ -33,9 +33,20 @@ cfg: Configuration
 
 
 class Core:
+    IMAGE_EXTENSIONS = {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".svg",
+        ".avif",
+    }
+
     def __init__(self, cfg: Configuration):
         self.cfg = cfg
         self._regen_lock = Lock()
+        self._recipes: dict[Path, Recipe] = {}
 
     @staticmethod
     def get_assets_directory() -> Path:
@@ -71,15 +82,38 @@ class Core:
         converter = MarkdownToHTMLConverter(self.cfg)
         converter.convert(markdown, html)
 
-        # COPY IMAGES OVER
+        # Copy images over.
         for image in markdown.parent.iterdir():
-            if image.is_file() and image.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".avif"}:
+            if image.is_file() and image.suffix.lower() in self.IMAGE_EXTENSIONS:
                 copy2(image, html.parent / image.name)
 
         return html, converter
 
+    def _update_index(self) -> None:
+        """Regenerate index.html using the latest known recipe data."""
+        index_generator = IndexHTMLGenerator(self.cfg)
+
+        for recipe in self._recipes.values():
+            index_generator.add(recipe)
+
+        index_generator.convert()
+
+    def on_markdown_save(self, markdown: Path) -> None:
+        """Convert one recipe and update the index."""
+        with self._regen_lock:
+            markdown = markdown.resolve()
+
+            html, converter = self.convert_recipe(markdown)
+
+            self._recipes[markdown] = Recipe(converter.metadata, html)
+
+            self._update_index()
+
+            logger.info(f'Updated recipe and index: "{markdown}"')
+
     def regen(self):
         start = time.perf_counter()
+
         if not self._regen_lock.acquire(blocking=False):
             logger.debug("Skipping regeneration because one is already running")
             return
@@ -97,20 +131,22 @@ class Core:
 
             markdown_files = [markdown for markdown in working_dir.rglob("recipe.md") if markdown.is_file()]
 
-            index_generator = IndexHTMLGenerator(self.cfg)
+            self._recipes.clear()
 
             if markdown_files:
                 with ThreadPoolExecutor(max_workers=min(NUM_WORKERS, len(markdown_files))) as executor:
-                    results = executor.map(
-                        self.convert_recipe,
-                        markdown_files,
-                    )
+                    results = executor.map(self.convert_recipe, markdown_files)
 
-                    for html, converter in results:
-                        index_generator.add(Recipe(converter.metadata, html))
+                    for markdown, (html, converter) in zip(markdown_files, results):
+                        self._recipes[markdown.resolve()] = Recipe(
+                            converter.metadata,
+                            html,
+                        )
 
-            index_generator.convert()
-            logger.info(f"Regenerated site with {NUM_WORKERS} workers in {time.perf_counter() - start:.1f}s")
+            self._update_index()
+
+            logger.info(f"Regenerated site with {NUM_WORKERS} workers " f"in {time.perf_counter() - start:.1f}s")
+
         finally:
             self._regen_lock.release()
 
@@ -150,7 +186,7 @@ def main(_cfg: Configuration):
     # observer.start()
     core.regen()
 
-    server = Server(cfg, on_markdown_saved=core.convert_recipe)
+    server = Server(cfg, on_markdown_saved=core.on_markdown_save)
     server.start()
 
     shutdown_event = Event()

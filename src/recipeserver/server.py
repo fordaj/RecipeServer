@@ -379,14 +379,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                     file_path.write_text(new_content, encoding="utf-8", newline="")
                     logger.info("Updated metadata field '{}' in file: {}", field_name, file_path)
 
-                    if field_name == "ratings" and self.on_markdown_saved is not None:
+                    if self.on_markdown_saved is not None:
                         try:
                             self.on_markdown_saved(file_path)
                         except Exception:
-                            logger.exception("Ratings saved, but recipe HTML regeneration failed")
+                            logger.exception("Metadata saved, but recipe regeneration failed")
                             self._send_json(
                                 500,
-                                {"error": "Ratings saved, but recipe HTML regeneration failed"},
+                                {"error": "Metadata saved, but recipe regeneration failed"},
                             )
                             return
 
