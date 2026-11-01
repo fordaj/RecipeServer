@@ -16,6 +16,8 @@ const initRecipeIndex = () => {
     const count = document.querySelector("#recipe-count");
     const clearFilters = document.querySelector("#clear-filters");
     const viewButtons = [...document.querySelectorAll("[data-view]")];
+    const metadataStatus = document.querySelector("#metadata-status");
+    const metadataWarnings = [...list.querySelectorAll(".recipe-metadata-warnings")];
 
     const getValues = (recipe, key) =>
       JSON.parse(recipe.dataset[key] || "[]").map((value) => value.toLowerCase());
@@ -97,7 +99,11 @@ const initRecipeIndex = () => {
         search.focus();
       }
     });
-
+    metadataStatus.addEventListener("change", () => {
+      document.querySelectorAll(".recipe-detail--warning").forEach((warning) => {
+        warning.hidden = !metadataStatus.checked;
+      });
+    });
     viewButtons.forEach((button) =>
       button.addEventListener("click", () => {
         {
