@@ -52,8 +52,34 @@ const initRecipeIndex = () => {
               if (aDate === null && bDate !== null) return 1;
               if (bDate === null && aDate !== null) return -1;
               if (aDate !== bDate) {
-                return (direction === "desc" ? -1 : 1) * aDate.localeCompare(bDate);
+                // For date comparison, we need to parse the dates properly
+                const dateA = new Date(aDate);
+                const dateB = new Date(bDate);
+                if (isNaN(dateA) || isNaN(dateB)) {
+                  // Fallback to string comparison if dates are invalid
+                  return (direction === "desc" ? -1 : 1) * aDate.localeCompare(bDate);
+                }
+                return (direction === "desc" ? -1 : 1) * (dateA - dateB);
               }
+              return compareTitle(a, b);
+            } else if (key === "edited") {
+              const aDate = a.dataset.edited || null;
+              const bDate = b.dataset.edited || null;
+
+              if (aDate === null && bDate !== null) return 1;
+              if (bDate === null && aDate !== null) return -1;
+
+              if (aDate !== bDate) {
+                // For date comparison, we need to parse the dates properly
+                const dateA = new Date(aDate);
+                const dateB = new Date(bDate);
+                if (isNaN(dateA) || isNaN(dateB)) {
+                  // Fallback to string comparison if dates are invalid
+                  return (direction === "desc" ? -1 : 1) * aDate.localeCompare(bDate);
+                }
+                return (direction === "desc" ? -1 : 1) * (dateA - dateB);
+              }
+
               return compareTitle(a, b);
             }
             const aValue = a.dataset[key] === "" ? null : Number(a.dataset[key]);
