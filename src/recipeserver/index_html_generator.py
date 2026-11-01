@@ -24,6 +24,7 @@ QUILL_SVG = FILE_PATH.parent / "assets" / "quill.svg"
 CALENDAR_SVG = FILE_PATH.parent / "assets" / "calendar.svg"
 BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
 USER_SVG = FILE_PATH.parent / "assets" / "user.svg"
+AI_SVG = FILE_PATH.parent / "assets" / "ai.svg"
 LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 WARNING_SVG = FILE_PATH.parent / "assets" / "warning.svg"
 
@@ -131,6 +132,19 @@ class IndexHTMLGenerator:
         return None
 
     @staticmethod
+    def _updated_date(value: object) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            return datetime.combine(value, datetime.min.time())
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        return None
+
+    @staticmethod
     def _sources(metadata: dict) -> list[dict]:
         sources = metadata.get("source", [])
         if isinstance(sources, dict):
@@ -220,6 +234,14 @@ class IndexHTMLGenerator:
                 )
 
         icon = LINK_SVG if source_format == "website" else BOOK_SVG
+        if source_format == "website":
+            icon = LINK_SVG
+        elif source_format == "book":
+            icon = BOOK_SVG
+        elif source_format == "ai":
+            icon = AI_SVG
+        else:  # fallback to person
+            icon = USER_SVG
         return cls._metadata_detail(icon, "Source", content)
 
     def convert(self):
@@ -269,6 +291,8 @@ class IndexHTMLGenerator:
             difficulty_value = str(difficulty) if isinstance(difficulty, (int, float)) else ""
             contribution_date = self._contribution_date(metadata.get("createdOn"))
             date_value = contribution_date.isoformat() if contribution_date else ""
+            updated_on = self._updated_date(metadata.get("updatedOn"))
+            updated_on_value = updated_on.isoformat() if updated_on else ""
 
             warnings_by_field = {warning["field"]: warning for warning in metadata_warnings}
 
@@ -302,7 +326,7 @@ class IndexHTMLGenerator:
                     "</span></span></span>"
                 )
             else:
-                print("here")
+                rating_html = ""
 
             image_html = (
                 f'<a class="recipe-card__image" href="{html.escape(url, quote=True)}" '
@@ -393,6 +417,7 @@ class IndexHTMLGenerator:
                 f' data-rating="{rating_attribute}"'
                 f' data-makes="{makes_value}"'
                 f' data-difficulty="{difficulty_value}"'
+                f' data-edited="{updated_on_value}"'
                 f' data-date="{date_value}">'
                 '<article class="recipe-card">'
                 f"{image_html}"
@@ -482,6 +507,8 @@ class IndexHTMLGenerator:
                                 <option value="difficulty:desc">Hardest first</option>
                                 <option value="date:desc">Contribution date: newest first</option>
                                 <option value="date:asc">Contribution date: oldest first</option>
+                                <option value="edited:desc">Last edit: newest first</option>
+                                <option value="edited:asc">Last edit: oldest first</option>
                             </select>
                         </div>
                     </section>

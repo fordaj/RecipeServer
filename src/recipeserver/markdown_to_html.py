@@ -51,6 +51,7 @@ QUILL_SVG = FILE_PATH.parent / "assets" / "quill.svg"
 UTENSILS_SVG = FILE_PATH.parent / "assets" / "utensils.svg"
 PIN_SVG = FILE_PATH.parent / "assets" / "pin.svg"
 BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
+AI_SVG = FILE_PATH.parent / "assets" / "ai.svg"
 USER_SVG = FILE_PATH.parent / "assets" / "user.svg"
 LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 
@@ -454,8 +455,10 @@ class MarkdownToHTMLConverter:
                 icon = LINK_SVG
             elif source_format == "book":
                 icon = BOOK_SVG
+            elif source_format == "ai":
+                icon = AI_SVG
             else:
-                continue
+                icon = USER_SVG
 
             if not title:
                 continue

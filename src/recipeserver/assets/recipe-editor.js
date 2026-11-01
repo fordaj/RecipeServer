@@ -93,7 +93,9 @@
                                   <select name="source.format">
                                       <option value="">Select format</option>
                                       <option value="Website">Website</option>
+                                      <option value="AI">AI</option>
                                       <option value="Book">Book</option>
+                                      <option value="Other">Other</option>
                                   </select>
                               </label>
 
