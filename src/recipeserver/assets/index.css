@@ -71,7 +71,7 @@ body {
 /* ---------- Search and filters ---------- */
 
 .recipe-toolbar {
-  width: min(100%, 1250px);
+  width: 100%;
   margin: 10svh auto 2rem;
   padding: 1.25rem 1.5rem;
   border-radius: 14px;
@@ -179,6 +179,60 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   clip-path: inset(50%);
+}
+
+/* ---------- Advanced search settings ---------- */
+
+.recipe-advanced {
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.recipe-advanced summary {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+
+  color: var(--muted-color);
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.recipe-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.recipe-advanced summary::before {
+  content: "›";
+  display: inline-block;
+  font-size: 1.15rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.recipe-advanced[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.recipe-advanced summary:hover {
+  color: var(--heading-color);
+}
+
+.recipe-advanced summary:focus-visible {
+  outline: 2px solid var(--food-color);
+  /* outline-offset: 4px; */
+  border-radius: 2px;
+}
+
+.recipe-advanced__content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.85rem;
 }
 
 /* ---------- Result count and view switcher ---------- */
