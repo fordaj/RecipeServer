@@ -27,6 +27,7 @@ COOKING_POT_SVG = FILE_PATH.parent / "assets" / "cooking-pot.svg"
 QUILL_SVG = FILE_PATH.parent / "assets" / "quill.svg"
 CALENDAR_SVG = FILE_PATH.parent / "assets" / "calendar.svg"
 BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
+UP_DOWN_ARROW_SVG = FILE_PATH.parent / "assets" / "up-down-arrow.svg"
 USER_SVG = FILE_PATH.parent / "assets" / "user.svg"
 AI_SVG = FILE_PATH.parent / "assets" / "ai.svg"
 LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
@@ -518,34 +519,47 @@ class IndexHTMLGenerator:
                                 </select>
                             </label>
 
-                            <select id="sort-recipes" aria-label="Sort recipes">
-                                <option value="title:asc">Name: A–Z</option>
-                                <option value="title:desc">Name: Z–A</option>
-                                <option value="rating:desc">Highest rated</option>
-                                <option value="rating:asc">Lowest rated</option>
-                                <option value="makes:desc">Makes: most first</option>
-                                <option value="makes:asc">Makes: fewest first</option>
-                                <option value="difficulty:asc">Easiest first</option>
-                                <option value="difficulty:desc">Hardest first</option>
-                                <option value="date:desc">Contribution date: newest first</option>
-                                <option value="date:asc">Contribution date: oldest first</option>
-                                <option value="edited:desc">Last edit: newest first</option>
-                                <option value="edited:asc">Last edit: oldest first</option>
-                            </select>
+
+                            <label class="filter-control">
+                                {UP_DOWN_ARROW_SVG.read_text(encoding="UTF-8", newline="\n")}
+                                <select id="sort-recipes" aria-label="Sort recipes">
+                                    <option value="title:asc">Name: A–Z</option>
+                                    <option value="title:desc">Name: Z–A</option>
+                                    <option value="rating:desc">Highest rated</option>
+                                    <option value="rating:asc">Lowest rated</option>
+                                    <option value="makes:desc">Makes: most first</option>
+                                    <option value="makes:asc">Makes: fewest first</option>
+                                    <option value="difficulty:asc">Easiest first</option>
+                                    <option value="difficulty:desc">Hardest first</option>
+                                    <option value="date:desc">Contribution date: newest first</option>
+                                    <option value="date:asc">Contribution date: oldest first</option>
+                                    <option value="edited:desc">Last edit: newest first</option>
+                                    <option value="edited:asc">Last edit: oldest first</option>
+                                </select>
+                            </label>
                         </div>
+
+                        <details class="recipe-advanced">
+                            <summary>
+                                <span>Advanced</span>
+                            </summary>
+
+                            <div class="recipe-advanced__content">
+                                <label class="metadata-status-toggle">
+                                    <input
+                                        id="metadata-status"
+                                        type="checkbox"
+                                        aria-controls="recipe-list"
+                                    >
+                                    <span>Metadata Status</span>
+                                </label>
+                            </div>
+                        </details>
                     </section>
 
                     <div class="recipe-results-bar">
                         <p id="recipe-count" aria-live="polite"></p>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
-                        <label class="metadata-status-toggle">
-                            <input
-                                id="metadata-status"
-                                type="checkbox"
-                                aria-controls="recipe-list"
-                            >
-                            <span>Metadata Status</span>
-                        </label>
                         <div class="view-switcher" role="group" aria-label="Recipe view">
                             <button type="button" data-view="list" aria-pressed="true">List</button>
                             <button type="button" data-view="cards" aria-pressed="false">Cards</button>
