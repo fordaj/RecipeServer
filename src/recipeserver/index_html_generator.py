@@ -1,9 +1,7 @@
 import html
 import json
-import math
-from datetime import date, datetime
+from collections.abc import Mapping
 from pathlib import Path
-from statistics import mean
 from textwrap import dedent
 from urllib.parse import urlsplit
 
@@ -12,6 +10,7 @@ from bs4 import BeautifulSoup
 from .config import Configuration
 from ._logger import logger
 from .image_handler import get_first_image_in_dir
+from .metadata import RecipeMetadata
 from .metadata_linter import lint_recipe_metadata
 
 FILE_PATH = Path(__file__)
@@ -44,8 +43,8 @@ _DETAIL_ICONS = {
 
 
 class Recipe:
-    def __init__(self, metadata: dict, html_file: Path):
-        self.metadata = metadata
+    def __init__(self, metadata: RecipeMetadata | Mapping[str, object], html_file: Path):
+        self.metadata = metadata if isinstance(metadata, RecipeMetadata) else RecipeMetadata.from_dict(metadata)
         self.html_file = html_file
 
 
@@ -62,48 +61,9 @@ class IndexHTMLGenerator:
         return slug.replace("-", " ").title()
 
     @staticmethod
-    def values(metadata: dict, *keys: str) -> list[str]:
-        """Return metadata values consistently as a list of strings."""
-        collected: list[str] = []
-        seen: set[str] = set()
-
-        for key in keys:
-            value = metadata.get(key, [])
-
-            if isinstance(value, str):
-                value = [value]
-            if not isinstance(value, list):
-                continue
-
-            for item in value:
-                if item is None:
-                    continue
-                text = str(item)
-                if text not in seen:
-                    seen.add(text)
-                    collected.append(text)
-
-        return collected
-
-    @staticmethod
     def json_attribute(value: list[str]) -> str:
         """Serialize a list safely for an HTML attribute."""
         return html.escape(json.dumps(value), quote=True)
-
-    @staticmethod
-    def _average_rating(metadata: dict) -> tuple[float | None, int]:
-        ratings = metadata.get("ratings", [])
-        if not isinstance(ratings, list):
-            return None, 0
-
-        scores = [
-            score
-            for rating in ratings
-            if isinstance(rating, dict)
-            and isinstance((score := rating.get("rating")), (int, float))
-            and math.isfinite(score)
-        ]
-        return (mean(scores), len(scores)) if scores else (None, 0)
 
     @staticmethod
     def _icon(key: str) -> str:
@@ -122,41 +82,6 @@ class IndexHTMLGenerator:
         icon["aria-hidden"] = "true"
         icon["focusable"] = "false"
         return str(icon)
-
-    @staticmethod
-    def _contribution_date(value: object) -> date | None:
-        if isinstance(value, datetime):
-            return value.date()
-        if isinstance(value, date):
-            return value
-        if isinstance(value, str):
-            try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
-            except ValueError:
-                return None
-        return None
-
-    @staticmethod
-    def _updated_date(value: object) -> datetime | None:
-        if isinstance(value, datetime):
-            return value
-        if isinstance(value, date):
-            return datetime.combine(value, datetime.min.time())
-        if isinstance(value, str):
-            try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except ValueError:
-                return None
-        return None
-
-    @staticmethod
-    def _sources(metadata: dict) -> list[dict]:
-        sources = metadata.get("source", [])
-        if isinstance(sources, dict):
-            sources = [sources]
-        if not isinstance(sources, list):
-            return []
-        return [source for source in sources if isinstance(source, dict)]
 
     @staticmethod
     def _source_title(source: dict) -> str:
@@ -217,7 +142,7 @@ class IndexHTMLGenerator:
             f'<span class="recipe-detail__value">'
             f'<span class="recipe-chip recipe-warning-chip">'
             f"{cls._icon_path(WARNING_SVG)}"
-            f" {html.escape(label)}"
+            f" ⚠ {html.escape(label)}"
             f"</span></span></span>"
         )
 
@@ -272,12 +197,12 @@ class IndexHTMLGenerator:
             hero_image = get_first_image_in_dir(file.parent) if file.parent.is_dir() else None
             hero_url = "/" + hero_image.relative_to(self.cfg.site_directory).as_posix() if hero_image else ""
 
-            meals = self.values(metadata, "meals")
-            categories = self.values(metadata, "categories")
-            tags = self.values(metadata, "tags")
-            cuisine = self.values(metadata, "cuisine")
-            contributors = [value.strip() for value in self.values(metadata, "contributor") if value.strip()]
-            sources = self._sources(metadata)
+            meals = metadata.get_field_values("meals")
+            categories = metadata.get_field_values("categories")
+            tags = metadata.get_field_values("tags")
+            cuisine = metadata.get_field_values("cuisine")
+            contributors = [value.strip() for value in metadata.get_field_values("contributor") if value.strip()]
+            sources = metadata.get_sources()
             source_titles = [source_title for source in sources if (source_title := self._source_title(source))]
 
             all_meals.update(meals)
@@ -288,15 +213,14 @@ class IndexHTMLGenerator:
             all_source_titles.update(source_titles)
 
             search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *contributors, *source_titles])
-            average_rating, rating_count = self._average_rating(metadata)
+            average_rating = metadata.get_average_rating()
+            rating_count = metadata.get_rating_count()
             rating_attribute = f"{average_rating:.6g}" if average_rating is not None else ""
-            makes = metadata.get("makes")
-            difficulty = metadata.get("difficulty")
-            makes_value = str(makes) if isinstance(makes, (int, float)) else ""
-            difficulty_value = str(difficulty) if isinstance(difficulty, (int, float)) else ""
-            contribution_date = self._contribution_date(metadata.get("createdOn"))
+            makes_value = str(metadata.get("makes")) if isinstance(metadata.get("makes"), (int, float)) else ""
+            difficulty_value = str(metadata.get("difficulty")) if isinstance(metadata.get("difficulty"), (int, float)) else ""
+            contribution_date = metadata.get_contribution_date()
             date_value = contribution_date.isoformat() if contribution_date else ""
-            updated_on = self._updated_date(metadata.get("updatedOn"))
+            updated_on = metadata.get_updated_date()
             updated_on_value = updated_on.isoformat() if updated_on else ""
 
             warnings_by_field = {warning["field"]: warning for warning in metadata_warnings}
@@ -319,19 +243,6 @@ class IndexHTMLGenerator:
                     f'<span class="recipe-rating__count">({rating_count})</span>'
                     "</span>"
                 )
-            elif warning := warning_for("ratings", "rating"):
-                rating_html = (
-                    '<span class="recipe-detail recipe-detail--rating '
-                    'recipe-detail--warning" hidden '
-                    f'title="{html.escape(warning.get("message") or "Missing rating", quote=True)}" '
-                    f'aria-label="{html.escape(warning.get("message") or "Missing rating", quote=True)}">'
-                    '<span class="recipe-detail__value">'
-                    '<span class="recipe-chip recipe-warning-chip">'
-                    f"{self._icon_path(WARNING_SVG)} Rating"
-                    "</span></span></span>"
-                )
-            else:
-                rating_html = ""
 
             image_html = (
                 f'<a class="recipe-card__image" href="{html.escape(url, quote=True)}" '
@@ -344,70 +255,37 @@ class IndexHTMLGenerator:
 
             details = "".join(
                 (
-                    self._detail("makes", "Makes", [f"x{makes_value}"] if makes_value else [])
-                    or (self._warning_detail("makes", "Makes", warning) if (warning := warning_for("makes")) else ""),
-                    self._detail(
-                        "difficulty",
-                        "Difficulty",
-                        [f"{difficulty_value}/10"] if difficulty_value else [],
-                    )
-                    or (
-                        self._warning_detail("difficulty", "Difficulty", warning)
-                        if (warning := warning_for("difficulty"))
-                        else ""
-                    ),
-                    self._detail("meals", "Meals", meals)
-                    or (self._warning_detail("meals", "Meals", warning) if (warning := warning_for("meals")) else ""),
-                    self._detail("cuisine", "Cuisine", cuisine)
-                    or (
-                        self._warning_detail("cuisine", "Cuisine", warning)
-                        if (warning := warning_for("cuisine"))
-                        else ""
-                    ),
-                    self._detail("categories", "Categories", categories)
-                    or (
-                        self._warning_detail("categories", "Categories", warning)
-                        if (warning := warning_for("categories", "category"))
-                        else ""
-                    ),
-                    self._detail("tags", "Tags", tags)
-                    or (self._warning_detail("tags", "Tags", warning) if (warning := warning_for("tags")) else ""),
                     self._metadata_detail(
                         QUILL_SVG,
                         "Contributor",
                         ", ".join(html.escape(value) for value in contributors),
                     )
                     or (
-                        self._warning_detail("contributor", "Contributor", warning, QUILL_SVG)
+                        self._warning_detail("contributor", "Contributor", warning_for("contributor"), QUILL_SVG)
                         if (warning := warning_for("contributor"))
                         else ""
                     ),
+                    self._detail("meals", "Meals", meals)
+                    or (self._warning_detail("meals", "Meals", warning_for("meals")) if (warning := warning_for("meals")) else ""),
+                    self._detail("categories", "Categories", categories)
+                    or (self._warning_detail("categories", "Category", warning_for("categories")) if (warning := warning_for("categories")) else ""),
+                    self._detail("makes", "Makes", [f"x{makes_value}"] if makes_value else [])
+                    or (self._warning_detail("makes", "Makes", warning_for("makes")) if (warning := warning_for("makes")) else ""),
+                    self._detail("difficulty", "Difficulty", [f"{difficulty_value}/10"] if difficulty_value else [])
+                    or (self._warning_detail("difficulty", "Difficulty", warning_for("difficulty")) if (warning := warning_for("difficulty")) else ""),
+                    self._detail("cuisine", "Cuisine", cuisine),
+                    self._detail("tags", "Tags", tags),
                     self._metadata_detail(
                         CALENDAR_SVG,
                         "Contribution date",
                         html.escape(str(contribution_date.year)) if contribution_date else "",
-                    )
-                    or (
-                        self._warning_detail(
-                            "contribution-date",
-                            "Contribution date",
-                            warning,
-                            CALENDAR_SVG,
-                        )
-                        if (warning := warning_for("createdOn", "contribution_date"))
-                        else ""
                     ),
                     *(self._source_detail(source) for source in sources if self._source_title(source)),
-                    (
-                        self._warning_detail("source", "Source", warning, LINK_SVG)
-                        if (
-                            not any(self._source_title(source) for source in sources)
-                            and (warning := warning_for("source"))
-                        )
-                        else ""
-                    ),
                 )
             )
+
+            if metadata_warnings:
+                details = f'<div class="recipe-metadata-warnings" hidden>{details}</div>'
 
             links.append(
                 f'<li class="recipe"'

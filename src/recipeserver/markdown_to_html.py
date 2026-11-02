@@ -15,6 +15,7 @@ from ._logger import logger
 import re, json
 from coloraide import Color
 from importlib.metadata import version
+from .metadata import RecipeMetadata
 
 VERSION = version("recipeserver")
 
@@ -122,7 +123,7 @@ def dark_mode_color(hex_color):
 class MarkdownToHTMLConverter:
     def __init__(self, cfg: Configuration):
         self.cfg = cfg
-        self.metadata: dict[str, object] = {}
+        self.metadata: RecipeMetadata = RecipeMetadata()
         self.metadata_json: str = ""
         self.heading_color: str = Pallette.DEFAULT_TITLE
 
@@ -263,17 +264,21 @@ class MarkdownToHTMLConverter:
 
         parent.append(svg)
 
-    def _build_recipe_overview(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
+    @staticmethod
+    def _resolve_metadata(metadata: "RecipeMetadata | dict") -> RecipeMetadata:
+        return metadata if isinstance(metadata, RecipeMetadata) else RecipeMetadata.from_dict(metadata)
+
+    def _build_recipe_overview(self, metadata: "RecipeMetadata | dict", soup: BeautifulSoup) -> Tag | None:
+        metadata = MarkdownToHTMLConverter._resolve_metadata(metadata)
         overview = soup.new_tag("div", attrs={"class": "recipe-overview"})
 
         # First row: ratings, meals, difficulty
         primary = soup.new_tag("div", attrs={"class": "recipe-overview__primary"})
 
-        ratings = metadata.get("ratings", [])
+        rating_count = metadata.get_rating_count()
+        average = metadata.get_average_rating() if rating_count else None
 
-        if ratings:
-            average = sum(item["rating"] for item in ratings) / len(ratings)
-
+        if average is not None and rating_count:
             rating = soup.new_tag(
                 "span",
                 attrs={"class": "recipe-overview__rating"},
@@ -281,7 +286,7 @@ class MarkdownToHTMLConverter:
             rating.string = f"★ {average:.1f}/10"
             primary.append(rating)
 
-        makes = metadata.get("makes", [])
+        makes = metadata.makes
 
         if makes:
             item = soup.new_tag(
@@ -296,7 +301,7 @@ class MarkdownToHTMLConverter:
 
             primary.append(item)
 
-        difficulty = metadata.get("difficulty")
+        difficulty = metadata.difficulty
         if difficulty is not None:
             item = soup.new_tag(
                 "span",
@@ -310,7 +315,7 @@ class MarkdownToHTMLConverter:
 
             primary.append(item)
 
-        meals = metadata.get("meals", [])
+        meals = metadata.get_field_values("meals")
         if meals:
             meal = soup.new_tag("span", attrs={"class": "recipe-overview__meals"})
             self._append_svg_icon(
@@ -333,7 +338,7 @@ class MarkdownToHTMLConverter:
         }
 
         for key in ("cuisine", "categories", "tags"):
-            values = metadata.get(key, [])
+            values = metadata.get_field_values(key)
             if not values:
                 continue
 
@@ -376,15 +381,16 @@ class MarkdownToHTMLConverter:
 
         return str(soup)
 
-    def _build_recipe_contributor(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
-        contributor = metadata.get("contributor", "")
+    def _build_recipe_contributor(self, metadata: "RecipeMetadata | dict", soup: BeautifulSoup) -> Tag | None:
+        metadata = MarkdownToHTMLConverter._resolve_metadata(metadata)
+        contributor = metadata.contributor
 
         if not contributor:
             return None
 
         contributor = contributor.strip()
 
-        created_on = metadata.get("createdOn")
+        created_on = metadata.get_contribution_date()
 
         item = soup.new_tag(
             "div",
@@ -397,11 +403,7 @@ class MarkdownToHTMLConverter:
         label.string = f"by {contributor}"
 
         if created_on:
-            date = (
-                created_on
-                if isinstance(created_on, datetime)
-                else datetime.fromisoformat(str(created_on).replace("Z", "+00:00"))
-            )
+            date = created_on
 
             separator = soup.new_tag(
                 "span",
@@ -410,7 +412,7 @@ class MarkdownToHTMLConverter:
             separator.string = "·"
             label.append(separator)
 
-            time = soup.new_tag("time", datetime=date.date().isoformat())
+            time = soup.new_tag("time", datetime=date.isoformat())
             time.string = f"{date:%b} {date.day}"
             if datetime.now().year != date.year:
                 time.string += f", {date.year}"
@@ -433,11 +435,9 @@ class MarkdownToHTMLConverter:
 
         return str(soup)
 
-    def _build_recipe_sources(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
-        sources = metadata.get("source", [])
-
-        if isinstance(sources, dict):
-            sources = [sources]
+    def _build_recipe_sources(self, metadata: "RecipeMetadata | dict", soup: BeautifulSoup) -> Tag | None:
+        metadata = MarkdownToHTMLConverter._resolve_metadata(metadata)
+        sources = metadata.get_sources()
 
         container = soup.new_tag(
             "div",
@@ -516,7 +516,8 @@ class MarkdownToHTMLConverter:
 
         return str(soup)
 
-    def _build_recipe_version(self, metadata: dict, soup: BeautifulSoup) -> Tag:
+    def _build_recipe_version(self, metadata: "RecipeMetadata | dict", soup: BeautifulSoup) -> Tag:
+        metadata = MarkdownToHTMLConverter._resolve_metadata(metadata)
         version = soup.new_tag(
             "div",
             attrs={"class": "recipe-version"},
@@ -526,7 +527,7 @@ class MarkdownToHTMLConverter:
 
         label = soup.new_tag("span")
 
-        updated_on = metadata.get("updatedOn")
+        updated_on = metadata.get_updated_date()
         label.append(f"v{VERSION}")
 
         if updated_on:
@@ -676,9 +677,9 @@ class MarkdownToHTMLConverter:
 
         post = frontmatter.loads(content)
 
-        self.metadata = post.metadata
+        self.metadata = RecipeMetadata.from_dict(post.metadata)
         self._lint_metadata(markdown_file)
-        self.metadata_json = json.dumps(self.metadata).replace("<", "\\u003c")  # sanitize input so it is not executable
+        self.metadata_json = json.dumps(self.metadata.to_dict()).replace("<", "\\u003c")  # sanitize input so it is not executable
 
         comments_html = self._get_comments_html()
         ratings_html = self._get_ratings_html()
@@ -745,8 +746,7 @@ class MarkdownToHTMLConverter:
         self.lint_html(html_file)
 
     def _lint_metadata(self, markdown_file: Path):
-        has_meal_or_cuisine = "meals" in self.metadata or "cuisine" in self.metadata
-        if not has_meal_or_cuisine:
+        if self.metadata.is_missing("meals") and self.metadata.is_missing("cuisine"):
             logger.warning(f'[MetadataWarning]{markdown_file}: Missing key "meals:" or "cuisine:"')
 
     def lint_html(self, html_file: Path):
