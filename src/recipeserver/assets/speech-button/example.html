@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>Speech Button Demo</title>
+    <link rel="stylesheet" href="speech-button.css" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --text: #242424;
+        --text-muted: #777;
+        --surface-hover: rgb(0 0 0 / 6%);
+        --color-success: #41966a;
+        font-family: system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        max-width: 42rem;
+        margin: 3rem auto;
+        padding: 0 1.25rem;
+        color: var(--text);
+      }
+
+      .demo-field {
+        margin: 1.5rem 0;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+      }
+
+      input,
+      textarea {
+        font: inherit;
+        padding: 0.75rem;
+        border: 1px solid #888;
+        border-radius: 0.5rem;
+        background: transparent;
+        color: inherit;
+      }
+
+      textarea {
+        min-height: 8rem;
+        resize: vertical;
+      }
+
+      .hint {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+    </style>
+    <script src="speech-button.js" defer></script>
+  </head>
+  <body>
+    <h1>Speech Button Demo</h1>
+    <p class="hint">
+      Use the microphone buttons to dictate into either field. Speech recognition support depends on
+      your browser.
+    </p>
+
+    <div class="demo-field">
+      <label for="search">Recipe search</label>
+      <div class="speech-input">
+        <input id="search" type="text" placeholder="Search recipes..." />
+        <button
+          type="button"
+          class="speech-button"
+          aria-label="Start dictation"
+          title="Start dictation"
+        >
+          <span class="speech-button__icon"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="demo-field">
+      <label for="notes">Recipe notes</label>
+      <div class="speech-input">
+        <textarea id="notes" placeholder="Add your notes..."></textarea>
+        <button
+          type="button"
+          class="speech-button"
+          aria-label="Start dictation"
+          title="Start dictation"
+        >
+          <span class="speech-button__icon"></span>
+        </button>
+      </div>
+    </div>
+  </body>
+</html>

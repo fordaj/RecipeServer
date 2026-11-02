@@ -14,11 +14,13 @@ import frontmatter
 from .config import Configuration
 from ._logger import logger
 from .markdown_to_html import MarkdownToHTMLConverter
+from .transcriber import Transcriber
 
 # from .metadata import RecipeMetadata
 from collections.abc import Callable
 
 RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
+transcriber = Transcriber(model_size="base")
 
 EDITOR_METADATA_FIELDS = {
     "tags": "string_list",
@@ -140,6 +142,58 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self.on_markdown_saved = on_markdown_saved
         super().__init__(*args, **kwargs)
 
+    def _handle_transcription(self):
+        content_length = self.headers.get("Content-Length")
+        content_type = self.headers.get("Content-Type", "")
+        mime_type = content_type.split(";")[0].strip().lower()
+
+        extensions = {
+            "audio/webm": ".webm",
+            "audio/ogg": ".ogg",
+            "audio/mp4": ".mp4",
+            "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
+            "audio/mpeg": ".mp3",
+        }
+
+        try:
+            if content_length is None:
+                raise ValueError("Missing Content-Length")
+
+            length = int(content_length)
+
+            if length <= 0:
+                raise ValueError("Empty audio recording")
+
+            max_audio_size = 25 * 1024 * 1024
+
+            if length > max_audio_size:
+                self._send_json(413, {"error": "Audio recording too large"})
+                return
+
+            if mime_type not in extensions:
+                self._send_json(415, {"error": "Unsupported audio format"})
+                return
+
+            audio = self.rfile.read(length)
+
+            if len(audio) != length:
+                raise ValueError("Incomplete audio recording")
+
+            text = transcriber.transcribe(
+                audio,
+                suffix=extensions[mime_type],
+            )
+
+            self._send_json(200, {"text": text})
+
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+
+        except Exception:
+            logger.exception("Speech transcription failed")
+            self._send_json(500, {"error": "Speech transcription failed"})
+
     def do_GET(self):
         parsed = urlsplit(self.path)
         if parsed.path not in ("/api/markdown", "/api/recipe-editor") and not parsed.path.startswith("/api/metadata/"):
@@ -226,6 +280,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlsplit(self.path)
+
+        if parsed.path == "/api/transcribe":
+            self._handle_transcription()
+            return
 
         if parsed.path not in ("/api/markdown", "/api/recipe-editor") and not parsed.path.startswith("/api/metadata/"):
             self.send_error(404, "Unknown API endpoint")
