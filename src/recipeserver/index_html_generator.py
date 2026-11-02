@@ -20,6 +20,10 @@ INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
+TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
+PIN_SVG = FILE_PATH.parent / "assets" / "pin.svg"
+UTENSILS_SVG = FILE_PATH.parent / "assets" / "utensils.svg"
+COOKING_POT_SVG = FILE_PATH.parent / "assets" / "cooking-pot.svg"
 QUILL_SVG = FILE_PATH.parent / "assets" / "quill.svg"
 CALENDAR_SVG = FILE_PATH.parent / "assets" / "calendar.svg"
 BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
@@ -466,35 +470,53 @@ class IndexHTMLGenerator:
                         </label>
 
                         <div class="recipe-filters">
-                            <select id="filter-meal" aria-label="Filter by meal">
-                                <option value="">All meals</option>
-                                {options(all_meals)}
-                            </select>
+                            <label class="filter-control">
+                                {UTENSILS_SVG.read_text(encoding="UTF-8", newline="\n")}
+                                <select id="filter-meal" aria-label="Filter by meal">
+                                    <option value="">All meals</option>
+                                    {options(all_meals)}
+                                </select>
+                            </label>
 
-                            <select id="filter-cuisine" aria-label="Filter by cuisine">
-                                <option value="">All cuisines</option>
-                                {options(all_cuisine)}
-                            </select>
+                            <label class="filter-control">
+                                {PIN_SVG.read_text(encoding="UTF-8", newline="\n")}
+                                <select id="filter-cuisine" aria-label="Filter by cuisine">
+                                    <option value="">All cuisines</option>
+                                    {options(all_cuisine)}
+                                </select>
+                            </label>
 
-                            <select id="filter-category" aria-label="Filter by category">
-                                <option value="">All categories</option>
-                                {options(all_categories)}
-                            </select>
+                            <label class="filter-control">
+                                {COOKING_POT_SVG.read_text(encoding="UTF-8", newline="\n")}
+                                <select id="filter-category" aria-label="Filter by category">
+                                    <option value="">All categories</option>
+                                    {options(all_categories)}
+                                </select>
+                            </label>
 
-                            <select id="filter-tag" aria-label="Filter by tag">
-                                <option value="">All tags</option>
-                                {options(all_tags)}
-                            </select>
+                            <label class="filter-control">
+                                {TAG_SVG.read_text(encoding="UTF-8", newline="\n")}
+                                <select id="filter-tag" aria-label="Filter by tag">
+                                    <option value="">All tags</option>
+                                    {options(all_tags)}
+                                </select>
+                            </label>
 
-                            <select id="filter-contributor" aria-label="Filter by contributor">
-                                <option value="">All contributors</option>
-                                {options(all_contributors)}
-                            </select>
+                            <label class="filter-control">
+                                {QUILL_SVG.read_text(encoding="UTF-8", newline="\n")}
+                                <select id="filter-contributor" aria-label="Filter by contributor">
+                                    <option value="">All contributors</option>
+                                    {options(all_contributors)}
+                                </select>
+                            </label>
 
-                            <select id="filter-source-title" aria-label="Filter by source title">
-                                <option value="">All source titles</option>
-                                {options(all_source_titles)}
-                            </select>
+                            <label class="filter-control">
+                                {BOOK_SVG.read_text(encoding="UTF-8", newline="\n")}
+                                <select id="filter-source-title" aria-label="Filter by source title">
+                                    <option value="">All source titles</option>
+                                    {options(all_source_titles)}
+                                </select>
+                            </label>
 
                             <select id="sort-recipes" aria-label="Sort recipes">
                                 <option value="title:asc">Name: A–Z</option>

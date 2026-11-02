@@ -32,51 +32,55 @@ body {
 /* ---------- Page ---------- */
 
 .recipes {
-  width: min(100% - 2rem, 2400px);
+  width: min(100% - 3rem, 1500px);
+  min-height: 100svh;
   margin: 0 auto;
-  padding: 2rem 0 4rem;
+  padding: 0 0 5rem;
+
+  display: flex;
+  flex-direction: column;
 }
 
 /* ---------- Heading ---------- */
 
 .recipes-header {
-  margin: 0 0 2rem;
+  margin: 0;
+  padding-top: 16svh;
   text-align: center;
 }
 
 .recipes-eyebrow {
-  margin: 0 0 0.3rem;
-  color: var(--food-color);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  margin-bottom: 0.4rem;
 }
 
 .recipes h1 {
   margin: 0;
   color: var(--food-color);
   font-family: "Playfair Display", serif;
-  font-size: clamp(2.75rem, 8vw, 4.5rem);
+  font-size: clamp(2.75rem, 7vw, 4.25rem);
   font-weight: 400;
   line-height: 1.1;
 }
 
 .recipes-intro {
-  margin: 0.55rem 0 0;
   color: var(--muted-color);
+  margin-top: 0.6rem;
   font-size: 1.05rem;
 }
 
 /* ---------- Search and filters ---------- */
 
 .recipe-toolbar {
-  margin: 0 auto 1rem;
-  padding: 1rem;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border-color);
-  border-radius: 12px;
-  box-shadow: var(--card-shadow);
+  width: min(100%, 1250px);
+  margin: 10svh auto 2rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 14px;
+}
+
+.recipe-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
 }
 
 .search-control {
@@ -105,16 +109,37 @@ body {
   color: var(--muted-color);
 }
 
-.recipe-filters {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
+/* Filter controls and icons */
+
+.filter-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
-.recipe-toolbar select {
-  width: 100%;
-  cursor: pointer;
+.filter-control svg {
+  position: absolute;
+  left: 0.75rem;
+  width: 1rem;
+  height: 1rem;
+  color: var(--muted-color);
+  pointer-events: none;
 }
+
+.recipe-toolbar .filter-control select {
+  width: 100%;
+  padding: 0.7rem 1.8rem 0.7rem 2.1rem;
+  appearance: none;
+  cursor: pointer;
+
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 0.9rem;
+}
+
+/* Focus states */
 
 .recipe-toolbar input:focus-visible,
 .recipe-toolbar select:focus-visible,
@@ -534,11 +559,28 @@ body {
 
 /* ---------- Responsive layout ---------- */
 
-@media (min-width: 500px) {
+@media (max-width: 499px) {
   .recipes {
-    padding-top: 2.5rem;
+    width: 100%;
+    padding-bottom: 3rem;
   }
 
+  .recipes-header {
+    padding: 10svh 1rem 0;
+  }
+
+  .recipe-toolbar {
+    width: 100%;
+    margin: 7svh 0 2rem;
+    padding: 1rem;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    box-shadow: none;
+  }
+}
+
+@media (min-width: 500px) {
   .recipe-toolbar {
     padding: 1.1rem;
   }
