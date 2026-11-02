@@ -18,6 +18,8 @@ FILE_PATH = Path(__file__)
 THEME_CSS_PATH = "/assets/theme.css"
 INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
+SPEECH_BUTTON_CSS_PATH = "/assets/speech-button/speech-button.css"
+SPEECH_BUTTON_JS_PATH = "/assets/speech-button/speech-button.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
@@ -450,23 +452,36 @@ class IndexHTMLGenerator:
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
                 <link rel="stylesheet" href="{THEME_CSS_PATH}">
                 <link rel="stylesheet" href="{INDEX_CSS_PATH}">
+                <link rel="stylesheet" href="{SPEECH_BUTTON_CSS_PATH}"> 
                 <script src="{INDEX_JS_PATH}" defer></script>
+                <script src="{SPEECH_BUTTON_JS_PATH}" defer></script>
             </head>
             <body>
                 <main class="recipes">
                     <header class="recipes-header">
                         <h1>Ford Family Recipes</h1>
                     </header>
-
                     <section class="recipe-toolbar" aria-label="Recipe search and filters">
                         <label class="search-control">
                             <span class="visually-hidden">Search recipes</span>
-                            <input
-                                id="recipe-search"
-                                type="search"
-                                placeholder="Search recipes, ingredients, tags..."
-                                aria-label="Search recipes"
-                            >
+
+                            <div class="speech-input">
+                                <input
+                                    id="recipe-search"
+                                    type="search"
+                                    placeholder="Search recipes, ingredients, tags..."
+                                    aria-label="Search recipes"
+                                >
+
+                                <button
+                                    type="button"
+                                    class="speech-button"
+                                    aria-label="Start dictation"
+                                    title="Start dictation"
+                                >
+                                    <span class="speech-button__icon"></span>
+                                </button>
+                            </div>
                         </label>
 
                         <div class="recipe-filters">

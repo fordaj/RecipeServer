@@ -1,0 +1,128 @@
+/* ---------- Speech input wrapper ---------- */
+
+.speech-input {
+  position: relative;
+  width: 100%;
+}
+
+/* ---------- Speech button ---------- */
+
+.speech-button {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+
+  display: grid;
+  place-items: center;
+
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.speech-button:hover {
+  background-color: var(--surface-hover);
+  color: var(--text);
+}
+
+.speech-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.speech-button[hidden] {
+  display: none;
+}
+
+/* ---------- Icon ---------- */
+
+.speech-button__icon {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+
+  background-color: currentColor;
+
+  mask: url("microphone.svg") center / contain no-repeat;
+  -webkit-mask: url("microphone.svg") center / contain no-repeat;
+}
+
+.speech-button__icon[data-icon="checkmark"] {
+  mask-image: url("checkmark.svg");
+  -webkit-mask-image: url("checkmark.svg");
+}
+
+.speech-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.speech-button.is-transcribing .speech-button__icon {
+  animation: speech-pulse 1s ease-in-out infinite;
+}
+
+@keyframes speech-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---------- Input spacing ---------- */
+
+.speech-input input,
+.speech-input textarea {
+  width: 100%;
+  padding-right: 3rem;
+}
+
+.speech-input:has(textarea) .speech-button {
+  top: 0.75rem;
+  transform: none;
+}
+
+/* ---------- Recording state ---------- */
+
+.speech-button.is-recording {
+  color: #dc4545;
+}
+
+.speech-button.is-recording:hover {
+  background-color: rgb(220 69 69 / 10%);
+}
+
+.speech-button.is-recording .speech-button__icon {
+  animation: speech-pulse 1.2s ease-in-out infinite;
+}
+
+/* ---------- Completion state ---------- */
+
+.speech-button.is-complete {
+  color: var(--color-success, #41966a);
+}
+
+/* ---------- Animation ---------- */
+
+@keyframes speech-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .speech-button,
+  .speech-button__icon {
+    transition: none;
+    animation: none;
+  }
+}
