@@ -126,7 +126,7 @@ const initRecipeIndex = () => {
       }
     });
     metadataStatus.addEventListener("change", () => {
-      document.querySelectorAll(".recipe-detail--warning").forEach((warning) => {
+      metadataWarnings.forEach((warning) => {
         warning.hidden = !metadataStatus.checked;
       });
     });

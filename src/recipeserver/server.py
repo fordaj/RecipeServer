@@ -5,33 +5,20 @@ from threading import Thread
 from urllib.parse import parse_qs, urlsplit
 from datetime import datetime, timezone
 import json
-import math
 import socket
 import sys
-import unicodedata
 import frontmatter
 
 from .config import Configuration
 from ._logger import logger
 from .markdown_to_html import MarkdownToHTMLConverter
+from .metadata import RecipeMetadata
 
-# from .metadata import RecipeMetadata
 from collections.abc import Callable
 
 RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
 
-EDITOR_METADATA_FIELDS = {
-    "tags": "string_list",
-    "cuisine": "string_list",
-    "category": "string_list",
-    "meals": "string_list",
-    "makes": "integer",
-    "difficulty": "number",
-    "contributor": "string",
-    "createdOn": "string",
-    "updatedOn": "string",
-    "source": "object",
-}
+EDITOR_METADATA_FIELDS = RecipeMetadata.EDITOR_FIELDS
 
 
 def _validate_editor_metadata(metadata: object) -> dict:
@@ -40,90 +27,25 @@ def _validate_editor_metadata(metadata: object) -> dict:
 
     validated = {}
 
-    for field, expected_type in EDITOR_METADATA_FIELDS.items():
+    for field, expected_type in RecipeMetadata.EDITOR_FIELDS.items():
         value = metadata.get(field)
 
-        if value is None:
-            validated[field] = None
-        elif expected_type == "string_list":
-            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-                raise ValueError(f"'{field}' must be a list of strings or null")
-            validated[field] = value
+        if expected_type == "string_list":
+            validated[field] = RecipeMetadata.validate_string_list(field, value)
         elif expected_type == "string":
-            if not isinstance(value, str):
-                raise ValueError(f"'{field}' must be a string or null")
-            validated[field] = value
+            validated[field] = RecipeMetadata.validate_string(field, value)
         elif expected_type == "integer":
-            if isinstance(value, bool) or not isinstance(value, int):
-                raise ValueError(f"'{field}' must be an integer or null")
-            validated[field] = value
+            validated[field] = RecipeMetadata.validate_integer(field, value)
         elif expected_type == "number":
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError(f"'{field}' must be a number or null")
-            validated[field] = value
+            validated[field] = RecipeMetadata.validate_number(field, value)
         elif expected_type == "object" and field == "source":
-            if not isinstance(value, dict):
-                raise ValueError(f"'{field}' must be an object or null")
-
-            allowed_fields = {"author", "title", "format", "url"}
-
-            validated[field] = {
-                key: (value.get(key).strip() or None if isinstance(value.get(key), str) else None)
-                for key in allowed_fields
-            }
+            validated[field] = RecipeMetadata.validate_source(value)
 
     return validated
 
 
 def _validate_ratings(value: object) -> list[dict]:
-    if not isinstance(value, list):
-        raise ValueError("'ratings' must be a list")
-
-    validated = []
-    names = set()
-    ids = set()
-
-    for index, rating in enumerate(value):
-        if not isinstance(rating, dict):
-            raise ValueError(f"Rating {index + 1} must be an object")
-
-        name = rating.get("name")
-        rating_id = rating.get("id")
-        score = rating.get("rating")
-
-        if not isinstance(name, str) or not name.strip() or len(name.strip()) > 100:
-            raise ValueError(f"Rating {index + 1} must have a name of 1 to 100 characters")
-
-        normalized_name = unicodedata.normalize("NFKC", name.strip()).casefold()
-        if normalized_name in names:
-            raise ValueError("There can only be one rating per name")
-        names.add(normalized_name)
-
-        if not isinstance(rating_id, str) or not rating_id.strip() or rating_id != rating_id.strip():
-            raise ValueError(f"Rating {index + 1} must have an ID")
-        if rating_id in ids:
-            raise ValueError("Rating IDs must be unique")
-        ids.add(rating_id)
-
-        if isinstance(score, bool) or not isinstance(score, (int, float)):
-            raise ValueError(f"Rating {index + 1} must have a numeric score")
-        if score < 0 or score > 10 or not math.isfinite(score):
-            raise ValueError(f"Rating {index + 1} must be between 0 and 10")
-
-        for field in ("created", "updated"):
-            timestamp = rating.get(field)
-            if not isinstance(timestamp, str):
-                raise ValueError(f"Rating {index + 1} must have a {field} timestamp")
-            try:
-                datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-            except ValueError as exc:
-                raise ValueError(f"Rating {index + 1} has an invalid {field} timestamp") from exc
-
-        normalized_rating = rating.copy()
-        normalized_rating["name"] = name.strip()
-        validated.append(normalized_rating)
-
-    return validated
+    return RecipeMetadata.validate_ratings(value)
 
 
 class RecipeRequestHandler(SimpleHTTPRequestHandler):
@@ -173,8 +95,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 # Use frontmatter to parse the YAML front matter
                 try:
                     post = frontmatter.loads(content)
-                    metadata = post.metadata
-                    self._send_json(200, {"metadata": metadata})
+                    metadata = RecipeMetadata.from_dict(post.metadata)
+                    self._send_json(200, {"metadata": metadata.to_dict()})
                 except Exception as e:
                     logger.exception("Failed to parse YAML front matter")
                     self._send_json(500, {"error": "Unable to parse YAML front matter"})
@@ -187,13 +109,18 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
                 try:
                     post = frontmatter.loads(content)
-                    metadata = post.metadata
+                    metadata = RecipeMetadata.from_dict(post.metadata)
 
-                    if field_name in metadata:
+                    if field_name in ("comments", "ratings"):
+                        self._send_json(
+                            200,
+                            {"value": metadata.ratings if field_name == "ratings" else metadata.comments},
+                        )
+                    elif field_name in RecipeMetadata.FIELD_NAMES and (
+                        metadata.get(field_name) is not None or not metadata.is_missing(field_name)
+                    ):
                         # Return the specific field value
-                        self._send_json(200, {"value": metadata[field_name]})
-                    elif field_name in ("comments", "ratings"):
-                        self._send_json(200, {"value": []})
+                        self._send_json(200, {"value": metadata.get(field_name)})
                     else:
                         self._send_json(404, {"error": f"Metadata field '{field_name}' not found"})
                 except Exception as e:

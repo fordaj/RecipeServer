@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from bs4 import BeautifulSoup
 
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
+from recipeserver.metadata import RecipeMetadata
 from recipeserver.metadata_linter import lint_recipe_metadata
 from recipeserver.markdown_to_html import MarkdownToHTMLConverter
 
@@ -176,7 +177,7 @@ def test_metadata_warnings_refresh_when_index_is_regenerated(tmp_path: Path):
     recipe_path = tmp_path / "cinnamon-rolls" / "index.html"
     recipe_path.parent.mkdir()
     recipe_path.write_text("<h1>Cinnamon Rolls</h1>", encoding="UTF-8")
-    metadata = {}
+    metadata = RecipeMetadata()
     generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
     generator.add(Recipe(metadata, recipe_path))
 
@@ -189,15 +190,11 @@ def test_metadata_warnings_refresh_when_index_is_regenerated(tmp_path: Path):
     assert len(first_page.select(".recipe-warning-chip")) == 5
 
     # Update metadata to include all required fields with valid values
-    metadata.update(
-        {
-            "contributor": "Avery",
-            "meals": ["Dessert"],
-            "categories": ["Baking"],
-            "makes": 12,
-            "difficulty": 4,
-        }
-    )
+    metadata.contributor = "Avery"
+    metadata.meals = ["Dessert"]
+    metadata.categories = ["Baking"]
+    metadata.makes = 12
+    metadata.difficulty = 4
     generator.convert()
 
     updated_page = BeautifulSoup(
