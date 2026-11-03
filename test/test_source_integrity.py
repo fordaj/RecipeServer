@@ -173,6 +173,118 @@ Original body with `1 cup` sugar.
     assert {path for path in before if before[path] != after[path]} == {"dinner/recipe.md"}
 
 
+def test_api_serializes_unquoted_yaml_dates(tmp_path: Path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    recipe = source / "recipe.md"
+    recipe.write_text(
+        """---
+createdOn: 2024-06-15
+updatedOn: 2024-07-20
+---
+# Dated Recipe
+""",
+        encoding="utf-8",
+    )
+
+    with running_server(source) as (base_url, _):
+        status, metadata = request_json(
+            f"{base_url}/api/metadata/createdOn?{urlencode({'path': 'recipe.md'})}"
+        )
+        assert status == 200
+        assert metadata == {"value": "2024-06-15"}
+
+        status, editor = request_json(
+            f"{base_url}/api/recipe-editor?{urlencode({'path': 'recipe.md'})}"
+        )
+        assert status == 200
+        assert editor["metadata"]["createdOn"] == "2024-06-15"
+        assert editor["metadata"]["updatedOn"] == "2024-07-20"
+
+
+def test_editor_get_returns_json_error_for_malformed_front_matter(tmp_path: Path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    (source / "recipe.md").write_text(
+        "---\nmeals: [\n---\n# Broken Recipe\n",
+        encoding="utf-8",
+    )
+
+    with running_server(source) as (base_url, _):
+        status, body = request_json(
+            f"{base_url}/api/recipe-editor?{urlencode({'path': 'recipe.md'})}"
+        )
+
+    assert status == 500
+    assert body == {"error": "Unable to parse YAML front matter"}
+
+
+def test_editor_save_updates_first_source_and_preserves_remaining_sources(tmp_path: Path):
+    source = tmp_path / "recipes"
+    recipe_directory = source / "dinner"
+    recipe_directory.mkdir(parents=True)
+    recipe = recipe_directory / "recipe.md"
+    recipe.write_text(
+        """---
+meals:
+  - Dinner
+source:
+  - author: Avery
+    title: First source
+    format: book
+    url: ""
+  - author: Someone Else
+    title: Second source
+    format: website
+    url: https://example.com/second
+---
+# Sourced Recipe
+""",
+        encoding="utf-8",
+    )
+
+    with running_server(source) as (base_url, saved_paths):
+        status, _ = request_json(
+            f"{base_url}/api/recipe-editor",
+            {
+                "path": "dinner/recipe.md",
+                "content": "# Sourced Recipe\n",
+                "metadata": {
+                    **EDITOR_METADATA,
+                    "source": {
+                        "author": "Avery",
+                        "title": "Updated first source",
+                        "format": "book",
+                        "url": "",
+                    },
+                },
+            },
+        )
+        assert status == 200
+
+        status, _ = request_json(
+            f"{base_url}/api/recipe-editor",
+            {
+                "path": "dinner/recipe.md",
+                "content": "# Sourced Recipe\n",
+                "metadata": {**EDITOR_METADATA, "source": None},
+            },
+        )
+        assert status == 200
+
+    assert saved_paths == [recipe.resolve(), recipe.resolve()]
+
+    post = frontmatter.loads(recipe.read_text(encoding="utf-8"))
+    assert post.metadata["source"] == [
+        {
+            "author": "Someone Else",
+            "title": "Second source",
+            "format": "website",
+            "url": "https://example.com/second",
+        }
+    ]
+
+
 def test_metadata_save_updates_only_requested_fields_and_leaves_edit_time_alone(tmp_path: Path):
     source = tmp_path / "recipes"
     source.mkdir()
@@ -326,6 +438,44 @@ def test_regen_builds_site_without_modifying_the_source_tree(tmp_path: Path, mon
     recipe_html = (site / "dinner" / "recipe.html").read_text(encoding="utf-8")
     assert "Braised Greens" in recipe_html
     assert 'src="/assets/recipe-editor.js"' in recipe_html
+
+
+def test_regen_skips_a_recipe_that_fails_to_convert(tmp_path: Path, monkeypatch):
+    source = tmp_path / "recipes"
+    site = tmp_path / "site"
+    good = source / "good"
+    broken = source / "broken"
+    good.mkdir(parents=True)
+    broken.mkdir(parents=True)
+
+    (good / "recipe.md").write_text(
+        "---\nmeals:\n  - Dinner\n---\n# Good Recipe\n",
+        encoding="utf-8",
+    )
+    (broken / "recipe.md").write_text(
+        "---\nmeals:\n  - Dinner\n---\n# Broken Recipe\n",
+        encoding="utf-8",
+    )
+
+    original_convert_recipe = Core.convert_recipe
+
+    def convert_or_fail(core: Core, markdown: Path):
+        if markdown.parent.name == "broken":
+            raise ValueError("invalid recipe")
+        return original_convert_recipe(core, markdown)
+
+    monkeypatch.setattr(Core, "convert_recipe", convert_or_fail)
+    monkeypatch.setattr(Core, "copy_assets", staticmethod(lambda site_directory: None))
+
+    core = Core(SimpleNamespace(source_directory=source, site_directory=site))
+    core.regen()
+
+    assert (site / "good" / "recipe.html").is_file()
+    assert not (site / "broken" / "recipe.html").exists()
+
+    index = (site / "index.html").read_text(encoding="utf-8")
+    assert "Good Recipe" in index
+    assert "Broken Recipe" not in index
 
 
 def test_editor_save_regenerates_the_recipe_page_and_index(tmp_path: Path, monkeypatch):

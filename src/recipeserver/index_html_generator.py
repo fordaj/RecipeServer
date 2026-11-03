@@ -2,6 +2,7 @@ import html
 import json
 import math
 from datetime import date, datetime
+from functools import lru_cache
 from pathlib import Path
 from statistics import mean
 from textwrap import dedent
@@ -44,9 +45,10 @@ _DETAIL_ICONS = {
 
 
 class Recipe:
-    def __init__(self, metadata: dict, html_file: Path):
+    def __init__(self, metadata: dict, html_file: Path, title: str | None = None):
         self.metadata = metadata
         self.html_file = html_file
+        self.title = title
 
 
 class IndexHTMLGenerator:
@@ -101,6 +103,7 @@ class IndexHTMLGenerator:
             for rating in ratings
             if isinstance(rating, dict)
             and isinstance((score := rating.get("rating")), (int, float))
+            and not isinstance(score, bool)
             and math.isfinite(score)
         ]
         return (mean(scores), len(scores)) if scores else (None, 0)
@@ -112,6 +115,7 @@ class IndexHTMLGenerator:
         return IndexHTMLGenerator._icon_path(asset_path)
 
     @staticmethod
+    @lru_cache(maxsize=None)
     def _icon_path(asset_path: Path) -> str:
         soup = BeautifulSoup(asset_path.read_text(encoding="UTF-8"), "html.parser")
         icon = soup.find("svg")
@@ -238,7 +242,6 @@ class IndexHTMLGenerator:
                     f'target="_blank" rel="noopener noreferrer">{content}</a>'
                 )
 
-        icon = LINK_SVG if source_format == "website" else BOOK_SVG
         if source_format == "website":
             icon = LINK_SVG
         elif source_format == "book":
@@ -265,9 +268,13 @@ class IndexHTMLGenerator:
 
             relative_path = file.relative_to(self.cfg.site_directory)
             url = "/" + relative_path.as_posix()
-            recipe_page = BeautifulSoup(file.read_text(encoding="UTF-8"), "html.parser")
-            heading = recipe_page.find("h1")
-            heading_title = heading.get_text(" ", strip=True) if heading else ""
+
+            heading_title = recipe.title or ""
+            if not heading_title:
+                recipe_page = BeautifulSoup(file.read_text(encoding="UTF-8"), "html.parser")
+                heading = recipe_page.find("h1")
+                heading_title = heading.get_text(" ", strip=True) if heading else ""
+
             title = heading_title or str(metadata.get("title") or self.deslugify(file.parent.name))
             hero_image = get_first_image_in_dir(file.parent) if file.parent.is_dir() else None
             hero_url = "/" + hero_image.relative_to(self.cfg.site_directory).as_posix() if hero_image else ""

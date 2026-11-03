@@ -1,5 +1,6 @@
 from PIL import Image
 import colorsys
+from collections import Counter
 from .pallette import Pallette
 from pathlib import Path
 
@@ -54,19 +55,20 @@ class ImageToColorConverter:
 
     @staticmethod
     def get_hex_color_from_image(image: Path) -> str:
-        image = Image.open(image).convert("RGB")
+        with Image.open(image) as opened:
+            rgb_image = opened.convert("RGB")
 
         # Shrink the image so we're not processing millions of pixels.
-        image.thumbnail((200, 200))
+        rgb_image.thumbnail((200, 200))
 
         # Reduce the image to a small palette.
-        quantized = image.quantize(colors=16).convert("RGB")
+        quantized = rgb_image.quantize(colors=16).convert("RGB")
 
-        pixels = list(quantized.get_flattened_data())
+        counts = Counter(quantized.get_flattened_data())
 
         candidates = []
 
-        for color in set(pixels):
+        for color, count in counts.items():
             r, g, b = color
 
             # Convert RGB -> HSV
@@ -82,8 +84,6 @@ class ImageToColorConverter:
             if s < 0.18:
                 continue
 
-            count = pixels.count(color)
-
             # Favor colors that are:
             #   - common
             #   - reasonably saturated
@@ -98,9 +98,3 @@ class ImageToColorConverter:
         _, (r, g, b) = max(candidates)
 
         return f"#{r:02X}{g:02X}{b:02X}"
-
-
-def main():
-    image = Path("Chocolate Chip Cookies/image.png")
-    image = Path("Chocolate Chip Cookies/image-2.png")
-    print(ImageToColorConverter.get_hex_color_from_image(image))

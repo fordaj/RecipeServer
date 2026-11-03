@@ -208,9 +208,7 @@ class PullToRefresh {
     }
 
     const shouldRefresh =
-      this.active &&
-      this.pullDistance >= this.maxPull &&
-      this.indicator.classList.contains("ptr-ready");
+      this.active && this.indicator.classList.contains("ptr-ready");
 
     this.tracking = false;
 

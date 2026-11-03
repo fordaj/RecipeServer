@@ -1,13 +1,12 @@
 from pathlib import Path
 from .image_handler import IMAGE_EXTENSIONS
 from .markdown_to_html import MarkdownToHTMLConverter
-from .html_embedder import HTMLEmbedder
 from .index_html_generator import IndexHTMLGenerator, Recipe
 from ._logger import logger, setup_logger, LogLevel
 from .config import Configuration
 from .server import Server
 from .tray import Tray
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock, Event
 from shutil import rmtree, copytree, copy2
 import time, sys, os, argparse
@@ -96,7 +95,7 @@ class Core:
 
             html, converter = self.convert_recipe(markdown)
 
-            self._recipes[markdown] = Recipe(converter.metadata, html)
+            self._recipes[markdown] = Recipe(converter.metadata, html, converter.title)
 
             self._update_index()
 
@@ -126,12 +125,26 @@ class Core:
 
             if markdown_files:
                 with ThreadPoolExecutor(max_workers=min(NUM_WORKERS, len(markdown_files))) as executor:
-                    results = executor.map(self.convert_recipe, markdown_files)
+                    futures = {
+                        executor.submit(self.convert_recipe, markdown): markdown
+                        for markdown in markdown_files
+                    }
 
-                    for markdown, (html, converter) in zip(markdown_files, results):
+                    for future in as_completed(futures):
+                        markdown = futures[future]
+                        try:
+                            html, converter = future.result()
+                        except Exception:
+                            # One broken recipe should not prevent the rest of the site from building.
+                            logger.exception(
+                                f'Failed to convert recipe "{markdown}", skipping it'
+                            )
+                            continue
+
                         self._recipes[markdown.resolve()] = Recipe(
                             converter.metadata,
                             html,
+                            converter.title,
                         )
 
             self._update_index()
