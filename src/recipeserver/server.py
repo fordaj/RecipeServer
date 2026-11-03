@@ -17,6 +17,7 @@ from ._logger import logger
 from collections.abc import Callable
 
 MarkdownSavedCallback = Callable[[Path], None]
+RevisionGetter = Callable[[], int]
 
 
 def _json_default(value: object) -> str:
@@ -200,14 +201,34 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         *args,
         source_directory: Path,
         on_markdown_saved: MarkdownSavedCallback | None = None,
+        revision_getter: RevisionGetter | None = None,
         **kwargs,
     ):
         self.source_directory = Path(source_directory).resolve()
         self.on_markdown_saved = on_markdown_saved
+        self.revision_getter = revision_getter
         super().__init__(*args, **kwargs)
+
+    def log_request(self, code="-", size="-"):
+        # Pages poll the revision endpoint, so its access log would be noise.
+        if urlsplit(self.path).path == "/api/revision":
+            return
+        super().log_request(code, size)
 
     def do_GET(self):
         parsed = urlsplit(self.path)
+
+        if parsed.path == "/api/revision":
+            try:
+                revision = int(self.revision_getter()) if self.revision_getter else 0
+            except Exception:
+                logger.exception("Failed to read the library revision")
+                self._send_json(500, {"error": "Unable to read the library revision"})
+                return
+
+            self._send_json(200, {"revision": revision})
+            return
+
         if parsed.path not in ("/api/markdown", "/api/recipe-editor") and not parsed.path.startswith("/api/metadata/"):
             if parsed.path.startswith("/api/"):
                 self.send_error(404, "Unknown API endpoint")
@@ -546,9 +567,11 @@ class Server:
         self,
         cfg: Configuration,
         on_markdown_saved: MarkdownSavedCallback | None = None,
+        revision_getter: RevisionGetter | None = None,
     ):
         self.cfg = cfg
         self.on_markdown_saved = on_markdown_saved
+        self.revision_getter = revision_getter
         self._http_server: ThreadingHTTPServer | None = None
         self._thread: Thread | None = None
 
@@ -573,6 +596,7 @@ class Server:
             directory=str(self.cfg.site_directory),
             source_directory=self.cfg.source_directory,
             on_markdown_saved=self.on_markdown_saved,
+            revision_getter=self.revision_getter,
         )
 
         try:

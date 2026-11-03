@@ -19,12 +19,15 @@ The repo does not include a test config file. On startup the app reads the recip
 
 ## Architecture / flow
 
-- Entrypoint: `src/recipeserver/__main__.py` -> `core.main`. `handle_configuration()` resolves the recipe source directory, then `core.main` builds `Core`, calls `regen()`, starts `Server`, and runs `Tray`.
-- `core.regen()` deletes and recreates the site directory, copies `src/recipeserver/assets`, converts every `recipe.md` under the source tree in parallel, then rebuilds `index.html`.
-- The site directory is `platformdirs.user_data_path("recipe-server") / "site"` (macOS: `~/Library/Application Support/recipe-server/site`). It is generated output and is recreated on every `regen()`.
+- Entrypoint: `src/recipeserver/__main__.py` -> `core.main`. `handle_configuration()` resolves the recipe source directory, then `core.main` builds `Core`, calls `regen()`, starts `LibraryWatcher`, starts `Server`, and runs `Tray`. Shutdown stops the watcher, tray, and server.
+- `core.regen()` deletes and recreates the site directory, copies `src/recipeserver/assets`, converts every `recipe.md` under the source tree in parallel, then rebuilds `index.html`. `Core.refresh_all()` does the same rebuild while holding the regeneration lock.
+- `file_watcher.LibraryWatcher` watches the source tree with `watchdog`, filters out hidden/temp/generated paths, debounces event bursts, and calls `Core.handle_file_changes`. `Core` refreshes affected recipes, copies/prunes images, removes deleted recipe pages, rebuilds the index once, and increments `Core.revision`. Directory changes fall back to a full rebuild.
+- `Core._source_signatures` records each `recipe.md` signature after it is reflected in the site, so the watcher does not refresh again for the app's own browser saves.
+- The site directory is `platformdirs.user_data_path("recipe-server") / "site"` (macOS: `~/Library/Application Support/recipe-server/site`). It is generated output and is recreated by full rebuilds.
 - `markdown_to_html.py` renders a recipe page and injects metadata-derived HTML. `index_html_generator.py` builds the filter/sort index and metadata warnings. `server.py` serves the site and JSON APIs. `metadata_linter.py` owns the required-field list and warning text.
-- APIs: `GET /api/markdown?path=...`, `GET|POST /api/recipe-editor?path=...`, and `GET|POST /api/metadata/<field>?path=...`. `path` must be a relative `.md` path inside the source directory. Every save regenerates that recipe page and the index.
+- APIs: `GET /api/revision`, `GET /api/markdown?path=...`, `GET|POST /api/recipe-editor?path=...`, and `GET|POST /api/metadata/<field>?path=...`. `path` must be a relative `.md` path inside the source directory. Every save regenerates that recipe page and the index.
 - Generated pages use root-absolute URLs such as `/assets/...` and `/recipe-dir/recipe.html`, so they must be served from the site root (port 8000); opening the files directly will not load their assets.
+- `assets/live-refresh.js` polls `/api/revision` and reloads the page when it changes. If the recipe editor has unsaved changes (`dialog.dataset.dirty`), it shows a dismissible notice instead of reloading.
 - Index metadata warnings are hidden by default and shown by the "Metadata Status" toggle. They do not block generation, serving, or saving.
 
 ## Recipe data conventions
@@ -43,7 +46,8 @@ The repo does not include a test config file. On startup the app reads the recip
 These choices are deliberate and are not bugs to "fix":
 
 - This is a local desktop app, not a headless service. Startup may open a Tk directory picker, and the process runs a `pystray` tray icon. The server listens on fixed port 8000, binds `0.0.0.0`, and has no authentication; the tray opens `http://localhost:8000`.
-- Generated HTML is disposable output. The Markdown files in the source tree are the source of truth, and the site directory is deleted and rebuilt on every startup. Never store source content or manual edits in the site directory.
+- Generated HTML is disposable output. The Markdown files in the source tree are the source of truth, and the site directory is deleted and rebuilt on every startup and on full fallback rebuilds. Never store source content or manual edits in the site directory.
+- Live library sync is intentional. External changes are applied incrementally when possible, and the tray **Refresh Library** action is the manual fallback for a missed filesystem event. Browser saves still use the direct save callback; the watcher skips their already-applied source signatures.
 - Browser edits are written back to the source Markdown, not to generated HTML. The editor is the only path that updates `updatedOn`.
 - Metadata warnings are advisory. Missing required fields are allowed in the data and only surface through the hidden index warning chips.
 - Front matter uses `categories`; the singular `category` support is a read-only compatibility path for older recipes, not an alternative naming convention.

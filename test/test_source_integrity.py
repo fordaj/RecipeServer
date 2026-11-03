@@ -65,6 +65,7 @@ def request_json(url: str, payload: dict | None = None) -> tuple[int, dict]:
 def running_server(
     source_directory: Path,
     on_markdown_saved=None,
+    revision_getter=None,
 ) -> Iterator[tuple[str, list[Path]]]:
     saved_paths: list[Path] = []
     handler = partial(
@@ -72,6 +73,7 @@ def running_server(
         directory=str(source_directory),
         source_directory=source_directory,
         on_markdown_saved=on_markdown_saved if on_markdown_saved is not None else saved_paths.append,
+        revision_getter=revision_getter,
     )
     server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = Thread(target=server.serve_forever)
@@ -346,6 +348,71 @@ Body with `1 cup` water.
     after = snapshot_tree(source)
     assert after.keys() == before.keys()
     assert {path for path in before if before[path] != after[path]} == {"recipe.md"}
+
+
+def test_revision_endpoint_reports_the_current_library_revision(tmp_path: Path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    revision = 7
+
+    with running_server(source, revision_getter=lambda: revision) as (base_url, _):
+        status, body = request_json(f"{base_url}/api/revision")
+        assert status == 200
+        assert body == {"revision": 7}
+
+        revision = 8
+        status, body = request_json(f"{base_url}/api/revision")
+        assert status == 200
+        assert body == {"revision": 8}
+
+
+def test_revision_endpoint_defaults_to_zero_without_a_getter(tmp_path: Path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    with running_server(source) as (base_url, _):
+        status, body = request_json(f"{base_url}/api/revision")
+
+    assert status == 200
+    assert body == {"revision": 0}
+
+
+def test_editor_save_increments_the_library_revision(tmp_path: Path, monkeypatch):
+    source = tmp_path / "recipes"
+    site = tmp_path / "site"
+    recipe_directory = source / "dinner"
+    recipe_directory.mkdir(parents=True)
+    recipe = recipe_directory / "recipe.md"
+    recipe.write_text("---\nmeals:\n  - Dinner\n---\n# Old Title\n", encoding="utf-8")
+
+    monkeypatch.setattr(Core, "copy_assets", staticmethod(lambda site_directory: None))
+    core = Core(SimpleNamespace(source_directory=source, site_directory=site))
+    core.regen()
+    initial_revision = core.revision
+
+    with running_server(
+        source,
+        on_markdown_saved=core.on_markdown_save,
+        revision_getter=lambda: core.revision,
+    ) as (base_url, _):
+        status, body = request_json(f"{base_url}/api/revision")
+        assert status == 200
+        assert body == {"revision": initial_revision}
+
+        status, _ = request_json(
+            f"{base_url}/api/recipe-editor",
+            {
+                "path": "dinner/recipe.md",
+                "content": "# New Title\n",
+                "metadata": EDITOR_METADATA,
+            },
+        )
+        assert status == 200
+
+        status, body = request_json(f"{base_url}/api/revision")
+
+    assert status == 200
+    assert body == {"revision": initial_revision + 1}
 
 
 def test_api_rejects_paths_outside_the_source_directory_without_touching_files(tmp_path: Path):

@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image, UnidentifiedImageError
@@ -57,10 +58,14 @@ def tray_factory(monkeypatch):
 
     monkeypatch.setattr(tray_module.pystray, "Icon", RecordingIcon)
 
-    def create(running: bool = False):
+    def create(running: bool = False, on_refresh=None):
         server = FakeServer(running)
         quit_calls: list[bool] = []
-        tray = tray_module.Tray(server, on_quit=lambda: quit_calls.append(True))
+        tray = tray_module.Tray(
+            server,
+            on_quit=lambda: quit_calls.append(True),
+            on_refresh=on_refresh,
+        )
         return tray, server, created_icons[-1], quit_calls
 
     return create
@@ -152,6 +157,7 @@ def test_tray_menu_contains_the_expected_actions(tray_factory):
 
     assert labels == [
         "Open Recipes",
+        "Refresh Library",
         "Server: Stopped",
         "Start Server",
         "Stop Server",
@@ -159,6 +165,30 @@ def test_tray_menu_contains_the_expected_actions(tray_factory):
     ]
     assert get_menu_item(tray, "Open Recipes").default is True
     assert get_menu_item(tray, "Server: Stopped").enabled is False
+
+
+def test_tray_menu_refreshes_the_library(tray_factory):
+    refresh_calls: list[bool] = []
+    tray, _, icon, _ = tray_factory(on_refresh=lambda: refresh_calls.append(True))
+
+    get_menu_item(tray, "Refresh Library")(icon)
+
+    assert refresh_calls == [True]
+
+
+def test_tray_refresh_failure_does_not_break_the_menu(tray_factory):
+    def fail():
+        raise RuntimeError("refresh failed")
+
+    tray, _, icon, _ = tray_factory(on_refresh=fail)
+
+    get_menu_item(tray, "Refresh Library")(icon)
+
+
+def test_tray_refresh_is_inert_without_a_callback(tray_factory):
+    tray, _, icon, _ = tray_factory()
+
+    assert get_menu_item(tray, "Refresh Library")(icon) is None
 
 
 def test_tray_menu_opens_the_recipes_page(tray_factory, monkeypatch):
@@ -241,6 +271,7 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
     class FakeCore:
         def __init__(self, cfg):
             self.cfg = cfg
+            self.revision = 0
 
         def regen(self):
             events.append("regen")
@@ -248,10 +279,30 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
         def on_markdown_save(self, markdown):
             events.append("markdown-save")
 
+        def handle_file_changes(self, changes):
+            events.append("file-changes")
+
+        def refresh_all(self):
+            events.append("refresh-all")
+
+    class FakeWatcher:
+        def __init__(self, source_directory, on_changes, *, site_directory=None):
+            self.source_directory = source_directory
+            self.on_changes = on_changes
+            self.site_directory = site_directory
+            events.append("watcher-init")
+
+        def start(self):
+            events.append("watcher-start")
+
+        def stop(self):
+            events.append("watcher-stop")
+
     class FakeServer:
-        def __init__(self, cfg, on_markdown_saved=None):
+        def __init__(self, cfg, on_markdown_saved=None, revision_getter=None):
             self.cfg = cfg
             self.on_markdown_saved = on_markdown_saved
+            self.revision_getter = revision_getter
 
         def start(self):
             events.append("server-start")
@@ -260,9 +311,10 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
             events.append("server-stop")
 
     class FakeTray:
-        def __init__(self, server, on_quit):
+        def __init__(self, server, on_quit, on_refresh=None):
             self.server = server
             self.on_quit = on_quit
+            self.on_refresh = on_refresh
             events.append("tray-init")
 
         def run(self):
@@ -277,11 +329,17 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
             events.append("tray-stop")
 
     monkeypatch.setattr(core_module, "Core", FakeCore)
+    monkeypatch.setattr(core_module, "LibraryWatcher", FakeWatcher)
     monkeypatch.setattr(core_module, "Server", FakeServer)
     monkeypatch.setattr(core_module, "Tray", FakeTray)
     monkeypatch.setattr(core_module.sys, "platform", platform)
 
-    core_module.main(object())
+    core_module.main(
+        SimpleNamespace(
+            source_directory=Path("/tmp/recipes"),
+            site_directory=Path("/tmp/site"),
+        )
+    )
 
     return events
 
@@ -291,9 +349,12 @@ def test_main_starts_the_tray_on_macos(monkeypatch):
 
     assert events == [
         "regen",
+        "watcher-init",
+        "watcher-start",
         "server-start",
         "tray-init",
         "tray-run",
+        "watcher-stop",
         "tray-stop",
         "server-stop",
     ]
@@ -304,9 +365,12 @@ def test_main_starts_the_tray_detached_elsewhere(monkeypatch):
 
     assert events == [
         "regen",
+        "watcher-init",
+        "watcher-start",
         "server-start",
         "tray-init",
         "tray-run-detached",
+        "watcher-stop",
         "tray-stop",
         "server-stop",
     ]

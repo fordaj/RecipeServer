@@ -59,6 +59,8 @@ COMMENTS_JS = "/assets/comments.js"
 RATINGS_CSS = "/assets/ratings.css"
 RATINGS_JS = "/assets/ratings.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
+LIVE_REFRESH_CSS = "/assets/live-refresh.css"
+LIVE_REFRESH_JS = "/assets/live-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 
 MATHJAX = """
@@ -760,6 +762,7 @@ class MarkdownToHTMLConverter:
             <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">
             <link rel="stylesheet" href="{COMMENTS_CSS}">
             <link rel="stylesheet" href="{RATINGS_CSS}">
+            <link rel="stylesheet" href="{LIVE_REFRESH_CSS}">
             {self.get_doc_specific_overrides()}
             {MATHJAX}
         </head>
@@ -778,6 +781,7 @@ class MarkdownToHTMLConverter:
             <script defer src="{RECIPE_JS}"></script>
             <script defer src="{RECIPE_SCALER_JS}"></script>
             <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
+            <script defer src="{LIVE_REFRESH_JS}"></script>
             <script defer src="{COMMENTS_JS}"></script>
             <script defer src="{RATINGS_JS}"></script>
             <script defer src="{RECIPE_EDITOR_JS}"></script>
