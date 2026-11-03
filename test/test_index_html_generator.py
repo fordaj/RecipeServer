@@ -290,3 +290,33 @@ def test_index_accepts_legacy_singular_category(tmp_path: Path):
     assert recipe is not None
     assert recipe["data-categories"] == '["Baking"]'
     assert recipe.select_one(".recipe-detail--categories").get_text(" ", strip=True) == "Baking"
+
+
+def test_index_uses_converter_title_without_reading_the_recipe_page(tmp_path: Path):
+    recipe_path = tmp_path / "ghost" / "recipe.html"
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.add(Recipe({"meals": ["Dinner"]}, recipe_path, "Ghost Recipe"))
+
+    generator.convert()
+
+    page = (tmp_path / "index.html").read_text(encoding="UTF-8")
+    recipe = BeautifulSoup(page, "html.parser").select_one("#recipe-list .recipe")
+    assert recipe is not None
+    assert recipe["data-title"] == "Ghost Recipe"
+    assert recipe.select_one(".recipe-card__link").get_text(strip=True) == "Ghost Recipe"
+
+
+def test_average_rating_ignores_booleans_and_invalid_scores():
+    average, count = IndexHTMLGenerator._average_rating(
+        {
+            "ratings": [
+                {"rating": 8},
+                {"rating": True},
+                {"rating": "9"},
+                {"rating": 10},
+            ]
+        }
+    )
+
+    assert average == 9
+    assert count == 2

@@ -1,18 +1,15 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import date, datetime, time
 from html import escape
+from functools import lru_cache
 from .pallette import Pallette
 from .config import Configuration
 from .image_handler import ImageToColorConverter, get_first_image_in_dir
-import markdown, re, frontmatter
+import json, math, markdown, re, frontmatter
 from textwrap import dedent
-from dataclasses import dataclass
-from slugify import slugify
-from enum import Enum, auto
 from bs4 import BeautifulSoup, Tag
 from fractions import Fraction
 from ._logger import logger
-import re, json
 from coloraide import Color
 from importlib.metadata import version
 
@@ -38,11 +35,6 @@ _UNIT_ALIASES = {
 
 FILE_PATH = Path(__file__)
 RECIPE_SCALER_HTML = FILE_PATH.parent / "assets" / "recipe-scaler.html"
-# RECIPE_SCALER_CSS = FILE_PATH.parent / "assets" / "recipe-scaler.css"
-# RECIPE_SCALER_JS = FILE_PATH.parent / "assets" / "recipe-scaler.js"
-# RECIPE_JS = FILE_PATH.parent / "assets" / "recipe.js"
-# CSS_PATH = FILE_PATH.parent / "assets" / "style.css"
-# PULL_DOWN_PAGE_REFRESH_JS = FILE_PATH.parent / "assets" / "pull-down-page-refresh.js"
 GAUGE_SVG = FILE_PATH.parent / "assets" / "gauge.svg"
 CHEF_HAT_SVG = FILE_PATH.parent / "assets" / "chef-hat.svg"
 POT_SVG = FILE_PATH.parent / "assets" / "cooking-pot.svg"
@@ -68,8 +60,6 @@ RATINGS_CSS = "/assets/ratings.css"
 RATINGS_JS = "/assets/ratings.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
-PENCIL_SVG = "/assets/pencil.svg"
-# GAUGE_SVG = "/assets/gauge.svg"
 
 MATHJAX = """
 <script>
@@ -119,12 +109,50 @@ def dark_mode_color(hex_color):
     return result.to_string(hex=True)
 
 
+def _json_default(value: object) -> str:
+    """Serialize YAML dates that JSON does not understand."""
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    """Parse metadata timestamps without letting bad data break a build."""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, time.min)
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _as_list(value: object) -> list:
+    """Return metadata values as a list, accepting scalar strings."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, (tuple, set)):
+        return list(value)
+    return [value]
+
+
+@lru_cache(maxsize=None)
+def _read_svg(asset_path: Path) -> str:
+    return asset_path.read_text(encoding="utf-8")
+
+
 class MarkdownToHTMLConverter:
     def __init__(self, cfg: Configuration):
         self.cfg = cfg
         self.metadata: dict[str, object] = {}
         self.metadata_json: str = ""
         self.heading_color: str = Pallette.DEFAULT_TITLE
+        self.title: str = ""
 
     def get_doc_specific_overrides(self) -> str:
         return dedent(f"""
@@ -147,11 +175,26 @@ class MarkdownToHTMLConverter:
             </style>
         """)
 
-    def _get_title_from_markdown_content(self, content: list[str]) -> str:
+    @staticmethod
+    def _get_title_from_markdown_content(content: list[str]) -> str | None:
+        """Return the first level-one heading, ignoring fenced code blocks."""
+        in_fence = False
 
         for line in content:
-            if line.startswith("# "):
-                return line.replace("# ", "")
+            stripped = line.lstrip()
+
+            if stripped.startswith(("```", "~~~")):
+                in_fence = not in_fence
+                continue
+
+            if in_fence:
+                continue
+
+            match = re.match(r"^ {0,3}#\s+(.*?)\s*#*\s*$", line)
+            if match and match.group(1).strip():
+                return match.group(1).strip()
+
+        return None
 
     def _break_up_div_comments(self, markdown: list[str]) -> None:
         for i, line in enumerate(markdown):
@@ -167,7 +210,7 @@ class MarkdownToHTMLConverter:
         normalized = unit.strip().lower()
         return _UNIT_ALIASES.get(normalized, unit.strip())
 
-    def _mathjaxify_inline_code_blocks(self, content: str) -> str:
+    def _mathjaxify_inline_code_blocks(self, soup: BeautifulSoup) -> None:
         def parse_quantity(
             value: str,
         ) -> tuple[float, str, float | None] | None:
@@ -216,8 +259,6 @@ class MarkdownToHTMLConverter:
 
             return None
 
-        soup = BeautifulSoup(content, "html.parser")
-
         for code in soup.find_all("code"):
             parsed = parse_quantity(code.get_text(strip=True))
 
@@ -238,22 +279,17 @@ class MarkdownToHTMLConverter:
 
             code.replace_with(span)
 
-        return str(soup)
-
-    def _enable_checkbox_inputs(self, content: str) -> str:
-        soup = BeautifulSoup(content, "html.parser")
+    def _enable_checkbox_inputs(self, soup: BeautifulSoup) -> None:
         # Remove the "disabled" attribute from <input checkbox> elements
         for checkbox in soup.select('input[type="checkbox"]'):
             checkbox.attrs.pop("disabled", None)
-
-        return str(soup)
 
     def _append_svg_icon(
         self,
         parent: Tag,
         path: Path,
     ) -> None:
-        svg = BeautifulSoup(path.read_text(encoding="utf-8"), "html.parser").find("svg")
+        svg = BeautifulSoup(_read_svg(path), "html.parser").find("svg")
 
         if svg is None:
             raise ValueError(f"No SVG element found in {path}")
@@ -269,10 +305,18 @@ class MarkdownToHTMLConverter:
         # First row: ratings, meals, difficulty
         primary = soup.new_tag("div", attrs={"class": "recipe-overview__primary"})
 
-        ratings = metadata.get("ratings", [])
+        ratings = metadata.get("ratings")
+        rating_scores = [
+            score
+            for rating in _as_list(ratings)
+            if isinstance(rating, dict)
+            and isinstance((score := rating.get("rating")), (int, float))
+            and not isinstance(score, bool)
+            and math.isfinite(score)
+        ]
 
-        if ratings:
-            average = sum(item["rating"] for item in ratings) / len(ratings)
+        if rating_scores:
+            average = sum(rating_scores) / len(rating_scores)
 
             rating = soup.new_tag(
                 "span",
@@ -281,9 +325,12 @@ class MarkdownToHTMLConverter:
             rating.string = f"★ {average:.1f}/10"
             primary.append(rating)
 
-        makes = metadata.get("makes", [])
+        makes = metadata.get("makes")
 
-        if makes:
+        if isinstance(makes, list):
+            makes = makes[0] if makes else None
+
+        if makes is not None and makes != "":
             item = soup.new_tag(
                 "span",
                 attrs={"class": "recipe-overview__difficulty"},
@@ -297,7 +344,11 @@ class MarkdownToHTMLConverter:
             primary.append(item)
 
         difficulty = metadata.get("difficulty")
-        if difficulty is not None:
+
+        if isinstance(difficulty, list):
+            difficulty = difficulty[0] if difficulty else None
+
+        if difficulty is not None and difficulty != "":
             item = soup.new_tag(
                 "span",
                 attrs={"class": "recipe-overview__difficulty"},
@@ -310,14 +361,14 @@ class MarkdownToHTMLConverter:
 
             primary.append(item)
 
-        meals = metadata.get("meals", [])
+        meals = _as_list(metadata.get("meals"))
         if meals:
             meal = soup.new_tag("span", attrs={"class": "recipe-overview__meals"})
             self._append_svg_icon(
                 meal,
                 UTENSILS_SVG,
             )
-            meal.append(", ".join(meals))
+            meal.append(", ".join(str(value) for value in meals))
             primary.append(meal)
 
         if primary.contents:
@@ -333,10 +384,9 @@ class MarkdownToHTMLConverter:
         }
 
         for key in ("cuisine", "categories", "tags"):
-            values = metadata.get(key, [])
+            values = _as_list(metadata.get(key))
             if key == "categories" and not values:
-                legacy = metadata.get("category", [])
-                values = [legacy] if isinstance(legacy, str) else legacy
+                values = _as_list(metadata.get("category"))
             if not values:
                 continue
 
@@ -362,32 +412,34 @@ class MarkdownToHTMLConverter:
 
         return overview if overview.contents else None
 
-    def _inject_recipe_overview(self, content: str) -> str:
-        soup = BeautifulSoup(content, "html.parser")
-
+    def _inject_recipe_overview(self, soup: BeautifulSoup) -> None:
         title = soup.find("h1")
         if title is None:
-            return str(soup)
+            return
 
         hero = title.find_next("img")
         if hero is None:
-            return str(soup)
+            return
 
         overview = self._build_recipe_overview(self.metadata, soup)
         if overview:
             hero.parent.insert_before(overview)
 
-        return str(soup)
-
     def _build_recipe_contributor(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
         contributor = metadata.get("contributor", "")
+
+        if isinstance(contributor, (list, tuple)):
+            contributor = ", ".join(str(value) for value in contributor if value)
+
+        if not isinstance(contributor, str):
+            contributor = str(contributor or "")
+
+        contributor = contributor.strip()
 
         if not contributor:
             return None
 
-        contributor = contributor.strip()
-
-        created_on = metadata.get("createdOn")
+        created_on = _parse_datetime(metadata.get("createdOn"))
 
         item = soup.new_tag(
             "div",
@@ -400,12 +452,6 @@ class MarkdownToHTMLConverter:
         label.string = f"by {contributor}"
 
         if created_on:
-            date = (
-                created_on
-                if isinstance(created_on, datetime)
-                else datetime.fromisoformat(str(created_on).replace("Z", "+00:00"))
-            )
-
             separator = soup.new_tag(
                 "span",
                 attrs={"class": "recipe-meta__separator"},
@@ -413,34 +459,32 @@ class MarkdownToHTMLConverter:
             separator.string = "·"
             label.append(separator)
 
-            time = soup.new_tag("time", datetime=date.date().isoformat())
-            time.string = f"{date:%b} {date.day}"
-            if datetime.now().year != date.year:
-                time.string += f", {date.year}"
+            time = soup.new_tag("time", datetime=created_on.date().isoformat())
+            time.string = f"{created_on:%b} {created_on.day}"
+            if datetime.now().year != created_on.year:
+                time.string += f", {created_on.year}"
             label.append(time)
 
         item.append(label)
 
         return item
 
-    def _inject_recipe_contributor(self, content: str) -> str:
-        soup = BeautifulSoup(content, "html.parser")
-
+    def _inject_recipe_contributor(self, soup: BeautifulSoup) -> None:
         main = soup.find("main", class_="recipe")
         if main is None:
-            return str(soup)
+            return
 
         contributor = self._build_recipe_contributor(self.metadata, soup)
         if contributor:
             main.append(contributor)
 
-        return str(soup)
-
     def _build_recipe_sources(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
-        sources = metadata.get("source", [])
+        sources = metadata.get("source")
 
         if isinstance(sources, dict):
             sources = [sources]
+        elif not isinstance(sources, list):
+            sources = []
 
         container = soup.new_tag(
             "div",
@@ -448,13 +492,16 @@ class MarkdownToHTMLConverter:
         )
 
         for source in sources:
-            source_format = (source.get("format") or "").lower()
-            title = (source.get("title") or "").strip()
-            author = (source.get("author") or "").strip()
-            url = (source.get("url") or "").strip()
+            if not isinstance(source, dict):
+                continue
+
+            source_format = str(source.get("format") or "").lower()
+            title = str(source.get("title") or "").strip()
+            author = str(source.get("author") or "").strip()
+            url = str(source.get("url") or "").strip()
 
             if source_format == "website":
-                title = title or source.get("company", "").strip()
+                title = title or str(source.get("company") or "").strip()
                 icon = LINK_SVG
             elif source_format == "book":
                 icon = BOOK_SVG
@@ -506,18 +553,14 @@ class MarkdownToHTMLConverter:
 
         return container if container.contents else None
 
-    def _inject_recipe_sources(self, content: str) -> str:
-        soup = BeautifulSoup(content, "html.parser")
-
+    def _inject_recipe_sources(self, soup: BeautifulSoup) -> None:
         main = soup.find("main", class_="recipe")
         if main is None:
-            return str(soup)
+            return
 
         sources = self._build_recipe_sources(self.metadata, soup)
         if sources:
             main.append(sources)
-
-        return str(soup)
 
     def _build_recipe_version(self, metadata: dict, soup: BeautifulSoup) -> Tag:
         version = soup.new_tag(
@@ -529,15 +572,10 @@ class MarkdownToHTMLConverter:
 
         label = soup.new_tag("span")
 
-        updated_on = metadata.get("updatedOn")
+        updated_on = _parse_datetime(metadata.get("updatedOn"))
         label.append(f"v{VERSION}")
 
         if updated_on:
-            date = (
-                updated_on
-                if isinstance(updated_on, datetime)
-                else datetime.fromisoformat(str(updated_on).replace("Z", "+00:00"))
-            )
             separator = soup.new_tag(
                 "span",
                 attrs={"class": "recipe-meta__separator"},
@@ -545,37 +583,40 @@ class MarkdownToHTMLConverter:
             separator.string = "·"
             label.append(separator)
 
-            time = soup.new_tag("time", datetime=date.date().isoformat())
-            time.string = f"Edited {date:%b} {date.day}"
-            if datetime.now().year != date.year:
-                time.string += f", {date.year}"
+            time = soup.new_tag("time", datetime=updated_on.date().isoformat())
+            time.string = f"Edited {updated_on:%b} {updated_on.day}"
+            if datetime.now().year != updated_on.year:
+                time.string += f", {updated_on.year}"
             label.append(time)
 
         version.append(label)
 
         return version
 
-    def _inject_recipe_version(self, content: str) -> str:
-        soup = BeautifulSoup(content, "html.parser")
-
+    def _inject_recipe_version(self, soup: BeautifulSoup) -> None:
         main = soup.find("main", class_="recipe")
         if main is None:
-            return str(soup)
+            return
 
         version = self._build_recipe_version(self.metadata, soup)
         main.append(version)
 
-        return str(soup)
-
     def _postprocess(self, content: str) -> str:
-        new_content = content
-        new_content = self._mathjaxify_inline_code_blocks(new_content)
-        new_content = self._enable_checkbox_inputs(new_content)
-        new_content = self._inject_recipe_overview(new_content)
-        new_content = self._inject_recipe_contributor(new_content)
-        new_content = self._inject_recipe_sources(new_content)
-        new_content = self._inject_recipe_version(new_content)
-        return new_content
+        soup = BeautifulSoup(content, "html.parser")
+        self._mathjaxify_inline_code_blocks(soup)
+        self._enable_checkbox_inputs(soup)
+        self._inject_recipe_overview(soup)
+        self._inject_recipe_contributor(soup)
+        self._inject_recipe_sources(soup)
+        self._inject_recipe_version(soup)
+
+        heading = soup.find("h1")
+        if heading is not None:
+            rendered_title = heading.get_text(" ", strip=True)
+            if rendered_title:
+                self.title = rendered_title
+
+        return str(soup)
 
     def _get_comments_html(self) -> str:
         return dedent(f"""
@@ -654,34 +695,40 @@ class MarkdownToHTMLConverter:
             </section>
         """).strip()
 
-    def convert(self, markdown_file: Path, html_file: Path):
-        # markdown_hash_file = markdown_file.with_suffix(".md.hash")
-        # if markdown_hash_file.exists():
-        #     # TODO: Check image hash(es)
-        #     old_hash = markdown_file.read_text(encoding="UTF-8", newline="\n")
-        #     if old_hash == self._get_file_hash(markdown_file):
-        #         logger.debug(f"Skipping {markdown_file}, hashes match")
+    @staticmethod
+    def _deslugify(slug: str) -> str:
+        return slug.replace("-", " ").replace("_", " ").title()
 
+    def convert(self, markdown_file: Path, html_file: Path):
         logger.file(f"Converting {markdown_file.relative_to(self.cfg.source_directory)}")
 
         markdown_content = markdown_file.read_text(encoding="UTF-8", newline="\n").splitlines()
         self._preprocess(markdown_content)
-        title = self._get_title_from_markdown_content(markdown_content)
-
-        # Set heading color
-        dir = markdown_file.parent
-        image = get_first_image_in_dir(dir)
-        if image:
-            logger.file(f"Found image: {image}")
-            self.heading_color = ImageToColorConverter().get_hex_color_from_image(image)
 
         content = "\n".join(markdown_content)
-
         post = frontmatter.loads(content)
-
         self.metadata = post.metadata
+
+        title = (
+            self._get_title_from_markdown_content(post.content.splitlines())
+            or str(post.metadata.get("title") or "").strip()
+            or self._deslugify(markdown_file.parent.name)
+        )
+        self.title = title
+
+        # Set heading color
+        image = get_first_image_in_dir(markdown_file.parent)
+        if image:
+            logger.file(f"Found image: {image}")
+            try:
+                self.heading_color = ImageToColorConverter().get_hex_color_from_image(image)
+            except (OSError, ValueError) as exc:
+                logger.warning(f'Could not derive an accent color from "{image}": {exc}')
+
         self._lint_metadata(markdown_file)
-        self.metadata_json = json.dumps(self.metadata).replace("<", "\\u003c")  # sanitize input so it is not executable
+        self.metadata_json = json.dumps(self.metadata, default=_json_default).replace(
+            "<", "\\u003c"
+        )  # sanitize input so it is not executable
 
         comments_html = self._get_comments_html()
         ratings_html = self._get_ratings_html()
@@ -705,7 +752,7 @@ class MarkdownToHTMLConverter:
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{title}</title>
+            <title>{escape(title)}</title>
             <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
             <link rel="stylesheet" href="{THEME_CSS_PATH}">
             <link rel="stylesheet" href="{CSS_PATH}">
@@ -745,15 +792,14 @@ class MarkdownToHTMLConverter:
         html_file.write_text(html, encoding="UTF-8", newline="\n")
         logger.debug(f'Created "{html_file}"')  # TODO get_pretty_path_str
 
-        self.lint_html(html_file)
+        self.lint_html(html, html_file)
 
     def _lint_metadata(self, markdown_file: Path):
         has_meal_or_cuisine = "meals" in self.metadata or "cuisine" in self.metadata
         if not has_meal_or_cuisine:
             logger.warning(f'[MetadataWarning]{markdown_file}: Missing key "meals:" or "cuisine:"')
 
-    def lint_html(self, html_file: Path):
-        content = html_file.read_text(encoding="UTF-8", newline="\n").splitlines()
-        for i, line in enumerate(content):
+    def lint_html(self, html: str, html_file: Path):
+        for i, line in enumerate(html.splitlines()):
             if "<code>" in line and "</code>" in line:
                 logger.warning(f'Unprocessed quantity in "{html_file}:{i+1}"\n{line}')

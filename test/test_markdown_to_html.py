@@ -12,6 +12,33 @@ def write_png(path: Path, color: tuple[int, int, int] = (200, 70, 30)) -> None:
     Image.new("RGB", (8, 8), color).save(path)
 
 
+def convert_recipe(
+    tmp_path: Path,
+    content: str,
+    files: dict[str, bytes] | None = None,
+) -> tuple[MarkdownToHTMLConverter, Path]:
+    source = tmp_path / "recipes"
+    site = tmp_path / "site"
+    recipe_directory = source / "recipe"
+    recipe_directory.mkdir(parents=True)
+
+    for name, data in (files or {}).items():
+        (recipe_directory / name).write_bytes(data)
+
+    recipe = recipe_directory / "recipe.md"
+    recipe.write_text(content, encoding="utf-8")
+
+    html_file = site / "recipe" / "recipe.html"
+    html_file.parent.mkdir(parents=True)
+
+    converter = MarkdownToHTMLConverter(
+        SimpleNamespace(source_directory=source, site_directory=site)
+    )
+    converter.convert(recipe, html_file)
+
+    return converter, html_file
+
+
 def test_conversion_renders_recipe_page_from_markdown_and_metadata(tmp_path: Path):
     source = tmp_path / "recipes"
     site = tmp_path / "site"
@@ -158,3 +185,123 @@ Mix everything.
     checkbox = soup.select_one('input[type="checkbox"]')
     assert checkbox is not None
     assert not checkbox.has_attr("disabled")
+
+
+def test_conversion_serializes_unquoted_yaml_dates(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+contributor: Avery
+createdOn: 2024-06-15
+updatedOn: 2024-07-20
+---
+# Dated Recipe
+""",
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    metadata = json.loads(soup.select_one("script#recipe-metadata").string)
+    assert metadata["createdOn"] == "2024-06-15"
+    assert metadata["updatedOn"] == "2024-07-20"
+
+    contributor = soup.select_one(".recipe-contributor")
+    assert contributor is not None
+    assert contributor.select_one("time")["datetime"] == "2024-06-15"
+
+    version = soup.select_one(".recipe-version")
+    assert version is not None
+    assert version.select_one("time")["datetime"] == "2024-07-20"
+
+
+def test_conversion_falls_back_when_hero_image_cannot_be_opened(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+---
+# Vector Recipe
+
+![Hero](image.svg)
+""",
+        {"image.svg": b'<svg xmlns="http://www.w3.org/2000/svg"></svg>'},
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    assert soup.title.string == "Vector Recipe"
+    assert soup.select_one(".quantity") is None
+
+
+def test_conversion_tolerates_malformed_metadata(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+ratings:
+  - name: Missing score
+  - rating: not a number
+makes: []
+difficulty: {}
+source: not a source
+contributor:
+  - Avery
+  - 3
+createdOn: not-a-date
+updatedOn: not-a-date
+---
+# Recovered Recipe
+""",
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    assert soup.title.string == "Recovered Recipe"
+    assert soup.select_one(".recipe-overview__rating") is None
+    assert soup.select_one(".recipe-sources") is None
+    assert soup.select_one(".recipe-contributor").get_text(" ", strip=True) == "by Avery, 3"
+    assert soup.select_one(".recipe-version time") is None
+
+
+def test_front_matter_comment_is_not_used_as_page_title(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+# This is a YAML comment, not the recipe heading.
+meals:
+  - Dinner
+---
+# Real Title ###
+
+Body.
+""",
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    assert soup.title.string == "Real Title"
+    assert soup.select_one("main.recipe h1").get_text(strip=True) == "Real Title"
+
+
+def test_title_extraction_ignores_fenced_code_blocks():
+    title = MarkdownToHTMLConverter._get_title_from_markdown_content(
+        ["```markdown", "# Not the title", "```", "", "# Actual Title ###"]
+    )
+
+    assert title == "Actual Title"
+
+
+def test_page_title_escapes_html_from_the_heading(tmp_path: Path):
+    converter, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+---
+# Tomatoes & <em>Basil</em>
+""",
+    )
+
+    raw_html = html_file.read_text(encoding="utf-8")
+    soup = BeautifulSoup(raw_html, "html.parser")
+    assert soup.title.string == "Tomatoes & <em>Basil</em>"
+    assert "<title>Tomatoes &amp; &lt;em&gt;Basil&lt;/em&gt;</title>" in raw_html
+    assert converter.title == "Tomatoes & Basil"

@@ -165,6 +165,14 @@
     return Array.isArray(value) ? value.join(", ") : "";
   }
 
+  function firstSource(source) {
+    if (Array.isArray(source)) {
+      return source.find((item) => item && typeof item === "object") || {};
+    }
+
+    return source && typeof source === "object" ? source : {};
+  }
+
   function populateMetadata(form, metadata) {
     for (const field of ["tags", "cuisine", "categories", "meals", "makes", "difficulty"]) {
       const input = form.elements.namedItem(field);
@@ -179,9 +187,11 @@
 
     form.elements.namedItem("contributor").value = metadata.contributor ?? "";
 
-    form.elements.namedItem("createdOn").value = metadata.createdOn?.slice(0, 10) ?? "";
+    const createdOn = metadata.createdOn;
+    form.elements.namedItem("createdOn").value =
+      typeof createdOn === "string" ? createdOn.slice(0, 10) : "";
 
-    const source = metadata.source || {};
+    const source = firstSource(metadata.source);
 
     for (const field of ["author", "title", "format", "url"]) {
       form.elements.namedItem(`source.${field}`).value = source[field] ?? "";
@@ -230,13 +240,21 @@
 
       createdOn: get("createdOn") ? `${get("createdOn")}T00:00:00.000Z` : null,
 
-      source: {
-        author: get("source.author") || null,
-        title: get("source.title") || null,
-        format: get("source.format") || null,
-        url: get("source.url") || null,
-      },
+      source: readSource(form),
     };
+  }
+
+  function readSource(form) {
+    const get = (field) => form.elements.namedItem(field).value.trim();
+
+    const source = {
+      author: get("source.author") || null,
+      title: get("source.title") || null,
+      format: get("source.format") || null,
+      url: get("source.url") || null,
+    };
+
+    return Object.values(source).some((value) => value !== null) ? source : null;
   }
 
   function initialize() {
@@ -302,26 +320,20 @@
 
       status.textContent = "Loading recipe…";
       textarea.value = "";
+      originalContent = "";
+      originalMetadata = "";
       setBusy(true);
 
       try {
         const result = await requestEditor(getMarkdownPath());
-        console.log("Recipe editor response:", result);
-        console.log("Metadata:", result.metadata);
-        console.log(
-          "Form elements:",
-          [...form.elements].map((el) => ({
-            name: el.name,
-            type: el.type,
-            value: el.value,
-          })),
-        );
 
         originalContent = result.content;
-        originalMetadata = JSON.stringify(result.metadata);
 
         textarea.value = result.content;
         populateMetadata(form, result.metadata);
+
+        // Compare against the normalized form values, not the raw response.
+        originalMetadata = JSON.stringify(readMetadata(form));
 
         status.textContent = "";
       } catch (error) {

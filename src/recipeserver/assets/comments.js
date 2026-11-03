@@ -11,7 +11,6 @@
   const textInput = root.querySelector("#comment-text");
   const status = root.querySelector("#comment-status");
   const list = root.querySelector("#comment-list");
-  const count = root.querySelector(".recipe-comments__count");
 
   async function saveComments(comments) {
     const response = await fetch("/api/metadata/comments", {
@@ -36,69 +35,15 @@
     return new Date().toISOString();
   }
 
-  function renderComment(comment, index) {
-    const article = document.createElement("article");
-    article.className = "recipe-comment";
-    article.dataset.commentIndex = String(index);
-    const commentId = article.dataset.commentId;
-    const author = comment.author?.trim() || "Anonymous";
-    const initials = author
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0].toUpperCase())
-      .join("");
-
-    const avatar = document.createElement("div");
-    avatar.className = "recipe-comment__avatar";
-    avatar.setAttribute("aria-hidden", "true");
-    avatar.textContent = initials;
-
-    const content = document.createElement("div");
-    content.className = "recipe-comment__content";
-
-    const meta = document.createElement("header");
-    meta.className = "recipe-comment__meta";
-
-    const authorElement = document.createElement("span");
-    authorElement.className = "recipe-comment__author";
-    authorElement.textContent = author;
-
-    const date = document.createElement("time");
-    date.className = "recipe-comment__date";
-    date.dateTime = comment.created;
-
-    const [year, month, day] = comment.created.split("-").map(Number);
-    date.textContent = new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-
-    meta.append(authorElement, date);
-
-    const text = document.createElement("p");
-    text.className = "recipe-comment__text";
-    text.textContent = comment.text;
-
-    const actions = document.createElement("div");
-    actions.className = "recipe-comment__actions";
-
-    for (const [action, label] of [
-      ["edit", "Edit"],
-      ["delete", "Delete"],
-    ]) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.action = action;
-      button.textContent = label;
-      actions.append(button);
-    }
-
-    content.append(meta, text, actions);
-    article.append(avatar, content);
-
-    return article;
+  function normalizeComments(comments) {
+    return comments
+      .filter((comment) => comment && typeof comment === "object" && !Array.isArray(comment))
+      .map((comment, index) => ({
+        ...comment,
+        id: typeof comment.id === "string" && comment.id ? comment.id : `legacy-${index}`,
+        author: typeof comment.author === "string" ? comment.author : "",
+        text: typeof comment.text === "string" ? comment.text : "",
+      }));
   }
 
   function renderAllComments(comments) {
@@ -110,12 +55,6 @@
     });
 
     list.replaceChildren(...sortedComments.map((comment) => createComment(comment)));
-
-    //   updateCount(sortedComments.length);
-  }
-
-  function updateCount(total) {
-    count.textContent = total;
   }
 
   function setCommentBusy(article, busy) {
@@ -187,7 +126,7 @@
     content.replaceChildren(form);
 
     cancel.addEventListener("click", () => {
-      article.replaceWith(renderComment(comment, index));
+      article.replaceWith(createComment(comment));
     });
 
     form.addEventListener("submit", async (event) => {
@@ -336,17 +275,21 @@
     authorElement.textContent = author;
 
     const dateElement = document.createElement("time");
-    dateElement.dateTime = comment.updated || comment.created;
+    const timestamp = comment.updated || comment.created;
 
-    const date = new Date(dateElement.dateTime);
+    if (typeof timestamp === "string" && timestamp) {
+      dateElement.dateTime = timestamp;
 
-    dateElement.textContent = Number.isNaN(date.getTime())
-      ? dateElement.dateTime
-      : date.toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        });
+      const date = new Date(timestamp);
+
+      dateElement.textContent = Number.isNaN(date.getTime())
+        ? timestamp
+        : date.toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          });
+    }
 
     meta.append(authorElement, dateElement);
 
@@ -391,7 +334,7 @@
       throw new Error("Invalid comments response");
     }
 
-    return data.value;
+    return normalizeComments(data.value);
   }
 
   async function loadComments() {
@@ -443,28 +386,8 @@
 
       const updatedComments = [...comments, comment];
 
-      const response = await fetch("/api/metadata/comments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          path: getMarkdownPath(),
-          value: updatedComments,
-        }),
-      });
+      await saveComments(updatedComments);
 
-      if (!response.ok) {
-        throw new Error(`Failed to save comment (${response.status})`);
-      }
-
-      const result = await response.json();
-
-      if (result.success !== true) {
-        throw new Error("The server did not confirm the save.");
-      }
-
-      // Re-render all comments and update the count.
       renderAllComments(updatedComments);
 
       form.reset();
