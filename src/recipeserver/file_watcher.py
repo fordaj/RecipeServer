@@ -114,32 +114,61 @@ class LibraryWatcher:
     def is_running(self) -> bool:
         return self._started
 
-    def start(self) -> None:
+    def start(self) -> bool:
         """Start the observer and the debounce worker. Safe to call twice."""
         if self._started:
-            return
+            return True
 
         if not self.source_directory.is_dir():
             logger.warning(f'Not watching "{self.source_directory}": not a directory')
-            return
+            return False
 
         self._stopping.clear()
-        self._observer = Observer()
-        self._observer.schedule(
-            self._handler,
-            str(self.source_directory),
-            recursive=True,
-        )
-        self._observer.start()
+        observer = Observer()
 
-        self._worker = Thread(
+        try:
+            observer.schedule(
+                self._handler,
+                str(self.source_directory),
+                recursive=True,
+            )
+            observer.start()
+        except Exception:
+            # A missing platform backend, permission problem, or exhausted
+            # watch limit should not prevent the app from serving recipes.
+            logger.exception(
+                f'Unable to watch "{self.source_directory}"; live updates are disabled'
+            )
+            try:
+                if observer.is_alive():
+                    observer.stop()
+                    observer.join(timeout=1)
+            except Exception:
+                pass
+            return False
+
+        worker = Thread(
             target=self._flush_loop,
             name="RecipeLibraryWatcher",
             daemon=True,
         )
-        self._worker.start()
+
+        try:
+            worker.start()
+        except Exception:
+            logger.exception("Unable to start the recipe watcher worker")
+            try:
+                observer.stop()
+                observer.join(timeout=5)
+            except Exception:
+                pass
+            return False
+
+        self._observer = observer
+        self._worker = worker
         self._started = True
         logger.info(f'Watching "{self.source_directory}" for recipe changes')
+        return True
 
     def stop(self) -> None:
         """Stop the observer and drain the worker thread."""

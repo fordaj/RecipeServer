@@ -21,9 +21,14 @@ IMAGE_EXTENSIONS = {
 
 
 def get_first_image_in_dir(directory: Path) -> Path | None:
-    # Sort so the chosen hero image is stable across filesystems.
+    # Sort so the chosen hero image is stable across filesystems. Hidden files
+    # (including macOS AppleDouble "._hero.jpg" metadata) are not content.
     for path in sorted(directory.iterdir(), key=lambda item: item.name):
-        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
+        if (
+            path.is_file()
+            and not path.name.startswith(".")
+            and path.suffix.lower() in IMAGE_EXTENSIONS
+        ):
             return path
     return None
 

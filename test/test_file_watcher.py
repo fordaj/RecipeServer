@@ -213,3 +213,37 @@ def test_real_observer_reports_source_changes(tmp_path: Path):
         and change.kind in (ChangeKind.CREATED, ChangeKind.MODIFIED)
         for change in received
     )
+
+
+def test_start_with_a_missing_directory_is_not_fatal(tmp_path: Path):
+    watcher, batches = make_watcher(tmp_path / "missing")
+
+    assert watcher.start() is False
+    assert watcher.is_running is False
+
+    watcher.stop()
+    assert batches == []
+
+
+def test_observer_start_failure_is_not_fatal(tmp_path: Path, monkeypatch):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    class BrokenObserver:
+        def schedule(self, *args, **kwargs):
+            raise OSError("watch limit reached")
+
+        def is_alive(self):
+            return False
+
+    monkeypatch.setattr("recipeserver.file_watcher.Observer", BrokenObserver)
+
+    watcher, batches = make_watcher(source)
+
+    # A missing backend or exhausted watch limit must not stop the server; it
+    # should simply run without live updates.
+    assert watcher.start() is False
+    assert watcher.is_running is False
+
+    watcher.stop()
+    assert batches == []

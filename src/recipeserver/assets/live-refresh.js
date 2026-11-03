@@ -6,6 +6,7 @@
   let revision = null;
   let pendingRevision = false;
   let reloading = false;
+  let polling = false;
 
   function editorHasUnsavedChanges() {
     const dialog = document.getElementById(EDITOR_ID);
@@ -72,7 +73,9 @@
   }
 
   async function poll() {
-    if (reloading) return;
+    // Never let slow responses overlap or arrive out of order.
+    if (reloading || polling) return;
+    polling = true;
 
     try {
       const current = await readRevision();
@@ -97,6 +100,8 @@
       }
     } catch (error) {
       // The server may be restarting; the next poll will retry.
+    } finally {
+      polling = false;
     }
   }
 

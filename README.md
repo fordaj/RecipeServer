@@ -81,9 +81,9 @@ RecipeServer watches the configured recipe directory while it runs. Changes made
 
 - Editing, adding, moving, or deleting a `recipe.md` updates the affected recipe page and the index.
 - Adding, replacing, or deleting a recipe image updates the hero image, accent color, and copied files.
-- Directory-level changes fall back to a full site rebuild.
+- Creating or moving a directory falls back to a full site rebuild. Deleting a directory only rebuilds when it contained a tracked recipe, so scratch and cache folders are ignored.
 
-Bursts of filesystem events are debounced, so saving a file once does not cause a rebuild storm. The app also ignores its own writes to avoid refreshing twice after a browser save.
+Bursts of filesystem events are debounced, so saving a file once does not cause a rebuild storm. Metadata-only events and the app's own writes are ignored, and touching a `recipe.md` without changing its text does not reload open tabs. If a recipe cannot be converted because its file is temporarily locked, half-written, or invalid YAML, the last good page stays in place and the next change retries.
 
 Open recipe and index pages poll a lightweight revision endpoint and reload when the library changes. If the recipe editor is open with unsaved changes, the page does **not** reload. Instead, it shows a notice with **Reload page** and **Keep editing** actions, so unsaved work is never discarded silently.
 
@@ -242,8 +242,9 @@ serve.sh / serve.bat        # launch helpers
 
 - `recipe.md` files in the source tree are the source of truth. Generated HTML is disposable output.
 - Every save re-renders that recipe page and rebuilds the index.
-- The watcher refreshes only the recipes affected by external file and image changes, then rebuilds the index once per batch. Directory moves and unclassifiable changes use a full rebuild.
-- The watcher ignores hidden files, editor swap files, temporary files, `.git`, and the generated site directory. It also records source signatures so a browser save does not trigger a second refresh.
+- The watcher refreshes only the recipes affected by external file and image changes, then rebuilds the index once per batch. Directory moves use a full rebuild; directory deletes only rebuild when they contained a tracked recipe.
+- The watcher ignores hidden files, editor swap files, temporary files, `.git`, and the generated site directory. It records content hashes for `recipe.md` and stat signatures for images so browser saves, no-op events, and touches do not trigger refreshes.
+- A recipe that fails to convert is left at its last good generated page instead of being removed; the next change retries.
 - Each successful refresh increments a library revision. Pages poll `GET /api/revision` and reload when it changes.
 - One broken recipe is skipped with a logged error so the rest of the site can still build.
 - Metadata warnings are advisory and never block generation, serving, or saving.
