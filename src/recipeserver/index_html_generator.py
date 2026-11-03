@@ -115,7 +115,7 @@ class IndexHTMLGenerator:
         return IndexHTMLGenerator._icon_path(asset_path)
 
     @staticmethod
-    @lru_cache(maxsize=None)
+    @lru_cache(maxsize=128)
     def _icon_path(asset_path: Path) -> str:
         soup = BeautifulSoup(asset_path.read_text(encoding="UTF-8"), "html.parser")
         icon = soup.find("svg")
