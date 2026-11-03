@@ -334,6 +334,9 @@ class MarkdownToHTMLConverter:
 
         for key in ("cuisine", "categories", "tags"):
             values = metadata.get(key, [])
+            if key == "categories" and not values:
+                legacy = metadata.get("category", [])
+                values = [legacy] if isinstance(legacy, str) else legacy
             if not values:
                 continue
 

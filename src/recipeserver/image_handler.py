@@ -15,11 +15,13 @@ IMAGE_EXTENSIONS = {
     ".tiff",
     ".tif",
     ".svg",
+    ".avif",
 }
 
 
 def get_first_image_in_dir(directory: Path) -> Path | None:
-    for path in directory.iterdir():
+    # Sort so the chosen hero image is stable across filesystems.
+    for path in sorted(directory.iterdir(), key=lambda item: item.name):
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
             return path
     return None

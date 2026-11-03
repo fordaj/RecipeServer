@@ -1,4 +1,5 @@
 from pathlib import Path
+from .image_handler import IMAGE_EXTENSIONS
 from .markdown_to_html import MarkdownToHTMLConverter
 from .html_embedder import HTMLEmbedder
 from .index_html_generator import IndexHTMLGenerator, Recipe
@@ -33,16 +34,6 @@ cfg: Configuration
 
 
 class Core:
-    IMAGE_EXTENSIONS = {
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".gif",
-        ".webp",
-        ".svg",
-        ".avif",
-    }
-
     def __init__(self, cfg: Configuration):
         self.cfg = cfg
         self._regen_lock = Lock()
@@ -84,7 +75,7 @@ class Core:
 
         # Copy images over.
         for image in markdown.parent.iterdir():
-            if image.is_file() and image.suffix.lower() in self.IMAGE_EXTENSIONS:
+            if image.is_file() and image.suffix.lower() in IMAGE_EXTENSIONS:
                 copy2(image, html.parent / image.name)
 
         return html, converter

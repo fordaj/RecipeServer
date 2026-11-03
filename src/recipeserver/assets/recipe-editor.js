@@ -37,7 +37,7 @@
 
                         <label>
                             Categories
-                            <input name="category" type="text"
+                            <input name="categories" type="text"
                                 placeholder="ex. Slow Cooker, Meat">
                         </label>
 
@@ -166,11 +166,11 @@
   }
 
   function populateMetadata(form, metadata) {
-    for (const field of ["tags", "cuisine", "category", "meals", "makes", "difficulty"]) {
+    for (const field of ["tags", "cuisine", "categories", "meals", "makes", "difficulty"]) {
       const input = form.elements.namedItem(field);
       const value = metadata[field];
 
-      if (["tags", "category", "meals", "cuisine"].includes(field)) {
+      if (["tags", "categories", "meals", "cuisine"].includes(field)) {
         input.value = listToInput(value);
       } else {
         input.value = value == null ? "" : String(value);
@@ -221,7 +221,7 @@
     return {
       tags: parseList("tags"),
       cuisine: parseList("cuisine"),
-      category: parseList("category"),
+      categories: parseList("categories"),
       meals: parseList("meals"),
       makes: parseNumber("makes", true),
       difficulty: parseNumber("difficulty"),

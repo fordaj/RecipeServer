@@ -2,36 +2,49 @@
 
 ## What this is
 
-Local recipe-site generator and HTTP server. It reads a tree of `recipe.md` files, renders each to HTML, builds a searchable `index.html`, and serves the site with in-browser editing of metadata, ratings, and comments (written back to YAML front matter).
+Local recipe-site generator and HTTP server. It reads a tree of `recipe.md` files, renders each to HTML, builds a searchable `index.html`, and serves the site with in-browser editing of metadata, ratings, and comments. Edits are written back to each recipe's YAML front matter and Markdown body.
 
-No CI, no Python linter/typechecker/formatter config. Only `.prettierrc` applies, to JS/CSS/HTML.
+There is no CI and no Python linter/typechecker/formatter configuration. The only formatter config is `.prettierrc`, which applies to JS/CSS/HTML.
 
 ## Commands
 
-- Sync deps: `uv sync` (Python 3.14 required; uv owns `.venv`).
-- Run: `./serve.sh` or `uv run python -m recipeserver`.
+- Sync deps: `uv sync` (Python 3.14 required; `uv` owns `.venv`).
+- Run: `./serve.sh` (same as `uv run python -m recipeserver`).
+- Run all tests: `uv run pytest`.
 - Focused tests: `uv run pytest test/test_index_html_generator.py test/test_ratings.py`
   - Single test: `uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_and_decimal_score`
-- `test/config.txt` is gitignored/local; tests that need config pass a path explicitly. On a fresh checkout the app opens a Tk directory picker.
-- Runtime logs are written to `.logs/<argv0>.py.log`; use `--log-level DEBUG` for more.
+- Runtime logs: `.logs/<argv0>.py.log` in the current directory. Pass `--log-level DEBUG` for more detail.
 
-Known baseline: 3 tests in `test/test_index_html_generator.py` fail on `main` because `metadata_linter._REQUIRED_FIELDS` now includes `ratings`/`createdOn`, while the test expectations still assume 5 required fields. Check the linter before assuming your change caused them.
+The repo does not include a test config file. On startup the app reads the recipe source directory from `<user-data>/config.txt`; if that file is missing, empty, or points at a non-directory, it opens a Tk directory picker and writes the chosen path to that file.
 
 ## Architecture / flow
 
-- Entrypoint: `src/recipeserver/__main__.py` -> `core.main`. It builds `Core`, calls `regen()`, starts `Server` on fixed port 8000, then runs `Tray`.
-- `core.regen()` deletes and recreates the output site, copies `src/recipeserver/assets`, converts all `recipe.md` files in parallel, then rebuilds `index.html`.
-- Generated output lives in the OS user-data dir (macOS: `~/Library/Application Support/recipe-server/site`), not in the repo. The source recipe dir comes from `<user-data>/config.txt`.
-- `markdown_to_html.py` renders recipes and injects metadata-derived HTML; `index_html_generator.py` builds the filter/sort index; `server.py` serves the site plus JSON APIs (`/api/markdown`, `/api/recipe-editor`, `/api/metadata/*`); `metadata_linter.py` drives index warnings.
-- `metadata.py` (`RecipeMetadata`) is currently unused; live code works on raw frontmatter dicts.
-- Generated pages reference absolute `/assets/...` URLs, so test through the server rather than opening files directly.
+- Entrypoint: `src/recipeserver/__main__.py` -> `core.main`. `handle_configuration()` resolves the recipe source directory, then `core.main` builds `Core`, calls `regen()`, starts `Server`, and runs `Tray`.
+- `core.regen()` deletes and recreates the site directory, copies `src/recipeserver/assets`, converts every `recipe.md` under the source tree in parallel, then rebuilds `index.html`.
+- The site directory is `platformdirs.user_data_path("recipe-server") / "site"` (macOS: `~/Library/Application Support/recipe-server/site`). It is generated output and is recreated on every `regen()`.
+- `markdown_to_html.py` renders a recipe page and injects metadata-derived HTML. `index_html_generator.py` builds the filter/sort index and metadata warnings. `server.py` serves the site and JSON APIs. `metadata_linter.py` owns the required-field list and warning text.
+- APIs: `GET /api/markdown?path=...`, `GET|POST /api/recipe-editor?path=...`, and `GET|POST /api/metadata/<field>?path=...`. `path` must be a relative `.md` path inside the source directory. Every save regenerates that recipe page and the index.
+- Generated pages use root-absolute URLs such as `/assets/...` and `/recipe-dir/index.html`, so they must be served from the site root (port 8000); opening the files directly will not load their assets.
+- Index metadata warnings are hidden by default and shown by the "Metadata Status" toggle. They do not block generation, serving, or saving.
 
 ## Recipe data conventions
 
-- A recipe is a directory containing an exactly-named `recipe.md` plus its images; the source tree shape is preserved under the site dir.
-- The recipe title comes from the first `# ` heading in the Markdown, not front matter `title`. Hero image and accent color come from the first image file found in that recipe directory.
-- Front matter is YAML. Lint-required fields: `ratings`, `contributor`, `createdOn`, `meals`, `categories`, `makes`, `difficulty`.
-- Metadata naming is inconsistent: the editor API uses singular `category`, while the linter/index use `categories`. Be deliberate about which field you read/write.
-- Inline-code quantities become scaler spans (`1/2 cup`, `1 1/2 tbsp`, `1-2 tbsp`, `1 1/2-2 1/2 tbsp`). Unparseable `<code>` produces a lint warning; unit aliases live in `_UNIT_ALIASES`.
-- Server-side edits rewrite the whole `recipe.md` via `python-frontmatter` and update `updatedOn`.
-- MathJax is vendored under `src/recipeserver/assets/mathjax`; there is no JS package/build step in this repo.
+- A recipe is a directory containing a file named exactly `recipe.md`, plus its images. The source tree shape is preserved under the site directory.
+- A recipe page's title comes from the first `# ` heading in the Markdown. The index uses that heading too; if the heading is absent, it falls back to front matter `title`, then the directory name.
+- The hero image and accent color use the first image in filename-sorted order from the recipe directory. Supported extensions are defined once in `image_handler.IMAGE_EXTENSIONS`. If a directory has multiple images, that sort order decides which one is the hero and drives the accent color.
+- Front matter is YAML. The lint-required fields are `ratings`, `contributor`, `createdOn`, `meals`, `categories`, `makes`, and `difficulty`. "Required" means the index shows a warning; it does not prevent building or saving.
+- The canonical field name is plural `categories`. The legacy singular `category` is accepted wherever metadata is read (index, recipe overview, metadata API, editor load) but is normalized to `categories` and removed on save. New code and new recipe data must use `categories`.
+- Inline-code quantities become scaler spans (`1/2 cup`, `1 1/2 tbsp`, `1-2 tbsp`, `1 1/2-2 1/2 tbsp`). Unparseable `<code>` produces a lint warning; unit aliases live in `_UNIT_ALIASES` in `markdown_to_html.py`.
+- `POST /api/recipe-editor` rewrites the whole `recipe.md` through `python-frontmatter` and updates `updatedOn`. The per-field metadata endpoint rewrites the file but does not update `updatedOn`, so rating/comment activity does not change last-edited sorting.
+- MathJax is vendored under `src/recipeserver/assets/mathjax`; there is no JS package or build step in this repo.
+
+## Intentional design
+
+These choices are deliberate and are not bugs to "fix":
+
+- This is a local desktop app, not a headless service. Startup may open a Tk directory picker, and the process runs a `pystray` tray icon. The server listens on fixed port 8000, binds `0.0.0.0`, and has no authentication; the tray opens `http://localhost:8000`.
+- Generated HTML is disposable output. The Markdown files in the source tree are the source of truth, and the site directory is deleted and rebuilt on every startup. Never store source content or manual edits in the site directory.
+- Browser edits are written back to the source Markdown, not to generated HTML. The editor is the only path that updates `updatedOn`.
+- Metadata warnings are advisory. Missing required fields are allowed in the data and only surface through the hidden index warning chips.
+- Front matter uses `categories`; the singular `category` support is a read-only compatibility path for older recipes, not an alternative naming convention.
+- Root-absolute URLs are intentional so generated pages remain independent of where the site is hosted; they require serving from the site root.
