@@ -15,7 +15,6 @@ from .config import Configuration
 from ._logger import logger
 from .markdown_to_html import MarkdownToHTMLConverter
 
-# from .metadata import RecipeMetadata
 from collections.abc import Callable
 
 RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
@@ -23,7 +22,7 @@ RecipeConverter = Callable[[Path], tuple[Path, MarkdownToHTMLConverter]]
 EDITOR_METADATA_FIELDS = {
     "tags": "string_list",
     "cuisine": "string_list",
-    "category": "string_list",
+    "categories": "string_list",
     "meals": "string_list",
     "makes": "integer",
     "difficulty": "number",
@@ -32,6 +31,17 @@ EDITOR_METADATA_FIELDS = {
     "updatedOn": "string",
     "source": "object",
 }
+
+
+def _editor_metadata(metadata: dict) -> dict:
+    """Return editable metadata, mapping the legacy singular category field."""
+    values = {field: metadata.get(field) for field in EDITOR_METADATA_FIELDS}
+
+    if values["categories"] is None and metadata.get("category") is not None:
+        legacy = metadata["category"]
+        values["categories"] = [legacy] if isinstance(legacy, str) else legacy
+
+    return values
 
 
 def _validate_editor_metadata(metadata: object) -> dict:
@@ -181,6 +191,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             elif parsed.path.startswith("/api/metadata/"):
                 # Handle individual metadata field endpoints
                 field_name = parsed.path.split("/")[-1]
+                if field_name == "category":
+                    field_name = "categories"
 
                 with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
@@ -192,6 +204,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                     if field_name in metadata:
                         # Return the specific field value
                         self._send_json(200, {"value": metadata[field_name]})
+                    elif field_name == "categories" and "category" in metadata:
+                        self._send_json(200, {"value": metadata["category"]})
                     elif field_name in ("comments", "ratings"):
                         self._send_json(200, {"value": []})
                     else:
@@ -203,12 +217,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             elif parsed.path == "/api/recipe-editor":
                 post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
 
-                metadata = {field: post.metadata.get(field) for field in EDITOR_METADATA_FIELDS}
-
                 self._send_json(
                     200,
                     {
-                        "metadata": metadata,
+                        "metadata": _editor_metadata(post.metadata),
                         "content": post.content,
                     },
                 )
@@ -284,6 +296,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                     else:
                         post.metadata[field] = value
 
+                # Migrate the legacy singular field to the canonical plural one.
+                post.metadata.pop("category", None)
+
                 # Update the modification timestamp.
                 post.metadata["updatedOn"] = (
                     datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
@@ -314,6 +329,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         # Handle POST to individual metadata fields
         elif parsed.path.startswith("/api/metadata/") and not parsed.path == "/api/metadata":
             field_name = parsed.path.split("/")[-1]
+            if field_name == "category":
+                field_name = "categories"
 
             content_length = self.headers.get("Content-Length")
 
@@ -371,6 +388,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                     else:
                         # If no value provided, remove the field
                         metadata.pop(field_name, None)
+
+                    if field_name == "categories":
+                        metadata.pop("category", None)
 
                     # Reconstruct the file with updated metadata
                     new_content = frontmatter.dumps(post)

@@ -273,7 +273,7 @@ class IndexHTMLGenerator:
             hero_url = "/" + hero_image.relative_to(self.cfg.site_directory).as_posix() if hero_image else ""
 
             meals = self.values(metadata, "meals")
-            categories = self.values(metadata, "categories")
+            categories = self.values(metadata, "categories", "category")
             tags = self.values(metadata, "tags")
             cuisine = self.values(metadata, "cuisine")
             contributors = [value.strip() for value in self.values(metadata, "contributor") if value.strip()]
@@ -327,7 +327,7 @@ class IndexHTMLGenerator:
                     f'aria-label="{html.escape(warning.get("message") or "Missing rating", quote=True)}">'
                     '<span class="recipe-detail__value">'
                     '<span class="recipe-chip recipe-warning-chip">'
-                    f"{self._icon_path(WARNING_SVG)} Rating"
+                    f"{self._icon_path(WARNING_SVG)} Ratings"
                     "</span></span></span>"
                 )
             else:

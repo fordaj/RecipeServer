@@ -12,9 +12,9 @@ class MetadataWarning(TypedDict):
 _REQUIRED_FIELDS = (
     ("ratings", "Ratings"),
     ("contributor", "Contributor"),
-    ("createdOn", "CreatedOn"),
+    ("createdOn", "Contribution date"),
     ("meals", "Meals"),
-    ("categories", "Category"),
+    ("categories", "Categories"),
     ("makes", "Makes"),
     ("difficulty", "Difficulty"),
 )
@@ -34,7 +34,10 @@ def lint_recipe_metadata(metadata: Mapping[str, object]) -> list[MetadataWarning
     """Return structured warnings for missing recipe metadata."""
     warnings: list[MetadataWarning] = []
     for field, label in _REQUIRED_FIELDS:
-        if _is_missing(metadata.get(field)):
+        value = metadata.get(field)
+        if field == "categories" and _is_missing(value) and not _is_missing(metadata.get("category")):
+            continue
+        if _is_missing(value):
             warnings.append(
                 {
                     "field": field,

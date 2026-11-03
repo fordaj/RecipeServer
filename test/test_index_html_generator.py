@@ -27,10 +27,22 @@ def test_lint_recipe_metadata_reports_missing_required_values():
 
     assert warnings == [
         {
+            "field": "ratings",
+            "label": "Ratings",
+            "severity": "warning",
+            "message": "Missing ratings",
+        },
+        {
             "field": "contributor",
             "label": "Contributor",
             "severity": "warning",
             "message": "Missing contributor",
+        },
+        {
+            "field": "createdOn",
+            "label": "Contribution date",
+            "severity": "warning",
+            "message": "Missing contribution date",
         },
         {
             "field": "meals",
@@ -45,6 +57,22 @@ def test_lint_recipe_metadata_reports_missing_required_values():
             "message": "Missing makes",
         },
     ]
+
+
+def test_lint_recipe_metadata_accepts_legacy_singular_category():
+    warnings = lint_recipe_metadata(
+        {
+            "ratings": [{"rating": 8}],
+            "contributor": "Avery",
+            "createdOn": "2024-06-15T12:30:00Z",
+            "meals": ["Dinner"],
+            "category": ["Baking"],
+            "makes": 12,
+            "difficulty": 4,
+        }
+    )
+
+    assert warnings == []
 
 
 def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
@@ -104,7 +132,7 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert source_link.get_text(strip=True) == "Family Baking"
     assert "The Baking Book" in recipe.select_one(".recipe-card__details").get_text()
     assert recipe.select_one(".recipe-card__details a a") is None
-    assert recipe.select_one(".recipe-metadata-warnings") is None
+    assert recipe.select_one(".recipe-warning-chip") is None
     metadata_toggle = soup.select_one("#metadata-status")
     assert metadata_toggle is not None
     assert metadata_toggle.get("checked") is None
@@ -160,15 +188,17 @@ def test_unrated_recipes_remain_sortable(tmp_path: Path):
     assert 'data-difficulty=""' in page
     recipe = BeautifulSoup(page, "html.parser").select_one("#recipe-list .recipe")
     assert recipe is not None
-    warning_group = recipe.select_one(".recipe-metadata-warnings")
-    assert warning_group is not None
-    assert warning_group.has_attr("hidden")
-    assert [chip.get_text(" ", strip=True) for chip in warning_group.select(".recipe-warning-chip")] == [
-        "⚠ Contributor",
-        "⚠ Meals",
-        "⚠ Category",
-        "⚠ Makes",
-        "⚠ Difficulty",
+    warning_details = recipe.select(".recipe-detail--warning")
+    assert len(warning_details) == 7
+    assert all(detail.has_attr("hidden") for detail in warning_details)
+    assert [chip.get_text(" ", strip=True) for chip in recipe.select(".recipe-warning-chip")] == [
+        "Ratings",
+        "Makes",
+        "Difficulty",
+        "Meals",
+        "Categories",
+        "Contributor",
+        "Contribution date",
     ]
 
 
@@ -185,13 +215,15 @@ def test_metadata_warnings_refresh_when_index_is_regenerated(tmp_path: Path):
         (tmp_path / "index.html").read_text(encoding="UTF-8"),
         "html.parser",
     )
-    # Should have warnings for the 5 required fields (contributor, meals, categories, makes, difficulty)
-    assert len(first_page.select(".recipe-warning-chip")) == 5
+    # Should have warnings for the 7 required fields
+    assert len(first_page.select(".recipe-warning-chip")) == 7
 
     # Update metadata to include all required fields with valid values
     metadata.update(
         {
+            "ratings": [{"rating": 8, "author": "Avery"}],
             "contributor": "Avery",
+            "createdOn": "2024-06-15T12:30:00Z",
             "meals": ["Dessert"],
             "categories": ["Baking"],
             "makes": 12,
@@ -205,7 +237,7 @@ def test_metadata_warnings_refresh_when_index_is_regenerated(tmp_path: Path):
         "html.parser",
     )
     # All warnings should be gone now
-    assert updated_page.select_one(".recipe-metadata-warnings") is None
+    assert updated_page.select_one(".recipe-warning-chip") is None
 
 
 def test_recipe_overview_shows_cuisine_before_categories_and_tags():
@@ -229,3 +261,32 @@ def test_recipe_overview_shows_cuisine_before_categories_and_tags():
         "recipe-overview__tags",
     ]
     assert "lucide-pin" in str(groups[0])
+
+
+def test_recipe_overview_accepts_legacy_singular_category():
+    converter = MarkdownToHTMLConverter(SimpleNamespace())
+    overview = converter._build_recipe_overview(
+        {"category": ["Soup"]},
+        BeautifulSoup("", "html.parser"),
+    )
+
+    assert overview is not None
+    categories = overview.select_one(".recipe-overview__categories")
+    assert categories is not None
+    assert categories.get_text(" ", strip=True) == "Soup"
+
+
+def test_index_accepts_legacy_singular_category(tmp_path: Path):
+    recipe_path = tmp_path / "soup" / "index.html"
+    recipe_path.parent.mkdir()
+    recipe_path.write_text("<h1>Soup</h1>", encoding="UTF-8")
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.add(Recipe({"category": ["Baking"]}, recipe_path))
+
+    generator.convert()
+
+    page = (tmp_path / "index.html").read_text(encoding="UTF-8")
+    recipe = BeautifulSoup(page, "html.parser").select_one("#recipe-list .recipe")
+    assert recipe is not None
+    assert recipe["data-categories"] == '["Baking"]'
+    assert recipe.select_one(".recipe-detail--categories").get_text(" ", strip=True) == "Baking"

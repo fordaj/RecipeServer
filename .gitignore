@@ -2,7 +2,6 @@
 *.logs/
 *.log
 *.py.log
-test/config.txt
 node_modules/*
 test/**/*.html
 

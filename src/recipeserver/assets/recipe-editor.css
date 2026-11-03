@@ -208,7 +208,7 @@
 /* Tags, categories, and meals span both columns. */
 
 .recipe-editor__metadata
-  label:has(input[name="tags"], input[name="category"], input[name="meals"]) {
+  label:has(input[name="tags"], input[name="categories"], input[name="meals"]) {
   grid-column: 1 / -1;
 }
 
