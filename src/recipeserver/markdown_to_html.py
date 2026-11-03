@@ -141,7 +141,7 @@ def _as_list(value: object) -> list:
     return [value]
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=128)
 def _read_svg(asset_path: Path) -> str:
     return asset_path.read_text(encoding="utf-8")
 
