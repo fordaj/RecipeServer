@@ -24,7 +24,7 @@ The repo does not include a test config file. On startup the app reads the recip
 - The site directory is `platformdirs.user_data_path("recipe-server") / "site"` (macOS: `~/Library/Application Support/recipe-server/site`). It is generated output and is recreated on every `regen()`.
 - `markdown_to_html.py` renders a recipe page and injects metadata-derived HTML. `index_html_generator.py` builds the filter/sort index and metadata warnings. `server.py` serves the site and JSON APIs. `metadata_linter.py` owns the required-field list and warning text.
 - APIs: `GET /api/markdown?path=...`, `GET|POST /api/recipe-editor?path=...`, and `GET|POST /api/metadata/<field>?path=...`. `path` must be a relative `.md` path inside the source directory. Every save regenerates that recipe page and the index.
-- Generated pages use root-absolute URLs such as `/assets/...` and `/recipe-dir/index.html`, so they must be served from the site root (port 8000); opening the files directly will not load their assets.
+- Generated pages use root-absolute URLs such as `/assets/...` and `/recipe-dir/recipe.html`, so they must be served from the site root (port 8000); opening the files directly will not load their assets.
 - Index metadata warnings are hidden by default and shown by the "Metadata Status" toggle. They do not block generation, serving, or saving.
 
 ## Recipe data conventions
