@@ -20,6 +20,8 @@ THEME_CSS_PATH = "/assets/theme.css"
 INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
+LIVE_REFRESH_CSS = "/assets/live-refresh.css"
+LIVE_REFRESH_JS = "/assets/live-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
 PIN_SVG = FILE_PATH.parent / "assets" / "pin.svg"
@@ -458,6 +460,7 @@ class IndexHTMLGenerator:
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
                 <link rel="stylesheet" href="{THEME_CSS_PATH}">
                 <link rel="stylesheet" href="{INDEX_CSS_PATH}">
+                <link rel="stylesheet" href="{LIVE_REFRESH_CSS}">
                 <script src="{INDEX_JS_PATH}" defer></script>
             </head>
             <body>
@@ -579,6 +582,7 @@ class IndexHTMLGenerator:
                 </main>
 
                 <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
+                <script defer src="{LIVE_REFRESH_JS}"></script>
             </body>
             </html>
         """)

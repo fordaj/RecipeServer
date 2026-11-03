@@ -11,9 +11,10 @@ LOGO_PNG = FILE_PATH.parent / "assets" / "logo.png"
 
 
 class Tray:
-    def __init__(self, server: Server, on_quit):
+    def __init__(self, server: Server, on_quit, on_refresh=None):
         self.server = server
         self.on_quit = on_quit
+        self.on_refresh = on_refresh
         self.icon = pystray.Icon(
             "RecipeServer",
             self._create_image(),
@@ -23,6 +24,11 @@ class Tray:
                     "Open Recipes",
                     self._open_recipes,
                     default=True,
+                ),
+                pystray.MenuItem(
+                    "Refresh Library",
+                    self._refresh_library,
+                    enabled=lambda item: self.on_refresh is not None,
                 ),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
@@ -51,6 +57,16 @@ class Tray:
 
     def _open_recipes(self, icon, item):
         webbrowser.open("http://localhost:8000")
+
+    def _refresh_library(self, icon, item):
+        if self.on_refresh is None:
+            return
+
+        try:
+            self.on_refresh()
+            logger.info("Library refreshed from tray")
+        except Exception:
+            logger.exception("Unable to refresh the library from tray")
 
     def _server_status(self, item):
         return "Server: Running" if self.server.is_running else "Server: Stopped"

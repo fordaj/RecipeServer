@@ -274,6 +274,26 @@
     let busy = false;
     let scrollY = 0;
 
+    function setDirty(value) {
+      dialog.dataset.dirty = value ? "true" : "false";
+    }
+
+    function updateDirty() {
+      if (!dialog.open || busy) return;
+
+      let dirty = true;
+
+      try {
+        dirty =
+          textarea.value !== originalContent ||
+          JSON.stringify(readMetadata(form)) !== originalMetadata;
+      } catch (error) {
+        dirty = true;
+      }
+
+      setDirty(dirty);
+    }
+
     function lockBackgroundScroll() {
       scrollY = window.scrollY;
       document.body.style.position = "fixed";
@@ -322,6 +342,7 @@
       textarea.value = "";
       originalContent = "";
       originalMetadata = "";
+      setDirty(false);
       setBusy(true);
 
       try {
@@ -336,6 +357,7 @@
         originalMetadata = JSON.stringify(readMetadata(form));
 
         status.textContent = "";
+        setDirty(false);
       } catch (error) {
         status.textContent = error.message;
       } finally {
@@ -344,9 +366,13 @@
     }
 
     dialog.addEventListener("close", () => {
+      setDirty(false);
       document.body.classList.remove("recipe-editor-open");
       unlockBackgroundScroll();
     });
+
+    dialog.addEventListener("input", updateDirty);
+    dialog.addEventListener("change", updateDirty);
 
     dialog.addEventListener("click", (event) => {
       // Close when clicking the backdrop, but not the dialog itself.

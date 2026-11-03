@@ -15,7 +15,9 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Shows metadata warnings for recipes missing recommended fields.
 - Typesets math with a bundled copy of MathJax.
 - Regenerates the affected recipe page and the index whenever a recipe is saved.
-- Provides a tray icon to open the recipes page, view server status, start or stop the server, and quit.
+- Watches the recipe folder for external changes, so edits from other editors, new recipes, deleted recipes, and image changes appear without restarting.
+- Refreshes open browser pages automatically when the library changes.
+- Provides a tray icon to open the recipes page, refresh the library, view server status, start or stop the server, and quit.
 
 ## Supported platforms
 
@@ -65,13 +67,27 @@ Open the site in either of these ways:
 - Click the tray icon and choose **Open Recipes**.
 - Visit [http://localhost:8000](http://localhost:8000) directly.
 
-The tray menu also shows the current server status and lets you start or stop the server. Use **Quit** to shut down the app. Closing the browser tab does not stop the server.
+The tray menu also shows the current server status and lets you start or stop the server. Use **Refresh Library** to force a full rebuild, and **Quit** to shut down the app. Closing the browser tab does not stop the server.
 
 Pass `--log-level DEBUG` for more detailed output:
 
 ```bash
 uv run python -m recipeserver --log-level DEBUG
 ```
+
+## Live updates
+
+RecipeServer watches the configured recipe directory while it runs. Changes made outside the browser are picked up automatically:
+
+- Editing, adding, moving, or deleting a `recipe.md` updates the affected recipe page and the index.
+- Adding, replacing, or deleting a recipe image updates the hero image, accent color, and copied files.
+- Directory-level changes fall back to a full site rebuild.
+
+Bursts of filesystem events are debounced, so saving a file once does not cause a rebuild storm. The app also ignores its own writes to avoid refreshing twice after a browser save.
+
+Open recipe and index pages poll a lightweight revision endpoint and reload when the library changes. If the recipe editor is open with unsaved changes, the page does **not** reload. Instead, it shows a notice with **Reload page** and **Keep editing** actions, so unsaved work is never discarded silently.
+
+If a change does not appear, choose **Refresh Library** from the tray. That performs a full regeneration without restarting the server.
 
 ## Recipe layout
 
@@ -171,7 +187,7 @@ Inside that directory:
 - `config.txt` contains the path to the recipe source directory.
 - `site/` contains the generated website.
 
-The site directory is disposable. It is deleted and rebuilt every time RecipeServer starts. Never store source content or manual edits there.
+The site directory is disposable. It is deleted and rebuilt every time RecipeServer starts and whenever a full fallback rebuild is needed. Never store source content or manual edits there.
 
 To change the recipe source directory, update `config.txt` or remove it so the folder picker appears again.
 
@@ -185,6 +201,8 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **A recipe is missing from the index:** Confirm that the file is named exactly `recipe.md` and lives under the configured recipe source directory.
 - **A recipe has no hero image or expected accent color:** Add a supported image next to `recipe.md`. The first image in filename-sorted order wins.
 - **Metadata warnings are visible:** Use the **Metadata Status** toggle in the index. Warnings are advisory and can be resolved by filling in the missing front matter fields.
+- **External edits do not appear:** Wait a moment for the debounce window, then choose **Refresh Library** from the tray. Confirm that the changes are inside the configured recipe source directory and that the file is named exactly `recipe.md`.
+- **A page shows “This recipe changed on disk”:** The editor has unsaved changes. Review them, then choose **Reload page** to load the version from disk or **Keep editing** to continue.
 
 ## Development
 
@@ -207,6 +225,7 @@ uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_
 src/recipeserver/
 ├── __main__.py             # CLI entrypoint
 ├── core.py                 # startup, regeneration, parallel recipe conversion
+├── file_watcher.py         # debounced source-tree monitoring
 ├── config.py               # recipe source configuration and folder picker
 ├── markdown_to_html.py     # recipe rendering and quantity scaling
 ├── index_html_generator.py # searchable/sortable index and metadata warnings
@@ -223,10 +242,13 @@ serve.sh / serve.bat        # launch helpers
 
 - `recipe.md` files in the source tree are the source of truth. Generated HTML is disposable output.
 - Every save re-renders that recipe page and rebuilds the index.
+- The watcher refreshes only the recipes affected by external file and image changes, then rebuilds the index once per batch. Directory moves and unclassifiable changes use a full rebuild.
+- The watcher ignores hidden files, editor swap files, temporary files, `.git`, and the generated site directory. It also records source signatures so a browser save does not trigger a second refresh.
+- Each successful refresh increments a library revision. Pages poll `GET /api/revision` and reload when it changes.
 - One broken recipe is skipped with a logged error so the rest of the site can still build.
 - Metadata warnings are advisory and never block generation, serving, or saving.
 - The HTTP API uses relative `.md` paths inside the configured source directory. Paths outside it are rejected.
-- APIs include `GET /api/markdown`, `GET|POST /api/recipe-editor`, and `GET|POST /api/metadata/<field>`.
+- APIs include `GET /api/revision`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, and `GET|POST /api/metadata/<field>`.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
 - The server always uses port `8000`, binds to `0.0.0.0`, and has no authentication. Run it only on a trusted local network.
 - There is no JavaScript build step. Frontend assets are served directly, and MathJax is vendored in `src/recipeserver/assets/mathjax`.
