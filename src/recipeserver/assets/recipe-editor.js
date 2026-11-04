@@ -14,6 +14,35 @@
                         aria-label="Close editor">&times;</button>
                 </header>
 
+                <div class="recipe-editor__location" hidden>
+                    <label>
+                        Folder
+                        <select class="recipe-editor__folder-mode" aria-label="Folder location">
+                            <option value="existing">Existing folder</option>
+                            <option value="new">New folder</option>
+                        </select>
+                    </label>
+                    <label class="recipe-editor__existing-folder">
+                        Choose folder
+                        <select class="recipe-editor__folder-select"></select>
+                    </label>
+                    <label class="recipe-editor__folder-path" hidden>
+                        New folder path
+                        <input type="text" class="recipe-editor__new-folder"
+                            placeholder="Desserts/Chocolate">
+                    </label>
+                </div>
+
+                <section class="recipe-editor__images" aria-label="Recipe images">
+                    <label for="recipe-editor-images">Recipe images</label>
+                    <input id="recipe-editor-images" type="file" multiple
+                        accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif,.svg,.avif">
+                    <p class="recipe-editor__images-help">
+                        Images are saved beside the recipe. Up to 20 files and 25 MB per save.
+                    </p>
+                    <p class="recipe-editor__images-selected" aria-live="polite"></p>
+                </section>
+
                 <details class="recipe-editor__details" open>
                     <summary>Details</summary>
 
@@ -32,7 +61,7 @@
                         <label>
                             Meals
                             <input name="meals" type="text"
-                                placeholder="ex. Dessert, Snack">
+                                placeholder="ex. Breakfast, Dessert">
                         </label>
 
                         <label>
@@ -64,7 +93,7 @@
                             <label>
                                 Difficulty
                                 <input name="difficulty" type="number"
-                                    step="any" placeholder="2.5">
+                                    step="any" placeholder="5">
                             </label>
                         </div>
 
@@ -79,13 +108,13 @@
                               <label>
                                   Source Author
                                   <input name="source.author" type="text"
-                                      placeholder="John Kanell">
+                                      placeholder="FirstName LastName">
                               </label>
 
                               <label>
                                   Source Title
                                   <input name="source.title" type="text"
-                                      placeholder="Preppy Kitchen">
+                                      placeholder="Book Title, Website Name, AI Model, etc.">
                               </label>
 
                               <label>
@@ -138,20 +167,68 @@
     return page.replace(/\.html$/i, ".md");
   }
 
-  async function requestEditor(path, payload = null) {
+  async function requestEditor(path, payload = null, images = []) {
     const url = new URL("/api/recipe-editor", window.location.origin);
 
     if (payload === null) {
       url.searchParams.set("path", path);
     }
 
+    const requestBody = payload === null ? null : createRequestBody({ path, ...payload }, images);
+
     const response = await fetch(url, {
       method: payload === null ? "GET" : "POST",
       cache: "no-store",
-      headers: payload === null ? {} : { "Content-Type": "application/json" },
-      body: payload === null ? undefined : JSON.stringify({ path, ...payload }),
+      headers: requestBody?.headers ?? {},
+      body: requestBody?.body,
     });
 
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
+
+    return result;
+  }
+
+  async function requestRecipeFolders() {
+    const response = await fetch(new URL("/api/recipe-folders", window.location.origin), {
+      cache: "no-store",
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
+
+    return result.folders;
+  }
+
+  function createRequestBody(payload, images) {
+    if (images.length) {
+      const body = new FormData();
+      Object.entries(payload).forEach(([key, value]) => {
+        body.append(key, typeof value === "string" ? value : JSON.stringify(value));
+      });
+      images.forEach((image) => body.append("images", image, image.name));
+      return { body };
+    }
+
+    return {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    };
+  }
+
+  async function createRecipe(folder, createFolder, content, metadata, images) {
+    const requestBody = createRequestBody({ folder, createFolder, content, metadata }, images);
+    const response = await fetch(new URL("/api/recipe", window.location.origin), {
+      method: "POST",
+      cache: "no-store",
+      headers: requestBody.headers ?? {},
+      body: requestBody.body,
+    });
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -258,8 +335,9 @@
   }
 
   function initialize() {
-    const button = document.querySelector("#edit-recipe");
-    if (!button) return;
+    const editButton = document.querySelector("#edit-recipe");
+    const createButton = document.querySelector("#create-recipe");
+    if (!editButton && !createButton) return;
 
     const dialog = createEditor();
     const form = dialog.querySelector("form");
@@ -268,11 +346,28 @@
     const saveButton = dialog.querySelector(".recipe-editor__save");
     const cancelButton = dialog.querySelector(".recipe-editor__cancel");
     const closeButton = dialog.querySelector(".recipe-editor__close");
+    const heading = dialog.querySelector(".recipe-editor__header h2");
+    const location = dialog.querySelector(".recipe-editor__location");
+    const folderMode = dialog.querySelector(".recipe-editor__folder-mode");
+    const folderSelect = dialog.querySelector(".recipe-editor__folder-select");
+    const existingFolder = dialog.querySelector(".recipe-editor__existing-folder");
+    const folderPathLabel = dialog.querySelector(".recipe-editor__folder-path");
+    const newFolder = dialog.querySelector(".recipe-editor__new-folder");
+    const imageInput = dialog.querySelector("#recipe-editor-images");
+    const selectedImages = dialog.querySelector(".recipe-editor__images-selected");
 
     let originalContent = "";
     let originalMetadata = "";
     let busy = false;
     let scrollY = 0;
+    let activeButton = null;
+    let isCreating = false;
+
+    function updateFolderControls() {
+      const creatingNewFolder = folderMode.value === "new";
+      existingFolder.hidden = creatingNewFolder;
+      folderPathLabel.hidden = !creatingNewFolder;
+    }
 
     function lockBackgroundScroll() {
       scrollY = window.scrollY;
@@ -298,7 +393,11 @@
       cancelButton.disabled = value;
       closeButton.disabled = value;
       textarea.readOnly = value;
-      button.disabled = value;
+      if (activeButton) activeButton.disabled = value;
+      folderMode.disabled = value;
+      folderSelect.disabled = value;
+      newFolder.disabled = value;
+      imageInput.disabled = value;
 
       form
         .querySelectorAll(".recipe-editor__metadata input, .recipe-editor__metadata select")
@@ -311,30 +410,77 @@
       if (!busy && dialog.open) dialog.close();
     }
 
-    async function openEditor() {
+    async function openEditor(mode) {
       if (busy) return;
 
+      activeButton = mode === "create" ? createButton : editButton;
+      isCreating = mode === "create";
       document.body.classList.add("recipe-editor-open");
       lockBackgroundScroll();
       dialog.showModal();
 
-      status.textContent = "Loading recipe…";
+      heading.textContent = isCreating ? "Create Recipe" : "Edit Recipe";
+      saveButton.textContent = isCreating ? "Create" : "Save";
+      location.hidden = !isCreating;
+      status.textContent = isCreating ? "Loading folders…" : "Loading recipe…";
       textarea.value = "";
       originalContent = "";
       originalMetadata = "";
+      imageInput.value = "";
+      selectedImages.textContent = "";
       setBusy(true);
 
       try {
-        const result = await requestEditor(getMarkdownPath());
+        if (isCreating) {
+          const folders = await requestRecipeFolders();
+          folderSelect.replaceChildren(
+            ...folders.map((folder) => {
+              const option = document.createElement("option");
+              option.value = folder;
+              option.textContent = folder || "Recipe root";
+              return option;
+            }),
+          );
+          folderMode.value = "existing";
+          newFolder.value = "";
+          updateFolderControls();
+          populateMetadata(form, {});
+          textarea.value = `# New Recipe
 
-        originalContent = result.content;
+![Alt Text](image.png)
 
-        textarea.value = result.content;
-        populateMetadata(form, result.metadata);
+/// html | div.recipe-meta
 
-        // Compare against the normalized form values, not the raw response.
-        originalMetadata = JSON.stringify(readMetadata(form));
+Prep Time
+: 30 minutes
 
+Cook Time
+: 30 minutes
+
+Servings
+: \`6 portions\`
+
+/// <!-- recipe-meta -->
+
+## Ingredients
+
+- [ ] \`1/2 cup\` of something
+
+## Preparation
+
+1. Do something
+
+## Tips
+
+Try this
+          `;
+        } else {
+          const result = await requestEditor(getMarkdownPath());
+          originalContent = result.content;
+          textarea.value = result.content;
+          populateMetadata(form, result.metadata);
+          originalMetadata = JSON.stringify(readMetadata(form));
+        }
         status.textContent = "";
       } catch (error) {
         status.textContent = error.message;
@@ -355,7 +501,12 @@
       }
     });
 
-    button.addEventListener("click", openEditor);
+    if (editButton) editButton.addEventListener("click", () => openEditor("edit"));
+    if (createButton) createButton.addEventListener("click", () => openEditor("create"));
+    folderMode.addEventListener("change", updateFolderControls);
+    imageInput.addEventListener("change", () => {
+      selectedImages.textContent = [...imageInput.files].map((image) => image.name).join(", ");
+    });
     cancelButton.addEventListener("click", closeEditor);
     closeButton.addEventListener("click", closeEditor);
 
@@ -378,22 +529,38 @@
 
       const content = textarea.value;
       const metadataContent = JSON.stringify(metadata);
+      const images = [...imageInput.files];
 
-      if (content === originalContent && metadataContent === originalMetadata) {
+      if (
+        !isCreating &&
+        content === originalContent &&
+        metadataContent === originalMetadata &&
+        images.length === 0
+      ) {
         dialog.close();
         return;
       }
 
+      let folder;
+      if (isCreating) {
+        folder = folderMode.value === "new" ? newFolder.value.trim() : folderSelect.value;
+        if (folderMode.value === "new" && !folder) {
+          status.textContent = "Enter a folder path.";
+          return;
+        }
+      }
+
       setBusy(true);
-      status.textContent = "Saving recipe…";
+      status.textContent = isCreating ? "Creating recipe…" : "Saving recipe…";
 
       try {
-        await requestEditor(getMarkdownPath(), {
-          content,
-          metadata,
-        });
+        if (isCreating) {
+          await createRecipe(folder, folderMode.value === "new", content, metadata, images);
+        } else {
+          await requestEditor(getMarkdownPath(), { content, metadata }, images);
+        }
 
-        status.textContent = "Saved! Reloading…";
+        status.textContent = isCreating ? "Created! Reloading…" : "Saved! Reloading…";
         window.location.reload();
       } catch (error) {
         status.textContent = error.message;

@@ -143,6 +143,93 @@
   overflow: visible;
 }
 
+.recipe-editor__location {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.recipe-editor__location[hidden] {
+  display: none;
+}
+
+.recipe-editor__location label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.recipe-editor__location select,
+.recipe-editor__location input {
+  width: 100%;
+  min-width: 0;
+  height: 2.5rem;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.recipe-editor__location select:focus-visible,
+.recipe-editor__location input:focus-visible {
+  outline: 2px solid var(--food-color);
+  border-color: var(--food-color);
+}
+
+.recipe-editor__location .recipe-editor__folder-path[hidden] {
+  display: none;
+}
+
+.recipe-editor__images {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.recipe-editor__images > label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.recipe-editor__images input {
+  min-width: 0;
+  color: var(--text-color);
+  font: inherit;
+}
+
+.recipe-editor__images input:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-editor__images-help,
+.recipe-editor__images-selected {
+  margin: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.recipe-editor__images-help {
+  color: var(--muted-color);
+}
+
+.recipe-editor__images-selected:empty {
+  display: none;
+}
+
 .recipe-editor__metadata legend {
   padding: 0 0.4rem;
   font-size: 0.95rem;
@@ -336,6 +423,12 @@
   }
 
   .recipe-editor__metadata {
+    gap: 0.6rem;
+    padding: 0.6rem;
+  }
+
+  .recipe-editor__location {
+    grid-template-columns: 1fr;
     gap: 0.6rem;
     padding: 0.6rem;
   }

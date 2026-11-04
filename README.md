@@ -8,6 +8,8 @@ The app runs as a desktop process with a system tray icon. There is no database 
 
 - Renders every `recipe.md` in a source tree to a standalone recipe page.
 - Builds a searchable, sortable `index.html` with ratings, meals, categories, difficulty, and last-edited information.
+- Creates recipes from the index in an existing folder or a new folder.
+- Uploads supported images directly into a recipe folder from the recipe editor.
 - Edits recipe Markdown, metadata, ratings, and comments in the browser.
 - Writes browser edits back to the recipe's YAML front matter and Markdown body.
 - Scales quantities inside inline code, such as `1 1/2 cups` or `1-2 tbsp`.
@@ -64,6 +66,8 @@ Open the site in either of these ways:
 
 - Click the tray icon and choose **Open Recipes**.
 - Visit [http://localhost:8000](http://localhost:8000) directly.
+
+Use the **+** button in the index to create a recipe. Choose an existing folder or enter a new folder path relative to the configured recipe directory, then write the recipe in Markdown. The editor can also upload supported images beside the recipe; images added while editing an existing recipe are saved to that recipe's folder.
 
 The tray menu also shows the current server status and lets you start or stop the server. Use **Quit** to shut down the app. Closing the browser tab does not stop the server.
 
@@ -226,7 +230,8 @@ serve.sh / serve.bat        # launch helpers
 - One broken recipe is skipped with a logged error so the rest of the site can still build.
 - Metadata warnings are advisory and never block generation, serving, or saving.
 - The HTTP API uses relative `.md` paths inside the configured source directory. Paths outside it are rejected.
-- APIs include `GET /api/markdown`, `GET|POST /api/recipe-editor`, and `GET|POST /api/metadata/<field>`.
+- APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, and `GET|POST /api/metadata/<field>`.
+- Recipe creation writes `recipe.md` into the selected folder and rejects folder paths outside the source directory or existing recipes.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
 - The server always uses port `8000`, binds to `0.0.0.0`, and has no authentication. Run it only on a trusted local network.
 - There is no JavaScript build step. Frontend assets are served directly, and MathJax is vendored in `src/recipeserver/assets/mathjax`.

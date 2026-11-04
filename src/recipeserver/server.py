@@ -4,12 +4,20 @@ from pathlib import Path
 from threading import Thread
 from urllib.parse import parse_qs, urlsplit
 from datetime import date, datetime, timezone
+from email.parser import BytesParser
+from email.policy import default
+from io import BytesIO
 import json
 import math
 import socket
 import sys
 import unicodedata
+import xml.etree.ElementTree as ET
 import frontmatter
+from pathlib import PureWindowsPath
+from PIL import Image, UnidentifiedImageError
+
+from .image_handler import IMAGE_EXTENSIONS
 
 from .config import Configuration
 from ._logger import logger
@@ -194,6 +202,8 @@ def _validate_ratings(value: object) -> list[dict]:
 
 class RecipeRequestHandler(SimpleHTTPRequestHandler):
     MAX_REQUEST_SIZE = 5 * 1024 * 1024
+    MAX_IMAGE_UPLOAD_SIZE = 25 * 1024 * 1024
+    MAX_IMAGE_UPLOAD_COUNT = 20
 
     def __init__(
         self,
@@ -208,6 +218,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlsplit(self.path)
+        if parsed.path == "/api/recipe-folders":
+            try:
+                self._send_json(200, {"folders": self._list_recipe_folders()})
+            except OSError:
+                logger.exception("Failed to list recipe folders")
+                self._send_json(500, {"error": "Unable to list recipe folders"})
+            return
+
         if parsed.path not in ("/api/markdown", "/api/recipe-editor") and not parsed.path.startswith("/api/metadata/"):
             if parsed.path.startswith("/api/"):
                 self.send_error(404, "Unknown API endpoint")
@@ -285,14 +303,95 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urlsplit(self.path)
 
-        if parsed.path not in ("/api/markdown", "/api/recipe-editor") and not parsed.path.startswith("/api/metadata/"):
+        if parsed.path not in ("/api/markdown", "/api/recipe-editor", "/api/recipe") and not parsed.path.startswith("/api/metadata/"):
             self.send_error(404, "Unknown API endpoint")
+            return
+
+        if parsed.path == "/api/recipe":
+            try:
+                payload, images = self._read_recipe_payload()
+                folder = payload.get("folder")
+                create_folder = payload.get("createFolder")
+                content = payload.get("content")
+                metadata = _validate_editor_metadata(payload.get("metadata"))
+
+                if not isinstance(folder, str) or not isinstance(create_folder, bool):
+                    raise ValueError("Expected string folder and boolean createFolder fields")
+                if not isinstance(content, str):
+                    raise ValueError("Expected string field: content")
+                if "\x00" in content:
+                    raise ValueError("Markdown content contains a null character")
+                images = self._validate_uploaded_images(images)
+                folder_path = self._resolve_recipe_directory(folder)
+
+            except _RequestTooLarge:
+                self._send_json(413, {"error": "Request body too large"})
+                return
+            except (ValueError, json.JSONDecodeError) as exc:
+                self._send_json(400, {"error": str(exc)})
+                return
+
+            try:
+                if create_folder:
+                    if not folder:
+                        self._send_json(400, {"error": "Enter a folder path"})
+                        return
+                    if folder_path.exists():
+                        self._send_json(409, {"error": "That folder already exists"})
+                        return
+                    folder_path.mkdir(parents=True)
+                    folder_path = folder_path.resolve()
+                    if not folder_path.is_relative_to(self.source_directory):
+                        self._send_json(400, {"error": "Path must stay inside the source directory"})
+                        return
+                elif not folder_path.is_dir():
+                    self._send_json(404, {"error": "Recipe folder not found"})
+                    return
+
+                file_path = folder_path / "recipe.md"
+                if file_path.exists():
+                    self._send_json(409, {"error": "A recipe already exists in that folder"})
+                    return
+
+                post_metadata = {key: value for key, value in metadata.items() if value is not None}
+                post_metadata["updatedOn"] = (
+                    datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                )
+                post = frontmatter.Post(content, **post_metadata)
+                written_images = self._write_uploaded_images(folder_path, images)
+                try:
+                    with file_path.open("x", encoding="utf-8", newline="") as recipe_file:
+                        recipe_file.write(frontmatter.dumps(post))
+                except Exception:
+                    self._remove_uploaded_images(written_images)
+                    raise
+
+                logger.info("Created recipe: {}", file_path)
+                if self.on_markdown_saved is not None:
+                    self.on_markdown_saved(file_path)
+
+                self._send_json(
+                    201,
+                    {
+                        "success": True,
+                        "path": file_path.relative_to(self.source_directory).as_posix(),
+                    },
+                )
+
+            except FileExistsError:
+                self._send_json(409, {"error": "A recipe or folder already exists at that location"})
+            except OSError:
+                logger.exception("Failed to create recipe")
+                self._send_json(500, {"error": "Unable to create recipe"})
+            except Exception:
+                logger.exception("Recipe created, but HTML regeneration failed")
+                self._send_json(500, {"error": "Recipe created, but HTML regeneration failed"})
             return
 
         # Handle POST to /api/recipe-editor
         if parsed.path == "/api/recipe-editor":
             try:
-                payload = self._read_json_payload()
+                payload, images = self._read_recipe_payload()
                 path = payload.get("path")
                 content = payload.get("content")
                 metadata = _validate_editor_metadata(payload.get("metadata"))
@@ -302,6 +401,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
                 if "\x00" in content:
                     raise ValueError("Markdown content contains a null character")
+                images = self._validate_uploaded_images(images)
 
                 file_path = self._resolve_markdown_path(path)
 
@@ -333,7 +433,12 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 post.content = content
                 new_content = frontmatter.dumps(post)
 
-                file_path.write_text(new_content, encoding="utf-8", newline="")
+                written_images = self._write_uploaded_images(file_path.parent, images)
+                try:
+                    file_path.write_text(new_content, encoding="utf-8", newline="")
+                except Exception:
+                    self._remove_uploaded_images(written_images)
+                    raise
                 logger.info("Saved recipe editor content: {}", file_path)
 
                 if self.on_markdown_saved is not None:
@@ -341,6 +446,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
                 self._send_json(200, {"success": True})
 
+            except FileExistsError as exc:
+                self._send_json(409, {"error": str(exc)})
             except OSError:
                 logger.exception("Failed to save recipe")
                 self._send_json(500, {"error": "Unable to save recipe"})
@@ -506,6 +613,174 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         return payload
 
+    def _read_recipe_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
+        content_type = self.headers.get("Content-Type", "")
+        if not content_type.lower().startswith("multipart/form-data"):
+            return self._read_json_payload(), []
+
+        content_length = self.headers.get("Content-Length")
+        if content_length is None:
+            raise ValueError("Missing Content-Length")
+        try:
+            length = int(content_length)
+        except ValueError:
+            raise ValueError("Invalid Content-Length") from None
+        if length < 0:
+            raise ValueError("Invalid Content-Length")
+        if length > self.MAX_IMAGE_UPLOAD_SIZE:
+            raise _RequestTooLarge("Image upload request too large")
+
+        body = self.rfile.read(length)
+        message = BytesParser(policy=default).parsebytes(
+            b"Content-Type: "
+            + content_type.encode("ascii")
+            + b"\r\nMIME-Version: 1.0\r\n\r\n"
+            + body
+        )
+        if not message.is_multipart():
+            raise ValueError("Invalid multipart request")
+
+        payload = {}
+        images = []
+        for part in message.iter_parts():
+            field_name = part.get_param("name", header="content-disposition")
+            if not isinstance(field_name, str):
+                raise ValueError("Invalid multipart field")
+
+            filename = part.get_filename()
+            content = part.get_payload(decode=True) or b""
+            if filename is not None:
+                if field_name != "images":
+                    raise ValueError("Unexpected uploaded file field")
+                images.append((filename, content))
+                continue
+
+            try:
+                payload[field_name] = content.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise ValueError(f"Invalid text field: {field_name}") from exc
+
+        if "metadata" in payload:
+            try:
+                payload["metadata"] = json.loads(payload["metadata"])
+            except json.JSONDecodeError as exc:
+                raise ValueError("Invalid metadata JSON") from exc
+        if "createFolder" in payload:
+            if payload["createFolder"] not in {"true", "false"}:
+                raise ValueError("Invalid createFolder value")
+            payload["createFolder"] = payload["createFolder"] == "true"
+
+        return payload, images
+
+    def _validate_uploaded_images(self, images: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
+        if len(images) > self.MAX_IMAGE_UPLOAD_COUNT:
+            raise ValueError(f"Upload no more than {self.MAX_IMAGE_UPLOAD_COUNT} images at a time")
+
+        validated = []
+        names = set()
+        total_size = 0
+        for filename, content in images:
+            windows_path = PureWindowsPath(filename)
+            if (
+                not filename
+                or filename in {".", ".."}
+                or "/" in filename
+                or "\\" in filename
+                or windows_path.name != filename
+                or any(ord(character) < 32 or character in '<>:"|?*' for character in filename)
+                or filename.endswith((".", " "))
+            ):
+                raise ValueError("Invalid image filename")
+            if PureWindowsPath(filename.split(".", 1)[0]).name.upper() in {
+                "CON",
+                "PRN",
+                "AUX",
+                "NUL",
+                *(f"COM{number}" for number in range(1, 10)),
+                *(f"LPT{number}" for number in range(1, 10)),
+            }:
+                raise ValueError("Invalid image filename")
+
+            if Path(filename).suffix.lower() not in IMAGE_EXTENSIONS:
+                raise ValueError(f"Unsupported image type: {filename}")
+            if not content:
+                raise ValueError(f"Image is empty: {filename}")
+            self._validate_image_content(filename, content)
+
+            normalized_name = filename.casefold()
+            if normalized_name in names:
+                raise ValueError(f"Duplicate image filename: {filename}")
+            names.add(normalized_name)
+            total_size += len(content)
+            if total_size > self.MAX_IMAGE_UPLOAD_SIZE:
+                raise _RequestTooLarge("Image upload request too large")
+            validated.append((filename, content))
+
+        return validated
+
+    @staticmethod
+    def _validate_image_content(filename: str, content: bytes) -> None:
+        extension = Path(filename).suffix.lower()
+        if extension == ".svg":
+            if b"<!doctype" in content.lower():
+                raise ValueError(f"Invalid SVG image: {filename}")
+            try:
+                root = ET.fromstring(content)
+            except ET.ParseError as exc:
+                raise ValueError(f"Invalid SVG image: {filename}") from exc
+            if root.tag.rsplit("}", 1)[-1].lower() != "svg":
+                raise ValueError(f"Invalid SVG image: {filename}")
+
+            for element in root.iter():
+                if element.tag.rsplit("}", 1)[-1].lower() in {"script", "foreignobject"}:
+                    raise ValueError(f"SVG contains unsupported active content: {filename}")
+                for attribute, value in element.attrib.items():
+                    if attribute.rsplit("}", 1)[-1].lower().startswith("on"):
+                        raise ValueError(f"SVG contains unsupported active content: {filename}")
+                    if (
+                        attribute.rsplit("}", 1)[-1].lower() in {"href", "style"}
+                        and (
+                            ("url(" in value.lower() and "url(#" not in value.lower())
+                            or (
+                                attribute.lower().endswith("href")
+                                and not value.startswith("#")
+                            )
+                        )
+                    ):
+                        raise ValueError(f"SVG contains unsupported external content: {filename}")
+            return
+
+        try:
+            with Image.open(BytesIO(content)) as image:
+                image.verify()
+        except (OSError, UnidentifiedImageError) as exc:
+            raise ValueError(f"Invalid image file: {filename}") from exc
+
+    @staticmethod
+    def _write_uploaded_images(directory: Path, images: list[tuple[str, bytes]]) -> list[Path]:
+        existing_names = {entry.name.casefold() for entry in directory.iterdir()}
+        for filename, _ in images:
+            if filename.casefold() in existing_names:
+                raise FileExistsError(f"An item named {filename} already exists in the recipe folder")
+
+        written = []
+        try:
+            for filename, content in images:
+                image_path = directory / filename
+                with image_path.open("xb") as image_file:
+                    written.append(image_path)
+                    image_file.write(content)
+        except Exception:
+            RecipeRequestHandler._remove_uploaded_images(written)
+            raise
+
+        return written
+
+    @staticmethod
+    def _remove_uploaded_images(images: list[Path]) -> None:
+        for image in images:
+            image.unlink(missing_ok=True)
+
     def _resolve_markdown_path(self, requested_path: str) -> Path:
         # Require a relative, forward-slash-separated path.
         if not requested_path or "\\" in requested_path or "\x00" in requested_path:
@@ -527,6 +802,42 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raise ValueError("Path must stay inside the source directory")
 
         return file_path
+
+    def _resolve_recipe_directory(self, requested_path: str) -> Path:
+        if "\\" in requested_path or "\x00" in requested_path:
+            raise ValueError("Invalid folder path")
+        if requested_path and (
+            requested_path.startswith("/")
+            or any(part in {"", ".", ".."} for part in requested_path.split("/"))
+        ):
+            raise ValueError("Folder path must stay inside the source directory")
+
+        relative_path = Path(requested_path) if requested_path else Path()
+        if relative_path.is_absolute() or relative_path.drive or ".." in relative_path.parts:
+            raise ValueError("Folder path must stay inside the source directory")
+
+        folder_path = (self.source_directory / relative_path).resolve()
+        if not folder_path.is_relative_to(self.source_directory):
+            raise ValueError("Folder path must stay inside the source directory")
+        return folder_path
+
+    def _list_recipe_folders(self) -> list[str]:
+        folders = []
+        if not (self.source_directory / "recipe.md").exists():
+            folders.append("")
+
+        for folder in self.source_directory.rglob("*"):
+            if folder.is_symlink() or not folder.is_dir():
+                continue
+            resolved_folder = folder.resolve()
+            if (
+                not resolved_folder.is_relative_to(self.source_directory)
+                or (resolved_folder / "recipe.md").exists()
+            ):
+                continue
+            folders.append(folder.relative_to(self.source_directory).as_posix())
+
+        return sorted(folders, key=str.casefold)
 
     def _send_json(self, status: int, data: dict):
         body = json.dumps(data, default=_json_default).encode("utf-8")
