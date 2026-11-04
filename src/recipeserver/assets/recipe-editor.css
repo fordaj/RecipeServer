@@ -187,7 +187,7 @@
   border-color: var(--food-color);
 }
 
-.recipe-editor__location .recipe-editor__folder-path[hidden] {
+.recipe-editor__location label[hidden] {
   display: none;
 }
 

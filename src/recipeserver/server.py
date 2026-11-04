@@ -9,6 +9,7 @@ from email.policy import default
 from io import BytesIO
 import json
 import math
+import re
 import socket
 import sys
 import unicodedata
@@ -71,6 +72,24 @@ def _editor_metadata(metadata: dict) -> dict:
 
 def _source_is_empty(source: dict | None) -> bool:
     return not source or not any(value is not None for value in source.values())
+
+
+def _recipe_folder_name(content: str, metadata: dict) -> str:
+    heading = re.search(r"^\s{0,3}#\s+(.+?)\s*#*\s*$", content, re.MULTILINE)
+    title = heading.group(1) if heading else metadata.get("title")
+    if not isinstance(title, str):
+        title = ""
+
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', " ", title)
+    name = " ".join(name.split()).strip(" .")
+    if not name:
+        name = "New Recipe"
+
+    encoded_name = name.encode("utf-8")[:200]
+    name = encoded_name.decode("utf-8", errors="ignore").rstrip(" .") or "New Recipe"
+    if re.fullmatch(r"(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", name, re.IGNORECASE):
+        name = f"_{name}"
+    return name
 
 
 def _apply_editor_metadata(existing: dict, values: dict) -> None:
@@ -334,16 +353,16 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             try:
                 if create_folder:
                     if not folder:
-                        self._send_json(400, {"error": "Enter a folder path"})
-                        return
-                    if folder_path.exists():
-                        self._send_json(409, {"error": "That folder already exists"})
-                        return
-                    folder_path.mkdir(parents=True)
-                    folder_path = folder_path.resolve()
-                    if not folder_path.is_relative_to(self.source_directory):
-                        self._send_json(400, {"error": "Path must stay inside the source directory"})
-                        return
+                        folder_path = self._create_recipe_folder(_recipe_folder_name(content, metadata))
+                    else:
+                        if folder_path.exists():
+                            self._send_json(409, {"error": "That folder already exists"})
+                            return
+                        folder_path.mkdir(parents=True)
+                        folder_path = folder_path.resolve()
+                        if not folder_path.is_relative_to(self.source_directory):
+                            self._send_json(400, {"error": "Path must stay inside the source directory"})
+                            return
                 elif not folder_path.is_dir():
                     self._send_json(404, {"error": "Recipe folder not found"})
                     return
@@ -820,6 +839,17 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         if not folder_path.is_relative_to(self.source_directory):
             raise ValueError("Folder path must stay inside the source directory")
         return folder_path
+
+    def _create_recipe_folder(self, name: str) -> Path:
+        suffix = 0
+        while True:
+            folder_name = name if suffix == 0 else f"{name} ({suffix})"
+            folder_path = self.source_directory / folder_name
+            try:
+                folder_path.mkdir()
+                return folder_path
+            except FileExistsError:
+                suffix += 1
 
     def _list_recipe_folders(self) -> list[str]:
         folders = []
