@@ -18,6 +18,7 @@
                     <label>
                         Folder
                         <select class="recipe-editor__folder-mode" aria-label="Folder location">
+                            <option value="title">Use recipe title (recommended)</option>
                             <option value="existing">Existing folder</option>
                             <option value="new">New folder</option>
                         </select>
@@ -364,8 +365,9 @@
     let isCreating = false;
 
     function updateFolderControls() {
+      const creatingInExistingFolder = folderMode.value === "existing";
       const creatingNewFolder = folderMode.value === "new";
-      existingFolder.hidden = creatingNewFolder;
+      existingFolder.hidden = !creatingInExistingFolder;
       folderPathLabel.hidden = !creatingNewFolder;
     }
 
@@ -441,7 +443,7 @@
               return option;
             }),
           );
-          folderMode.value = "existing";
+          folderMode.value = "title";
           newFolder.value = "";
           updateFolderControls();
           populateMetadata(form, {});
@@ -548,6 +550,7 @@ Try this
           status.textContent = "Enter a folder path.";
           return;
         }
+        if (folderMode.value === "title") folder = "";
       }
 
       setBusy(true);
@@ -555,7 +558,7 @@ Try this
 
       try {
         if (isCreating) {
-          await createRecipe(folder, folderMode.value === "new", content, metadata, images);
+          await createRecipe(folder, folderMode.value !== "existing", content, metadata, images);
         } else {
           await requestEditor(getMarkdownPath(), { content, metadata }, images);
         }

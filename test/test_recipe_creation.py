@@ -59,14 +59,14 @@ def test_recipe_creation_lists_folders_creates_recipes_and_rejects_conflicts(tmp
     thread.start()
     base_url = f"http://127.0.0.1:{server.server_port}"
 
-    def post_recipe(folder, create_folder):
+    def post_recipe(folder, create_folder, content="# New Recipe\n\nInstructions."):
         request = Request(
             f"{base_url}/api/recipe",
             data=json.dumps(
                 {
                     "folder": folder,
                     "createFolder": create_folder,
-                    "content": "# New Recipe\n\nInstructions.",
+                    "content": content,
                     "metadata": {},
                 }
             ).encode("utf-8"),
@@ -123,6 +123,18 @@ def test_recipe_creation_lists_folders_creates_recipes_and_rejects_conflicts(tmp
             "# New Recipe"
         )
 
+        with post_recipe("", True) as response:
+            created = json.loads(response.read())
+        assert created == {"success": True, "path": "New Recipe/recipe.md"}
+
+        with post_recipe("", True) as response:
+            created = json.loads(response.read())
+        assert created == {"success": True, "path": "New Recipe (1)/recipe.md"}
+
+        with post_recipe("", True, "# Chicken / Tomato Soup?\n\nInstructions.") as response:
+            created = json.loads(response.read())
+        assert created == {"success": True, "path": "Chicken Tomato Soup/recipe.md"}
+
         with post_recipe_with_image("Desserts/Cakes", True) as response:
             created = json.loads(response.read())
         cake_recipe = source / "Desserts" / "Cakes" / "recipe.md"
@@ -133,7 +145,14 @@ def test_recipe_creation_lists_folders_creates_recipes_and_rejects_conflicts(tmp
         with post_editor_with_image("Breakfast/recipe.md") as response:
             assert json.loads(response.read()) == {"success": True}
         assert (breakfast_recipe.parent / "detail.png").read_bytes() == png_image()
-        assert saved_paths == [breakfast_recipe, cake_recipe, breakfast_recipe]
+        assert saved_paths == [
+            breakfast_recipe,
+            source / "New Recipe" / "recipe.md",
+            source / "New Recipe (1)" / "recipe.md",
+            source / "Chicken Tomato Soup" / "recipe.md",
+            cake_recipe,
+            breakfast_recipe,
+        ]
 
         with pytest.raises(HTTPError) as error:
             post_recipe("Taken", False)
