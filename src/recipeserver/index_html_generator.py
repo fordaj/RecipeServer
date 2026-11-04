@@ -19,6 +19,8 @@ FILE_PATH = Path(__file__)
 THEME_CSS_PATH = "/assets/theme.css"
 INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
+RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor.css"
+RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
@@ -33,6 +35,7 @@ USER_SVG = FILE_PATH.parent / "assets" / "user.svg"
 AI_SVG = FILE_PATH.parent / "assets" / "ai.svg"
 LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 WARNING_SVG = FILE_PATH.parent / "assets" / "warning.svg"
+PLUS_SVG = FILE_PATH.parent / "assets" / "plus.svg"
 
 _DETAIL_ICONS = {
     "makes": "/assets/chef-hat.svg",
@@ -458,12 +461,18 @@ class IndexHTMLGenerator:
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
                 <link rel="stylesheet" href="{THEME_CSS_PATH}">
                 <link rel="stylesheet" href="{INDEX_CSS_PATH}">
+                <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_PATH}">
                 <script src="{INDEX_JS_PATH}" defer></script>
+                <script src="{RECIPE_EDITOR_JS_PATH}" defer></script>
             </head>
             <body>
                 <main class="recipes">
                     <header class="recipes-header">
                         <h1>Ford Family Recipes</h1>
+                        <button id="create-recipe" class="create-recipe" type="button"
+                            aria-label="Create recipe" title="Create recipe">
+                            {PLUS_SVG.read_text(encoding="UTF-8", newline="\n")}
+                        </button>
                     </header>
 
                     <section class="recipe-toolbar" aria-label="Recipe search and filters">
