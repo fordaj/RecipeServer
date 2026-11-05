@@ -39,6 +39,7 @@ def _json_default(value: object) -> str:
 class _RequestTooLarge(ValueError):
     pass
 
+
 EDITOR_METADATA_FIELDS = {
     "tags": "string_list",
     "cuisine": "string_list",
@@ -342,7 +343,12 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urlsplit(self.path)
 
-        if parsed.path not in ("/api/markdown", "/api/recipe-editor", "/api/recipe", "/api/ai-recipe") and not parsed.path.startswith("/api/metadata/"):
+        if parsed.path not in (
+            "/api/markdown",
+            "/api/recipe-editor",
+            "/api/recipe",
+            "/api/ai-recipe",
+        ) and not parsed.path.startswith("/api/metadata/"):
             self.send_error(404, "Unknown API endpoint")
             return
 
@@ -649,10 +655,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(400, {"error": str(exc)})
             return
 
-        logger.info(
-            f"Received AI recipe request from {input_type} input "
-            f"({len(input_value)} characters)"
-        )
+        logger.info(f"Received AI recipe request from {input_type} input " f"({len(input_value)} characters)")
 
         try:
             result = ai_recipe.generate_recipe(self.config, input_type, input_value.strip())
@@ -669,10 +672,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             logger.exception("Failed to generate a recipe with the local model")
             self._send_json(500, {"error": "Unable to generate recipe"})
         else:
-            logger.info(
-                f"AI recipe generation succeeded "
-                f"({len(result.get('content', ''))} characters of Markdown)"
-            )
+            logger.info(f"AI recipe generation succeeded " f"({len(result.get('content', ''))} characters of Markdown)")
             self._send_json(200, result)
 
     def _read_json_payload(self) -> dict:
@@ -721,10 +721,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         body = self.rfile.read(length)
         message = BytesParser(policy=default).parsebytes(
-            b"Content-Type: "
-            + content_type.encode("ascii")
-            + b"\r\nMIME-Version: 1.0\r\n\r\n"
-            + body
+            b"Content-Type: " + content_type.encode("ascii") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body
         )
         if not message.is_multipart():
             raise ValueError("Invalid multipart request")
@@ -760,6 +757,51 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             payload["createFolder"] = payload["createFolder"] == "true"
 
         return payload, images
+
+    def do_DELETE(self):
+        parsed = urlsplit(self.path)
+
+        if parsed.path != "/api/recipe":
+            self.send_error(404, "Unknown API endpoint")
+            return
+
+        query = parse_qs(parsed.query)
+        paths = query.get("path", [])
+
+        if len(paths) != 1 or not paths[0]:
+            self._send_json(400, {"error": "Expected a path parameter"})
+            return
+
+        try:
+            file_path = self._resolve_markdown_path(paths[0])
+
+            if not file_path.is_file():
+                self._send_json(404, {"error": "Markdown file not found"})
+                return
+
+            # Get the directory containing the recipe
+            recipe_dir = file_path.parent
+
+            # Only delete the recipe.md file itself - don't delete other files in the directory
+            try:
+                # Delete the recipe.md file
+                file_path.unlink()
+
+                # Directory cleanup - if the directory is now empty, remove it too
+                if not any(recipe_dir.iterdir()):
+                    recipe_dir.rmdir()
+
+            except Exception:
+                logger.exception("Failed to delete recipe")
+                self._send_json(500, {"error": "Unable to delete recipe"})
+                return
+
+            logger.info("Deleted recipe: {}", file_path)
+            self._send_json(200, {"success": True})
+
+        except OSError:
+            logger.exception("Failed to delete recipe")
+            self._send_json(500, {"error": "Unable to delete recipe"})
 
     def _validate_uploaded_images(self, images: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
         if len(images) > self.MAX_IMAGE_UPLOAD_COUNT:
@@ -826,15 +868,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 for attribute, value in element.attrib.items():
                     if attribute.rsplit("}", 1)[-1].lower().startswith("on"):
                         raise ValueError(f"SVG contains unsupported active content: {filename}")
-                    if (
-                        attribute.rsplit("}", 1)[-1].lower() in {"href", "style"}
-                        and (
-                            ("url(" in value.lower() and "url(#" not in value.lower())
-                            or (
-                                attribute.lower().endswith("href")
-                                and not value.startswith("#")
-                            )
-                        )
+                    if attribute.rsplit("}", 1)[-1].lower() in {"href", "style"} and (
+                        ("url(" in value.lower() and "url(#" not in value.lower())
+                        or (attribute.lower().endswith("href") and not value.startswith("#"))
                     ):
                         raise ValueError(f"SVG contains unsupported external content: {filename}")
             return
@@ -896,8 +932,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         if "\\" in requested_path or "\x00" in requested_path:
             raise ValueError("Invalid folder path")
         if requested_path and (
-            requested_path.startswith("/")
-            or any(part in {"", ".", ".."} for part in requested_path.split("/"))
+            requested_path.startswith("/") or any(part in {"", ".", ".."} for part in requested_path.split("/"))
         ):
             raise ValueError("Folder path must stay inside the source directory")
 
@@ -930,10 +965,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if folder.is_symlink() or not folder.is_dir():
                 continue
             resolved_folder = folder.resolve()
-            if (
-                not resolved_folder.is_relative_to(self.source_directory)
-                or (resolved_folder / "recipe.md").exists()
-            ):
+            if not resolved_folder.is_relative_to(self.source_directory) or (resolved_folder / "recipe.md").exists():
                 continue
             folders.append(folder.relative_to(self.source_directory).as_posix())
 
