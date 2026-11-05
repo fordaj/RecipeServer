@@ -8,6 +8,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 
 - Renders every `recipe.md` in a source tree to a standalone recipe page.
 - Builds a searchable, sortable `index.html` with ratings, meals, categories, difficulty, and last-edited information.
+- Filters recipe ratings by reviewer (up to 30 reviewers, most active first) without hiding any recipe cards.
 - Creates recipes from the index in an existing folder or a new folder.
 - Uploads supported images directly into a recipe folder from the recipe editor.
 - Edits recipe Markdown, metadata, ratings, and comments in the browser.
@@ -139,6 +140,8 @@ The metadata checker warns when these fields are missing:
 - `difficulty`
 
 Warnings are advisory. They appear in the hidden **Metadata Status** section of the index and do not block generation or saving.
+
+When a reviewer is selected in **Filter Reviews**, Metadata Status also warns on recipes that have no rating from the selected reviewer(s).
 
 `categories` is the canonical field. Older recipes using the singular `category` are still read correctly, but that field is normalized to `categories` when the recipe is saved.
 
