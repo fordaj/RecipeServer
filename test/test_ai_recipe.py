@@ -106,6 +106,19 @@ def request_json(url: str, payload: dict | None = None) -> tuple[int, dict]:
         return error.code, json.loads(error.read())
 
 
+def request_ai_events(url: str, payload: dict) -> tuple[int, list[dict]]:
+    request = Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    with urlopen(request) as response:
+        events = [json.loads(line) for line in response]
+        return response.status, events
+
+
 @contextmanager
 def running_model_api() -> Iterator[tuple[str, dict]]:
     FakeModelAPIHandler.state = {}
@@ -200,11 +213,15 @@ def test_ai_generation_from_url_fetches_page_and_populates_source(tmp_path):
         article_url = f"{model_url}/article"
 
         with running_recipe_server(source, config) as base_url:
-            status, result = request_json(
+            status, events = request_ai_events(
                 f"{base_url}/api/ai-recipe",
-                {"inputType": "url", "input": article_url},
+                {"inputType": "url", "input": article_url, "stream": True},
             )
 
+    result_event = events[-1]
+    progress = [event["message"] for event in events if event["type"] == "progress"]
+    assert result_event["type"] == "result"
+    result = result_event["result"]
     assert status == 200
     assert result["metadata"]["source"] == {
         "author": None,
@@ -218,6 +235,11 @@ def test_ai_generation_from_url_fetches_page_and_populates_source(tmp_path):
     assert "Page title: Grandma's Brownies" in user_message
     assert "Preheat oven to 350 F" in user_message
     assert "Navigation" not in user_message
+    assert progress[0] == "Checking the configured AI model..."
+    assert f"Fetching recipe page: {article_url}" in progress
+    assert any("source URL and extracted text" in message for message in progress)
+    assert any("Generating recipe with test-model" in message for message in progress)
+    assert progress[-1] == "AI response received. Preparing the recipe draft..."
 
 
 def test_ai_endpoints_are_disabled_without_configuration(tmp_path):

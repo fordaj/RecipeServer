@@ -163,8 +163,8 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert 'value="date:asc"' in page
     assert 'data-view="cards"' in page and 'data-view="list"' in page
     assert 'src="/assets/index.js?v=' in page
-    assert '<link rel="stylesheet" href="/assets/recipe-editor.css">' in page
-    assert '<script src="/assets/recipe-editor.js" defer></script>' in page
+    assert '<link rel="stylesheet" href="/assets/recipe-editor.css?v=' in page
+    assert '<script src="/assets/recipe-editor.js?v=' in page
     assert 'id="create-recipe"' in page
     assert "stroke=\"currentColor\"" in page
     index_script = (

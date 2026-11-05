@@ -495,12 +495,11 @@
   color: var(--page-bg);
 }
 
-.recipe-editor__delete {
+.recipe-editor__footer .recipe-editor__delete {
   background: #dc2626;
   color: white;
   border: none;
   border-radius: 6px;
-  padding: 0.5rem 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.2s ease;

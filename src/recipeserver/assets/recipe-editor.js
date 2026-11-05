@@ -247,17 +247,59 @@
     return result;
   }
 
-  async function requestAiRecipe(inputType, input) {
+  async function requestAiRecipe(inputType, input, onProgress) {
     const response = await fetch(new URL("/api/ai-recipe", window.location.origin), {
       method: "POST",
       cache: "no-store",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ inputType, input }),
+      body: JSON.stringify({ inputType, input, stream: true }),
     });
-    const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
       throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
+
+    if (!response.body) {
+      throw new Error("The AI progress stream is unavailable.");
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let result;
+
+    async function handleLine(line) {
+      if (!line.trim()) return;
+
+      const event = JSON.parse(line);
+      if (event.type === "progress" && typeof event.message === "string") {
+        onProgress(event.message);
+      } else if (event.type === "error" && typeof event.message === "string") {
+        throw new Error(event.message);
+      } else if (event.type === "result" && event.result) {
+        result = event.result;
+      } else {
+        throw new Error("The AI progress stream returned an invalid event.");
+      }
+    }
+
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      const lines = buffer.split("\n");
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        await handleLine(line);
+      }
+
+      if (done) break;
+    }
+
+    await handleLine(buffer);
+    if (!result) {
+      throw new Error("The AI progress stream ended without a recipe.");
     }
 
     return result;
@@ -429,6 +471,10 @@
     let activeButton = null;
     let isCreating = false;
     let aiAvailable = false;
+
+    function setAiProgress(message) {
+      aiStatus.textContent = message;
+    }
 
     function setAiState(configured, available) {
       aiAvailable = configured && available;
@@ -611,16 +657,20 @@ Try this
       }
 
       setBusy(true);
-      aiStatus.textContent = "Generating recipe…";
+      setAiProgress(
+        inputType === "url"
+          ? `URL received: ${input}`
+          : "Recipe text received.",
+      );
       status.textContent = "";
 
       try {
-        const result = await requestAiRecipe(inputType, input);
+        const result = await requestAiRecipe(inputType, input, setAiProgress);
         textarea.value = result.content || "";
         populateMetadata(form, result.metadata || {});
-        aiStatus.textContent = "Recipe generated. Review it, then create the recipe.";
+        setAiProgress("Recipe draft ready. Review it, then create the recipe.");
       } catch (error) {
-        aiStatus.textContent = error.message;
+        setAiProgress(`Generation failed: ${error.message}`);
       } finally {
         setBusy(false);
       }
