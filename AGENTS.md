@@ -15,15 +15,16 @@ There is no CI and no Python linter/typechecker/formatter configuration. The onl
   - Single test: `uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_and_decimal_score`
 - Runtime logs: `.logs/<argv0>.py.log` in the current directory. Pass `--log-level DEBUG` for more detail.
 
-The repo does not include a test config file. On startup the app reads the recipe source directory from `<user-data>/config.txt`; if that file is missing, empty, or points at a non-directory, it opens a Tk directory picker and writes the chosen path to that file.
+The repo does not include a test config file. On startup the app reads the recipe source directory from the first line of `<user-data>/config.txt`; if that line is missing, empty, or points at a non-directory, it opens a Tk directory picker and writes the chosen path to that file. Optional local-model settings use `model_endpoint=` and `model_name=` lines in the same file. If `model_endpoint` is absent, startup asks for it with `input()` (Enter skips); a skipped value is saved so the app does not ask again.
 
 ## Architecture / flow
 
-- Entrypoint: `src/recipeserver/__main__.py` -> `core.main`. `handle_configuration()` resolves the recipe source directory, then `core.main` builds `Core`, calls `regen()`, starts `Server`, and runs `Tray`.
+- Entrypoint: `src/recipeserver/__main__.py` -> `core.main`. `handle_configuration()` resolves the recipe source directory and optional local-model settings, then `core.main` loads `NewRecipePrompt.md`, builds `Core`, calls `regen()`, starts `Server`, and runs `Tray`.
 - `core.regen()` deletes and recreates the site directory, copies `src/recipeserver/assets`, converts every `recipe.md` under the source tree in parallel, then rebuilds `index.html`.
 - The site directory is `platformdirs.user_data_path("recipe-server") / "site"` (macOS: `~/Library/Application Support/recipe-server/site`). It is generated output and is recreated on every `regen()`.
-- `markdown_to_html.py` renders a recipe page and injects metadata-derived HTML. `index_html_generator.py` builds the filter/sort index and metadata warnings. `server.py` serves the site and JSON APIs. `metadata_linter.py` owns the required-field list and warning text.
-- APIs: `GET /health`, `GET /api/markdown?path=...`, `GET|POST /api/recipe-editor?path=...`, and `GET|POST /api/metadata/<field>?path=...`. `path` must be a relative `.md` path inside the source directory. Every save regenerates that recipe page and the index.
+- `markdown_to_html.py` renders a recipe page and injects metadata-derived HTML. `index_html_generator.py` builds the filter/sort index and metadata warnings. `server.py` serves the site and JSON APIs. `metadata_linter.py` owns the required-field list and warning text. `ai_recipe.py` checks a configured OpenAI-compatible local endpoint, fetches URL text, and drafts recipe Markdown/metadata without writing files.
+- APIs: `GET /health`, `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/ai-status`, `POST /api/ai-recipe`, `GET /api/markdown?path=...`, `GET|POST /api/recipe-editor?path=...`, and `GET|POST /api/metadata/<field>?path=...`. `path` must be a relative `.md` path inside the source directory. Every save regenerates that recipe page and the index.
+- AI generation is opt-in. With no `model_endpoint`, the create dialog hides the From text/From URL controls. A configured but unreachable endpoint shows them disabled. `NewRecipePrompt.md` supplies the system prompt and is re-read on every run.
 - Generated pages use root-absolute URLs such as `/assets/...` and `/recipe-dir/recipe.html`, so they must be served from the site root (port 8000); opening the files directly will not load their assets.
 - Index metadata warnings are hidden by default and shown by the "Metadata Status" toggle. They do not block generation, serving, or saving.
 
@@ -44,6 +45,7 @@ These choices are deliberate and are not bugs to "fix":
 
 - This is a local desktop app, not a headless service. Startup may open a Tk directory picker, and the process runs a `pystray` tray icon. The server listens on fixed port 8000, binds `0.0.0.0`, and has no authentication; the tray opens `http://localhost:8000`.
 - Generated HTML is disposable output. The Markdown files in the source tree are the source of truth, and the site directory is deleted and rebuilt on every startup. Never store source content or manual edits in the site directory.
+- The local AI integration is optional and never writes recipe files. Its output only prefills the create dialog; the normal create endpoint is still the only path that saves a new recipe.
 - Browser edits are written back to the source Markdown, not to generated HTML. The editor is the only path that updates `updatedOn`.
 - Metadata warnings are advisory. Missing required fields are allowed in the data and only surface through the hidden index warning chips.
 - Front matter uses `categories`; the singular `category` support is a read-only compatibility path for older recipes, not an alternative naming convention.

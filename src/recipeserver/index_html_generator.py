@@ -49,6 +49,8 @@ def _versioned_asset_url(url: str) -> str:
 
 INDEX_CSS_URL = _versioned_asset_url(INDEX_CSS_PATH)
 INDEX_JS_URL = _versioned_asset_url(INDEX_JS_PATH)
+RECIPE_EDITOR_CSS_URL = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
+RECIPE_EDITOR_JS_URL = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
 
 _DETAIL_ICONS = {
     "makes": "/assets/chef-hat.svg",
@@ -525,9 +527,9 @@ class IndexHTMLGenerator:
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
                 <link rel="stylesheet" href="{THEME_CSS_PATH}">
                 <link rel="stylesheet" href="{INDEX_CSS_URL}">
-                <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_PATH}">
+                <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_URL}">
                 <script src="{INDEX_JS_URL}" defer></script>
-                <script src="{RECIPE_EDITOR_JS_PATH}" defer></script>
+                <script src="{RECIPE_EDITOR_JS_URL}" defer></script>
             </head>
             <body>
                 <main class="recipes">
