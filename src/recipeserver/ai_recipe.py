@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Callable
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -434,26 +435,50 @@ def parse_model_output(output: str) -> tuple[str, dict[str, Any]]:
     return content, metadata
 
 
-def generate_recipe(config: object, input_type: str, input_value: str) -> dict[str, Any]:
+def generate_recipe(
+    config: object,
+    input_type: str,
+    input_value: str,
+    progress_callback: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
     if not is_configured(config):
         raise ModelUnavailable("The local model is not configured")
+
+    def report_progress(message: str) -> None:
+        if progress_callback is not None:
+            progress_callback(message)
 
     endpoint = str(getattr(config, "model_endpoint", "") or "").strip()
     prompt = str(getattr(config, "new_recipe_prompt", "") or "").strip()
     configured_name = str(getattr(config, "model_name", "") or "").strip()
 
+    report_progress("Checking the configured AI model...")
     model_name = resolve_model_name(endpoint, configured_name)
     if not model_name:
         raise ModelUnavailable(
             "Could not determine a model name. Configure model_name in config.txt."
         )
 
+    if input_type == "url":
+        report_progress(f"Fetching recipe page: {input_value}")
+    else:
+        report_progress("Preparing the recipe text...")
+
     user_message, title = _build_user_message(input_type, input_value)
+    if input_type == "url":
+        report_progress(
+            f"Page fetched. Sending the source URL and extracted text to {model_name}..."
+        )
+    else:
+        report_progress(f"Sending the recipe text to {model_name}...")
+
     logger.info(
         f"Generating recipe from {input_type} input with local model '{model_name}' "
         f"({len(user_message)} characters of source content)"
     )
+    report_progress(f"Generating recipe with {model_name}...")
     output = _chat(endpoint, model_name, prompt, user_message)
+    report_progress("AI response received. Preparing the recipe draft...")
     content, metadata = parse_model_output(output)
     logger.info(
         f"Model returned {len(output)} characters; parsed "
