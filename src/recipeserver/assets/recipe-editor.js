@@ -176,6 +176,9 @@
                     <button type="button" class="recipe-editor__cancel">
                         Cancel
                     </button>
+                    <button type="button" class="recipe-editor__delete" hidden>
+                        Delete Recipe
+                    </button>
                     <button type="submit" class="recipe-editor__save">
                         Save
                     </button>
@@ -401,6 +404,7 @@
     const saveButton = dialog.querySelector(".recipe-editor__save");
     const cancelButton = dialog.querySelector(".recipe-editor__cancel");
     const closeButton = dialog.querySelector(".recipe-editor__close");
+    const deleteButton = dialog.querySelector(".recipe-editor__delete");
     const heading = dialog.querySelector(".recipe-editor__header h2");
     const location = dialog.querySelector(".recipe-editor__location");
     const folderMode = dialog.querySelector(".recipe-editor__folder-mode");
@@ -577,12 +581,22 @@ Try this
           textarea.value = result.content;
           populateMetadata(form, result.metadata);
           originalMetadata = JSON.stringify(readMetadata(form));
+
+          // Show delete button for existing recipes
+          deleteButton.hidden = false;
         }
         status.textContent = "";
       } catch (error) {
         status.textContent = error.message;
       } finally {
         setBusy(false);
+        // Hide delete button for new recipes and show for existing ones
+        // This is already handled by the logic above, but let's be sure
+        if (isCreating) {
+          deleteButton.hidden = true;
+        } else {
+          deleteButton.hidden = false;
+        }
       }
     }
 
@@ -695,6 +709,42 @@ Try this
         }
 
         status.textContent = isCreating ? "Created! Reloading…" : "Saved! Reloading…";
+        window.location.reload();
+      } catch (error) {
+        status.textContent = error.message;
+        setBusy(false);
+      }
+    });
+
+    deleteButton.addEventListener("click", async () => {
+      if (busy) return;
+
+      // Confirm deletion
+      const confirmation = confirm(
+        "Are you sure you want to delete this recipe? This action cannot be undone.",
+      );
+      if (!confirmation) return;
+
+      try {
+        setBusy(true);
+        status.textContent = "Deleting recipe…";
+
+        // Get the path of the current recipe
+        const path = getMarkdownPath();
+        const url = new URL("/api/recipe", window.location.origin);
+        url.searchParams.set("path", path);
+
+        const response = await fetch(url, {
+          method: "DELETE",
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          const result = await response.json().catch(() => ({}));
+          throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+        }
+
+        status.textContent = "Recipe deleted! Reloading…";
         window.location.reload();
       } catch (error) {
         status.textContent = error.message;
