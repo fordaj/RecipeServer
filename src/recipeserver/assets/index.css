@@ -174,6 +174,104 @@ a {
   background-size: 0.9rem;
 }
 
+/* Multi-select review filter */
+
+.review-filter {
+  display: block;
+}
+
+.recipe-advanced__content .review-filter {
+  flex: 1 1 16rem;
+  max-width: 24rem;
+}
+
+.review-filter summary {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 0.7rem 1.8rem 0.7rem 2.1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background-color: var(--input-bg);
+  color: var(--heading-color);
+  font: inherit;
+  line-height: 1.4;
+  cursor: pointer;
+  list-style: none;
+
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 0.9rem;
+}
+
+.review-filter summary::-webkit-details-marker {
+  display: none;
+}
+
+.review-filter summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-filter[open] summary,
+.review-filter summary:focus-visible {
+  outline: 2px solid var(--food-color);
+  border-color: var(--food-color);
+}
+
+.review-filter__menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  width: max(100%, 14rem);
+  max-height: 18rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--hover-shadow);
+}
+
+.review-filter__option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 5px;
+  color: var(--text-color);
+  font-size: 0.86rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.review-filter__option:hover {
+  background: var(--hover-bg);
+}
+
+.review-filter__option input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  flex: 0 0 auto;
+  accent-color: var(--food-color);
+  cursor: pointer;
+}
+
+.review-filter__count {
+  margin-left: auto;
+  color: var(--muted-color);
+  font-size: 0.75rem;
+}
+
 /* Focus states */
 
 .recipe-toolbar input:focus-visible,
@@ -453,6 +551,10 @@ a {
   font-weight: 700;
   line-height: 1.3;
   white-space: nowrap;
+}
+
+.recipe-rating[hidden] {
+  display: none;
 }
 
 .recipe-rating__star {

@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
+import json
 
 from bs4 import BeautifulSoup
 
@@ -161,7 +162,7 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert 'value="date:desc"' in page
     assert 'value="date:asc"' in page
     assert 'data-view="cards"' in page and 'data-view="list"' in page
-    assert '<script src="/assets/index.js" defer></script>' in page
+    assert 'src="/assets/index.js?v=' in page
     assert '<link rel="stylesheet" href="/assets/recipe-editor.css">' in page
     assert '<script src="/assets/recipe-editor.js" defer></script>' in page
     assert 'id="create-recipe"' in page
@@ -174,6 +175,91 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert 'id="clear-filters" type="button" hidden' in page
     assert 'data-title="Cinnamon &quot;Rolls&quot;"' in page
     assert 'data-date="2024-06-15"' in page
+
+
+def test_index_review_filter_is_populated_and_sorted_by_review_count(tmp_path: Path):
+    recipe_ratings = {
+        "alpha": [{"name": "Avery", "rating": 8}, {"name": "Blair", "rating": 7}],
+        "beta": [{"name": "Avery", "rating": 9}, {"name": "Casey", "rating": 6}],
+        "gamma": [
+            {"name": "Avery", "rating": 10},
+            {"name": "Blair", "rating": 8},
+            {"name": "Dana", "rating": 5},
+        ],
+    }
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    for slug, ratings in recipe_ratings.items():
+        recipe_path = tmp_path / slug / "index.html"
+        recipe_path.parent.mkdir()
+        recipe_path.write_text(f"<h1>{slug.title()}</h1>", encoding="UTF-8")
+        generator.add(Recipe({"ratings": ratings}, recipe_path))
+
+    generator.convert()
+
+    page = (tmp_path / "index.html").read_text(encoding="UTF-8")
+    soup = BeautifulSoup(page, "html.parser")
+    review_filter = soup.select_one("#review-filter")
+    assert review_filter is not None
+    assert "Filter Reviews" in review_filter.select_one("summary").get_text(" ", strip=True)
+    assert "Filter Reviews: All" in page
+    advanced = soup.select_one(".recipe-advanced__content")
+    assert advanced is not None
+    assert advanced.select_one("#review-filter") is not None
+    assert soup.select_one(".recipe-filters #review-filter") is None
+
+    all_reviews = soup.select_one("#filter-reviews-all")
+    assert all_reviews is not None
+    assert all_reviews.has_attr("checked")
+
+    options = soup.select("#review-filter .filter-reviews")
+    assert [option["value"] for option in options] == ["avery", "blair", "casey", "dana"]
+    assert [
+        option.parent.select_one(".review-filter__count").get_text(strip=True)
+        for option in options
+    ] == ["3", "2", "1", "1"]
+    assert [option.parent.select_one("span").get_text(strip=True) for option in options] == [
+        "Avery",
+        "Blair",
+        "Casey",
+        "Dana",
+    ]
+
+    alpha = soup.select_one('#recipe-list .recipe[data-title="Alpha"]')
+    assert alpha is not None
+    assert json.loads(alpha["data-ratings"]) == [
+        {"name": "avery", "rating": 8},
+        {"name": "blair", "rating": 7},
+    ]
+
+
+def test_index_review_filter_keeps_only_the_top_30_reviewers(tmp_path: Path):
+    recipe_path = tmp_path / "many-reviews" / "index.html"
+    recipe_path.parent.mkdir()
+    recipe_path.write_text("<h1>Many Reviews</h1>", encoding="UTF-8")
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.add(
+        Recipe(
+            {
+                "ratings": [
+                    {"name": f"Reviewer {index:02d}", "rating": 5}
+                    for index in range(1, 32)
+                ]
+            },
+            recipe_path,
+        )
+    )
+
+    generator.convert()
+
+    soup = BeautifulSoup(
+        (tmp_path / "index.html").read_text(encoding="UTF-8"),
+        "html.parser",
+    )
+    options = soup.select("#review-filter .filter-reviews")
+    assert len(options) == 30
+    assert options[0]["value"] == "reviewer 01"
+    assert options[-1]["value"] == "reviewer 30"
+    assert all(option["value"] != "reviewer 31" for option in options)
 
 
 def test_unrated_recipes_remain_sortable(tmp_path: Path):

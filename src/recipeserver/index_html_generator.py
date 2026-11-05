@@ -1,6 +1,8 @@
 import html
+import hashlib
 import json
 import math
+import unicodedata
 from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -36,6 +38,17 @@ AI_SVG = FILE_PATH.parent / "assets" / "ai.svg"
 LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 WARNING_SVG = FILE_PATH.parent / "assets" / "warning.svg"
 PLUS_SVG = FILE_PATH.parent / "assets" / "plus.svg"
+
+
+def _versioned_asset_url(url: str) -> str:
+    """Append a content hash so browsers pick up changed assets."""
+    asset_path = FILE_PATH.parent / "assets" / Path(url).name
+    digest = hashlib.sha1(asset_path.read_bytes()).hexdigest()[:10]
+    return f"{url}?v={digest}"
+
+
+INDEX_CSS_URL = _versioned_asset_url(INDEX_CSS_PATH)
+INDEX_JS_URL = _versioned_asset_url(INDEX_JS_PATH)
 
 _DETAIL_ICONS = {
     "makes": "/assets/chef-hat.svg",
@@ -91,24 +104,41 @@ class IndexHTMLGenerator:
         return collected
 
     @staticmethod
-    def json_attribute(value: list[str]) -> str:
+    def json_attribute(value: list[object]) -> str:
         """Serialize a list safely for an HTML attribute."""
         return html.escape(json.dumps(value), quote=True)
 
     @staticmethod
-    def _average_rating(metadata: dict) -> tuple[float | None, int]:
+    def _reviewer_key(name: str) -> str:
+        return unicodedata.normalize("NFKC", name.strip()).casefold()
+
+    @staticmethod
+    def _valid_ratings(metadata: dict) -> list[tuple[str, int | float]]:
         ratings = metadata.get("ratings", [])
         if not isinstance(ratings, list):
-            return None, 0
+            return []
 
-        scores = [
-            score
-            for rating in ratings
-            if isinstance(rating, dict)
-            and isinstance((score := rating.get("rating")), (int, float))
-            and not isinstance(score, bool)
-            and math.isfinite(score)
-        ]
+        valid: list[tuple[str, int | float]] = []
+        for rating in ratings:
+            if not isinstance(rating, dict):
+                continue
+
+            score = rating.get("rating")
+            if (
+                not isinstance(score, (int, float))
+                or isinstance(score, bool)
+                or not math.isfinite(score)
+            ):
+                continue
+
+            name = rating.get("name")
+            valid.append((name.strip() if isinstance(name, str) else "", score))
+
+        return valid
+
+    @classmethod
+    def _average_rating(cls, metadata: dict) -> tuple[float | None, int]:
+        scores = [score for _, score in cls._valid_ratings(metadata)]
         return (mean(scores), len(scores)) if scores else (None, 0)
 
     @staticmethod
@@ -264,6 +294,16 @@ class IndexHTMLGenerator:
         all_contributors: set[str] = set()
         all_source_titles: set[str] = set()
 
+        reviewer_names: dict[str, str] = {}
+        reviewer_counts: dict[str, int] = {}
+        for recipe in self.recipes:
+            for name, _ in self._valid_ratings(recipe.metadata):
+                if not name:
+                    continue
+                key = self._reviewer_key(name)
+                reviewer_counts[key] = reviewer_counts.get(key, 0) + 1
+                reviewer_names.setdefault(key, name)
+
         for recipe in self.recipes:
             metadata = recipe.metadata
             file = recipe.html_file
@@ -298,6 +338,13 @@ class IndexHTMLGenerator:
             all_source_titles.update(source_titles)
 
             search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *contributors, *source_titles])
+            reviewer_ratings = [
+                {
+                    "name": self._reviewer_key(name) if name else "",
+                    "rating": score,
+                }
+                for name, score in self._valid_ratings(metadata)
+            ]
             average_rating, rating_count = self._average_rating(metadata)
             rating_attribute = f"{average_rating:.6g}" if average_rating is not None else ""
             makes = metadata.get("makes")
@@ -429,6 +476,7 @@ class IndexHTMLGenerator:
                 f' data-cuisine="{self.json_attribute(cuisine)}"'
                 f' data-contributors="{self.json_attribute(contributors)}"'
                 f' data-source-titles="{self.json_attribute(source_titles)}"'
+                f' data-ratings="{self.json_attribute(reviewer_ratings)}"'
                 f' data-rating="{rating_attribute}"'
                 f' data-makes="{makes_value}"'
                 f' data-difficulty="{difficulty_value}"'
@@ -451,6 +499,22 @@ class IndexHTMLGenerator:
                 for v in sorted(values, key=str.casefold)
             )
 
+        reviewer_entries = sorted(
+            reviewer_counts.items(),
+            key=lambda item: (-item[1], reviewer_names[item[0]].casefold()),
+        )[:30]
+        reviewer_options = "\n".join(
+            (
+                '<label class="review-filter__option">'
+                '<input type="checkbox" class="filter-reviews"'
+                f' value="{html.escape(key, quote=True)}">'
+                f"<span>{html.escape(reviewer_names[key])}</span>"
+                f'<span class="review-filter__count">{count}</span>'
+                "</label>"
+            )
+            for key, count in reviewer_entries
+        )
+
         html_page = dedent(f"""\
             <!DOCTYPE html>
             <html lang="en">
@@ -460,9 +524,9 @@ class IndexHTMLGenerator:
                 <title>Ford Family Recipes</title>
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
                 <link rel="stylesheet" href="{THEME_CSS_PATH}">
-                <link rel="stylesheet" href="{INDEX_CSS_PATH}">
+                <link rel="stylesheet" href="{INDEX_CSS_URL}">
                 <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_PATH}">
-                <script src="{INDEX_JS_PATH}" defer></script>
+                <script src="{INDEX_JS_URL}" defer></script>
                 <script src="{RECIPE_EDITOR_JS_PATH}" defer></script>
             </head>
             <body>
@@ -535,7 +599,6 @@ class IndexHTMLGenerator:
                                 </select>
                             </label>
 
-
                             <label class="filter-control">
                                 {UP_DOWN_ARROW_SVG.read_text(encoding="UTF-8", newline="\n")}
                                 <select id="sort-recipes" aria-label="Sort recipes">
@@ -561,6 +624,22 @@ class IndexHTMLGenerator:
                             </summary>
 
                             <div class="recipe-advanced__content">
+                                <details class="filter-control review-filter" id="review-filter">
+                                    <summary>
+                                        {USER_SVG.read_text(encoding="UTF-8", newline="\n")}
+                                        <span id="review-filter-label">Filter Reviews: All</span>
+                                    </summary>
+
+                                    <fieldset class="review-filter__menu">
+                                        <legend class="visually-hidden">Filter Reviews</legend>
+                                        <label class="review-filter__option">
+                                            <input type="checkbox" id="filter-reviews-all" checked>
+                                            <span>All reviews</span>
+                                        </label>
+                                        {reviewer_options}
+                                    </fieldset>
+                                </details>
+
                                 <label class="metadata-status-toggle">
                                     <input
                                         id="metadata-status"
