@@ -496,12 +496,20 @@ Try this
       unlockBackgroundScroll();
     });
 
+    // BEGIN Close dialogue if a full click cycle occurs outside of dialogue
+    let pointerDownTarget = null;
+
+    dialog.addEventListener("pointerdown", (event) => {
+      pointerDownTarget = event.target;
+    });
+
     dialog.addEventListener("click", (event) => {
-      // Close when clicking the backdrop, but not the dialog itself.
-      if (event.target === dialog) {
+      if (event.target === dialog && pointerDownTarget === dialog) {
         closeEditor();
       }
+      pointerDownTarget = null;
     });
+    // END Close dialogue if a full click cycle occurs outside of dialogue
 
     if (editButton) editButton.addEventListener("click", () => openEditor("edit"));
     if (createButton) createButton.addEventListener("click", () => openEditor("create"));
