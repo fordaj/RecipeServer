@@ -59,6 +59,10 @@
   }
 }
 
+a {
+  color: var(--food-color);
+}
+
 .recipe-icon {
   color: var(--food-color);
   width: 32px;
@@ -411,15 +415,25 @@ input[type="checkbox"]:focus-visible {
   font-weight: 400;
 }
 
-/* Meals, difficulty, categories, and tags */
+/* Meals, difficulty, cuisine, categories, and tags */
 
 .recipe-overview__meals,
 .recipe-overview__difficulty,
+.recipe-overview__cuisine,
 .recipe-overview__categories,
 .recipe-overview__tags {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.35rem;
+  display: inline;
+}
+
+/* Keep the icon separated from its values without adding gaps between
+   comma-separated values (text nodes become flex items when the group is
+   displayed as a flex container). */
+.recipe-overview__meals > svg,
+.recipe-overview__difficulty > svg,
+.recipe-overview__cuisine > svg,
+.recipe-overview__categories > svg,
+.recipe-overview__tags > svg {
+  margin-right: 0.35rem;
 }
 
 .recipe-overview__icon {

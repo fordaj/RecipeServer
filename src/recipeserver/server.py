@@ -237,6 +237,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlsplit(self.path)
+        if parsed.path in ("/health", "/health/"):
+            self._send_json(200, {"status": "ok"})
+            return
+
         if parsed.path == "/api/recipe-folders":
             try:
                 self._send_json(200, {"folders": self._list_recipe_folders()})
