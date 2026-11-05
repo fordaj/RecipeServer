@@ -105,7 +105,10 @@ class Configuration:
 
         self.model_endpoint = endpoint
         self.model_name = model_name
-        logger.info(f"Configured local model endpoint: {endpoint}")
+        logger.info(
+            f"Configured local model endpoint: {endpoint} "
+            f"(model: {model_name or 'auto-detect'})"
+        )
 
     def load_new_recipe_prompt(self) -> str:
         """Load the prompt requirements fresh so edits apply on the next run."""
@@ -116,6 +119,10 @@ class Configuration:
             prompt = ""
 
         self.new_recipe_prompt = prompt
+        logger.info(
+            f"Loaded new recipe prompt from {NEW_RECIPE_PROMPT_PATH} "
+            f"({len(prompt)} characters)"
+        )
         return prompt
 
     def _write_config(self, config_file: Path) -> None:
@@ -126,7 +133,11 @@ class Configuration:
         if self.model_name:
             lines.append(f"{MODEL_NAME_KEY}={self.model_name}")
 
-        logger.debug(f"Saving configuration to {config_file}")
+        logger.debug(
+            f"Saving configuration to {config_file} "
+            f"(source={self.source_directory}, endpoint={self.model_endpoint or '(none)'}, "
+            f"model={self.model_name or '(auto)'})"
+        )
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
 
     def handle_configuration(self, optional_config_txt: Optional[Path] = None):
@@ -141,6 +152,10 @@ class Configuration:
         logger.debug(f"Reading {config_file}")
         config_contents = config_file.read_text(encoding="UTF-8").strip()
         config_source, settings = self._parse_config(config_contents)
+        logger.debug(
+            f"Parsed configuration: source={config_source!r}, "
+            f"keys={sorted(settings)}"
+        )
 
         if config_source:
             source_directory = Path(config_source).expanduser()
@@ -148,16 +163,33 @@ class Configuration:
             source_directory = Path()
 
         if not config_source or not source_directory.is_dir():
+            logger.warning(
+                f"Recipe source directory is missing or invalid: {config_source!r}"
+            )
             print("Recipes directory not found, please select from the file dialogue")
             source_directory = self.get_source_dir_from_user()
 
         self.source_directory = source_directory.resolve()
+        logger.info(f"Using recipe source directory: {self.source_directory}")
 
         if MODEL_ENDPOINT_KEY in settings:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")
             self.model_name = settings.get(MODEL_NAME_KEY, "")
+            logger.info(
+                f"Using configured local model endpoint: "
+                f"{self.model_endpoint or '(none)'} "
+                f"(model: {self.model_name or 'auto-detect'})"
+            )
         else:
+            logger.debug(
+                f"No {MODEL_ENDPOINT_KEY} key in configuration; prompting the user"
+            )
             self.get_model_settings_from_user()
 
         self.load_new_recipe_prompt()
+        logger.info(
+            f"AI recipe creation is {'enabled' if self.ai_configured else 'disabled'} "
+            f"(endpoint={'set' if self.model_endpoint else 'missing'}, "
+            f"prompt={'set' if self.new_recipe_prompt else 'missing'})"
+        )
         self._write_config(config_file)

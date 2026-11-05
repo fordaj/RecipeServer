@@ -245,7 +245,16 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             return
 
         if parsed.path in ("/api/ai-status", "/api/ai-status/"):
-            self._send_json(200, ai_recipe.ai_status(self.config))
+            logger.debug("Received /api/ai-status request")
+            try:
+                status = ai_recipe.ai_status(self.config)
+            except Exception:
+                logger.exception("Failed to check local model status")
+                self._send_json(500, {"error": "Unable to check local model status"})
+                return
+
+            logger.debug(f"Responding to /api/ai-status with {status}")
+            self._send_json(200, status)
             return
 
         if parsed.path == "/api/recipe-folders":
@@ -632,24 +641,38 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 raise ValueError("Expected a non-empty input value")
 
         except _RequestTooLarge:
+            logger.warning("AI recipe request body was too large")
             self._send_json(413, {"error": "Request body too large"})
             return
         except (ValueError, json.JSONDecodeError) as exc:
+            logger.warning(f"Invalid AI recipe request: {exc}")
             self._send_json(400, {"error": str(exc)})
             return
+
+        logger.info(
+            f"Received AI recipe request from {input_type} input "
+            f"({len(input_value)} characters)"
+        )
 
         try:
             result = ai_recipe.generate_recipe(self.config, input_type, input_value.strip())
         except ai_recipe.ModelUnavailable as exc:
+            logger.warning(f"Local model unavailable: {exc}")
             self._send_json(503, {"error": str(exc)})
         except (ai_recipe.ModelRequestError, ai_recipe.SourceFetchError) as exc:
+            logger.warning(f"AI recipe generation failed: {exc}")
             self._send_json(502, {"error": str(exc)})
         except ValueError as exc:
+            logger.warning(f"Invalid AI recipe input: {exc}")
             self._send_json(400, {"error": str(exc)})
         except Exception:
             logger.exception("Failed to generate a recipe with the local model")
             self._send_json(500, {"error": "Unable to generate recipe"})
         else:
+            logger.info(
+                f"AI recipe generation succeeded "
+                f"({len(result.get('content', ''))} characters of Markdown)"
+            )
             self._send_json(200, result)
 
     def _read_json_payload(self) -> dict:

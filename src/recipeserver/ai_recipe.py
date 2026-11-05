@@ -57,13 +57,23 @@ def ai_status(config: object | None) -> dict[str, Any]:
     endpoint = str(getattr(config, "model_endpoint", "") or "").strip()
     model_name = str(getattr(config, "model_name", "") or "").strip()
     configured = is_configured(config)
+    logger.debug(
+        f"Checking local model status: configured={configured}, "
+        f"endpoint={endpoint or '(none)'}, model={model_name or '(auto)'}"
+    )
 
     if not configured:
+        logger.info("AI recipe creation is not configured")
         return {"configured": False, "available": False, "model": model_name}
 
+    available = is_available(endpoint)
+    logger.info(
+        f"Local model status: configured=True, available={available}, "
+        f"endpoint={endpoint}"
+    )
     return {
         "configured": True,
-        "available": is_available(endpoint),
+        "available": available,
         "model": model_name,
     }
 
@@ -135,31 +145,45 @@ def _model_names_from_payload(payload: object) -> list[str]:
 
 
 def list_models(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> list[str]:
+    models_url = normalize_models_url(endpoint)
+    logger.debug(f"Listing models from {models_url}")
     request = Request(
-        normalize_models_url(endpoint),
+        models_url,
         headers={"Accept": "application/json", "User-Agent": USER_AGENT},
         method="GET",
     )
 
     with urlopen(request, timeout=timeout) as response:
         if not 200 <= response.status < 300:
+            logger.warning(
+                f"Model list request to {models_url} returned HTTP {response.status}"
+            )
             return []
         payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
 
-    return _model_names_from_payload(payload)
+    names = _model_names_from_payload(payload)
+    logger.debug(f"Models reported by {models_url}: {names}")
+    return names
 
 
 def resolve_model_name(endpoint: str, configured_name: str = "") -> str:
     configured_name = configured_name.strip()
     if configured_name:
+        logger.debug(f"Using configured model name: {configured_name}")
         return configured_name
 
     try:
         models = list_models(endpoint)
-    except (HTTPError, URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError):
+    except (HTTPError, URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError) as exc:
+        logger.warning(f"Could not auto-detect a model name from {endpoint}: {exc}")
         return ""
 
-    return models[0] if models else ""
+    if not models:
+        logger.warning(f"The model endpoint {endpoint} did not report any models")
+        return ""
+
+    logger.info(f"Auto-selected local model: {models[0]}")
+    return models[0]
 
 
 def is_available(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> bool:
@@ -167,8 +191,16 @@ def is_available(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -
         list_models(endpoint, timeout=timeout)
     except HTTPError as exc:
         # Some compatible servers do not expose /models but still accept chat requests.
-        return exc.code in {404, 405}
-    except (URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError):
+        if exc.code in {404, 405}:
+            logger.debug(
+                f"{endpoint} does not expose a model list (HTTP {exc.code}); "
+                "assuming chat requests are supported"
+            )
+            return True
+        logger.warning(f"Model endpoint {endpoint} returned HTTP {exc.code}")
+        return False
+    except (URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError) as exc:
+        logger.warning(f"Model endpoint {endpoint} is unavailable: {exc}")
         return False
     return True
 
@@ -205,6 +237,7 @@ def fetch_url_content(url: str) -> tuple[str, str]:
         raise ValueError("URL must start with http:// or https://")
 
     request = Request(url, headers={"User-Agent": USER_AGENT}, method="GET")
+    logger.info(f"Fetching recipe source from {url}")
 
     try:
         with urlopen(request, timeout=URL_TIMEOUT_SECONDS) as response:
@@ -212,12 +245,18 @@ def fetch_url_content(url: str) -> tuple[str, str]:
             charset = response.headers.get_content_charset() or "utf-8"
             body = response.read(MAX_URL_BYTES + 1)
     except (HTTPError, URLError, OSError) as exc:
+        logger.warning(f"Unable to fetch recipe URL {url}: {exc}")
         raise SourceFetchError(f"Unable to fetch URL: {exc}") from exc
 
     if len(body) > MAX_URL_BYTES:
+        logger.warning(f"Recipe URL content from {url} exceeds {MAX_URL_BYTES} bytes")
         raise SourceFetchError("The URL content is too large to send to the model")
 
-    return _extract_url_text(body, content_type, charset, url)
+    title, text = _extract_url_text(body, content_type, charset, url)
+    logger.debug(
+        f"Extracted {len(text)} characters of text from {url} (title={title!r})"
+    )
+    return title, text
 
 
 def _build_user_message(input_type: str, input_value: str) -> tuple[str, str]:
@@ -256,6 +295,10 @@ def _chat(endpoint: str, model_name: str, prompt: str, user_message: str) -> str
         "max_tokens": 4096,
         "stream": False,
     }
+    logger.info(
+        f"Sending recipe request to {chat_url} (model={model_name}, "
+        f"system_prompt_chars={len(prompt)}, user_chars={len(user_message)})"
+    )
     request = Request(
         chat_url,
         data=json.dumps(payload).encode("utf-8"),
@@ -269,14 +312,20 @@ def _chat(endpoint: str, model_name: str, prompt: str, user_message: str) -> str
 
     try:
         with urlopen(request, timeout=MODEL_TIMEOUT_SECONDS) as response:
+            logger.debug(
+                f"Model request to {chat_url} returned HTTP {response.status}"
+            )
             body = _read_response(response, MAX_MODEL_RESPONSE_BYTES)
+            logger.debug(f"Received {len(body)} bytes from the model")
     except HTTPError as exc:
         details = exc.read(2000).decode("utf-8", errors="replace").strip()
         message = f"Model request failed (HTTP {exc.code})"
         if details:
             message = f"{message}: {details}"
+        logger.error(f"{message} ({chat_url})")
         raise ModelRequestError(message) from exc
     except (URLError, OSError) as exc:
+        logger.error(f"Could not reach the model endpoint {chat_url}: {exc}")
         raise ModelUnavailable(f"Could not reach the model endpoint: {exc}") from exc
 
     try:
@@ -401,10 +450,16 @@ def generate_recipe(config: object, input_type: str, input_value: str) -> dict[s
 
     user_message, title = _build_user_message(input_type, input_value)
     logger.info(
-        f"Generating recipe from {input_type} input with local model '{model_name}'"
+        f"Generating recipe from {input_type} input with local model '{model_name}' "
+        f"({len(user_message)} characters of source content)"
     )
     output = _chat(endpoint, model_name, prompt, user_message)
     content, metadata = parse_model_output(output)
+    logger.info(
+        f"Model returned {len(output)} characters; parsed "
+        f"{len(content)} characters of Markdown and metadata fields "
+        f"{sorted(metadata)}"
+    )
 
     default_source = _source_for_input(
         input_type,
