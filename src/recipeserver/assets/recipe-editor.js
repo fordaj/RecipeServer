@@ -14,6 +14,10 @@
                         aria-label="Close editor">&times;</button>
                 </header>
 
+                <details class="recipe-editor__details">
+                    <summary>Files</summary>
+
+                      <fieldset class="recipe-editor__metadata">
                 <div class="recipe-editor__location" hidden>
                     <label>
                         Folder
@@ -33,18 +37,23 @@
                             placeholder="Desserts/Chocolate">
                     </label>
                 </div>
-
-                <section class="recipe-editor__images" aria-label="Recipe images">
+ 
                     <label for="recipe-editor-images">Recipe images</label>
                     <input id="recipe-editor-images" type="file" multiple
                         accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif,.svg,.avif">
                     <p class="recipe-editor__images-help">
                         Images are saved beside the recipe. Up to 20 files and 25 MB per save.
                     </p>
-                    <p class="recipe-editor__images-selected" aria-live="polite"></p>
-                </section>
+                    <p class="recipe-editor__images-selected" aria-live="polite"></p> 
 
-                <section class="recipe-editor__ai" aria-label="Create recipe from source" hidden>
+                    </fieldset>
+                </details>
+
+                
+                <details class="recipe-editor__details">
+                    <summary>Auto-Generate</summary>
+
+                      <fieldset class="recipe-editor__metadata"> 
                     <h3>Create from source</h3>
                     <p class="recipe-editor__ai-status" role="status"></p>
 
@@ -66,10 +75,12 @@
                         <button type="button" class="recipe-editor__ai-generate-url">
                             Generate from URL
                         </button>
-                    </div>
-                </section>
+                    </div> 
 
-                <details class="recipe-editor__details" open>
+                    </fieldset>
+                </details>
+
+                <details class="recipe-editor__details">
                     <summary>Details</summary>
 
                     <fieldset class="recipe-editor__metadata">
@@ -126,40 +137,40 @@
                     </fieldset>
                 </details>
                     
-                    <details class="recipe-editor__details" open>
-                        <summary>Sources</summary>
+                <details class="recipe-editor__details">
+                    <summary>Sources</summary>
 
-                          <fieldset class="recipe-editor__metadata">
+                      <fieldset class="recipe-editor__metadata">
 
-                              <label>
-                                  Source Author
-                                  <input name="source.author" type="text"
-                                      placeholder="FirstName LastName">
-                              </label>
+                          <label>
+                              Source Author
+                              <input name="source.author" type="text"
+                                  placeholder="First Last">
+                          </label>
 
-                              <label>
-                                  Source Title
-                                  <input name="source.title" type="text"
-                                      placeholder="Book Title, Website Name, AI Model, etc.">
-                              </label>
+                          <label>
+                              Source Title
+                              <input name="source.title" type="text"
+                                  placeholder="Book Title, Website Name, AI Model, etc.">
+                          </label>
 
-                              <label>
-                                  Source Format
-                                  <select name="source.format">
-                                      <option value="">Select format</option>
-                                      <option value="Website">Website</option>
-                                      <option value="AI">AI</option>
-                                      <option value="Book">Book</option>
-                                      <option value="Other">Other</option>
-                                  </select>
-                              </label>
+                          <label>
+                              Source Format
+                              <select name="source.format">
+                                  <option value="">Select format</option>
+                                  <option value="Website">Website</option>
+                                  <option value="AI">AI</option>
+                                  <option value="Book">Book</option>
+                                  <option value="Other">Other</option>
+                              </select>
+                          </label>
 
-                              <label>
-                                  Source URL
-                                  <input name="source.url" type="url"
-                                      placeholder="https://example.com">
-                              </label>
-                          </fieldset>
+                          <label>
+                              Source URL
+                              <input name="source.url" type="url"
+                                  placeholder="https://example.com">
+                          </label>
+                      </fieldset>
                 </details>
 
                 <label class="recipe-editor__markdown-label"
@@ -657,11 +668,7 @@ Try this
       }
 
       setBusy(true);
-      setAiProgress(
-        inputType === "url"
-          ? `URL received: ${input}`
-          : "Recipe text received.",
-      );
+      setAiProgress(inputType === "url" ? `URL received: ${input}` : "Recipe text received.");
       status.textContent = "";
 
       try {
