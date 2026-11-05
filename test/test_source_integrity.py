@@ -85,6 +85,20 @@ def running_server(
         thread.join()
 
 
+def test_health_endpoint_reports_ok(tmp_path: Path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    with running_server(source) as (base_url, _):
+        status, body = request_json(f"{base_url}/health")
+        trailing_slash_status, trailing_slash_body = request_json(f"{base_url}/health/")
+
+    assert status == 200
+    assert body == {"status": "ok"}
+    assert trailing_slash_status == 200
+    assert trailing_slash_body == {"status": "ok"}
+
+
 def test_editor_save_preserves_unknown_metadata_and_files_and_updates_edit_time(tmp_path: Path):
     source = tmp_path / "recipes"
     recipe_directory = source / "dinner"
