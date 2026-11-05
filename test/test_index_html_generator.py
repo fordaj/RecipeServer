@@ -410,3 +410,20 @@ def test_average_rating_ignores_booleans_and_invalid_scores():
 
     assert average == 9
     assert count == 2
+
+
+def test_recipe_editor_includes_local_model_source_inputs():
+    script = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "recipe-editor.js"
+    ).read_text(encoding="UTF-8")
+
+    assert "From text" in script
+    assert "From URL" in script
+    assert "Generate from text" in script
+    assert "/api/ai-status" in script
+    assert "/api/ai-recipe" in script
+    assert "The configured local model is unavailable" in script

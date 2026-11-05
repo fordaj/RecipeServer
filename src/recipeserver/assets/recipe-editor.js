@@ -44,6 +44,31 @@
                     <p class="recipe-editor__images-selected" aria-live="polite"></p>
                 </section>
 
+                <section class="recipe-editor__ai" aria-label="Create recipe from source" hidden>
+                    <h3>Create from source</h3>
+                    <p class="recipe-editor__ai-status" role="status"></p>
+
+                    <div class="recipe-editor__ai-field">
+                        <label for="recipe-editor-ai-text">From text</label>
+                        <textarea id="recipe-editor-ai-text"
+                            class="recipe-editor__ai-text" rows="5"
+                            placeholder="Paste recipe text here"></textarea>
+                        <button type="button" class="recipe-editor__ai-generate-text">
+                            Generate from text
+                        </button>
+                    </div>
+
+                    <div class="recipe-editor__ai-field">
+                        <label for="recipe-editor-ai-url">From URL</label>
+                        <input id="recipe-editor-ai-url" type="url"
+                            class="recipe-editor__ai-url"
+                            placeholder="https://example.com/recipe">
+                        <button type="button" class="recipe-editor__ai-generate-url">
+                            Generate from URL
+                        </button>
+                    </div>
+                </section>
+
                 <details class="recipe-editor__details" open>
                     <summary>Details</summary>
 
@@ -206,6 +231,35 @@
     return result.folders;
   }
 
+  async function requestAiStatus() {
+    const response = await fetch(new URL("/api/ai-status", window.location.origin), {
+      cache: "no-store",
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
+
+    return result;
+  }
+
+  async function requestAiRecipe(inputType, input) {
+    const response = await fetch(new URL("/api/ai-recipe", window.location.origin), {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inputType, input }),
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
+
+    return result;
+  }
+
   function createRequestBody(payload, images) {
     if (images.length) {
       const body = new FormData();
@@ -356,6 +410,13 @@
     const newFolder = dialog.querySelector(".recipe-editor__new-folder");
     const imageInput = dialog.querySelector("#recipe-editor-images");
     const selectedImages = dialog.querySelector(".recipe-editor__images-selected");
+    const aiSection = dialog.querySelector(".recipe-editor__ai");
+    const aiStatus = dialog.querySelector(".recipe-editor__ai-status");
+    const aiText = dialog.querySelector(".recipe-editor__ai-text");
+    const aiUrl = dialog.querySelector(".recipe-editor__ai-url");
+    const aiTextButton = dialog.querySelector(".recipe-editor__ai-generate-text");
+    const aiUrlButton = dialog.querySelector(".recipe-editor__ai-generate-url");
+    const aiControls = [aiText, aiUrl, aiTextButton, aiUrlButton];
 
     let originalContent = "";
     let originalMetadata = "";
@@ -363,6 +424,24 @@
     let scrollY = 0;
     let activeButton = null;
     let isCreating = false;
+    let aiAvailable = false;
+
+    function setAiState(configured, available) {
+      aiAvailable = configured && available;
+      aiSection.hidden = !configured;
+      aiControls.forEach((control) => {
+        control.disabled = busy || !aiAvailable;
+      });
+
+      if (!configured) {
+        aiStatus.textContent = "";
+      } else if (!available) {
+        aiStatus.textContent =
+          "The configured local model is unavailable. Start it, then reopen this dialog.";
+      } else {
+        aiStatus.textContent = "";
+      }
+    }
 
     function updateFolderControls() {
       const creatingInExistingFolder = folderMode.value === "existing";
@@ -406,6 +485,10 @@
         .forEach((input) => {
           input.disabled = value;
         });
+
+      aiControls.forEach((control) => {
+        control.disabled = value || !aiAvailable;
+      });
     }
 
     function closeEditor() {
@@ -430,6 +513,11 @@
       originalMetadata = "";
       imageInput.value = "";
       selectedImages.textContent = "";
+      aiSection.hidden = true;
+      aiAvailable = false;
+      aiStatus.textContent = "";
+      aiText.value = "";
+      aiUrl.value = "";
       setBusy(true);
 
       try {
@@ -476,6 +564,13 @@ Servings
 
 Try this
           `;
+
+          try {
+            const ai = await requestAiStatus();
+            setAiState(Boolean(ai.configured), Boolean(ai.available));
+          } catch {
+            setAiState(false, false);
+          }
         } else {
           const result = await requestEditor(getMarkdownPath());
           originalContent = result.content;
@@ -486,6 +581,32 @@ Try this
         status.textContent = "";
       } catch (error) {
         status.textContent = error.message;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function generateFromAi(inputType) {
+      if (busy || !aiAvailable) return;
+
+      const input = inputType === "url" ? aiUrl.value.trim() : aiText.value.trim();
+      if (!input) {
+        aiStatus.textContent =
+          inputType === "url" ? "Paste a URL first." : "Paste recipe text first.";
+        return;
+      }
+
+      setBusy(true);
+      aiStatus.textContent = "Generating recipe…";
+      status.textContent = "";
+
+      try {
+        const result = await requestAiRecipe(inputType, input);
+        textarea.value = result.content || "";
+        populateMetadata(form, result.metadata || {});
+        aiStatus.textContent = "Recipe generated. Review it, then create the recipe.";
+      } catch (error) {
+        aiStatus.textContent = error.message;
       } finally {
         setBusy(false);
       }
@@ -519,6 +640,8 @@ Try this
     });
     cancelButton.addEventListener("click", closeEditor);
     closeButton.addEventListener("click", closeEditor);
+    aiTextButton.addEventListener("click", () => generateFromAi("text"));
+    aiUrlButton.addEventListener("click", () => generateFromAi("url"));
 
     dialog.addEventListener("cancel", (event) => {
       if (busy) event.preventDefault();
