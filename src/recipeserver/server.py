@@ -20,6 +20,7 @@ from PIL import Image, UnidentifiedImageError
 
 from .image_handler import IMAGE_EXTENSIONS
 
+from . import ai_recipe
 from .config import Configuration
 from ._logger import logger
 
@@ -229,16 +230,22 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         *args,
         source_directory: Path,
         on_markdown_saved: MarkdownSavedCallback | None = None,
+        config: Configuration | None = None,
         **kwargs,
     ):
         self.source_directory = Path(source_directory).resolve()
         self.on_markdown_saved = on_markdown_saved
+        self.config = config
         super().__init__(*args, **kwargs)
 
     def do_GET(self):
         parsed = urlsplit(self.path)
         if parsed.path in ("/health", "/health/"):
             self._send_json(200, {"status": "ok"})
+            return
+
+        if parsed.path in ("/api/ai-status", "/api/ai-status/"):
+            self._send_json(200, ai_recipe.ai_status(self.config))
             return
 
         if parsed.path == "/api/recipe-folders":
@@ -326,8 +333,12 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urlsplit(self.path)
 
-        if parsed.path not in ("/api/markdown", "/api/recipe-editor", "/api/recipe") and not parsed.path.startswith("/api/metadata/"):
+        if parsed.path not in ("/api/markdown", "/api/recipe-editor", "/api/recipe", "/api/ai-recipe") and not parsed.path.startswith("/api/metadata/"):
             self.send_error(404, "Unknown API endpoint")
+            return
+
+        if parsed.path == "/api/ai-recipe":
+            self._handle_ai_recipe()
             return
 
         if parsed.path == "/api/recipe":
@@ -608,6 +619,38 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         except Exception:
             logger.exception("Failed to regenerate recipe HTML")
             self._send_json(500, {"error": "Markdown saved, but HTML regeneration failed"})
+
+    def _handle_ai_recipe(self) -> None:
+        try:
+            payload = self._read_json_payload()
+            input_type = payload.get("inputType")
+            input_value = payload.get("input")
+
+            if input_type not in {"url", "text"}:
+                raise ValueError("Expected inputType to be 'url' or 'text'")
+            if not isinstance(input_value, str) or not input_value.strip():
+                raise ValueError("Expected a non-empty input value")
+
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        try:
+            result = ai_recipe.generate_recipe(self.config, input_type, input_value.strip())
+        except ai_recipe.ModelUnavailable as exc:
+            self._send_json(503, {"error": str(exc)})
+        except (ai_recipe.ModelRequestError, ai_recipe.SourceFetchError) as exc:
+            self._send_json(502, {"error": str(exc)})
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+        except Exception:
+            logger.exception("Failed to generate a recipe with the local model")
+            self._send_json(500, {"error": "Unable to generate recipe"})
+        else:
+            self._send_json(200, result)
 
     def _read_json_payload(self) -> dict:
         content_length = self.headers.get("Content-Length")
@@ -918,6 +961,7 @@ class Server:
             directory=str(self.cfg.site_directory),
             source_directory=self.cfg.source_directory,
             on_markdown_saved=self.on_markdown_saved,
+            config=self.cfg,
         )
 
         try:

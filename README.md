@@ -10,6 +10,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Builds a searchable, sortable `index.html` with ratings, meals, categories, difficulty, and last-edited information.
 - Filters recipe ratings by reviewer (up to 30 reviewers, most active first) without hiding any recipe cards.
 - Creates recipes from the index in an existing folder or a new folder.
+- Optionally drafts recipes from pasted text or a URL with a local AI model, then fills the recipe editor for review.
 - Uploads supported images directly into a recipe folder from the recipe editor.
 - Edits recipe Markdown, metadata, ratings, and comments in the browser.
 - Writes browser edits back to the recipe's YAML front matter and Markdown body.
@@ -70,6 +71,8 @@ Open the site in either of these ways:
 
 Use the **+** button in the index to create a recipe. Choose an existing folder or enter a new folder path relative to the configured recipe directory, then write the recipe in Markdown. The editor can also upload supported images beside the recipe; images added while editing an existing recipe are saved to that recipe's folder.
 
+If a local AI model is configured, the create dialog also shows **From text** and **From URL** inputs. Paste recipe text or a link and choose the matching **Generate** button; the model drafts the Markdown and metadata into the editor. Nothing is saved until you review the result and press **Create**.
+
 The tray menu also shows the current server status and lets you start or stop the server. Use **Quit** to shut down the app. Closing the browser tab does not stop the server.
 
 Pass `--log-level DEBUG` for more detailed output:
@@ -77,6 +80,33 @@ Pass `--log-level DEBUG` for more detailed output:
 ```bash
 uv run python -m recipeserver --log-level DEBUG
 ```
+
+## Optional local AI model
+
+Recipe creation from text or URL uses an OpenAI-compatible local model endpoint. Point it at a server such as Ollama, LM Studio, or `llama.cpp`:
+
+```bash
+# In config.txt, after the recipe directory line:
+model_endpoint=http://localhost:11434/v1
+model_name=llama3.2
+```
+
+The first line of `config.txt` remains the recipe source directory. If the `model_endpoint` line is absent, the app asks for the endpoint on startup:
+
+```text
+Local model endpoint (for example http://localhost:11434/v1). Press Enter to skip:
+Model name (press Enter to auto-detect from the endpoint):
+```
+
+Press <kbd>Enter</kbd> at the endpoint prompt to skip the integration. The empty setting is saved, so the app will not ask again; to enable it later, add or edit the `model_endpoint` line in `config.txt`. Set `model_name` when your server has more than one model, or leave it out and RecipeServer will ask `/v1/models` for the first available model.
+
+The AI controls behave as follows:
+
+- Both controls are hidden when no model endpoint is configured.
+- Both controls are shown but disabled when the endpoint is configured but cannot be reached.
+- The endpoint is checked with a short timeout each time the create dialog opens, so start the model server and reopen the dialog after it becomes available.
+
+The model prompt requirements are read from `src/recipeserver/NewRecipePrompt.md` on every app run, so edits to that file take effect the next time you start RecipeServer. For **From URL**, RecipeServer fetches the page and sends its readable text (not the raw HTML) to the model. The generated Markdown and front matter only pre-fill the editor; review them before creating the recipe.
 
 ## Recipe layout
 
@@ -175,12 +205,12 @@ RecipeServer uses the operating system's application-data directory:
 
 Inside that directory:
 
-- `config.txt` contains the path to the recipe source directory.
+- `config.txt` contains the path to the recipe source directory on the first line, followed by optional `model_endpoint` and `model_name` lines for the local AI integration.
 - `site/` contains the generated website.
 
 The site directory is disposable. It is deleted and rebuilt every time RecipeServer starts. Never store source content or manual edits there.
 
-To change the recipe source directory, update `config.txt` or remove it so the folder picker appears again.
+To change the recipe source directory, update the first line of `config.txt` or remove the file so the folder picker appears again.
 
 Runtime logs are written under `.logs/` in the directory where the app was started.
 
@@ -192,6 +222,9 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **A recipe is missing from the index:** Confirm that the file is named exactly `recipe.md` and lives under the configured recipe source directory.
 - **A recipe has no hero image or expected accent color:** Add a supported image next to `recipe.md`. The first image in filename-sorted order wins.
 - **Metadata warnings are visible:** Use the **Metadata Status** toggle in the index. Warnings are advisory and can be resolved by filling in the missing front matter fields.
+- **The From text and From URL inputs are missing:** No local model endpoint is configured. Add `model_endpoint=` to `config.txt`, or remove that line and restart to be prompted again.
+- **The From text and From URL inputs are disabled:** The configured model endpoint could not be reached. Start the model server, check the endpoint URL, and reopen the create dialog.
+- **AI generation fails with an HTTP error:** Confirm the endpoint is OpenAI-compatible and exposes `/v1/chat/completions`. Set `model_name` explicitly if auto-detection picks the wrong model.
 
 ## Development
 
@@ -214,13 +247,15 @@ uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_
 src/recipeserver/
 ├── __main__.py             # CLI entrypoint
 ├── core.py                 # startup, regeneration, parallel recipe conversion
-├── config.py               # recipe source configuration and folder picker
+├── config.py               # recipe source, local model settings, prompt loading
+├── ai_recipe.py            # local-model status, URL fetching, recipe generation
 ├── markdown_to_html.py     # recipe rendering and quantity scaling
 ├── index_html_generator.py # searchable/sortable index and metadata warnings
 ├── metadata_linter.py      # required-field list and warning text
 ├── image_handler.py        # supported images, hero selection, accent colors
 ├── server.py               # HTTP server and JSON APIs
 ├── tray.py                 # system tray icon and menu
+├── NewRecipePrompt.md      # model prompt requirements, reloaded at startup
 └── assets/                 # CSS, JavaScript, icons, and vendored MathJax
 test/                       # pytest suite
 serve.sh / serve.bat        # launch helpers
@@ -233,8 +268,10 @@ serve.sh / serve.bat        # launch helpers
 - One broken recipe is skipped with a logged error so the rest of the site can still build.
 - Metadata warnings are advisory and never block generation, serving, or saving.
 - The HTTP API uses relative `.md` paths inside the configured source directory. Paths outside it are rejected.
-- APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, and `GET|POST /api/metadata/<field>`.
+- APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/ai-status`, `POST /api/ai-recipe`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, and `GET|POST /api/metadata/<field>`.
 - Recipe creation writes `recipe.md` into the selected folder and rejects folder paths outside the source directory or existing recipes.
+- AI recipe generation never writes files. It returns Markdown and metadata to the editor, which saves only when the user submits the create form.
+- The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, not when the app is built.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
 - The server always uses port `8000`, binds to `0.0.0.0`, and has no authentication. Run it only on a trusted local network.
 - There is no JavaScript build step. Frontend assets are served directly, and MathJax is vendored in `src/recipeserver/assets/mathjax`.

@@ -173,6 +173,12 @@ def parse_args():
 
 def main(_cfg: Configuration):
     cfg = _cfg
+
+    # Read the prompt requirements fresh on every app run so edits take effect.
+    load_prompt = getattr(cfg, "load_new_recipe_prompt", None)
+    if callable(load_prompt):
+        load_prompt()
+
     # observer = FileObserver()
     core = Core(cfg)
 
