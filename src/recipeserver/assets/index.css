@@ -143,17 +143,25 @@ a {
 
 .filter-control svg {
   position: absolute;
+  top: 50%;
   left: 0.75rem;
   width: 1rem;
   height: 1rem;
   color: var(--muted-color);
   pointer-events: none;
+  transform: translateY(-50%);
 }
 
-.recipe-toolbar .filter-control select {
+.recipe-toolbar .filter-control select,
+.review-filter summary {
   width: 100%;
   padding: 0.7rem 1.8rem 0.7rem 2.1rem;
-  appearance: none;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background-color: var(--input-bg);
+  color: var(--heading-color);
+  font: inherit;
+  line-height: 1.4;
   cursor: pointer;
 
   background-image: url("/assets/chevron-down.svg");
@@ -162,10 +170,16 @@ a {
   background-size: 0.9rem;
 }
 
+.recipe-toolbar .filter-control select {
+  appearance: none;
+}
+
 /* Multi-select review filter */
 
 .review-filter {
-  display: block;
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .recipe-advanced__content .review-filter {
@@ -175,23 +189,11 @@ a {
 
 .review-filter summary {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
-  width: 100%;
   min-width: 0;
-  padding: 0.7rem 1.8rem 0.7rem 2.1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 7px;
-  background-color: var(--input-bg);
-  color: var(--heading-color);
-  font: inherit;
-  line-height: 1.4;
-  cursor: pointer;
+  box-sizing: border-box;
   list-style: none;
-
-  background-image: url("/assets/chevron-down.svg");
-  background-repeat: no-repeat;
-  background-position: right 0.65rem center;
-  background-size: 0.9rem;
 }
 
 .review-filter summary::-webkit-details-marker {
@@ -310,7 +312,7 @@ a {
   border-top: 1px solid var(--border-color);
 }
 
-.recipe-advanced summary {
+.recipe-advanced > summary {
   display: flex;
   align-items: center;
   gap: 0.45rem;
@@ -322,11 +324,11 @@ a {
   list-style: none;
 }
 
-.recipe-advanced summary::-webkit-details-marker {
+.recipe-advanced > summary::-webkit-details-marker {
   display: none;
 }
 
-.recipe-advanced summary::before {
+.recipe-advanced > summary::before {
   content: "›";
   display: inline-block;
   font-size: 1.15rem;
@@ -334,15 +336,15 @@ a {
   transition: transform 0.2s ease;
 }
 
-.recipe-advanced[open] summary::before {
+.recipe-advanced[open] > summary::before {
   transform: rotate(90deg);
 }
 
-.recipe-advanced summary:hover {
+.recipe-advanced > summary:hover {
   color: var(--heading-color);
 }
 
-.recipe-advanced summary:focus-visible {
+.recipe-advanced > summary:focus-visible {
   outline: 2px solid var(--food-color);
   /* outline-offset: 4px; */
   border-radius: 2px;

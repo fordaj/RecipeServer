@@ -1,6 +1,8 @@
 from recipeserver.config import (
+    DEFAULT_RECIPE_SERVER_NAME,
     MODEL_ENDPOINT_KEY,
     MODEL_NAME_KEY,
+    RECIPE_SERVER_NAME_KEY,
     Configuration,
 )
 
@@ -56,6 +58,7 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
     assert config_file.read_text(encoding="UTF-8").splitlines() == [
         str(source.resolve()),
         f"{MODEL_ENDPOINT_KEY}=",
+        f"{RECIPE_SERVER_NAME_KEY}={DEFAULT_RECIPE_SERVER_NAME}",
     ]
 
     def unexpected_input(prompt=""):
@@ -67,6 +70,70 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
 
     assert reloaded.model_endpoint == ""
     assert not reloaded.ai_configured
+
+
+def test_configuration_defaults_recipe_server_name(tmp_path, monkeypatch):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    config_file = tmp_path / "config.txt"
+    config_file.write_text(
+        "\n".join(
+            [
+                str(source),
+                f"{MODEL_ENDPOINT_KEY}=",
+            ]
+        ),
+        encoding="UTF-8",
+    )
+
+    def unexpected_input(prompt=""):
+        raise AssertionError("Existing model configuration should not prompt")
+
+    monkeypatch.setattr("builtins.input", unexpected_input)
+
+    config = Configuration()
+    config.handle_configuration(config_file)
+
+    assert config.recipe_server_name == DEFAULT_RECIPE_SERVER_NAME
+    assert config.recipe_server_name == "My Recipe Server"
+    assert config.server_name == DEFAULT_RECIPE_SERVER_NAME
+    assert f"{RECIPE_SERVER_NAME_KEY}={DEFAULT_RECIPE_SERVER_NAME}" in config_file.read_text(
+        encoding="UTF-8"
+    ).splitlines()
+
+
+def test_configuration_reads_and_persists_custom_recipe_server_name(tmp_path, monkeypatch):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    config_file = tmp_path / "config.txt"
+    config_file.write_text(
+        "\n".join(
+            [
+                str(source),
+                f"{MODEL_ENDPOINT_KEY}=",
+                f"{RECIPE_SERVER_NAME_KEY}=The Andersons' Cookbook",
+            ]
+        ),
+        encoding="UTF-8",
+    )
+
+    def unexpected_input(prompt=""):
+        raise AssertionError("Existing model configuration should not prompt")
+
+    monkeypatch.setattr("builtins.input", unexpected_input)
+
+    config = Configuration()
+    config.handle_configuration(config_file)
+
+    assert config.recipe_server_name == "The Andersons' Cookbook"
+    assert config.server_name == "The Andersons' Cookbook"
+    assert f"{RECIPE_SERVER_NAME_KEY}=The Andersons' Cookbook" in config_file.read_text(
+        encoding="UTF-8"
+    ).splitlines()
+
+    reloaded = Configuration()
+    reloaded.handle_configuration(config_file)
+    assert reloaded.recipe_server_name == "The Andersons' Cookbook"
 
 
 def test_configuration_does_not_prompt_when_model_keys_already_exist(tmp_path, monkeypatch):

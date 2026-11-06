@@ -500,6 +500,46 @@ def test_definitions_css_centralizes_theme_values():
         assert ":root {" not in component
 
 
+def test_index_uses_configured_recipe_server_name(tmp_path: Path):
+    generator = IndexHTMLGenerator(
+        SimpleNamespace(site_directory=tmp_path, recipe_server_name="Custom <Name>")
+    )
+    generator.convert()
+
+    page = (tmp_path / "index.html").read_text(encoding="UTF-8")
+    soup = BeautifulSoup(page, "html.parser")
+    assert soup.select_one("header.recipes-header h1").get_text(strip=True) == "Custom <Name>"
+    assert soup.title.string == "Custom <Name>"
+    assert "Custom &lt;Name&gt;" in page
+    assert "<h1>Custom <Name></h1>" not in page
+
+
+def test_index_defaults_recipe_server_name(tmp_path: Path):
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.convert()
+
+    soup = BeautifulSoup(
+        (tmp_path / "index.html").read_text(encoding="UTF-8"),
+        "html.parser",
+    )
+    assert soup.select_one("header.recipes-header h1").get_text(strip=True) == "My Recipe Server"
+    assert soup.title.string == "My Recipe Server"
+
+
+def test_review_filter_shares_filter_control_select_styling():
+    css = (
+        Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css"
+    ).read_text(encoding="UTF-8")
+
+    assert ".recipe-toolbar .filter-control select,\n.review-filter summary" in css
+    assert ".recipe-advanced > summary" in css
+    assert ".recipe-advanced summary" not in css
+    # The review filter behaves like the other filter controls.
+    assert ".review-filter {\n  display: flex;" in css
+    assert "transform: translateY(-50%)" in css
+    assert ".filter-control svg" in css
+
+
 def test_index_normalizes_updated_timestamp_to_utc(tmp_path: Path):
     recipe_path = tmp_path / "soup" / "index.html"
     recipe_path.parent.mkdir()

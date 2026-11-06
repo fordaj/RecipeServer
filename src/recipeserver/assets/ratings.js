@@ -193,6 +193,7 @@
     });
 
     list.replaceChildren(...sortedRatings.map(createRating));
+    root.classList.toggle("is-empty", ratings.length === 0);
     updateAverage(ratings);
   }
 
