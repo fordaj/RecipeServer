@@ -482,6 +482,72 @@
     const aiCancelButton = dialog.querySelector(".recipe-editor__ai-cancel");
     const aiControls = [aiText, aiUrl, aiTextButton, aiUrlButton];
 
+    let makesButton = null;
+
+    function updateMakesButton() {
+      if (isCreating) {
+        // Hide the makes button when creating a new recipe
+        if (makesButton && makesButton.parentNode) {
+          makesButton.parentNode.removeChild(makesButton);
+          makesButton = null;
+        }
+        return;
+      }
+
+      if (makesButton) return; // Already created
+
+      makesButton = document.createElement("button");
+      makesButton.type = "button";
+      makesButton.className = "recipe-editor__makes-btn";
+      makesButton.setAttribute("aria-label", "I made this!");
+      makesButton.textContent = "I made this!";
+      makesButton.addEventListener("click", async () => {
+        if (busy) return;
+
+        // Get the current makes value from the form
+        const makesInput = form.elements.namedItem("makes");
+        let currentMakes = 0;
+        if (makesInput) {
+          const value = makesInput.value.trim();
+          if (value) {
+            currentMakes = Number(value);
+          }
+        }
+
+        // Increment by 1
+        const newMakes = currentMakes + 1;
+        makesInput.value = newMakes;
+
+        try {
+          setBusy(true);
+          status.textContent = "Saving…";
+
+          metadata = readMetadata(form);
+
+          const content = textarea.value;
+          const metadataContent = JSON.stringify(metadata);
+          const images = [...imageInput.files];
+
+          await requestEditor(getMarkdownPath(), { content, metadata }, images);
+
+          status.textContent = `Made it! (makes: ${newMakes})`;
+
+          // Sparkle animation
+          makesButton.classList.add("makes-sparkle");
+          setTimeout(() => makesButton.classList.remove("makes-sparkle"), 500);
+        } catch (error) {
+          status.textContent = error.message;
+          // Reset the makes value on failure
+          makesInput.value = currentMakes;
+        } finally {
+          setBusy(false);
+        }
+      });
+      heading.parentNode.insertBefore(makesButton, heading.nextSibling);
+    }
+
+    updateMakesButton();
+
     let originalContent = "";
     let originalMetadata = "";
     let busy = false;
@@ -593,6 +659,7 @@
       aiUrl.value = "";
       aiCancelButton.hidden = true;
       setBusy(true);
+      updateMakesButton();
 
       try {
         if (isCreating) {
@@ -801,7 +868,9 @@ Try this
       }
     });
 
-    deleteButton.addEventListener("click", async () => {
+    updateMakesButton();
+
+    let originalContent = "";
       if (busy) return;
 
       // Confirm deletion
