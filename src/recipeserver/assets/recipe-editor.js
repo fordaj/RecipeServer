@@ -10,6 +10,16 @@
             <form class="recipe-editor" method="dialog">
                 <header class="recipe-editor__header">
                     <h2>Edit Recipe</h2>
+                    <span class="recipe-editor__makes-count" hidden>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                            viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="lucide lucide-chef-hat preview-icon" aria-hidden="true"
+                            focusable="false"><path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z"/><path d="M6 17h12"/></svg><span class="recipe-editor__makes-value">x0</span>
+                    </span>
+                    <button type="button" class="recipe-editor__made-this" hidden>
+                        I made this!
+                    </button>
                     <button type="button" class="recipe-editor__close"
                         aria-label="Close editor">&times;</button>
                 </header>
@@ -177,13 +187,17 @@
                       </fieldset>
                 </details>
 
-                <label class="recipe-editor__markdown-label"
-                    for="recipe-editor-source">Markdown</label>
+                <details class="recipe-editor__details recipe-editor__markdown-details">
+                    <summary>Markdown</summary>
 
-                <textarea id="recipe-editor-source"
-                    class="recipe-editor__source"
-                    aria-label="Markdown source"
-                    spellcheck="false" required></textarea>
+                    <label class="recipe-editor__markdown-label"
+                        for="recipe-editor-source">Markdown</label>
+
+                    <textarea id="recipe-editor-source"
+                        class="recipe-editor__source"
+                        aria-label="Markdown source"
+                        spellcheck="false" required></textarea>
+                </details>
                     
 
                 <p class="recipe-editor__status" role="status"></p>
@@ -319,6 +333,51 @@
     }
 
     return result;
+  }
+
+  function normalizeMakes(value) {
+    // Older recipes may store makes as a list or a numeric string.
+    const candidate = Array.isArray(value) ? value[0] : value;
+    const number = typeof candidate === "number" ? candidate : Number(candidate);
+
+    if (candidate == null || candidate === "" || !Number.isFinite(number) || number < 0) {
+      return 0;
+    }
+
+    return Math.floor(number);
+  }
+
+  async function getMakes(path) {
+    const url = new URL("/api/metadata/makes", window.location.origin);
+    url.searchParams.set("path", path);
+    const response = await fetch(url, { cache: "no-store" });
+
+    if (response.status === 404) return 0;
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(result.error || `Unable to load makes count (HTTP ${response.status})`);
+    }
+
+    return normalizeMakes(result.value);
+  }
+
+  async function saveMakes(path, makes) {
+    const response = await fetch(new URL("/api/metadata/makes", window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, value: makes }),
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || `Unable to save makes count (HTTP ${response.status})`);
+    }
+  }
+
+  function makesCountLabel(makes) {
+    return `x${makes}`;
   }
 
   function createRequestBody(payload, images) {
@@ -463,6 +522,11 @@
     const cancelButton = dialog.querySelector(".recipe-editor__cancel");
     const closeButton = dialog.querySelector(".recipe-editor__close");
     const deleteButton = dialog.querySelector(".recipe-editor__delete");
+    const madeThisButton = dialog.querySelector(".recipe-editor__made-this");
+    const madeThisCount = dialog.querySelector(".recipe-editor__makes-count");
+    const madeThisValue = dialog.querySelector(".recipe-editor__makes-value");
+    const markdownDetails = dialog.querySelector(".recipe-editor__markdown-details");
+    const header = dialog.querySelector(".recipe-editor__header");
     const heading = dialog.querySelector(".recipe-editor__header h2");
     const location = dialog.querySelector(".recipe-editor__location");
     const folderMode = dialog.querySelector(".recipe-editor__folder-mode");
@@ -543,6 +607,7 @@
       saveButton.disabled = value;
       cancelButton.disabled = value;
       closeButton.disabled = value;
+      madeThisButton.disabled = value;
       textarea.readOnly = value;
       if (activeButton) activeButton.disabled = value;
       folderMode.disabled = value;
@@ -561,6 +626,93 @@
       });
     }
 
+    function celebrateMadeThis() {
+      madeThisButton.classList.remove("is-celebrating");
+      // Restart the CSS animation on repeat clicks.
+      void madeThisButton.offsetWidth;
+      madeThisButton.classList.add("is-celebrating");
+
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+      const sparkles = ["✨", "⭐", "🎉", "💛"];
+      const particles = sparkles.map((glyph, index) => {
+        const particle = document.createElement("span");
+        particle.className = "recipe-editor__sparkle";
+        particle.textContent = glyph;
+        particle.setAttribute("aria-hidden", "true");
+        particle.style.setProperty("--sparkle-x", `${(index - 1.5) * 18}px`);
+        particle.style.setProperty("--sparkle-delay", `${index * 60}ms`);
+        header.append(particle);
+        return particle;
+      });
+
+      window.setTimeout(() => {
+        particles.forEach((particle) => particle.remove());
+        madeThisButton.classList.remove("is-celebrating");
+      }, 1000);
+    }
+
+    function updateMadeThisCount(makes) {
+      madeThisValue.textContent = makesCountLabel(makes);
+      madeThisCount.setAttribute("aria-label", `Made ${makes} times`);
+    }
+
+    function syncMadeThisCount(makes) {
+      updateMadeThisCount(makes);
+      form.elements.namedItem("makes").value = String(makes);
+
+      // Keep the "unsaved changes" baseline in sync for this field only,
+      // so a later Save does not clobber or undo the recorded make —
+      // without masking other unsaved edits the user may still have.
+      try {
+        const baseline = JSON.parse(originalMetadata);
+        if (baseline && typeof baseline === "object" && !Array.isArray(baseline)) {
+          baseline.makes = makes;
+          originalMetadata = JSON.stringify(baseline);
+        }
+      } catch {
+        // Baseline is empty/invalid (e.g. create mode); leave it alone.
+      }
+    }
+
+    async function recordMadeThis() {
+      if (busy || isCreating) return;
+
+      const path = getMarkdownPath();
+      setBusy(true);
+      status.textContent = "Recording your make…";
+
+      let makes = 0;
+      let savedToFile = false;
+
+      try {
+        makes = (await getMakes(path)) + 1;
+        await saveMakes(path, makes);
+        savedToFile = true;
+        syncMadeThisCount(makes);
+        status.textContent = `🎉 Nice work! Your make was recorded — makes: ${makes}.`;
+        celebrateMadeThis();
+      } catch (error) {
+        const message = error.message || "Unable to save your make.";
+        const savedButNotRefreshed = /saved, but/i.test(message);
+
+        if (savedButNotRefreshed && !savedToFile) {
+          // The file was written but regenerating the page failed: the
+          // make counts, even though the visible page is stale.
+          savedToFile = true;
+          syncMadeThisCount(makes);
+          status.textContent =
+            `Saved your make (makes: ${makes}), but the page could not be refreshed. ` +
+            "Reload the page to see it.";
+          celebrateMadeThis();
+        } else {
+          status.textContent = `Couldn't record your make — ${message} Please try again.`;
+        }
+      } finally {
+        setBusy(false);
+      }
+    }
+
     function closeEditor() {
       if (!busy && dialog.open) dialog.close();
     }
@@ -575,6 +727,11 @@
       dialog.showModal();
 
       heading.textContent = isCreating ? "Create Recipe" : "Edit Recipe";
+      madeThisButton.hidden = true;
+      madeThisCount.hidden = true;
+      updateMadeThisCount(0);
+      madeThisButton.textContent = "I made this!";
+      markdownDetails.open = false;
       saveButton.textContent = isCreating ? "Create" : "Save";
       location.hidden = !isCreating;
       status.textContent = isCreating ? "Loading folders…" : "Loading recipe…";
@@ -651,9 +808,12 @@ Try this
           textarea.value = result.content;
           populateMetadata(form, result.metadata);
           originalMetadata = JSON.stringify(readMetadata(form));
+          updateMadeThisCount(normalizeMakes(result.metadata.makes));
 
           // Show delete button for existing recipes
           deleteButton.hidden = false;
+          madeThisButton.hidden = false;
+          madeThisCount.hidden = false;
         }
         status.textContent = "";
       } catch (error) {
@@ -664,8 +824,12 @@ Try this
         // This is already handled by the logic above, but let's be sure
         if (isCreating) {
           deleteButton.hidden = true;
+          madeThisButton.hidden = true;
+          madeThisCount.hidden = true;
         } else {
           deleteButton.hidden = false;
+          madeThisButton.hidden = false;
+          madeThisCount.hidden = false;
         }
       }
     }
@@ -736,6 +900,13 @@ Try this
     });
     cancelButton.addEventListener("click", closeEditor);
     closeButton.addEventListener("click", closeEditor);
+    madeThisButton.addEventListener("click", recordMadeThis);
+    // A required control inside a closed <details> is not focusable, which
+    // would silently block submission. Only require it while it is visible.
+    markdownDetails.addEventListener("toggle", () => {
+      textarea.required = markdownDetails.open;
+    });
+    textarea.required = markdownDetails.open;
     aiTextButton.addEventListener("click", () => generateFromAi("text"));
     aiUrlButton.addEventListener("click", () => generateFromAi("url"));
     aiCancelButton.addEventListener("click", () => {

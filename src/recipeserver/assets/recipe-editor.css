@@ -51,9 +51,117 @@
   flex: 0 0 auto;
 }
 
+.recipe-editor__header {
+  position: relative;
+}
+
 .recipe-editor__header h2 {
+  flex: 1 1 auto;
+  min-width: 0;
   margin: 0;
   font-size: 1.25rem;
+}
+
+.recipe-editor__makes-count {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-color);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.recipe-editor__makes-count[hidden] {
+  display: none;
+}
+
+.recipe-editor__makes-count svg {
+  width: 1.05em;
+  height: 1.05em;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.recipe-editor__made-this {
+  flex: 0 0 auto;
+  /* A smidge of extra room before the close button. */
+  margin-right: 0.35rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--food-color);
+  border-radius: 6px;
+  background: var(--food-color);
+  color: var(--page-bg);
+  font: inherit;
+  font-size: 0.9rem;
+  /* No heavier weight here: only Lato Regular (400) is loaded, so a
+     bolder weight would be browser-synthesized and render unevenly per
+     glyph. The filled Save button likewise uses the regular weight. */
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.recipe-editor__made-this:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+.recipe-editor__made-this:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-editor__made-this:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.recipe-editor__made-this[hidden] {
+  display: none;
+}
+
+.recipe-editor__made-this.is-celebrating {
+  animation: recipe-editor-made-this-pop 500ms ease;
+}
+
+.recipe-editor__sparkle {
+  position: absolute;
+  top: 0.25rem;
+  right: 3.5rem;
+  z-index: 1;
+  pointer-events: none;
+  font-size: 1rem;
+  animation: recipe-editor-sparkle 900ms ease-out var(--sparkle-delay, 0ms) forwards;
+}
+
+@keyframes recipe-editor-made-this-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.12) rotate(-2deg);
+  }
+  70% {
+    transform: scale(0.97) rotate(1deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes recipe-editor-sparkle {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4) rotate(0deg);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sparkle-x, 0), -1.75rem) scale(1.15) rotate(25deg);
+  }
 }
 
 .recipe-editor__close {
@@ -443,6 +551,14 @@
 
 /* ---------- Markdown editor ---------- */
 
+.recipe-editor__markdown-details .recipe-editor__markdown-label {
+  margin-top: 0.5rem;
+}
+
+.recipe-editor__markdown-details .recipe-editor__source {
+  margin-top: 0.35rem;
+}
+
 .recipe-editor__markdown-label {
   display: block;
   flex: 0 0 auto;
@@ -601,5 +717,10 @@
 @media (prefers-reduced-motion: reduce) {
   .recipe-editor__details > summary::before {
     transition: none;
+  }
+
+  .recipe-editor__made-this.is-celebrating,
+  .recipe-editor__sparkle {
+    animation: none;
   }
 }
