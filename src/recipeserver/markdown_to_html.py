@@ -76,7 +76,7 @@ MATHJAX = """
   };
 </script>
 
-<script defer src="/assets/mathjax/tex-chtml.js"></script>
+<script defer src="/assets/katex/dist/katex.min.js"></script>
 """
 
 HOME_PAGE_ICON_HTML = """

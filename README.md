@@ -23,11 +23,11 @@ The app runs as a desktop process with a system tray icon. There is no database 
 
 ## Supported platforms
 
-| Platform | Status | Notes |
-| --- | --- | --- |
-| macOS | Supported | The tray runs on the main thread. |
-| Windows | Supported | Includes `serve.bat`; the tray runs detached. |
-| Linux | Untested | Requires Tk and an X11-compatible `pystray` backend. Wayland is not guaranteed to work. |
+| Platform | Status    | Notes                                                                                   |
+| -------- | --------- | --------------------------------------------------------------------------------------- |
+| macOS    | Supported | The tray runs on the main thread.                                                       |
+| Windows  | Supported | Includes `serve.bat`; the tray runs detached.                                           |
+| Linux    | Untested  | Requires Tk and an X11-compatible `pystray` backend. Wayland is not guaranteed to work. |
 
 The app is a local desktop application, not a headless web service. A graphical session is required for the tray and the first-run folder picker.
 
@@ -197,11 +197,11 @@ A full editor save updates `updatedOn`. Rating and comment changes do not, so ac
 
 RecipeServer uses the operating system's application-data directory:
 
-| Platform | Data directory |
-| --- | --- |
-| macOS | `~/Library/Application Support/recipe-server` |
-| Windows | `%LOCALAPPDATA%\recipe-server` |
-| Linux | `~/.local/share/recipe-server` |
+| Platform | Data directory                                |
+| -------- | --------------------------------------------- |
+| macOS    | `~/Library/Application Support/recipe-server` |
+| Windows  | `%LOCALAPPDATA%\recipe-server`                |
+| Linux    | `~/.local/share/recipe-server`                |
 
 Inside that directory:
 
@@ -274,8 +274,8 @@ serve.sh / serve.bat        # launch helpers
 - The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, not when the app is built.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
 - The server always uses port `8000`, binds to `0.0.0.0`, and has no authentication. Run it only on a trusted local network.
-- There is no JavaScript build step. Frontend assets are served directly, and MathJax is vendored in `src/recipeserver/assets/mathjax`.
+- There is no JavaScript build step. Frontend assets are served directly, and KaTeX is vendored in `src/recipeserver/assets/katex`.
 
 ## MathJax
 
-Updated last on 10/23/2026 to latest version v4.1.3 using `pnpm install mathjax@4`.
+Updated last on 11/05/2026 to latest version using `pnpm install katex`.
