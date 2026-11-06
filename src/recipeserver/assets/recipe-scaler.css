@@ -46,7 +46,7 @@
 
 #recipe-scale-select option {
   font-size: 16px;
-  font-family: "Lato", sans-serif;
+  font-family: var(--font-body);
   color: var(--heading-color);
   background: var(--card-bg);
 }

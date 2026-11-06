@@ -1,16 +1,4 @@
-/* ---------- Fonts and base ---------- */
-
-@font-face {
-  font-family: "Lato";
-  src: url("./fonts/Lato/Lato-Regular.ttf") format("truetype");
-  font-weight: 400;
-}
-
-@font-face {
-  font-family: "Playfair Display";
-  src: url("./fonts/Playfair/Playfair-VariableFont_opsz,wdth,wght.ttf") format("truetype");
-  font-weight: 400;
-}
+/* ---------- Base ---------- */
 
 * {
   box-sizing: border-box;
@@ -25,7 +13,7 @@ body {
   padding: 0;
   background: var(--page-bg);
   color: var(--text-color);
-  font-family: "Lato", sans-serif;
+  font-family: var(--font-body);
   line-height: 1.7;
 }
 
@@ -91,7 +79,7 @@ a {
 .recipes h1 {
   margin: 0;
   color: var(--food-color);
-  font-family: "Playfair Display", serif;
+  font-family: var(--font-heading);
   font-size: clamp(2.75rem, 7vw, 4.25rem);
   font-weight: 400;
   line-height: 1.1;
@@ -493,6 +481,8 @@ a {
   overflow: hidden;
   aspect-ratio: 16 / 10;
   background: var(--hover-bg);
+  border-top-left-radius: 11px;
+  border-top-right-radius: 11px;
 }
 
 .recipe-card__image img {
@@ -523,7 +513,7 @@ a {
   min-width: 0;
   margin: 0;
   color: var(--food-color);
-  font-family: "Playfair Display", serif;
+  font-family: var(--font-heading);
   font-size: 1.35rem;
   font-weight: 400;
   line-height: 1.25;
@@ -634,9 +624,13 @@ a {
   gap: 0.3rem;
   white-space: nowrap;
 
-  border-color: color-mix(in srgb, #a66300 28%, var(--card-border-color));
-  background: color-mix(in srgb, #f3c96b 18%, var(--card-bg));
-  color: #805000;
+  border-color: color-mix(
+    in srgb,
+    var(--warning-border-color) var(--warning-border-mix),
+    var(--card-border-color)
+  );
+  background: color-mix(in srgb, var(--warning-bg-color) var(--warning-bg-mix), var(--card-bg));
+  color: var(--warning-text-color);
 }
 
 .recipe-warning-chip .recipe-icon {
@@ -652,17 +646,13 @@ a {
 }
 
 .recipe-detail--warning .recipe-chip {
-  border-color: color-mix(in srgb, #a66300 28%, var(--card-border-color));
-  background: color-mix(in srgb, #f3c96b 18%, var(--card-bg));
-  color: #805000;
-}
-
-@media (prefers-color-scheme: dark) {
-  .recipe-detail--warning .recipe-chip {
-    border-color: color-mix(in srgb, #f3c96b 35%, var(--card-border-color));
-    background: color-mix(in srgb, #f3c96b 12%, var(--card-bg));
-    color: #f3c96b;
-  }
+  border-color: color-mix(
+    in srgb,
+    var(--warning-border-color) var(--warning-border-mix),
+    var(--card-border-color)
+  );
+  background: color-mix(in srgb, var(--warning-bg-color) var(--warning-bg-mix), var(--card-bg));
+  color: var(--warning-text-color);
 }
 
 #recipe-list:empty::after {
@@ -713,7 +703,7 @@ a {
 
 #recipe-list.list-view .recipe-card h2 {
   width: 100%;
-  font-family: "Lato", sans-serif;
+  font-family: var(--font-body);
   font-size: 1.02rem;
   font-weight: 700;
 }

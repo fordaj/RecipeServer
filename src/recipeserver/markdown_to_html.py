@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from html import escape
 from functools import lru_cache
 from .pallette import Pallette
@@ -48,7 +48,7 @@ USER_SVG = FILE_PATH.parent / "assets" / "user.svg"
 LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 
 CSS_PATH = "/assets/style.css"
-THEME_CSS_PATH = "/assets/theme.css"
+DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 RECIPE_JS = "/assets/recipe.js"
 RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
 RECIPE_EDITOR_JS = "/assets/recipe-editor.js"
@@ -58,6 +58,7 @@ COMMENTS_CSS = "/assets/comments.css"
 COMMENTS_JS = "/assets/comments.js"
 RATINGS_CSS = "/assets/ratings.css"
 RATINGS_JS = "/assets/ratings.js"
+TIME_JS = "/assets/time.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 
@@ -117,17 +118,42 @@ def _json_default(value: object) -> str:
 
 
 def _parse_datetime(value: object) -> datetime | None:
-    """Parse metadata timestamps without letting bad data break a build."""
+    """Parse metadata timestamps as timezone-aware UTC datetimes."""
     if isinstance(value, datetime):
-        return value
-    if isinstance(value, date):
-        return datetime.combine(value, time.min)
-    if isinstance(value, str):
+        parsed = value
+    elif isinstance(value, date):
+        return datetime.combine(value, time.min, tzinfo=timezone.utc)
+    elif isinstance(value, str):
         try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
         except ValueError:
             return None
-    return None
+    else:
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+
+    return parsed.astimezone(timezone.utc)
+
+
+def _is_date_only(value: object) -> bool:
+    """Return True when a metadata value represents a calendar date only."""
+    if isinstance(value, datetime):
+        return False
+    if isinstance(value, date):
+        return True
+    if isinstance(value, str):
+        return re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()) is not None
+    return False
+
+
+def _display_date(value: datetime) -> str:
+    """Format a UTC datetime for the server-rendered fallback text."""
+    text = f"{value:%b} {value.day}"
+    if datetime.now(timezone.utc).year != value.year:
+        text += f", {value.year}"
+    return text
 
 
 def _as_list(value: object) -> list:
@@ -439,7 +465,8 @@ class MarkdownToHTMLConverter:
         if not contributor:
             return None
 
-        created_on = _parse_datetime(metadata.get("createdOn"))
+        created_on_value = metadata.get("createdOn")
+        created_on = _parse_datetime(created_on_value)
 
         item = soup.new_tag(
             "div",
@@ -459,10 +486,16 @@ class MarkdownToHTMLConverter:
             separator.string = "·"
             label.append(separator)
 
-            time = soup.new_tag("time", datetime=created_on.date().isoformat())
-            time.string = f"{created_on:%b} {created_on.day}"
-            if datetime.now().year != created_on.year:
-                time.string += f", {created_on.year}"
+            if _is_date_only(created_on_value):
+                time_attrs = {"datetime": created_on.date().isoformat()}
+            else:
+                time_attrs = {
+                    "datetime": created_on.isoformat(),
+                    "data-local-time": "true",
+                }
+
+            time = soup.new_tag("time", attrs=time_attrs)
+            time.string = _display_date(created_on)
             label.append(time)
 
         item.append(label)
@@ -572,7 +605,8 @@ class MarkdownToHTMLConverter:
 
         label = soup.new_tag("span")
 
-        updated_on = _parse_datetime(metadata.get("updatedOn"))
+        updated_on_value = metadata.get("updatedOn")
+        updated_on = _parse_datetime(updated_on_value)
         label.append(f"v{VERSION}")
 
         if updated_on:
@@ -583,10 +617,17 @@ class MarkdownToHTMLConverter:
             separator.string = "·"
             label.append(separator)
 
-            time = soup.new_tag("time", datetime=updated_on.date().isoformat())
-            time.string = f"Edited {updated_on:%b} {updated_on.day}"
-            if datetime.now().year != updated_on.year:
-                time.string += f", {updated_on.year}"
+            if _is_date_only(updated_on_value):
+                time_attrs = {"datetime": updated_on.date().isoformat()}
+            else:
+                time_attrs = {
+                    "datetime": updated_on.isoformat(),
+                    "data-local-time": "true",
+                    "data-time-prefix": "Edited ",
+                }
+
+            time = soup.new_tag("time", attrs=time_attrs)
+            time.string = f"Edited {_display_date(updated_on)}"
             label.append(time)
 
         version.append(label)
@@ -754,7 +795,7 @@ class MarkdownToHTMLConverter:
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>{escape(title)}</title>
             <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
-            <link rel="stylesheet" href="{THEME_CSS_PATH}">
+            <link rel="stylesheet" href="{DEFINITIONS_CSS_PATH}">
             <link rel="stylesheet" href="{CSS_PATH}">
             <link rel="stylesheet" href="{RECIPE_SCALER_CSS}">
             <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">
@@ -775,6 +816,7 @@ class MarkdownToHTMLConverter:
                 {ratings_html}
                 {comments_html}
             </main>
+            <script defer src="{TIME_JS}"></script>
             <script defer src="{RECIPE_JS}"></script>
             <script defer src="{RECIPE_SCALER_JS}"></script>
             <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>

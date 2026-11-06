@@ -163,6 +163,9 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert 'value="date:asc"' in page
     assert 'data-view="cards"' in page and 'data-view="list"' in page
     assert 'src="/assets/index.js?v=' in page
+    stylesheets = [link["href"] for link in soup.select('link[rel="stylesheet"]')]
+    assert stylesheets[0].startswith("/assets/definitions.css?v=")
+    assert stylesheets.index(next(url for url in stylesheets if url.startswith("/assets/index.css?v="))) > 0
     assert '<link rel="stylesheet" href="/assets/recipe-editor.css?v=' in page
     assert '<script src="/assets/recipe-editor.js?v=' in page
     assert 'id="create-recipe"' in page
@@ -430,3 +433,91 @@ def test_recipe_editor_includes_local_model_source_inputs():
     assert "/api/ai-status" in script
     assert "/api/ai-recipe" in script
     assert "The configured local model is unavailable" in script
+
+
+def test_recipe_editor_only_shows_ai_section_when_creating():
+    script = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "recipe-editor.js"
+    ).read_text(encoding="UTF-8")
+
+    assert 'class="recipe-editor__details recipe-editor__ai-details"' in script
+    assert "aiDetails.hidden = !configured || !isCreating" in script
+    assert "aiDetails.open = false" in script
+    assert 'createdOn: get("createdOn") || null' in script
+
+
+def test_recipe_editor_css_keeps_files_and_ai_sections_single_column():
+    css = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "recipe-editor.css"
+    ).read_text(encoding="UTF-8")
+
+    assert ".recipe-editor__ai-details[hidden]" in css
+    assert "grid-template-columns: minmax(0, 1fr)" in css
+    assert '.recipe-editor__metadata input[type="date"]' in css
+    assert "max-width: 100%" in css
+    assert "var(--danger-color)" in css
+
+
+def test_definitions_css_centralizes_theme_values():
+    css = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "definitions.css"
+    ).read_text(encoding="UTF-8")
+
+    for token in (
+        "--food-color",
+        "--page-bg",
+        "--text-color",
+        "--border-color",
+        "--font-body",
+        "--font-heading",
+        "--warning-border-color",
+        "--danger-color",
+        "--print-bg",
+    ):
+        assert token in css
+
+    for asset in ("style.css", "index.css", "recipe-editor.css", "comments.css", "ratings.css"):
+        component = (
+            Path(__file__).parents[1]
+            / "src"
+            / "recipeserver"
+            / "assets"
+            / asset
+        ).read_text(encoding="UTF-8")
+        assert "@font-face" not in component
+        assert ":root {" not in component
+
+
+def test_index_normalizes_updated_timestamp_to_utc(tmp_path: Path):
+    recipe_path = tmp_path / "soup" / "index.html"
+    recipe_path.parent.mkdir()
+    recipe_path.write_text("<h1>Soup</h1>", encoding="UTF-8")
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.add(
+        Recipe(
+            {
+                "meals": ["Dinner"],
+                "updatedOn": "2024-07-19T23:30:00-07:00",
+            },
+            recipe_path,
+        )
+    )
+
+    generator.convert()
+
+    page = (tmp_path / "index.html").read_text(encoding="UTF-8")
+    recipe = BeautifulSoup(page, "html.parser").select_one("#recipe-list .recipe")
+    assert recipe is not None
+    assert recipe["data-edited"] == "2024-07-20T06:30:00+00:00"

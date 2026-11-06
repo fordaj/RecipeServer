@@ -140,7 +140,8 @@ Mix everything.
     assert contributor is not None
     assert "by Avery" in contributor.get_text(" ", strip=True)
     created = contributor.select_one("time")
-    assert created["datetime"] == "2024-06-15"
+    assert created["datetime"] == "2024-06-15T12:30:00+00:00"
+    assert created["data-local-time"] == "true"
     assert "Jun 15" in created.get_text()
 
     sources = soup.select(".recipe-sources__item")
@@ -157,8 +158,15 @@ Mix everything.
     assert version is not None
     assert f"v{VERSION}" in version.get_text()
     edited = version.select_one("time")
-    assert edited["datetime"] == "2024-07-20"
+    assert edited["datetime"] == "2024-07-20T12:30:00+00:00"
+    assert edited["data-local-time"] == "true"
+    assert edited["data-time-prefix"] == "Edited "
     assert "Edited Jul 20" in version.get_text(" ", strip=True)
+
+    stylesheets = [link["href"] for link in soup.select('link[rel="stylesheet"]')]
+    assert stylesheets[0] == "/assets/definitions.css"
+    assert "/assets/style.css" in stylesheets
+    assert soup.select_one('script[src="/assets/time.js"]') is not None
 
     assert soup.select_one("#recipe-ratings .recipe-ratings__add") is not None
     assert soup.select_one("#recipe-comments .recipe-comments__add") is not None
@@ -208,11 +216,40 @@ updatedOn: 2024-07-20
 
     contributor = soup.select_one(".recipe-contributor")
     assert contributor is not None
-    assert contributor.select_one("time")["datetime"] == "2024-06-15"
+    created = contributor.select_one("time")
+    assert created["datetime"] == "2024-06-15"
+    assert not created.has_attr("data-local-time")
 
     version = soup.select_one(".recipe-version")
     assert version is not None
-    assert version.select_one("time")["datetime"] == "2024-07-20"
+    edited = version.select_one("time")
+    assert edited["datetime"] == "2024-07-20"
+    assert not edited.has_attr("data-local-time")
+
+
+def test_conversion_normalizes_timestamps_to_utc_for_browser_localization(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+contributor: Avery
+createdOn: "2024-06-15T02:30:00+05:30"
+updatedOn: "2024-07-19T23:30:00-07:00"
+---
+# Zoned Recipe
+""",
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    created = soup.select_one(".recipe-contributor time")
+    assert created["datetime"] == "2024-06-14T21:00:00+00:00"
+    assert created["data-local-time"] == "true"
+
+    edited = soup.select_one(".recipe-version time")
+    assert edited["datetime"] == "2024-07-20T06:30:00+00:00"
+    assert edited["data-local-time"] == "true"
+    assert edited["data-time-prefix"] == "Edited "
 
 
 def test_conversion_falls_back_when_hero_image_cannot_be_opened(tmp_path: Path):
