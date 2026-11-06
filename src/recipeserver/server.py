@@ -12,6 +12,7 @@ import math
 import re
 import socket
 import sys
+import tempfile
 import unicodedata
 import xml.etree.ElementTree as ET
 import frontmatter
@@ -21,6 +22,7 @@ from PIL import Image, UnidentifiedImageError
 from .image_handler import IMAGE_EXTENSIONS
 
 from . import ai_recipe
+from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import Configuration
 from ._logger import logger
 
@@ -252,6 +254,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         parsed = urlsplit(self.path)
         if parsed.path in ("/health", "/health/"):
             self._send_json(200, {"status": "ok"})
+            return
+
+        if parsed.path in ("/api/archive/source", "/api/archive/site"):
+            self._handle_archive(parsed)
             return
 
         if parsed.path in ("/api/ai-status", "/api/ai-status/"):
@@ -753,6 +759,63 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raise ValueError("Expected a JSON object")
 
         return payload
+
+    def _handle_archive(self, parsed) -> None:
+        kind = parsed.path.rsplit("/", 1)[-1]
+        if kind not in ARCHIVE_KINDS:
+            self.send_error(404, "Unknown archive kind")
+            return
+
+        try:
+            dates = parse_qs(parsed.query).get("date", [])
+            if len(dates) > 1:
+                raise ValueError("Expected a single date parameter")
+            archive_date = resolve_archive_date(dates[0] if dates else None)
+            filename = archive_filename(kind, archive_date)
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        directory = (
+            self.source_directory if kind == "source" else Path(self.directory).resolve()
+        )
+
+        if not directory.is_dir():
+            self._send_json(404, {"error": "Archive directory not found"})
+            return
+
+        archive_path = Path()
+        headers_sent = False
+        try:
+            with tempfile.NamedTemporaryFile(
+                prefix="recipeserver-", suffix=".7z", delete=False
+            ) as temp:
+                archive_path = Path(temp.name)
+
+            create_archive(directory, archive_path)
+            size = archive_path.stat().st_size
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-7z-compressed")
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Content-Length", str(size))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            headers_sent = True
+
+            with archive_path.open("rb") as archive_file:
+                while chunk := archive_file.read(64 * 1024):
+                    self.wfile.write(chunk)
+            logger.info(f"Downloaded archive: {kind} as {filename} ({size} bytes)")
+        except BrokenPipeError:
+            logger.debug(f"Archive download interrupted: {kind} as {filename}")
+        except Exception:
+            logger.exception(f"Failed to build {kind} archive")
+            if not headers_sent:
+                self._send_json(500, {"error": "Unable to build archive"})
+        finally:
+            if archive_path != Path():
+                archive_path.unlink(missing_ok=True)
 
     def _read_recipe_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
         content_type = self.headers.get("Content-Type", "")
