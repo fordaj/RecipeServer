@@ -259,6 +259,10 @@ def test_recipe_editor_made_this_css_matches_save_button():
     hover = css.split(".recipe-editor__made-this:hover:not(:disabled) {")[1].split("}")[0]
     assert "var(--food-color-hover)" in hover
 
+    # Only Lato Regular (400) is loaded, so a heavier weight would be
+    # synthesized by the browser and render unevenly ("partly bolded").
+    assert "font-weight" not in made_this
+
     # A smidge of extra space before the close button.
     assert "margin-right: 0.35rem" in made_this
 
