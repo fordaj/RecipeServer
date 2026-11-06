@@ -117,8 +117,13 @@ Mix everything.
 
     header = soup.select_one("header.recipe-header")
     assert header.select_one("a.recipe-home[href='/index.html']") is not None
-    assert header.select_one("select#recipe-scale-select") is not None
-    assert header.select_one("input#recipe-scale-custom") is not None
+    scaler = header.select_one(".recipe-scaler")
+    assert scaler is not None
+    assert "recipe-scaler--loading" in scaler["class"]
+    assert scaler.select_one("select#recipe-scale-select") is not None
+    custom_scale = scaler.select_one("input#recipe-scale-custom")
+    assert custom_scale is not None
+    assert custom_scale.has_attr("hidden")
     assert header.select_one("button#edit-recipe") is not None
 
     overview = soup.select_one(".recipe-overview")
@@ -342,3 +347,32 @@ meals:
     assert soup.title.string == "Tomatoes & <em>Basil</em>"
     assert "<title>Tomatoes &amp; &lt;em&gt;Basil&lt;/em&gt;</title>" in raw_html
     assert converter.title == "Tomatoes & Basil"
+
+
+def test_recipe_scaler_is_centered_sized_dynamically_and_revealed_when_ready():
+    assets = Path(__file__).parents[1] / "src" / "recipeserver" / "assets"
+
+    markup = BeautifulSoup(
+        (assets / "recipe-scaler.html").read_text(encoding="utf-8"),
+        "html.parser",
+    )
+    scaler = markup.select_one(".recipe-scaler")
+    assert scaler is not None
+    assert "recipe-scaler--loading" in scaler["class"]
+    assert scaler.select_one("input#recipe-scale-custom").has_attr("hidden")
+
+    css = (assets / "recipe-scaler.css").read_text(encoding="utf-8")
+    assert ".recipe-scaler--loading" in css
+    assert ".recipe-scaler--ready" in css
+    assert "var(--scale-control-width" in css
+
+    script = (assets / "recipe-scaler.js").read_text(encoding="utf-8")
+    assert "selectedScaleText" in script
+    assert "syncControlWidth" in script
+    assert "markReady" in script
+    assert "recipe-scaler--ready" in script
+
+    style = (assets / "style.css").read_text(encoding="utf-8")
+    assert "scrollbar-gutter: stable" in style
+    assert "grid-template-columns: 1fr auto 1fr" in style
+    assert ".recipe-header > .recipe-scaler" in style
