@@ -1,0 +1,97 @@
+/* Sandwich menu. Colours come from definitions.css, so this inherits the
+   page theme (light/dark) without page-specific overrides. */
+
+.sandwich-menu {
+  position: absolute;
+  top: 0.75rem;
+  left: 0;
+  z-index: 30;
+}
+
+.sandwich-menu__toggle {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--food-color);
+  cursor: pointer;
+}
+
+.sandwich-menu__toggle svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.sandwich-menu__toggle:hover {
+  background: var(--hover-bg);
+}
+
+.sandwich-menu__toggle:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 3px;
+}
+
+.sandwich-menu__panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: max-content;
+  min-width: 14rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--hover-shadow);
+}
+
+.sandwich-menu__panel[hidden] {
+  display: none;
+}
+
+.sandwich-menu__item {
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sandwich-menu__item:hover {
+  background: var(--hover-bg);
+}
+
+.sandwich-menu__item:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 1px;
+}
+
+.sandwich-menu__item:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.sandwich-menu__status {
+  margin: 0.35rem 0.1rem 0.1rem;
+  color: var(--muted-color);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+@media print {
+  .sandwich-menu {
+    display: none;
+  }
+}

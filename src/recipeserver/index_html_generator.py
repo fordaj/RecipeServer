@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup
 from .config import Configuration
 from ._logger import logger
 from .image_handler import get_first_image_in_dir
+from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
 
 FILE_PATH = Path(__file__)
@@ -539,14 +540,17 @@ class IndexHTMLGenerator:
                 <title>Ford Family Recipes</title>
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
                 <link rel="stylesheet" href="{DEFINITIONS_CSS_URL}">
+                <link rel="stylesheet" href="{MENU_CSS_URL}">
                 <link rel="stylesheet" href="{INDEX_CSS_URL}">
                 <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_URL}">
+                <script src="{MENU_JS_URL}" defer></script>
                 <script src="{INDEX_JS_URL}" defer></script>
                 <script src="{RECIPE_EDITOR_JS_URL}" defer></script>
             </head>
             <body>
                 <main class="recipes">
                     <header class="recipes-header">
+                        {sandwich_menu_html()}
                         <h1>Ford Family Recipes</h1>
                         <button id="create-recipe" class="create-recipe" type="button"
                             aria-label="Create recipe" title="Create recipe">
