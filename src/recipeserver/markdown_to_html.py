@@ -45,7 +45,26 @@ PIN_SVG = FILE_PATH.parent / "assets" / "pin.svg"
 BOOK_SVG = FILE_PATH.parent / "assets" / "book.svg"
 AI_SVG = FILE_PATH.parent / "assets" / "ai.svg"
 USER_SVG = FILE_PATH.parent / "assets" / "user.svg"
+USER_ROUND_SVG = FILE_PATH.parent / "assets" / "user-round.svg"
 LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
+NOTEBOOK_SVG = FILE_PATH.parent / "assets" / "notebook.svg"
+PENCIL_SVG = FILE_PATH.parent / "assets" / "pencil.svg"
+PLUS_SVG = FILE_PATH.parent / "assets" / "plus.svg"
+
+
+@lru_cache(maxsize=None)
+def _read_svg(asset_path: Path) -> str:
+    return asset_path.read_text(encoding="utf-8")
+
+
+def _icon_html(asset_path: Path, class_name: str | None = None) -> str:
+    """Return the SVG from an assets file, optionally overriding its class."""
+    svg = BeautifulSoup(_read_svg(asset_path), "html.parser").find("svg")
+    if svg is None:
+        raise ValueError(f"No SVG element found in {asset_path}")
+    if class_name is not None:
+        svg["class"] = [class_name]
+    return str(svg)
 
 CSS_PATH = "/assets/style.css"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
@@ -80,19 +99,15 @@ MATHJAX = """
 <script defer src="/assets/mathjax/tex-chtml.js"></script>
 """
 
-HOME_PAGE_ICON_HTML = """
+HOME_PAGE_ICON_HTML = f"""
 <a href="/index.html" class="recipe-home">
-    <svg class="recipe-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M16 2v20"/>
-    </svg>
+    {_icon_html(NOTEBOOK_SVG, "recipe-icon")}
 </a>
 """
 
 EDIT_RECIPE_HTML = f"""
 <button id="edit-recipe"class="recipe-home" type="button" aria-label="Edit recipe" title="Edit recipe">
-    <svg class="recipe-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>
-    </svg>
+    {_icon_html(PENCIL_SVG, "recipe-icon")}
 </button>
 """
 
@@ -165,11 +180,6 @@ def _as_list(value: object) -> list:
     if isinstance(value, (tuple, set)):
         return list(value)
     return [value]
-
-
-@lru_cache(maxsize=None)
-def _read_svg(asset_path: Path) -> str:
-    return asset_path.read_text(encoding="utf-8")
 
 
 class MarkdownToHTMLConverter:
@@ -725,17 +735,12 @@ class MarkdownToHTMLConverter:
                 <h2 class="recipe-comments__heading">
                     <span>Comments</span>
                     <button class="recipe-comments__add" type="button" aria-label="Add a comment" aria-expanded="false">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
+                    {_icon_html(PLUS_SVG)}
                     </button>
                 </h2>
                 <form id="recipe-comment-form" class="recipe-comment-form" hidden>
                 <div class="recipe-comment__avatar recipe-comment-form__avatar" aria-hidden="true">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M20 21a8 8 0 0 0-16 0" />
-                    <circle cx="12" cy="8" r="4" />
-                    </svg>
+                    {_icon_html(USER_ROUND_SVG)}
                 </div>
 
                 <div class="recipe-comment__content">
@@ -759,22 +764,17 @@ class MarkdownToHTMLConverter:
         """).strip()
 
     def _get_ratings_html(self) -> str:
-        return dedent("""
+        return dedent(f"""
             <section class="recipe-ratings" id="recipe-ratings">
                 <h2 class="recipe-ratings__heading">
                     <span>Ratings</span>
                     <button class="recipe-ratings__add" type="button" aria-label="Add a rating" aria-expanded="false">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
+                    {_icon_html(PLUS_SVG)}
                     </button>
                 </h2>
                 <form id="recipe-rating-form" class="recipe-rating-form" hidden>
                     <div class="recipe-rating__avatar recipe-rating-form__avatar" aria-hidden="true">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M20 21a8 8 0 0 0-16 0" />
-                            <circle cx="12" cy="8" r="4" />
-                        </svg>
+                        {_icon_html(USER_ROUND_SVG)}
                     </div>
                     <div class="recipe-rating-form__content">
                         <div class="recipe-rating-form__meta">

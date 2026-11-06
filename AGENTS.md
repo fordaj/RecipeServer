@@ -38,6 +38,7 @@ The repo does not include a test config file. On startup the app reads the recip
 - Inline-code quantities become scaler spans (`1/2 cup`, `1 1/2 tbsp`, `1-2 tbsp`, `1 1/2-2 1/2 tbsp`). Unparseable `<code>` produces a lint warning; unit aliases live in `_UNIT_ALIASES` in `markdown_to_html.py`.
 - `POST /api/recipe-editor` rewrites the whole `recipe.md` through `python-frontmatter` and updates `updatedOn`. The per-field metadata endpoint rewrites the file but does not update `updatedOn`, so rating/comment activity does not change last-edited sorting.
 - MathJax is vendored under `src/recipeserver/assets/mathjax`; there is no JS package or build step in this repo.
+- Icons are standalone `.svg` files in `src/recipeserver/assets/` (e.g. `chef-hat.svg`, `warning.svg`, `plus.svg`, `chevron-down.svg`). Never embed ad-hoc inline `<svg>` markup — or an encoded `data:image/svg+xml` URI — in Python, JS, or CSS files. Reuse an existing asset or add a new `.svg` file to `assets/` and reference it instead: in Python, read/inline the file via `_read_svg`/`_icon_html` (see `markdown_to_html.py`) or `_icon_path` (see `index_html_generator.py`); in JS, fetch the asset and inline it so `currentColor` styling is preserved; in CSS, use `url("/assets/<name>.svg")`. Vendored MathJax files under `assets/mathjax/` are the only exception.
 
 ## Intentional design
 

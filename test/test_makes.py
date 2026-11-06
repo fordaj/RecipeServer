@@ -164,14 +164,16 @@ def test_recipe_editor_makes_count_shows_chef_hat_x_count():
     script = _asset("recipe-editor.js")
     chef_hat = _asset("chef-hat.svg")
 
-    # The inline icon is the same chef-hat artwork as the recipe overview.
-    assert "lucide-chef-hat" in script
+    # The icon is loaded from the shared chef-hat asset, not inlined in JS.
+    assert "/assets/chef-hat.svg" in script
+    assert "loadSvgIcon" in script
+    assert "recipe-editor__makes-icon" in script
+    assert "<svg" not in script
     for path_data in (
         "M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589",
         "M6 17h12",
     ):
         assert path_data in chef_hat
-        assert path_data in script
     assert 'aria-hidden="true"' in script
     assert 'focusable="false"' in script
 
