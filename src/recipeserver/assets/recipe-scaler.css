@@ -3,8 +3,10 @@
 .recipe-scaler {
   display: inline-flex;
   align-items: baseline;
+  justify-content: center;
   gap: 0.1em;
 
+  min-width: 0;
   color: var(--food-color);
   font-size: 32px;
   line-height: 1;
@@ -12,11 +14,25 @@
   vertical-align: baseline;
 }
 
+/*
+ * The controls are measured and sized from JS before the scaler is revealed.
+ * Keeping the element hidden until then avoids the two-control flash and the
+ * subsequent reflow/width jump on initial page load.
+ */
+.recipe-scaler--loading {
+  visibility: hidden;
+}
+
+.recipe-scaler--ready {
+  visibility: visible;
+}
+
 #recipe-scale-select,
 #recipe-scale-custom {
   box-sizing: border-box;
-  width: 3.5ch;
-  min-width: 3.5ch;
+  width: calc(var(--scale-control-width, 2) * 1ch + 0.15ch);
+  min-width: 2ch;
+  max-width: 7ch;
 
   color: inherit;
   font: inherit;
@@ -28,6 +44,20 @@
   outline: none;
   padding: 0;
   margin: 0;
+}
+
+/*
+ * Prefer the browser's content sizing for the free-form input where available.
+ * The JS custom property above remains the fallback, and the select keeps its
+ * measured width because its intrinsic width would span every option.
+ */
+@supports (field-sizing: content) {
+  #recipe-scale-custom {
+    field-sizing: content;
+    width: auto;
+    min-width: 0;
+    max-width: 7ch;
+  }
 }
 
 #recipe-scale-select {

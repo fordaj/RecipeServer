@@ -1,5 +1,6 @@
 class RecipeScaler {
   constructor() {
+    this.scaler = document.querySelector(".recipe-scaler");
     this.scaleSelect = document.getElementById("recipe-scale-select");
     this.customInput = document.getElementById("recipe-scale-custom");
     this.quantities = document.querySelectorAll(".quantity");
@@ -15,6 +16,9 @@ class RecipeScaler {
       this.scaleSelect.hidden = isCustom;
       this.customInput.hidden = !isCustom;
 
+      this.syncControlWidth(this.scaleSelect, this.selectedScaleText());
+      this.syncControlWidth(this.customInput, this.customInput.value);
+
       if (isCustom) {
         this.customInput.focus();
         this.customInput.select();
@@ -28,12 +32,48 @@ class RecipeScaler {
     });
 
     this.customInput.addEventListener("input", () => {
+      this.syncControlWidth(this.customInput, this.customInput.value);
       this.update();
     });
 
-    // Initial render
+    // Initial render. Keep the scaler hidden until the controls have been
+    // normalized and MathJax has finished its first pass.
     this.customInput.hidden = true;
-    this.update(false);
+    this.syncControlWidth(this.scaleSelect, this.selectedScaleText());
+    this.syncControlWidth(this.customInput, this.customInput.value);
+
+    this.readyTimer = window.setTimeout(() => this.markReady(), 2000);
+    this.update()
+      .catch((error) => {
+        console.warn("RecipeScaler: initial render failed.", error);
+      })
+      .finally(() => this.markReady());
+  }
+
+  selectedScaleText() {
+    const option = this.scaleSelect.selectedOptions[0];
+    return (option?.textContent || this.scaleSelect.value).trim();
+  }
+
+  syncControlWidth(control, value) {
+    const length = Math.max(2, String(value ?? "").trim().length);
+    control.style.setProperty("--scale-control-width", String(length));
+  }
+
+  markReady() {
+    if (this.ready) {
+      return;
+    }
+
+    this.ready = true;
+    window.clearTimeout(this.readyTimer);
+
+    if (!this.scaler) {
+      return;
+    }
+
+    this.scaler.classList.remove("recipe-scaler--loading");
+    this.scaler.classList.add("recipe-scaler--ready");
   }
 
   async update() {
