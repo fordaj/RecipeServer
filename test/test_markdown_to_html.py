@@ -195,6 +195,80 @@ Mix everything.
     assert not checkbox.has_attr("disabled")
 
 
+def test_conversion_marks_empty_ratings_and_comments_sections(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+---
+# Empty Sections
+""",
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    ratings = soup.select_one("#recipe-ratings")
+    comments = soup.select_one("#recipe-comments")
+    assert ratings is not None and "is-empty" in ratings["class"]
+    assert comments is not None and "is-empty" in comments["class"]
+
+    assets = Path(__file__).parents[1] / "src" / "recipeserver" / "assets"
+    assert ".recipe-ratings.is-empty .recipe-ratings__heading" in (assets / "ratings.css").read_text(
+        encoding="utf-8"
+    )
+    assert ".recipe-comments.is-empty .recipe-comments__heading" in (assets / "comments.css").read_text(
+        encoding="utf-8"
+    )
+    assert 'root.classList.toggle("is-empty", ratings.length === 0)' in (assets / "ratings.js").read_text(
+        encoding="utf-8"
+    )
+    assert 'root.classList.toggle("is-empty", comments.length === 0)' in (
+        assets / "comments.js"
+    ).read_text(encoding="utf-8")
+
+
+def test_conversion_does_not_mark_populated_sections_empty(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+ratings:
+  - name: Avery
+    rating: 8
+comments:
+  - author: Avery
+    text: Great
+---
+# Populated Sections
+""",
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    ratings = soup.select_one("#recipe-ratings")
+    comments = soup.select_one("#recipe-comments")
+    assert ratings is not None and "is-empty" not in ratings["class"]
+    assert comments is not None and "is-empty" not in comments["class"]
+
+
+def test_conversion_marks_invalid_ratings_empty(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+ratings:
+  - name: Missing score
+---
+# Invalid Ratings
+""",
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    ratings = soup.select_one("#recipe-ratings")
+    assert ratings is not None and "is-empty" in ratings["class"]
+
+
 def test_conversion_serializes_unquoted_yaml_dates(tmp_path: Path):
     _, html_file = convert_recipe(
         tmp_path,

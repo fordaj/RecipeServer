@@ -9,6 +9,9 @@ from ._logger import logger
 
 MODEL_ENDPOINT_KEY = "model_endpoint"
 MODEL_NAME_KEY = "model_name"
+RECIPE_SERVER_NAME_KEY = "recipe_server_name"
+SERVER_NAME_KEY = "server_name"
+DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
 NEW_RECIPE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipePrompt.md"
 
 
@@ -17,7 +20,24 @@ class Configuration:
         self.source_directory: Path = Path()
         self.model_endpoint: str = ""
         self.model_name: str = ""
+        self._recipe_server_name: str = DEFAULT_RECIPE_SERVER_NAME
         self.new_recipe_prompt: str = ""
+
+    @property
+    def recipe_server_name(self) -> str:
+        return self._recipe_server_name
+
+    @recipe_server_name.setter
+    def recipe_server_name(self, value: str) -> None:
+        self._recipe_server_name = value.strip() or DEFAULT_RECIPE_SERVER_NAME
+
+    @property
+    def server_name(self) -> str:
+        return self._recipe_server_name
+
+    @server_name.setter
+    def server_name(self, value: str) -> None:
+        self._recipe_server_name = value.strip() or DEFAULT_RECIPE_SERVER_NAME
 
     @property
     def site_directory(self) -> Path:
@@ -57,7 +77,7 @@ class Configuration:
         """Read the source directory (first bare line) and optional model keys."""
         source_value = ""
         settings: dict[str, str] = {}
-        known_keys = {MODEL_ENDPOINT_KEY, MODEL_NAME_KEY}
+        known_keys = {MODEL_ENDPOINT_KEY, MODEL_NAME_KEY, RECIPE_SERVER_NAME_KEY, SERVER_NAME_KEY}
 
         for raw_line in contents.splitlines():
             line = raw_line.strip()
@@ -132,11 +152,13 @@ class Configuration:
         ]
         if self.model_name:
             lines.append(f"{MODEL_NAME_KEY}={self.model_name}")
+        lines.append(f"{RECIPE_SERVER_NAME_KEY}={self.recipe_server_name}")
 
         logger.debug(
             f"Saving configuration to {config_file} "
             f"(source={self.source_directory}, endpoint={self.model_endpoint or '(none)'}, "
-            f"model={self.model_name or '(auto)'})"
+            f"model={self.model_name or '(auto)'}, "
+            f"server name={self.recipe_server_name!r})"
         )
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
 
@@ -171,6 +193,12 @@ class Configuration:
 
         self.source_directory = source_directory.resolve()
         logger.info(f"Using recipe source directory: {self.source_directory}")
+
+        server_name_value = settings.get(RECIPE_SERVER_NAME_KEY) or settings.get(SERVER_NAME_KEY, "")
+        if server_name_value:
+            self.recipe_server_name = server_name_value
+
+        logger.debug(f"Configured recipe server name: {self.recipe_server_name!r}")
 
         if MODEL_ENDPOINT_KEY in settings:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")
