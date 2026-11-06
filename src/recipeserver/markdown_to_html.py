@@ -61,22 +61,11 @@ RATINGS_JS = "/assets/ratings.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 
-MATHJAX = """
-<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [["$", "$"]]
-    },
-    options: {
-      enableMenu: false,
-      enableEnrichment: false,
-      enableExplorer: false,
-      enableExplorerHelp: false
-    }
-  };
-</script>
-
+KATEX = """
+<link rel="stylesheet" href="/assets/katex/dist/katex.min.css">
 <script defer src="/assets/katex/dist/katex.min.js"></script>
+<script defer src="/assets/katex/dist/contrib/auto-render.min.js"></script>
+<script defer src="/assets/katex-init.js"></script>
 """
 
 HOME_PAGE_ICON_HTML = """
@@ -210,7 +199,7 @@ class MarkdownToHTMLConverter:
         normalized = unit.strip().lower()
         return _UNIT_ALIASES.get(normalized, unit.strip())
 
-    def _mathjaxify_inline_code_blocks(self, soup: BeautifulSoup) -> None:
+    def _convert_inline_code_quantities(self, soup: BeautifulSoup) -> None:
         def parse_quantity(
             value: str,
         ) -> tuple[float, str, float | None] | None:
@@ -603,7 +592,7 @@ class MarkdownToHTMLConverter:
 
     def _postprocess(self, content: str) -> str:
         soup = BeautifulSoup(content, "html.parser")
-        self._mathjaxify_inline_code_blocks(soup)
+        self._convert_inline_code_quantities(soup)
         self._enable_checkbox_inputs(soup)
         self._inject_recipe_overview(soup)
         self._inject_recipe_contributor(soup)
@@ -741,7 +730,8 @@ class MarkdownToHTMLConverter:
                 "pymdownx.blocks.html",
                 "pymdownx.tasklist",
                 "pymdownx.arithmatex",
-            ]
+            ],
+            extension_configs={"pymdownx.arithmatex": {"generic": True}},
         )
 
         body = md.convert(markdown_body)
@@ -761,7 +751,7 @@ class MarkdownToHTMLConverter:
             <link rel="stylesheet" href="{COMMENTS_CSS}">
             <link rel="stylesheet" href="{RATINGS_CSS}">
             {self.get_doc_specific_overrides()}
-            {MATHJAX}
+            {KATEX}
         </head>
         <body>
             <script id="recipe-metadata" type="application/json">{self.metadata_json}</script>

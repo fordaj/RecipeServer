@@ -262,6 +262,44 @@ updatedOn: not-a-date
     assert soup.select_one(".recipe-version time") is None
 
 
+def test_conversion_uses_katex_for_math_and_does_not_emit_mathjax_markup(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+---
+# Math Recipe
+
+Inline $x^2$ and a block:
+
+$$
+\\frac{1}{2}
+$$
+""",
+    )
+
+    raw_html = html_file.read_text(encoding="utf-8")
+    soup = BeautifulSoup(raw_html, "html.parser")
+
+    assert soup.select_one('link[href="/assets/katex/dist/katex.min.css"]') is not None
+    assert soup.select_one('script[src="/assets/katex/dist/katex.min.js"]') is not None
+    assert (
+        soup.select_one('script[src="/assets/katex/dist/contrib/auto-render.min.js"]') is not None
+    )
+    assert soup.select_one('script[src="/assets/katex-init.js"]') is not None
+    assert "MathJax" not in raw_html
+
+    inline = soup.select_one("span.arithmatex")
+    assert inline is not None
+    assert inline.get_text() == r"\(x^2\)"
+
+    block = soup.select_one("div.arithmatex")
+    assert block is not None
+    assert block.get_text().strip() == "\\[\n\\frac{1}{2}\n\\]"
+    assert not soup.select(".arithmatex script")
+
+
 def test_front_matter_comment_is_not_used_as_page_title(tmp_path: Path):
     _, html_file = convert_recipe(
         tmp_path,
