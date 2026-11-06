@@ -17,7 +17,7 @@
                 <details class="recipe-editor__details">
                     <summary>Files</summary>
 
-                      <fieldset class="recipe-editor__metadata">
+                      <fieldset class="recipe-editor__section">
                 <div class="recipe-editor__location" hidden>
                     <label>
                         Folder
@@ -53,9 +53,13 @@
                 <details class="recipe-editor__details">
                     <summary>Auto-Generate</summary>
 
-                      <fieldset class="recipe-editor__metadata"> 
+                      <fieldset class="recipe-editor__section recipe-editor__ai">
                     <h3>Create from source</h3>
                     <p class="recipe-editor__ai-status" role="status"></p>
+
+                    <button type="button" class="recipe-editor__ai-cancel" hidden>
+                        Cancel generation
+                    </button>
 
                     <div class="recipe-editor__ai-field">
                         <label for="recipe-editor-ai-text">From text</label>
@@ -188,7 +192,7 @@
                         Cancel
                     </button>
                     <button type="button" class="recipe-editor__delete" hidden>
-                        Delete Recipe
+                        Delete
                     </button>
                     <button type="submit" class="recipe-editor__save">
                         Save
@@ -258,12 +262,13 @@
     return result;
   }
 
-  async function requestAiRecipe(inputType, input, onProgress) {
+  async function requestAiRecipe(inputType, input, onProgress, signal) {
     const response = await fetch(new URL("/api/ai-recipe", window.location.origin), {
       method: "POST",
       cache: "no-store",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ inputType, input, stream: true }),
+      signal,
     });
 
     if (!response.ok) {
@@ -473,6 +478,7 @@
     const aiUrl = dialog.querySelector(".recipe-editor__ai-url");
     const aiTextButton = dialog.querySelector(".recipe-editor__ai-generate-text");
     const aiUrlButton = dialog.querySelector(".recipe-editor__ai-generate-url");
+    const aiCancelButton = dialog.querySelector(".recipe-editor__ai-cancel");
     const aiControls = [aiText, aiUrl, aiTextButton, aiUrlButton];
 
     let originalContent = "";
@@ -482,6 +488,7 @@
     let activeButton = null;
     let isCreating = false;
     let aiAvailable = false;
+    let aiAbortController = null;
 
     function setAiProgress(message) {
       aiStatus.textContent = message;
@@ -576,9 +583,11 @@
       selectedImages.textContent = "";
       aiSection.hidden = true;
       aiAvailable = false;
+      aiAbortController = null;
       aiStatus.textContent = "";
       aiText.value = "";
       aiUrl.value = "";
+      aiCancelButton.hidden = true;
       setBusy(true);
 
       try {
@@ -667,18 +676,30 @@ Try this
         return;
       }
 
+      const controller = new AbortController();
+      aiAbortController = controller;
+      aiCancelButton.hidden = false;
       setBusy(true);
       setAiProgress(inputType === "url" ? `URL received: ${input}` : "Recipe text received.");
       status.textContent = "";
 
       try {
-        const result = await requestAiRecipe(inputType, input, setAiProgress);
-        textarea.value = result.content || "";
-        populateMetadata(form, result.metadata || {});
-        setAiProgress("Recipe draft ready. Review it, then create the recipe.");
+        const result = await requestAiRecipe(inputType, input, setAiProgress, controller.signal);
+
+        if (!controller.signal.aborted) {
+          textarea.value = result.content || "";
+          populateMetadata(form, result.metadata || {});
+          setAiProgress("Recipe draft ready. Review it, then create the recipe.");
+        }
       } catch (error) {
-        setAiProgress(`Generation failed: ${error.message}`);
+        if (error.name === "AbortError") {
+          setAiProgress("Generation cancelled.");
+        } else {
+          setAiProgress(`Generation failed: ${error.message}`);
+        }
       } finally {
+        if (aiAbortController === controller) aiAbortController = null;
+        aiCancelButton.hidden = true;
         setBusy(false);
       }
     }
@@ -713,6 +734,9 @@ Try this
     closeButton.addEventListener("click", closeEditor);
     aiTextButton.addEventListener("click", () => generateFromAi("text"));
     aiUrlButton.addEventListener("click", () => generateFromAi("url"));
+    aiCancelButton.addEventListener("click", () => {
+      if (aiAbortController) aiAbortController.abort();
+    });
 
     dialog.addEventListener("cancel", (event) => {
       if (busy) event.preventDefault();

@@ -123,12 +123,13 @@
   outline: 2px solid var(--food-color);
 }
 
-/* ---------- Recipe metadata ---------- */
+/* ---------- Details section panels ---------- */
 
+.recipe-editor__section,
 .recipe-editor__metadata {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
 
   width: 100%;
   min-width: 0;
@@ -139,14 +140,20 @@
   border: 1px solid var(--border-color);
   border-radius: 8px;
 
-  /* Metadata expands to fit all fields. The form handles scrolling. */
+  /* Panels expand to fit all fields. The form handles scrolling. */
   overflow: visible;
+}
+
+/* Metadata fields use two columns; every other section stays single column. */
+.recipe-editor__metadata {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
 }
 
 .recipe-editor__location {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem 1rem;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
   min-width: 0;
   padding: 0.75rem;
   border: 1px solid var(--border-color);
@@ -232,14 +239,6 @@
 
 /* ---------- AI recipe source ---------- */
 
-.recipe-editor__ai {
-  display: grid;
-  gap: 0.65rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-}
-
 .recipe-editor__ai[hidden] {
   display: none;
 }
@@ -295,7 +294,8 @@
   border-color: var(--food-color);
 }
 
-.recipe-editor__ai-field button {
+.recipe-editor__ai-field button,
+.recipe-editor__ai-cancel {
   justify-self: start;
   padding: 0.5rem 0.8rem;
   border: 1px solid var(--food-color);
@@ -306,15 +306,18 @@
   cursor: pointer;
 }
 
-.recipe-editor__ai-field button:hover:not(:disabled) {
+.recipe-editor__ai-field button:hover:not(:disabled),
+.recipe-editor__ai-cancel:hover:not(:disabled) {
   background: var(--hover-bg);
 }
 
-.recipe-editor__ai-field button:focus-visible {
+.recipe-editor__ai-field button:focus-visible,
+.recipe-editor__ai-cancel:focus-visible {
   outline: 2px solid var(--food-color);
 }
 
 .recipe-editor__ai-field button:disabled,
+.recipe-editor__ai-cancel:disabled,
 .recipe-editor__ai-field textarea:disabled,
 .recipe-editor__ai-field input:disabled {
   opacity: 0.6;
@@ -327,7 +330,8 @@
   font-weight: 600;
 }
 
-.recipe-editor__metadata label {
+.recipe-editor__metadata label,
+.recipe-editor__section > label {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -335,6 +339,19 @@
   min-width: 0;
   font-size: 0.875rem;
   font-weight: 500;
+}
+
+.recipe-editor__section > input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  color: var(--text-color);
+  font: inherit;
+}
+
+.recipe-editor__section > input:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
 }
 
 .recipe-editor__metadata input,
@@ -527,13 +544,13 @@
     padding: 0.75rem;
   }
 
+  .recipe-editor__section,
   .recipe-editor__metadata {
     gap: 0.6rem;
     padding: 0.6rem;
   }
 
   .recipe-editor__location {
-    grid-template-columns: 1fr;
     gap: 0.6rem;
     padding: 0.6rem;
   }
