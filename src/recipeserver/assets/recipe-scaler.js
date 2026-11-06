@@ -33,19 +33,10 @@ class RecipeScaler {
 
     // Initial render
     this.customInput.hidden = true;
-    this.update(false);
+    this.update();
   }
 
-  async update() {
-    const mathJax = window.MathJax;
-
-    if (!mathJax?.startup?.promise) {
-      console.warn("RecipeScaler: MathJax hasn't loaded. Check script order.");
-      return;
-    }
-
-    await mathJax.startup.promise;
-
+  update() {
     const scale =
       this.scaleSelect.value === "custom"
         ? parseFloat(this.customInput.value)
@@ -55,10 +46,6 @@ class RecipeScaler {
       return;
     }
 
-    // Clear MathJax's bookkeeping for the old rendered content.
-    if (typeof mathJax.typesetClear === "function") {
-      mathJax.typesetClear([...this.quantities]);
-    }
     for (const element of this.quantities) {
       const quantity = parseFloat(element.dataset.quantity);
       const unit = element.dataset.unit ?? "";
@@ -69,47 +56,34 @@ class RecipeScaler {
       }
 
       const scaled = this.roundQuantity(quantity * scale, unit);
-      let formatted = this.formatQuantity(scaled, unit);
+      const end = quantityEnd === undefined ? null : parseFloat(quantityEnd);
+      const scaledEnd = Number.isFinite(end) ? this.roundQuantity(end * scale, unit) : null;
 
-      if (quantityEnd !== undefined) {
-        const end = parseFloat(quantityEnd);
+      const latex =
+        scaledEnd === null
+          ? this.formatNumber(scaled)
+          : `${this.formatNumber(scaled)}\\text{ - }${this.formatNumber(scaledEnd)}`;
 
-        if (Number.isFinite(end)) {
-          const scaledEnd = this.roundQuantity(end * scale, unit);
+      // Pluralize the unit using the end of a range, since it follows the whole range.
+      const formattedUnit = this.formatUnit(unit, scaledEnd ?? scaled);
+      const separator = formattedUnit && this.requiresSpaceBeforeUnit(formattedUnit) ? " " : "";
 
-          // Format the endpoint as a quantity, then remove its repeated unit.
-          const formattedEnd = this.formatQuantity(scaledEnd, unit);
-          const formattedUnit = this.formatUnit(unit, scaled);
-
-          const separator = formattedUnit && this.requiresSpaceBeforeUnit(formattedUnit) ? " " : "";
-          const unitSuffix = formattedUnit ? `${separator}${formattedUnit}` : "";
-
-          const endText =
-            unitSuffix && formattedEnd.endsWith(unitSuffix)
-              ? formattedEnd.slice(0, -unitSuffix.length)
-              : formattedEnd;
-
-          const startText = formatted.replace(unitSuffix, "").replace(/^\$(.*?)\$$/, "$1");
-          formatted = `$${startText}\\text{ - }${endText.replace(/^\$(.*?)\$$/, "$1")}$${unitSuffix ? separator + formattedUnit : ""}`;
-        }
-      }
-
-      element.innerHTML = formatted;
+      this.renderQuantity(element, latex, formattedUnit ? `${separator}${formattedUnit}` : "");
     }
-
-    await this.typesetMath();
   }
 
-  async typesetMath() {
-    const mathJax = window.MathJax;
-
-    if (typeof mathJax?.typesetPromise !== "function") {
-      console.warn("RecipeScaler: MathJax typesetting is unavailable.");
+  renderQuantity(element, latex, unitSuffix) {
+    if (typeof window.katex?.render !== "function") {
+      console.warn("RecipeScaler: KaTeX hasn't loaded. Check script order.");
+      element.textContent = `${latex}${unitSuffix}`;
       return;
     }
 
-    await mathJax.startup.promise;
-    await mathJax.typesetPromise([...this.quantities]);
+    katex.render(latex, element, { throwOnError: false });
+
+    if (unitSuffix) {
+      element.append(document.createTextNode(unitSuffix));
+    }
   }
 
   roundQuantity(value, unit) {
@@ -148,18 +122,6 @@ class RecipeScaler {
     return !attachedUnits.includes(unit);
   }
 
-  formatQuantity(value, unit) {
-    const quantity = this.formatNumber(value);
-    const formattedUnit = this.formatUnit(unit, value);
-
-    if (!formattedUnit) {
-      return `$${quantity}$`;
-    }
-
-    const separator = this.requiresSpaceBeforeUnit(formattedUnit) ? " " : "";
-
-    return `$${quantity}$${separator}${formattedUnit}`;
-  }
   formatNumber(value) {
     const whole = Math.floor(value);
     const decimal = value - whole;

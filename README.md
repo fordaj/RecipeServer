@@ -17,7 +17,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Scales quantities inside inline code, such as `1 1/2 cups` or `1-2 tbsp`.
 - Uses the first image in each recipe folder as the hero image and derives a page accent color from it.
 - Shows metadata warnings for recipes missing recommended fields.
-- Typesets math with a bundled copy of MathJax.
+- Typesets math with a bundled copy of KaTeX.
 - Regenerates the affected recipe page and the index whenever a recipe is saved.
 - Provides a tray icon to open the recipes page, view server status, start or stop the server, and quit.
 
@@ -256,7 +256,7 @@ src/recipeserver/
 ├── server.py               # HTTP server and JSON APIs
 ├── tray.py                 # system tray icon and menu
 ├── NewRecipePrompt.md      # model prompt requirements, reloaded at startup
-└── assets/                 # CSS, JavaScript, icons, and vendored MathJax
+└── assets/                 # CSS, JavaScript, icons, and vendored KaTeX
 test/                       # pytest suite
 serve.sh / serve.bat        # launch helpers
 ```
@@ -276,6 +276,11 @@ serve.sh / serve.bat        # launch helpers
 - The server always uses port `8000`, binds to `0.0.0.0`, and has no authentication. Run it only on a trusted local network.
 - There is no JavaScript build step. Frontend assets are served directly, and KaTeX is vendored in `src/recipeserver/assets/katex`.
 
-## MathJax
+## KaTeX
 
-Updated last on 11/05/2026 to latest version using `pnpm install katex`.
+The math renderer is vendored in `src/recipeserver/assets/katex`. The browser build in
+`katex/dist` is committed and served directly; no JavaScript build step is required. Recipe
+math is emitted by `pymdownx.arithmatex` with generic delimiters and rendered in the browser
+by KaTeX's auto-render extension.
+
+Updated last on 11/05/2026 to KaTeX 0.19.1 using `pnpm install katex`.
