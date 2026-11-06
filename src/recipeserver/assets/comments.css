@@ -122,9 +122,9 @@
   box-sizing: border-box;
   width: 100%;
   padding: 0.4rem 0.5rem;
-  border: 1px solid var(--border-color, #ccc);
+  border: 1px solid var(--border-color);
   border-radius: 0.25rem;
-  background: var(--input-background, transparent);
+  background: var(--input-background);
   color: inherit;
   font: inherit;
 }
@@ -203,7 +203,7 @@
   width: min(100%, 16rem);
   padding: 0;
   border: 0;
-  border-bottom: 1px solid var(--border-color, #ccc);
+  border-bottom: 1px solid var(--border-color);
   border-radius: 0;
   background: transparent;
   color: inherit;
@@ -224,7 +224,7 @@
   min-height: 5rem;
   padding: 0.5rem 0;
   border: 0;
-  border-bottom: 1px solid var(--border-color, #ccc);
+  border-bottom: 1px solid var(--border-color);
   border-radius: 0;
   background: transparent;
   color: inherit;

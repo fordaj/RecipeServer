@@ -1,3 +1,24 @@
+/*
+ * Shared design definitions.
+ *
+ * This file must be linked before every other stylesheet so all pages and
+ * components read their colors, fonts, spacing, and shadows from one place.
+ */
+
+/* ---------- Fonts ---------- */
+
+@font-face {
+  font-family: "Lato";
+  src: url("./fonts/Lato/Lato-Regular.ttf") format("truetype");
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Playfair Display";
+  src: url("./fonts/Playfair/Playfair-VariableFont_opsz,wdth,wght.ttf") format("truetype");
+  font-weight: 400;
+}
+
 /* ---------- Theme ---------- */
 
 :root {
@@ -11,12 +32,15 @@
   --page-bg: #faf9f7;
   --card-bg: #ffffff;
   --input-bg: var(--page-bg);
+  --input-background: var(--input-bg);
 
   /* Text */
   --text-color: #666666;
   --heading-color: #333333;
   --metadata-color: #444444;
   --muted-color: #99918c;
+  --text-muted: var(--muted-color);
+  --checkmark-color: #ffffff;
 
   /* Borders and details */
   --border-color: #e5ddd8;
@@ -25,14 +49,36 @@
   --hover-border-color: #d8c2b7;
   --hover-bg: #eeeeee;
 
+  /* Feedback */
+  --danger-color: #dc2626;
+  --danger-color-hover: #b91c1c;
+  --danger-text-color: #ffffff;
+  --warning-border-color: #a66300;
+  --warning-bg-color: #f3c96b;
+  --warning-text-color: #805000;
+  --warning-border-mix: 28%;
+  --warning-bg-mix: 18%;
+
   /* Shadows */
   --card-shadow: 0 2px 10px rgb(0 0 0 / 5%);
   --subtle-shadow: 0 1px 4px rgb(0 0 0 / 3%);
   --hover-shadow: 0 3px 10px rgb(0 0 0 / 5%);
 
+  /* Typography */
+  --font-body: "Lato", sans-serif;
+  --font-heading: "Playfair Display", serif;
+
   /* Layout */
   --page-width: 900px;
+  --text-width: 700px;
+  --content-width: 70rem;
   --spacing: 1.5rem;
+
+  /* Print */
+  --print-bg: #ffffff;
+  --print-text-color: #222222;
+  --print-border-color: #cccccc;
+  --print-heading-border-color: #c9b3a8;
 
   --dialog-backdrop: rgb(0 0 0 / 45%);
 }
@@ -62,6 +108,14 @@
     --card-border-color: #39332f;
     --hover-border-color: #705347;
     --hover-bg: #35312e;
+
+    /* Feedback */
+    --danger-color: #ef4444;
+    --danger-color-hover: #dc2626;
+    --warning-border-color: #f3c96b;
+    --warning-text-color: #f3c96b;
+    --warning-border-mix: 35%;
+    --warning-bg-mix: 12%;
 
     /* Shadows */
     --card-shadow: 0 2px 10px rgb(0 0 0 / 20%);

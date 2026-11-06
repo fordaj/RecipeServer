@@ -3,7 +3,7 @@ import hashlib
 import json
 import math
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from statistics import mean
@@ -18,7 +18,7 @@ from .image_handler import get_first_image_in_dir
 from .metadata_linter import lint_recipe_metadata
 
 FILE_PATH = Path(__file__)
-THEME_CSS_PATH = "/assets/theme.css"
+DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor.css"
@@ -47,6 +47,7 @@ def _versioned_asset_url(url: str) -> str:
     return f"{url}?v={digest}"
 
 
+DEFINITIONS_CSS_URL = _versioned_asset_url(DEFINITIONS_CSS_PATH)
 INDEX_CSS_URL = _versioned_asset_url(INDEX_CSS_PATH)
 INDEX_JS_URL = _versioned_asset_url(INDEX_JS_PATH)
 RECIPE_EDITOR_CSS_URL = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
@@ -165,28 +166,40 @@ class IndexHTMLGenerator:
     @staticmethod
     def _contribution_date(value: object) -> date | None:
         if isinstance(value, datetime):
-            return value.date()
-        if isinstance(value, date):
+            parsed = value
+        elif isinstance(value, date):
             return value
-        if isinstance(value, str):
+        elif isinstance(value, str):
             try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
+                parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
             except ValueError:
                 return None
-        return None
+        else:
+            return None
+
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc)
+
+        return parsed.date()
 
     @staticmethod
     def _updated_date(value: object) -> datetime | None:
         if isinstance(value, datetime):
-            return value
-        if isinstance(value, date):
-            return datetime.combine(value, datetime.min.time())
-        if isinstance(value, str):
+            parsed = value
+        elif isinstance(value, date):
+            return datetime.combine(value, datetime.min.time(), tzinfo=timezone.utc)
+        elif isinstance(value, str):
             try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00"))
+                parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
             except ValueError:
                 return None
-        return None
+        else:
+            return None
+
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+
+        return parsed.astimezone(timezone.utc)
 
     @staticmethod
     def _sources(metadata: dict) -> list[dict]:
@@ -525,7 +538,7 @@ class IndexHTMLGenerator:
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>Ford Family Recipes</title>
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
-                <link rel="stylesheet" href="{THEME_CSS_PATH}">
+                <link rel="stylesheet" href="{DEFINITIONS_CSS_URL}">
                 <link rel="stylesheet" href="{INDEX_CSS_URL}">
                 <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_URL}">
                 <script src="{INDEX_JS_URL}" defer></script>

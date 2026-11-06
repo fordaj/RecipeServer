@@ -50,7 +50,7 @@
                 </details>
 
                 
-                <details class="recipe-editor__details">
+                <details class="recipe-editor__details recipe-editor__ai-details">
                     <summary>Auto-Generate</summary>
 
                       <fieldset class="recipe-editor__section recipe-editor__ai">
@@ -431,7 +431,7 @@
 
       contributor: get("contributor") || null,
 
-      createdOn: get("createdOn") ? `${get("createdOn")}T00:00:00.000Z` : null,
+      createdOn: get("createdOn") || null,
 
       source: readSource(form),
     };
@@ -473,6 +473,7 @@
     const imageInput = dialog.querySelector("#recipe-editor-images");
     const selectedImages = dialog.querySelector(".recipe-editor__images-selected");
     const aiSection = dialog.querySelector(".recipe-editor__ai");
+    const aiDetails = dialog.querySelector(".recipe-editor__ai-details");
     const aiStatus = dialog.querySelector(".recipe-editor__ai-status");
     const aiText = dialog.querySelector(".recipe-editor__ai-text");
     const aiUrl = dialog.querySelector(".recipe-editor__ai-url");
@@ -497,6 +498,7 @@
     function setAiState(configured, available) {
       aiAvailable = configured && available;
       aiSection.hidden = !configured;
+      aiDetails.hidden = !configured || !isCreating;
       aiControls.forEach((control) => {
         control.disabled = busy || !aiAvailable;
       });
@@ -582,6 +584,8 @@
       imageInput.value = "";
       selectedImages.textContent = "";
       aiSection.hidden = true;
+      aiDetails.hidden = true;
+      aiDetails.open = false;
       aiAvailable = false;
       aiAbortController = null;
       aiStatus.textContent = "";

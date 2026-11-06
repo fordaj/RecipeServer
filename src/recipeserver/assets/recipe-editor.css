@@ -150,6 +150,16 @@
   gap: 0.75rem 1rem;
 }
 
+/* Files and Auto-Generate stack their contents vertically. */
+.recipe-editor__details > .recipe-editor__section,
+.recipe-editor__ai-field {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.recipe-editor__ai-details[hidden] {
+  display: none;
+}
+
 .recipe-editor__location {
   display: grid;
   grid-template-columns: 1fr;
@@ -378,14 +388,27 @@
   padding-right: 2.5rem;
 }
 
+/*
+ * Safari gives date inputs a wide intrinsic minimum width. Pin the control to
+ * its grid track so the field cannot bleed past the dialog on mobile.
+ */
+.recipe-editor__metadata input[type="date"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .recipe-editor__metadata select:focus,
 .recipe-editor__metadata input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--food-color);
 }
 
 .recipe-editor__metadata input::placeholder {
-  color: var(--text-muted, var(--text-color));
+  color: var(--text-muted);
   opacity: 0.65;
 }
 
@@ -513,8 +536,8 @@
 }
 
 .recipe-editor__footer .recipe-editor__delete {
-  background: #dc2626;
-  color: white;
+  background: var(--danger-color);
+  color: var(--danger-text-color);
   border: none;
   border-radius: 6px;
   font-weight: 600;
@@ -523,7 +546,7 @@
 }
 
 .recipe-editor__delete:hover:not(:disabled) {
-  background: #b91c1c;
+  background: var(--danger-color-hover);
 }
 
 .recipe-editor__footer button:disabled {
@@ -548,6 +571,11 @@
   .recipe-editor__metadata {
     gap: 0.6rem;
     padding: 0.6rem;
+  }
+
+  /* Keep the metadata grid single-column on narrow screens. */
+  .recipe-editor__metadata {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .recipe-editor__location {
