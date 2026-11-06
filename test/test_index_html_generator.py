@@ -424,6 +424,9 @@ def test_recipe_editor_includes_local_model_source_inputs():
     assert "From text" in script
     assert "From URL" in script
     assert "Generate from text" in script
+    assert 'class="recipe-editor__section recipe-editor__ai"' in script
+    assert "Cancel generation" in script
+    assert "AbortController" in script
     assert "/api/ai-status" in script
     assert "/api/ai-recipe" in script
     assert "The configured local model is unavailable" in script
