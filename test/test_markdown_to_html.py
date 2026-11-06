@@ -416,6 +416,9 @@ Servings
     assert "display: inline-block" in css
     assert ".recipe-meta__group dt" in css
     assert ".recipe-meta__group dd" in css
+    # Groups are separated by consistent spacing, not by a separator.
+    assert ".recipe-meta__group + .recipe-meta__group" not in css
+    assert "margin: 0.25rem 1.25rem" in css
 
 
 def test_recipe_meta_grouping_keeps_multi_term_and_multi_value_runs(tmp_path: Path):

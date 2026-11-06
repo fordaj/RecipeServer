@@ -144,7 +144,7 @@ body > a:hover {
   display: inline-block;
   vertical-align: top;
   text-align: center;
-  margin: 0.25rem 0.75rem;
+  margin: 0.25rem 1.25rem;
 }
 
 .recipe-meta__group dt {
@@ -161,17 +161,6 @@ body > a:hover {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.recipe-meta__group + .recipe-meta__group {
-  position: relative;
-}
-
-.recipe-meta__group + .recipe-meta__group::before {
-  content: "•";
-  position: absolute;
-  left: -0.75rem;
-  color: var(--border-color);
 }
 
 /* ---------- Hero image ---------- */
@@ -623,8 +612,8 @@ input[type="checkbox"]:focus-visible {
     font-size: 7pt;
   }
 
-  .recipe-meta__group + .recipe-meta__group::before {
-    content: "•";
+  .recipe-meta__group {
+    margin: 0.05in 0.2in;
   }
 
   /* Keep the hero image modest */
