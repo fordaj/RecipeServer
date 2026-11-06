@@ -76,6 +76,11 @@
   display: none;
 }
 
+.recipe-editor__makes-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .recipe-editor__makes-count svg {
   width: 1.05em;
   height: 1.05em;

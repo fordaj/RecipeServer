@@ -1,4 +1,4 @@
-const initRecipeIndex = () => {
+const initRecipeIndex = async () => {
   {
     const list = document.querySelector("#recipe-list");
     if (!list) return;
@@ -41,12 +41,24 @@ const initRecipeIndex = () => {
         : "Filter Reviews: All";
     };
 
-    const RATING_WARNING_ICON =
-      '<svg aria-hidden="true" class="recipe-icon" fill="none" focusable="false" height="24" ' +
-      'stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" ' +
-      'viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg">' +
-      '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/>' +
-      '<path d="M12 9v4"/><path d="M12 17h.01"/></svg>';
+    // The warning icon lives in assets/warning.svg; load it once and
+    // inline it so it can inherit the chip's colour via currentColor.
+    let ratingWarningIcon = "";
+    try {
+      const response = await fetch("/assets/warning.svg", { cache: "no-store" });
+      if (response.ok) {
+        const svg = new DOMParser().parseFromString(
+          await response.text(),
+          "image/svg+xml",
+        ).documentElement;
+        svg.setAttribute("class", "recipe-icon");
+        svg.setAttribute("aria-hidden", "true");
+        svg.setAttribute("focusable", "false");
+        ratingWarningIcon = new XMLSerializer().serializeToString(svg);
+      }
+    } catch {
+      ratingWarningIcon = "";
+    }
 
     const ratingWarningMessage = (reviewers) => {
       if (!reviewers) return "Missing ratings";
@@ -67,7 +79,7 @@ const initRecipeIndex = () => {
       warning.className = "recipe-detail recipe-detail--rating recipe-detail--warning";
       warning.innerHTML =
         '<span class="recipe-detail__value"><span class="recipe-chip recipe-warning-chip">' +
-        `${RATING_WARNING_ICON} Ratings</span></span>`;
+        `${ratingWarningIcon} Ratings</span></span>`;
       details.prepend(warning);
       return warning;
     };
@@ -100,8 +112,7 @@ const initRecipeIndex = () => {
         }
 
         const average =
-          matching.reduce((total, rating) => total + Number(rating.rating), 0) /
-          matching.length;
+          matching.reduce((total, rating) => total + Number(rating.rating), 0) / matching.length;
 
         let rating = existing;
         if (!rating && details) {
@@ -139,9 +150,7 @@ const initRecipeIndex = () => {
         updateReviewLabel(reviewers);
 
         const filtering =
-          query !== "" ||
-          reviewers !== null ||
-          filters.some(([, control]) => control.value !== "");
+          query !== "" || reviewers !== null || filters.some(([, control]) => control.value !== "");
         const visible = recipes.filter(
           (recipe) =>
             recipe.dataset.search.toLowerCase().includes(query) &&
