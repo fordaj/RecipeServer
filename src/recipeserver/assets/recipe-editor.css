@@ -62,13 +62,36 @@
   font-size: 1.25rem;
 }
 
+.recipe-editor__makes-count {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-color);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+.recipe-editor__makes-count[hidden] {
+  display: none;
+}
+
+.recipe-editor__makes-count svg {
+  width: 1.05em;
+  height: 1.05em;
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
 .recipe-editor__made-this {
   flex: 0 0 auto;
-  padding: 0.45rem 0.75rem;
+  /* A smidge of extra room before the close button. */
+  margin-right: 0.35rem;
+  padding: 0.65rem 1rem;
   border: 1px solid var(--food-color);
-  border-radius: 999px;
-  background: var(--card-bg);
-  color: var(--food-color);
+  border-radius: 6px;
+  background: var(--food-color);
+  color: var(--page-bg);
   font: inherit;
   font-size: 0.9rem;
   font-weight: 600;
@@ -77,7 +100,9 @@
 }
 
 .recipe-editor__made-this:hover:not(:disabled) {
-  background: var(--hover-bg);
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
 }
 
 .recipe-editor__made-this:focus-visible {
@@ -523,6 +548,14 @@
 }
 
 /* ---------- Markdown editor ---------- */
+
+.recipe-editor__markdown-details .recipe-editor__markdown-label {
+  margin-top: 0.5rem;
+}
+
+.recipe-editor__markdown-details .recipe-editor__source {
+  margin-top: 0.35rem;
+}
 
 .recipe-editor__markdown-label {
   display: block;
