@@ -54,7 +54,10 @@ class FakeModelAPIHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/v1/models":
-            self._send_json(200, {"data": [{"id": "test-model"}]})
+            self._send_json(
+                200,
+                {"data": [{"id": "test-model"}, {"id": "vision-model"}]},
+            )
             return
 
         if self.path == "/article":
@@ -81,10 +84,17 @@ class FakeModelAPIHandler(BaseHTTPRequestHandler):
 
         length = int(self.headers.get("Content-Length", "0"))
         payload = json.loads(self.rfile.read(length))
+        type(self).state.setdefault("payloads", []).append(payload)
         type(self).state["payload"] = payload
+        # The image analysis model (vision-model) returns a transcription;
+        # every other request returns the finished recipe draft.
+        if payload.get("model") == "vision-model":
+            content = "Brownies: 1 cup sugar, 2 eggs, 1/2 cup butter."
+        else:
+            content = MODEL_OUTPUT
         self._send_json(
             200,
-            {"choices": [{"message": {"content": MODEL_OUTPUT}}]},
+            {"choices": [{"message": {"content": content}}]},
         )
 
 
@@ -111,6 +121,35 @@ def request_ai_events(url: str, payload: dict) -> tuple[int, list[dict]]:
         url,
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    with urlopen(request) as response:
+        events = [json.loads(line) for line in response]
+        return response.status, events
+
+
+def request_ai_image_events(
+    url: str, image_bytes: bytes, filename: str = "recipe.png"
+) -> tuple[int, list[dict]]:
+    import uuid
+
+    boundary = f"----RecipeServerTest{uuid.uuid4().hex}"
+    body = (
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="inputType"\r\n\r\n'
+        "image\r\n"
+        f"--{boundary}\r\n"
+        'Content-Disposition: form-data; name="stream"\r\n\r\n'
+        "true\r\n"
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="image"; filename="{filename}"\r\n'
+        "Content-Type: image/png\r\n\r\n"
+    ).encode() + image_bytes + f"\r\n--{boundary}--\r\n".encode()
+    request = Request(
+        url,
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
         method="POST",
     )
 
@@ -161,8 +200,10 @@ def test_ai_status_and_generation_from_text(tmp_path):
     with running_model_api() as (model_url, model_state):
         config = SimpleNamespace(
             model_endpoint=model_url,
-            model_name="test-model",
+            all_purpose_model_name="test-model",
+            image_analysis_model="vision-model",
             new_recipe_prompt="ONLY reply with the markdown file.",
+            new_recipe_from_image_prompt="Transcribe the recipe image.",
         )
 
         with running_recipe_server(source, config) as base_url:
@@ -172,6 +213,10 @@ def test_ai_status_and_generation_from_text(tmp_path):
                 "configured": True,
                 "available": True,
                 "model": "test-model",
+                "all_purpose_model": "test-model",
+                "image_model": "vision-model",
+                "image_configured": True,
+                "image_available": True,
             }
 
             status, result = request_json(
@@ -207,8 +252,10 @@ def test_ai_generation_from_url_fetches_page_and_populates_source(tmp_path):
     with running_model_api() as (model_url, model_state):
         config = SimpleNamespace(
             model_endpoint=model_url,
-            model_name="test-model",
+            all_purpose_model_name="test-model",
+            image_analysis_model="vision-model",
             new_recipe_prompt="Only reply with Markdown.",
+            new_recipe_from_image_prompt="Transcribe the recipe image.",
         )
         article_url = f"{model_url}/article"
 
@@ -242,15 +289,89 @@ def test_ai_generation_from_url_fetches_page_and_populates_source(tmp_path):
     assert progress[-1] == "AI response received. Preparing the recipe draft..."
 
 
+def test_ai_generation_from_image_transcribes_then_drafts(tmp_path):
+    from io import BytesIO
+
+    from PIL import Image
+
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    buffer = BytesIO()
+    Image.new("RGB", (8, 8), color="white").save(buffer, format="PNG")
+    image_bytes = buffer.getvalue()
+
+    with running_model_api() as (model_url, model_state):
+        config = SimpleNamespace(
+            model_endpoint=model_url,
+            all_purpose_model_name="test-model",
+            image_analysis_model="vision-model",
+            new_recipe_prompt="Only reply with Markdown.",
+            new_recipe_from_image_prompt="Transcribe the recipe image.",
+        )
+
+        with running_recipe_server(source, config) as base_url:
+            status, events = request_ai_image_events(
+                f"{base_url}/api/ai-recipe", image_bytes
+            )
+
+    result_event = events[-1]
+    progress = [event["message"] for event in events if event["type"] == "progress"]
+    assert result_event["type"] == "result"
+    result = result_event["result"]
+    assert status == 200
+    assert result["content"].startswith("# Brownies")
+    assert result["metadata"]["source"] == {
+        "author": None,
+        "title": "test-model",
+        "format": "AI",
+        "url": None,
+    }
+
+    payloads = model_state["payloads"]
+    assert len(payloads) == 2
+    # First call: image analysis model, image prompt + image data URI.
+    assert payloads[0]["model"] == "vision-model"
+    assert payloads[0]["messages"][0] == {
+        "role": "system",
+        "content": "Transcribe the recipe image.",
+    }
+    image_content = payloads[0]["messages"][1]["content"]
+    assert isinstance(image_content, list)
+    assert image_content[1]["type"] == "image_url"
+    assert image_content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    # Second call: all-purpose model drafts from the transcription.
+    assert payloads[1]["model"] == "test-model"
+    assert payloads[1]["messages"][0]["content"] == "Only reply with Markdown."
+    assert "transcribed from image" in payloads[1]["messages"][1]["content"]
+    assert "1 cup sugar, 2 eggs" in payloads[1]["messages"][1]["content"]
+    assert any("for transcription" in message for message in progress)
+    assert any("extracted text" in message for message in progress)
+
+
 def test_ai_endpoints_are_disabled_without_configuration(tmp_path):
     source = tmp_path / "recipes"
     source.mkdir()
-    config = SimpleNamespace(model_endpoint="", model_name="", new_recipe_prompt="")
+    config = SimpleNamespace(
+        model_endpoint="",
+        all_purpose_model_name="",
+        image_analysis_model="",
+        new_recipe_prompt="",
+        new_recipe_from_image_prompt="",
+    )
 
     with running_recipe_server(source, config) as base_url:
         status, body = request_json(f"{base_url}/api/ai-status")
         assert status == 200
-        assert body == {"configured": False, "available": False, "model": ""}
+        assert body == {
+            "configured": False,
+            "available": False,
+            "model": "",
+            "all_purpose_model": "",
+            "image_model": "",
+            "image_configured": False,
+            "image_available": False,
+        }
 
         status, body = request_json(
             f"{base_url}/api/ai-recipe",
@@ -270,8 +391,10 @@ def test_ai_endpoint_reports_unavailable_model(tmp_path):
 
     config = SimpleNamespace(
         model_endpoint=f"http://127.0.0.1:{unavailable_port}/v1",
-        model_name="test-model",
+        all_purpose_model_name="test-model",
+        image_analysis_model="vision-model",
         new_recipe_prompt="Prompt",
+        new_recipe_from_image_prompt="Transcribe the recipe image.",
     )
 
     with running_recipe_server(source, config) as base_url:
@@ -293,8 +416,10 @@ def test_ai_recipe_rejects_invalid_requests(tmp_path):
     source.mkdir()
     config = SimpleNamespace(
         model_endpoint="http://127.0.0.1:1234/v1",
-        model_name="test-model",
+        all_purpose_model_name="test-model",
+        image_analysis_model="vision-model",
         new_recipe_prompt="Prompt",
+        new_recipe_from_image_prompt="Transcribe the recipe image.",
     )
 
     with running_recipe_server(source, config) as base_url:
@@ -303,7 +428,7 @@ def test_ai_recipe_rejects_invalid_requests(tmp_path):
             {"inputType": "image", "input": "something"},
         )
         assert status == 400
-        assert "inputType" in body["error"]
+        assert "recipe image" in body["error"]
 
         status, body = request_json(
             f"{base_url}/api/ai-recipe",

@@ -71,7 +71,7 @@ Open the site in either of these ways:
 
 Use the **+** button in the index to create a recipe. Choose an existing folder or enter a new folder path relative to the configured recipe directory, then write the recipe in Markdown. The editor can also upload supported images beside the recipe; images added while editing an existing recipe are saved to that recipe's folder.
 
-If a local AI model is configured, the create dialog also shows **From text** and **From URL** inputs. Paste recipe text or a link and choose the matching **Generate** button; the model drafts the Markdown and metadata into the editor. Nothing is saved until you review the result and press **Create**.
+If a local AI model is configured, the create dialog also shows **From text**, **From URL**, and **From Image** inputs. Paste recipe text, a link, or choose a recipe photo and choose the matching **Generate** button; the model drafts the Markdown and metadata into the editor. Nothing is saved until you review the result and press **Create**.
 
 The tray menu also shows the current server status and lets you start or stop the server. Use **Quit** to shut down the app. Closing the browser tab does not stop the server.
 
@@ -83,30 +83,32 @@ uv run python -m recipeserver --log-level DEBUG
 
 ## Optional local AI model
 
-Recipe creation from text or URL uses an OpenAI-compatible local model endpoint. Point it at a server such as Ollama, LM Studio, or `llama.cpp`:
+Recipe creation from text, URL, or image uses an OpenAI-compatible local model endpoint. Point it at a server such as Ollama, LM Studio, or `llama.cpp`:
 
 ```bash
 # In config.txt, after the recipe directory line:
 model_endpoint=http://localhost:11434/v1
-model_name=llama3.2
+all_purpose_model_name=llama3.2
+image_analysis_model=llava3
 ```
 
 The first line of `config.txt` remains the recipe source directory. If the `model_endpoint` line is absent, the app asks for the endpoint on startup:
 
 ```text
 Local model endpoint (for example http://localhost:11434/v1). Press Enter to skip:
-Model name (press Enter to auto-detect from the endpoint):
+All-purpose model name (press Enter to auto-detect from the endpoint):
+Image analysis model name (press Enter to auto-detect from the endpoint):
 ```
 
-Press <kbd>Enter</kbd> at the endpoint prompt to skip the integration. The empty setting is saved, so the app will not ask again; to enable it later, add or edit the `model_endpoint` line in `config.txt`. Set `model_name` when your server has more than one model, or leave it out and RecipeServer will ask `/v1/models` for the first available model.
+Press <kbd>Enter</kbd> at the endpoint prompt to skip the integration. The empty setting is saved, so the app will not ask again; to enable it later, add or edit the `model_endpoint` line in `config.txt`. Set `all_purpose_model_name` (and `image_analysis_model` for From Image) when your server has more than one model, or leave it out and RecipeServer will ask `/v1/models` for the first available model.
 
 The AI controls behave as follows:
 
-- Both controls are hidden when no model endpoint is configured.
-- Both controls are shown but disabled when the endpoint is configured but cannot be reached.
+- All controls are hidden when no model endpoint is configured.
+- All controls are shown but disabled when the endpoint is configured but cannot be reached.
 - The endpoint is checked with a short timeout each time the create dialog opens, so start the model server and reopen the dialog after it becomes available.
 
-The model prompt requirements are read from `src/recipeserver/NewRecipePrompt.md` on every app run, so edits to that file take effect the next time you start RecipeServer. For **From URL**, RecipeServer fetches the page and sends its readable text (not the raw HTML) to the model. The generated Markdown and front matter only pre-fill the editor; review them before creating the recipe.
+The model prompt requirements are read from `src/recipeserver/NewRecipePrompt.md` on every app run, so edits to that file take effect the next time you start RecipeServer. For **From URL**, RecipeServer fetches the page and sends its readable text (not the raw HTML) to the model. For **From Image**, the image is sent to the configured `image_analysis_model` with the prompt from `src/recipeserver/NewRecipeFromImagePrompt.md`; its transcription is then sent to the `all_purpose_model_name` model with `NewRecipePrompt.md` to draft the recipe. The generated Markdown and front matter only pre-fill the editor; review them before creating the recipe.
 
 ## Recipe layout
 
@@ -205,7 +207,7 @@ RecipeServer uses the operating system's application-data directory:
 
 Inside that directory:
 
-- `config.txt` contains the path to the recipe source directory on the first line, followed by optional `model_endpoint` and `model_name` lines for the local AI integration.
+- `config.txt` contains the path to the recipe source directory on the first line, followed by optional `model_endpoint`, `all_purpose_model_name`, and `image_analysis_model` lines for the local AI integration.
 - `site/` contains the generated website.
 
 The site directory is disposable. It is deleted and rebuilt every time RecipeServer starts. Never store source content or manual edits there.
@@ -222,9 +224,10 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **A recipe is missing from the index:** Confirm that the file is named exactly `recipe.md` and lives under the configured recipe source directory.
 - **A recipe has no hero image or expected accent color:** Add a supported image next to `recipe.md`. The first image in filename-sorted order wins.
 - **Metadata warnings are visible:** Use the **Metadata Status** toggle in the index. Warnings are advisory and can be resolved by filling in the missing front matter fields.
-- **The From text and From URL inputs are missing:** No local model endpoint is configured. Add `model_endpoint=` to `config.txt`, or remove that line and restart to be prompted again.
-- **The From text and From URL inputs are disabled:** The configured model endpoint could not be reached. Start the model server, check the endpoint URL, and reopen the create dialog.
-- **AI generation fails with an HTTP error:** Confirm the endpoint is OpenAI-compatible and exposes `/v1/chat/completions`. Set `model_name` explicitly if auto-detection picks the wrong model.
+- **The From text, From URL, and From Image inputs are missing:** No local model endpoint is configured. Add `model_endpoint=` to `config.txt`, or remove that line and restart to be prompted again.
+- **The From text, From URL, and From Image inputs are disabled:** The configured model endpoint could not be reached. Start the model server, check the endpoint URL, and reopen the create dialog.
+- **The From Image input is disabled while text/URL work:** The image prompt could not be loaded. Check `src/recipeserver/NewRecipeFromImagePrompt.md` exists, and that the endpoint serves a vision-capable `image_analysis_model`.
+- **AI generation fails with an HTTP error:** Confirm the endpoint is OpenAI-compatible and exposes `/v1/chat/completions`. Set `all_purpose_model_name` explicitly if auto-detection picks the wrong model.
 
 ## Development
 

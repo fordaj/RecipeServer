@@ -1,10 +1,13 @@
-"""Optional local-model integration for creating recipes from text or URLs."""
+"""Optional local-model integration for creating recipes from text, URLs, or images."""
 
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
 import re
 from collections.abc import Callable
+from io import BytesIO
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -12,6 +15,7 @@ from urllib.request import Request, urlopen
 
 import frontmatter
 from bs4 import BeautifulSoup
+from PIL import Image, UnidentifiedImageError
 
 from ._logger import logger
 
@@ -22,7 +26,21 @@ URL_TIMEOUT_SECONDS = 20
 MAX_URL_BYTES = 2 * 1024 * 1024
 MAX_MODEL_RESPONSE_BYTES = 10 * 1024 * 1024
 MAX_PROMPT_INPUT_CHARS = 60_000
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
 USER_AGENT = "RecipeServer/0.1"
+
+# Vision-capable image formats accepted for "From Image" generation.
+# SVG is excluded: it is not a raster image a vision model can transcribe.
+IMAGE_MIME_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".tiff": "image/tiff",
+    ".tif": "image/tiff",
+}
 
 LIST_FIELDS = ("tags", "cuisine", "categories", "meals")
 SOURCE_FIELDS = ("author", "title", "format", "url")
@@ -45,6 +63,18 @@ class SourceFetchError(RuntimeError):
     """Recipe source content could not be fetched."""
 
 
+def _all_purpose_model_name(config: object | None) -> str:
+    name = str(getattr(config, "all_purpose_model_name", "") or "").strip()
+    if name:
+        return name
+    # Fall back to the legacy attribute name for older configurations.
+    return str(getattr(config, "model_name", "") or "").strip()
+
+
+def _image_analysis_model_name(config: object | None) -> str:
+    return str(getattr(config, "image_analysis_model", "") or "").strip()
+
+
 def is_configured(config: object | None) -> bool:
     if config is None:
         return False
@@ -54,29 +84,48 @@ def is_configured(config: object | None) -> bool:
     return bool(endpoint and prompt)
 
 
+def is_image_configured(config: object | None) -> bool:
+    if config is None:
+        return False
+
+    endpoint = str(getattr(config, "model_endpoint", "") or "").strip()
+    prompt = str(getattr(config, "new_recipe_from_image_prompt", "") or "").strip()
+    return bool(endpoint and prompt)
+
+
 def ai_status(config: object | None) -> dict[str, Any]:
     endpoint = str(getattr(config, "model_endpoint", "") or "").strip()
-    model_name = str(getattr(config, "model_name", "") or "").strip()
+    model_name = _all_purpose_model_name(config)
+    image_model_name = _image_analysis_model_name(config)
     configured = is_configured(config)
+    image_configured = is_image_configured(config)
+    status: dict[str, Any] = {
+        "configured": configured,
+        "available": False,
+        "model": model_name,
+        "all_purpose_model": model_name,
+        "image_model": image_model_name,
+        "image_configured": image_configured,
+        "image_available": False,
+    }
     logger.debug(
         f"Checking local model status: configured={configured}, "
-        f"endpoint={endpoint or '(none)'}, model={model_name or '(auto)'}"
+        f"image_configured={image_configured}, endpoint={endpoint or '(none)'}, "
+        f"model={model_name or '(auto)'}, image_model={image_model_name or '(auto)'}"
     )
 
-    if not configured:
+    if not configured and not image_configured:
         logger.info("AI recipe creation is not configured")
-        return {"configured": False, "available": False, "model": model_name}
+        return status
 
     available = is_available(endpoint)
     logger.info(
-        f"Local model status: configured=True, available={available}, "
+        f"Local model status: configured={configured}, available={available}, "
         f"endpoint={endpoint}"
     )
-    return {
-        "configured": True,
-        "available": available,
-        "model": model_name,
-    }
+    status["available"] = available
+    status["image_available"] = bool(available and image_configured)
+    return status
 
 
 def normalize_chat_completions_url(endpoint: str) -> str:
@@ -273,7 +322,7 @@ def _build_user_message(input_type: str, input_value: str) -> tuple[str, str]:
     elif input_type == "text":
         prompt_text = f"Recipe text:\n{input_value}"
     else:
-        raise ValueError("inputType must be 'url' or 'text'")
+        raise ValueError("inputType must be 'url', 'text', or 'image'")
 
     if len(prompt_text) > MAX_PROMPT_INPUT_CHARS:
         prompt_text = (
@@ -284,7 +333,37 @@ def _build_user_message(input_type: str, input_value: str) -> tuple[str, str]:
     return prompt_text, title
 
 
-def _chat(endpoint: str, model_name: str, prompt: str, user_message: str) -> str:
+def image_data_uri(image_filename: str, image_bytes: bytes) -> str:
+    """Validate an uploaded recipe image and return it as a data URI."""
+    if not image_bytes:
+        raise ValueError("Expected a recipe image")
+
+    suffix = "." + image_filename.rsplit(".", 1)[-1].lower() if "." in image_filename else ""
+    mime_type = IMAGE_MIME_TYPES.get(suffix) or mimetypes.guess_type(image_filename)[0]
+    if suffix not in IMAGE_MIME_TYPES or mime_type not in IMAGE_MIME_TYPES.values():
+        raise ValueError(
+            "Unsupported image type for AI generation. "
+            "Use a JPG, PNG, GIF, WebP, BMP, or TIFF image."
+        )
+    if len(image_bytes) > MAX_IMAGE_BYTES:
+        raise ValueError("The recipe image is too large to send to the model")
+
+    try:
+        with Image.open(BytesIO(image_bytes)) as image:
+            image.verify()
+    except (OSError, UnidentifiedImageError) as exc:
+        raise ValueError("Invalid image file") from exc
+
+    encoded = base64.b64encode(image_bytes).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _chat(
+    endpoint: str,
+    model_name: str,
+    prompt: str,
+    user_message: str | list[dict[str, Any]],
+) -> str:
     chat_url = normalize_chat_completions_url(endpoint)
     payload = {
         "model": model_name,
@@ -296,9 +375,14 @@ def _chat(endpoint: str, model_name: str, prompt: str, user_message: str) -> str
         "max_tokens": 4096,
         "stream": False,
     }
+    user_chars = (
+        len(user_message)
+        if isinstance(user_message, str)
+        else len(json.dumps(user_message))
+    )
     logger.info(
         f"Sending recipe request to {chat_url} (model={model_name}, "
-        f"system_prompt_chars={len(prompt)}, user_chars={len(user_message)})"
+        f"system_prompt_chars={len(prompt)}, user_chars={user_chars})"
     )
     request = Request(
         chat_url,
@@ -440,9 +524,13 @@ def generate_recipe(
     input_type: str,
     input_value: str,
     progress_callback: Callable[[str], None] | None = None,
+    image_bytes: bytes | None = None,
+    image_filename: str = "",
 ) -> dict[str, Any]:
     if not is_configured(config):
         raise ModelUnavailable("The local model is not configured")
+    if input_type == "image" and not is_image_configured(config):
+        raise ModelUnavailable("The image analysis model is not configured")
 
     def report_progress(message: str) -> None:
         if progress_callback is not None:
@@ -450,27 +538,69 @@ def generate_recipe(
 
     endpoint = str(getattr(config, "model_endpoint", "") or "").strip()
     prompt = str(getattr(config, "new_recipe_prompt", "") or "").strip()
-    configured_name = str(getattr(config, "model_name", "") or "").strip()
+    image_prompt = str(getattr(config, "new_recipe_from_image_prompt", "") or "").strip()
+    configured_name = _all_purpose_model_name(config)
 
     report_progress("Checking the configured AI model...")
     model_name = resolve_model_name(endpoint, configured_name)
     if not model_name:
         raise ModelUnavailable(
-            "Could not determine a model name. Configure model_name in config.txt."
+            "Could not determine a model name. "
+            "Configure all_purpose_model_name in config.txt."
         )
+
+    image_model_name = ""
+    if input_type == "image":
+        configured_image_name = _image_analysis_model_name(config)
+        image_model_name = resolve_model_name(endpoint, configured_image_name)
+        if not image_model_name:
+            raise ModelUnavailable(
+                "Could not determine an image analysis model name. "
+                "Configure image_analysis_model in config.txt."
+            )
 
     if input_type == "url":
         report_progress(f"Fetching recipe page: {input_value}")
+    elif input_type == "image":
+        report_progress("Preparing the recipe image...")
     else:
         report_progress("Preparing the recipe text...")
 
-    user_message, title = _build_user_message(input_type, input_value)
-    if input_type == "url":
-        report_progress(
-            f"Page fetched. Sending the source URL and extracted text to {model_name}..."
+    title = ""
+    if input_type == "image":
+        # First stage: the image analysis model transcribes the image,
+        # using NewRecipeFromImagePrompt.md alongside the image data.
+        report_progress(f"Sending the image to {image_model_name} for transcription...")
+        data_uri = image_data_uri(image_filename, image_bytes or b"")
+        image_user_content: list[dict[str, Any]] = [
+            {"type": "text", "text": "Recipe image:"},
+            {"type": "image_url", "image_url": {"url": data_uri}},
+        ]
+        logger.info(
+            f"Transcribing recipe image with local model '{image_model_name}' "
+            f"({len(image_bytes or b'')} bytes, {image_filename})"
         )
+        transcription = _chat(endpoint, image_model_name, image_prompt, image_user_content)
+        report_progress(
+            "Image transcribed. Sending the extracted text to "
+            f"{model_name}..."
+        )
+        # Second stage: the all-purpose model drafts the recipe from the
+        # transcription, using NewRecipePrompt.md.
+        user_message = f"Recipe text (transcribed from image):\n{transcription}"
+        if len(user_message) > MAX_PROMPT_INPUT_CHARS:
+            user_message = (
+                user_message[:MAX_PROMPT_INPUT_CHARS]
+                + "\n\n[The source was truncated because it was very long.]"
+            )
     else:
-        report_progress(f"Sending the recipe text to {model_name}...")
+        user_message, title = _build_user_message(input_type, input_value)
+        if input_type == "url":
+            report_progress(
+                f"Page fetched. Sending the source URL and extracted text to {model_name}..."
+            )
+        else:
+            report_progress(f"Sending the recipe text to {model_name}...")
 
     logger.info(
         f"Generating recipe from {input_type} input with local model '{model_name}' "
