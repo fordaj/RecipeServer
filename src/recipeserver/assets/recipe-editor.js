@@ -870,8 +870,6 @@ Try this
 
     updateMakesButton();
 
-    let originalContent = "";
-      if (busy) return;
 
       // Confirm deletion
       const confirmation = confirm(
