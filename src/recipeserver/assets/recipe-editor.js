@@ -11,11 +11,7 @@
                 <header class="recipe-editor__header">
                     <h2>Edit Recipe</h2>
                     <span class="recipe-editor__makes-count" hidden>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
-                            viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                            class="lucide lucide-chef-hat preview-icon" aria-hidden="true"
-                            focusable="false"><path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z"/><path d="M6 17h12"/></svg><span class="recipe-editor__makes-value">x0</span>
+                        <span class="recipe-editor__makes-icon" aria-hidden="true" focusable="false"></span><span class="recipe-editor__makes-value">x0</span>
                     </span>
                     <button type="button" class="recipe-editor__made-this" hidden>
                         I made this!
@@ -509,12 +505,34 @@
     return Object.values(source).some((value) => value !== null) ? source : null;
   }
 
-  function initialize() {
+  // The chef-hat icon lives in assets/chef-hat.svg; load it once and
+  // inline it so it can inherit the count's colour via currentColor.
+  async function loadSvgIcon(url) {
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) return "";
+      const svg = new DOMParser().parseFromString(
+        await response.text(),
+        "image/svg+xml",
+      ).documentElement;
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("focusable", "false");
+      return new XMLSerializer().serializeToString(svg);
+    } catch {
+      return "";
+    }
+  }
+
+  async function initialize() {
     const editButton = document.querySelector("#edit-recipe");
     const createButton = document.querySelector("#create-recipe");
     if (!editButton && !createButton) return;
 
     const dialog = createEditor();
+    const makesIcon = dialog.querySelector(".recipe-editor__makes-icon");
+    if (makesIcon) {
+      makesIcon.innerHTML = await loadSvgIcon("/assets/chef-hat.svg");
+    }
     const form = dialog.querySelector("form");
     const textarea = dialog.querySelector(".recipe-editor__source");
     const status = dialog.querySelector(".recipe-editor__status");
