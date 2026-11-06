@@ -101,6 +101,18 @@ class Core:
 
             logger.info(f'Updated recipe and index: "{markdown}"')
 
+    def on_markdown_deleted(self, markdown: Path) -> None:
+        """Called when a recipe markdown file is deleted. Regenerates the index."""
+        with self._regen_lock:
+            markdown = markdown.resolve()
+
+            # Remove the deleted recipe from the in-memory recipe cache
+            self._recipes.pop(markdown, None)
+
+            self._update_index()
+
+            logger.info(f'Index updated after recipe deletion: "{markdown}"')
+
     def regen(self):
         start = time.perf_counter()
 
@@ -196,7 +208,7 @@ def main(_cfg: Configuration):
     # observer.start()
     core.regen()
 
-    server = Server(cfg, on_markdown_saved=core.on_markdown_save)
+    server = Server(cfg, on_markdown_saved=core.on_markdown_save, on_markdown_deleted=core.on_markdown_deleted)
     server.start()
 
     shutdown_event = Event()
