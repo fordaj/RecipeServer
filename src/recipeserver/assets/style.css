@@ -135,9 +135,24 @@ body > a:hover {
   margin: 0;
 }
 
-.recipe-meta dt,
-.recipe-meta dd {
-  display: inline;
+/* Each dt/dd pair is wrapped in a .recipe-meta__group by
+   markdown_to_html.py. The group behaves as a single inline unit
+   (inline-block) so it wraps as a whole instead of splitting its
+   term from its value across lines, while the dt displays above
+   the dd inside the group. */
+.recipe-meta__group {
+  display: inline-block;
+  vertical-align: top;
+  text-align: center;
+  margin: 0.25rem 0.75rem;
+}
+
+.recipe-meta__group dt {
+  display: block;
+}
+
+.recipe-meta__group dd {
+  display: block;
 }
 
 .recipe-meta dt {
@@ -148,8 +163,14 @@ body > a:hover {
   text-transform: uppercase;
 }
 
-.recipe-meta dt:not(:first-child)::before {
-  content: "\00a0\00a0\00a0\00a0•\00a0\00a0\00a0\00a0";
+.recipe-meta__group + .recipe-meta__group {
+  position: relative;
+}
+
+.recipe-meta__group + .recipe-meta__group::before {
+  content: "•";
+  position: absolute;
+  left: -0.75rem;
   color: var(--border-color);
 }
 
@@ -602,8 +623,8 @@ input[type="checkbox"]:focus-visible {
     font-size: 7pt;
   }
 
-  .recipe-meta dt:not(:first-child)::before {
-    content: "  •  ";
+  .recipe-meta__group + .recipe-meta__group::before {
+    content: "•";
   }
 
   /* Keep the hero image modest */

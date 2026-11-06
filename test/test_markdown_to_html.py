@@ -342,3 +342,128 @@ meals:
     assert soup.title.string == "Tomatoes & <em>Basil</em>"
     assert "<title>Tomatoes &amp; &lt;em&gt;Basil&lt;/em&gt;</title>" in raw_html
     assert converter.title == "Tomatoes & Basil"
+
+
+def test_recipe_meta_groups_dt_above_dd_and_wraps_as_a_group(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+---
+# Meta Grouped
+
+![Hero](image.png)
+
+/// html | div.recipe-meta
+
+Prep Time
+: 30 minutes
+
+Cook Time
+: 30 minutes
+
+Servings
+: 6 brownies
+
+/// <!-- recipe-meta -->
+
+## Ingredients
+
+- [ ] `1 cup` flour
+""",
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    meta = soup.select_one(".recipe-meta")
+    assert meta is not None
+
+    groups = meta.select(".recipe-meta__group")
+    assert len(groups) == 3
+
+    pairs = [
+        (
+            group.select_one("dt").get_text(strip=True),
+            group.select_one("dd").get_text(strip=True),
+        )
+        for group in groups
+    ]
+    assert pairs == [
+        ("Prep Time", "30 minutes"),
+        ("Cook Time", "30 minutes"),
+        ("Servings", "6 brownies"),
+    ]
+
+    # Each group holds exactly one dt followed by its dd, so the dt
+    # renders above the dd and the pair wraps together as a unit.
+    for group in groups:
+        terms = [child.name for child in group.find_all(["dt", "dd"], recursive=False)]
+        assert terms == ["dt", "dd"]
+
+    # No loose dt/dd remain as direct children of the <dl>.
+    dl = meta.select_one("dl")
+    assert dl is not None
+    assert dl.find_all(["dt", "dd"], recursive=False) == []
+
+    css = (
+        Path(__file__).parent.parent
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "style.css"
+    ).read_text(encoding="utf-8")
+    assert ".recipe-meta__group {" in css
+    assert "display: inline-block" in css
+    assert ".recipe-meta__group dt" in css
+    assert ".recipe-meta__group dd" in css
+
+
+def test_recipe_meta_grouping_keeps_multi_term_and_multi_value_runs(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+---
+# Meta Runs
+
+/// html | div.recipe-meta
+
+Prep Time
+Cook Time
+: 30 minutes
+
+Servings
+: 6 brownies
+: 4 squares
+
+/// <!-- recipe-meta -->
+""",
+    )
+
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    groups = soup.select(".recipe-meta .recipe-meta__group")
+    assert [
+        [child.get_text(strip=True) for child in group.find_all(["dt", "dd"], recursive=False)]
+        for group in groups
+    ] == [
+        ["Prep Time", "Cook Time", "30 minutes"],
+        ["Servings", "6 brownies", "4 squares"],
+    ]
+
+
+def test_recipe_meta_grouping_without_dl_and_without_meta(tmp_path: Path):
+    # No .recipe-meta at all: conversion succeeds and adds no groups.
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+---
+# No Meta
+
+Body.
+""",
+    )
+    soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
+    assert soup.select(".recipe-meta__group") == []

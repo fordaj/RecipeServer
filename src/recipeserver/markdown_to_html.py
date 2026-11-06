@@ -305,6 +305,65 @@ class MarkdownToHTMLConverter:
 
             code.replace_with(span)
 
+    def _group_recipe_meta_terms(self, soup: BeautifulSoup) -> None:
+        """Group each ``dt`` with its following ``dd`` in recipe metadata.
+
+        Markdown definition lists render as a flat ``dt``/``dd`` sequence,
+        which makes every term and value separately wrappable: a ``dt``
+        can end one line while its ``dd`` starts the next. Wrapping each
+        term together with its description in a single
+        ``.recipe-meta__group`` element (``dt`` first, ``dd`` after it,
+        i.e. above it once displayed as blocks) lets the group's CSS
+        treat the pair as one inline unit that wraps as a group. Runs of
+        terms followed by a run of descriptions (multiple ``dt`` sharing
+        ``dd`` values, or one ``dt`` with multiple ``dd`` values) stay in
+        the same group so the semantics of the definition list are kept.
+        A ``dd`` without a preceding ``dt`` forms a group of its own.
+        """
+
+        def group_terms(container: Tag) -> None:
+            terms = [
+                child
+                for child in container.children
+                if getattr(child, "name", None) in ("dt", "dd")
+            ]
+            if not terms:
+                return
+
+            groups: list[list[Tag]] = []
+            current: list[Tag] = []
+
+            for term in terms:
+                if term.name == "dt" and any(item.name == "dd" for item in current):
+                    groups.append(current)
+                    current = [term]
+                else:
+                    current.append(term)
+
+            if current:
+                groups.append(current)
+
+            for term in terms:
+                term.extract()
+
+            for group in groups:
+                wrapper = soup.new_tag(
+                    "div",
+                    attrs={"class": "recipe-meta__group"},
+                )
+                for term in group:
+                    wrapper.append(term)
+                container.append(wrapper)
+
+        for container in soup.select(".recipe-meta dl"):
+            group_terms(container)
+
+        # Authors may also write dt/dd directly inside .recipe-meta
+        # without a wrapping <dl>; group those too.
+        for container in soup.select(".recipe-meta"):
+            if container.find("dl", recursive=False) is None:
+                group_terms(container)
+
     def _enable_checkbox_inputs(self, soup: BeautifulSoup) -> None:
         # Remove the "disabled" attribute from <input checkbox> elements
         for checkbox in soup.select('input[type="checkbox"]'):
@@ -645,6 +704,7 @@ class MarkdownToHTMLConverter:
     def _postprocess(self, content: str) -> str:
         soup = BeautifulSoup(content, "html.parser")
         self._mathjaxify_inline_code_blocks(soup)
+        self._group_recipe_meta_terms(soup)
         self._enable_checkbox_inputs(soup)
         self._inject_recipe_overview(soup)
         self._inject_recipe_contributor(soup)
