@@ -27,6 +27,10 @@ MAX_URL_BYTES = 2 * 1024 * 1024
 MAX_MODEL_RESPONSE_BYTES = 10 * 1024 * 1024
 MAX_PROMPT_INPUT_CHARS = 60_000
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+# Thinking/reasoning models (e.g. qwen3) spend part of this budget on
+# reasoning before producing the answer, so it needs headroom beyond the
+# length of the recipe itself.
+MAX_MODEL_TOKENS = 8192
 USER_AGENT = "RecipeServer/0.1"
 
 # Vision-capable image formats accepted for "From Image" generation.
@@ -358,11 +362,82 @@ def image_data_uri(image_filename: str, image_bytes: bytes) -> str:
     return f"data:{mime_type};base64,{encoded}"
 
 
+def _content_text(content: object) -> str:
+    """Flatten a chat message content value (string or list of parts)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, str):
+                parts.append(part)
+            elif isinstance(part, dict):
+                text = part.get("text") or part.get("content")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "".join(parts)
+    return ""
+
+
+def _extract_chat_content(payload: object) -> tuple[str, dict[str, Any]]:
+    """Extract answer text plus diagnostics from a chat completion payload.
+
+    Thinking models may return a large ``reasoning_content``/``reasoning``
+    field with an empty ``content`` when they run out of tokens; the
+    reasoning text is diagnostics only and is never used as the answer.
+    """
+    diagnostics: dict[str, Any] = {
+        "finish_reason": None,
+        "usage": None,
+        "content_chars": 0,
+        "reasoning_chars": 0,
+        "response_keys": sorted(payload) if isinstance(payload, dict) else [],
+    }
+    content = ""
+    reasoning = ""
+
+    if isinstance(payload, dict):
+        diagnostics["usage"] = payload.get("usage")
+        choices = payload.get("choices")
+        if isinstance(choices, list) and choices:
+            choice = choices[0]
+            if isinstance(choice, dict):
+                diagnostics["finish_reason"] = choice.get("finish_reason")
+                message = choice.get("message")
+                if isinstance(message, dict):
+                    content = _content_text(message.get("content"))
+                    reasoning = _content_text(
+                        message.get("reasoning_content") or message.get("reasoning")
+                    )
+                if not content:
+                    content = _content_text(choice.get("text"))
+                if not reasoning:
+                    reasoning = _content_text(
+                        choice.get("reasoning_content") or choice.get("reasoning")
+                    )
+
+        if not content:
+            message = payload.get("message")
+            if isinstance(message, dict):
+                content = _content_text(message.get("content"))
+                if not reasoning:
+                    reasoning = _content_text(
+                        message.get("reasoning_content") or message.get("reasoning")
+                    )
+
+    diagnostics["content_chars"] = len(content)
+    diagnostics["reasoning_chars"] = len(reasoning)
+    diagnostics["reasoning_preview"] = reasoning[:2000]
+    diagnostics["content_preview"] = content[:2000]
+    return content, diagnostics
+
+
 def _chat(
     endpoint: str,
     model_name: str,
     prompt: str,
     user_message: str | list[dict[str, Any]],
+    stage: str = "recipe generation",
 ) -> str:
     chat_url = normalize_chat_completions_url(endpoint)
     payload = {
@@ -372,7 +447,7 @@ def _chat(
             {"role": "user", "content": user_message},
         ],
         "temperature": 0.2,
-        "max_tokens": 4096,
+        "max_tokens": MAX_MODEL_TOKENS,
         "stream": False,
     }
     user_chars = (
@@ -381,7 +456,7 @@ def _chat(
         else len(json.dumps(user_message))
     )
     logger.info(
-        f"Sending recipe request to {chat_url} (model={model_name}, "
+        f"Sending {stage} request to {chat_url} (model={model_name}, "
         f"system_prompt_chars={len(prompt)}, user_chars={user_chars})"
     )
     request = Request(
@@ -418,25 +493,41 @@ def _chat(
     except json.JSONDecodeError as exc:
         raise ModelRequestError("The model returned invalid JSON") from exc
 
-    content: object = None
-    if isinstance(response_payload, dict):
-        choices = response_payload.get("choices")
-        if isinstance(choices, list) and choices:
-            choice = choices[0]
-            if isinstance(choice, dict):
-                message = choice.get("message")
-                if isinstance(message, dict):
-                    content = message.get("content")
-                if content is None:
-                    content = choice.get("text")
+    content, diagnostics = _extract_chat_content(response_payload)
+    logger.info(
+        f"{stage} response from {model_name}: {len(body)} bytes, "
+        f"finish_reason={diagnostics['finish_reason']!r}, "
+        f"usage={diagnostics['usage']!r}, "
+        f"content_chars={diagnostics['content_chars']}, "
+        f"reasoning_chars={diagnostics['reasoning_chars']}, "
+        f"response_keys={diagnostics['response_keys']}"
+    )
+    logger.debug(f"{stage} content preview: {diagnostics['content_preview']!r}")
+    if diagnostics["reasoning_chars"]:
+        logger.debug(
+            f"{stage} reasoning preview: {diagnostics['reasoning_preview']!r}"
+        )
 
-        if content is None:
-            message = response_payload.get("message")
-            if isinstance(message, dict):
-                content = message.get("content")
-
-    if not isinstance(content, str) or not content.strip():
-        raise ModelRequestError("The model returned an empty response")
+    if not content.strip():
+        if diagnostics["finish_reason"] == "length":
+            raise ModelRequestError(
+                f"The {stage} model ({model_name}) stopped before producing "
+                "an answer because it reached the token limit; it returned "
+                "only reasoning/thinking text. Try again, or use a "
+                "non-thinking model for the all-purpose model."
+            )
+        if diagnostics["reasoning_chars"]:
+            raise ModelRequestError(
+                f"The {stage} model ({model_name}) returned only "
+                "reasoning/thinking text and no answer "
+                f"(finish_reason={diagnostics['finish_reason']!r}). "
+                "Try again, or use a non-thinking model."
+            )
+        raise ModelRequestError(
+            f"The {stage} model ({model_name}) returned an empty response "
+            f"(finish_reason={diagnostics['finish_reason']!r}, "
+            f"usage={diagnostics['usage']!r})"
+        )
 
     return content
 
@@ -580,7 +671,17 @@ def generate_recipe(
             f"Transcribing recipe image with local model '{image_model_name}' "
             f"({len(image_bytes or b'')} bytes, {image_filename})"
         )
-        transcription = _chat(endpoint, image_model_name, image_prompt, image_user_content)
+        transcription = _chat(
+            endpoint,
+            image_model_name,
+            image_prompt,
+            image_user_content,
+            stage="image transcription",
+        )
+        logger.info(
+            f"Image transcription from '{image_model_name}' "
+            f"({len(transcription)} characters): {transcription[:2000]!r}"
+        )
         report_progress(
             "Image transcribed. Sending the extracted text to "
             f"{model_name}..."
@@ -607,7 +708,13 @@ def generate_recipe(
         f"({len(user_message)} characters of source content)"
     )
     report_progress(f"Generating recipe with {model_name}...")
-    output = _chat(endpoint, model_name, prompt, user_message)
+    output = _chat(
+        endpoint,
+        model_name,
+        prompt,
+        user_message,
+        stage="recipe drafting" if input_type == "image" else "recipe generation",
+    )
     report_progress("AI response received. Preparing the recipe draft...")
     content, metadata = parse_model_output(output)
     logger.info(

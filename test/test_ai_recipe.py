@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 from recipeserver.ai_recipe import (
+    _extract_chat_content,
     normalize_chat_completions_url,
     normalize_models_url,
     parse_model_output,
@@ -87,15 +88,54 @@ class FakeModelAPIHandler(BaseHTTPRequestHandler):
         type(self).state.setdefault("payloads", []).append(payload)
         type(self).state["payload"] = payload
         # The image analysis model (vision-model) returns a transcription;
+        # a thinking model that ran out of tokens returns only reasoning;
         # every other request returns the finished recipe draft.
         if payload.get("model") == "vision-model":
             content = "Brownies: 1 cup sugar, 2 eggs, 1/2 cup butter."
+            self._send_json(
+                200,
+                {"choices": [{"message": {"content": content}}]},
+            )
+        elif payload.get("model") == "reasoning-model":
+            self._send_json(
+                200,
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "",
+                                "reasoning_content": "still thinking " * 100,
+                            },
+                            "finish_reason": "length",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 100,
+                        "completion_tokens": 8192,
+                    },
+                },
+            )
+        elif payload.get("model") == "parts-model":
+            self._send_json(
+                200,
+                {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": [
+                                    {"type": "text", "text": MODEL_OUTPUT}
+                                ]
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ]
+                },
+            )
         else:
-            content = MODEL_OUTPUT
-        self._send_json(
-            200,
-            {"choices": [{"message": {"content": content}}]},
-        )
+            self._send_json(
+                200,
+                {"choices": [{"message": {"content": MODEL_OUTPUT}}]},
+            )
 
 
 def request_json(url: str, payload: dict | None = None) -> tuple[int, dict]:
@@ -347,6 +387,72 @@ def test_ai_generation_from_image_transcribes_then_drafts(tmp_path):
     assert "1 cup sugar, 2 eggs" in payloads[1]["messages"][1]["content"]
     assert any("for transcription" in message for message in progress)
     assert any("extracted text" in message for message in progress)
+
+
+def test_ai_reasoning_only_response_reports_token_limit(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    with running_model_api() as (model_url, _model_state):
+        config = SimpleNamespace(
+            model_endpoint=model_url,
+            all_purpose_model_name="reasoning-model",
+            image_analysis_model="vision-model",
+            new_recipe_prompt="Only reply with Markdown.",
+            new_recipe_from_image_prompt="Transcribe the recipe image.",
+        )
+
+        with running_recipe_server(source, config) as base_url:
+            status, body = request_json(
+                f"{base_url}/api/ai-recipe",
+                {"inputType": "text", "input": "Some recipe text"},
+            )
+
+    assert status == 502
+    assert "token limit" in body["error"]
+    assert "reasoning" in body["error"]
+
+
+def test_ai_content_as_parts_is_extracted(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    with running_model_api() as (model_url, _model_state):
+        config = SimpleNamespace(
+            model_endpoint=model_url,
+            all_purpose_model_name="parts-model",
+            image_analysis_model="vision-model",
+            new_recipe_prompt="Only reply with Markdown.",
+            new_recipe_from_image_prompt="Transcribe the recipe image.",
+        )
+
+        with running_recipe_server(source, config) as base_url:
+            status, result = request_json(
+                f"{base_url}/api/ai-recipe",
+                {"inputType": "text", "input": "1 cup sugar and 2 eggs"},
+            )
+
+    assert status == 200
+    assert result["content"].startswith("# Brownies")
+
+
+def test_extract_chat_content_reports_reasoning_diagnostics():
+    content, diagnostics = _extract_chat_content(
+        {
+            "choices": [
+                {
+                    "message": {"content": "", "reasoning_content": "thinking"},
+                    "finish_reason": "length",
+                }
+            ],
+            "usage": {"completion_tokens": 8192},
+        }
+    )
+
+    assert content == ""
+    assert diagnostics["finish_reason"] == "length"
+    assert diagnostics["reasoning_chars"] == len("thinking")
+    assert diagnostics["usage"] == {"completion_tokens": 8192}
 
 
 def test_ai_endpoints_are_disabled_without_configuration(tmp_path):
