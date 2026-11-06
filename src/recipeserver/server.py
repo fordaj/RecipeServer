@@ -170,6 +170,15 @@ def _validate_editor_metadata(metadata: object) -> dict:
     return validated
 
 
+def _validate_makes(value: object) -> int | None:
+    """Validate a ``makes`` counter value for the per-field metadata endpoint."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError("'makes' must be a non-negative integer or null")
+    return value
+
+
 def _validate_ratings(value: object) -> list[dict]:
     if not isinstance(value, list):
         raise ValueError("'ratings' must be a list")
@@ -527,6 +536,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
                 if field_name == "ratings":
                     value = _validate_ratings(value)
+                elif field_name == "makes":
+                    value = _validate_makes(value)
 
                 file_path = self._resolve_markdown_path(path)
 
