@@ -248,10 +248,14 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
         def on_markdown_save(self, markdown):
             events.append("markdown-save")
 
+        def on_markdown_deleted(self, markdown):
+            events.append("markdown-deleted")
+
     class FakeServer:
-        def __init__(self, cfg, on_markdown_saved=None):
+        def __init__(self, cfg, on_markdown_saved=None, on_markdown_deleted=None):
             self.cfg = cfg
             self.on_markdown_saved = on_markdown_saved
+            self.on_markdown_deleted = on_markdown_deleted
 
         def start(self):
             events.append("server-start")
