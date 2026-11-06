@@ -596,9 +596,58 @@
   }
 }
 
+.makes-btn {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--food-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+  font: inherit;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.makes-btn:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--food-color-hover);
+}
+
+.makes-btn:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.makes-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.makes-btn.makes-sparkle {
+  animation: makesSparkle 0.5s ease-out;
+}
+
+@keyframes makesSparkle {
+  0% {
+    transform: scale(1);
+    text-shadow: none;
+  }
+  50% {
+    transform: scale(1.1) rotate(15deg);
+    text-shadow: 0 0 8px var(--food-color);
+  }
+  100% {
+    transform: scale(1);
+    text-shadow: none;
+  }
+}
+
 /* ---------- Reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
+  .makes-btn.makes-sparkle {
+    animation: none;
+  }
   .recipe-editor__details > summary::before {
     transition: none;
   }
