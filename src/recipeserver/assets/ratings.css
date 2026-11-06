@@ -11,6 +11,10 @@
   gap: 1rem;
 }
 
+.recipe-ratings.is-empty .recipe-ratings__heading {
+  border-bottom: none;
+}
+
 .recipe-ratings__add {
   display: inline-grid;
   place-items: center;

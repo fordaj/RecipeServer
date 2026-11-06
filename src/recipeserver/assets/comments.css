@@ -40,6 +40,10 @@
   gap: 1rem;
 }
 
+.recipe-comments.is-empty .recipe-comments__heading {
+  border-bottom: none;
+}
+
 .recipe-comments__add {
   display: inline-grid;
   place-items: center;

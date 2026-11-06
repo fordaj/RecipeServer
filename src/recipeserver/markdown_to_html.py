@@ -729,9 +729,10 @@ class MarkdownToHTMLConverter:
 
         return str(soup)
 
-    def _get_comments_html(self) -> str:
+    def _get_comments_html(self, has_comments: bool = False) -> str:
+        empty_class = "" if has_comments else " is-empty"
         return dedent(f"""
-            <section class="recipe-comments" id="recipe-comments">
+            <section class="recipe-comments{empty_class}" id="recipe-comments">
                 <h2 class="recipe-comments__heading">
                     <span>Comments</span>
                     <button class="recipe-comments__add" type="button" aria-label="Add a comment" aria-expanded="false">
@@ -763,9 +764,10 @@ class MarkdownToHTMLConverter:
             </section>
         """).strip()
 
-    def _get_ratings_html(self) -> str:
+    def _get_ratings_html(self, has_ratings: bool = False) -> str:
+        empty_class = "" if has_ratings else " is-empty"
         return dedent(f"""
-            <section class="recipe-ratings" id="recipe-ratings">
+            <section class="recipe-ratings{empty_class}" id="recipe-ratings">
                 <h2 class="recipe-ratings__heading">
                     <span>Ratings</span>
                     <button class="recipe-ratings__add" type="button" aria-label="Add a rating" aria-expanded="false">
@@ -831,8 +833,19 @@ class MarkdownToHTMLConverter:
             "<", "\\u003c"
         )  # sanitize input so it is not executable
 
-        comments_html = self._get_comments_html()
-        ratings_html = self._get_ratings_html()
+        ratings = _as_list(self.metadata.get("ratings"))
+        has_ratings = any(
+            isinstance(rating, dict)
+            and isinstance((score := rating.get("rating")), (int, float))
+            and not isinstance(score, bool)
+            and math.isfinite(score)
+            for rating in ratings
+        )
+        comments = _as_list(self.metadata.get("comments"))
+        has_comments = any(isinstance(comment, dict) for comment in comments)
+
+        comments_html = self._get_comments_html(has_comments)
+        ratings_html = self._get_ratings_html(has_ratings)
 
         markdown_body = post.content
 

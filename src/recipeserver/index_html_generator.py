@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 
-from .config import Configuration
+from .config import DEFAULT_RECIPE_SERVER_NAME, Configuration
 from ._logger import logger
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
@@ -531,13 +531,19 @@ class IndexHTMLGenerator:
             for key, count in reviewer_entries
         )
 
+        server_name = (
+            str(getattr(self.cfg, "recipe_server_name", "") or "").strip()
+            or str(getattr(self.cfg, "server_name", "") or "").strip()
+            or DEFAULT_RECIPE_SERVER_NAME
+        )
+        server_name_html = html.escape(server_name)
         html_page = dedent(f"""\
             <!DOCTYPE html>
             <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Ford Family Recipes</title>
+                <title>{server_name_html}</title>
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
                 <link rel="stylesheet" href="{DEFINITIONS_CSS_URL}">
                 <link rel="stylesheet" href="{MENU_CSS_URL}">
@@ -551,7 +557,7 @@ class IndexHTMLGenerator:
                 <main class="recipes">
                     <header class="recipes-header">
                         {sandwich_menu_html()}
-                        <h1>Ford Family Recipes</h1>
+                        <h1>{server_name_html}</h1>
                         <button id="create-recipe" class="create-recipe" type="button"
                             aria-label="Create recipe" title="Create recipe">
                             {PLUS_SVG.read_text(encoding="UTF-8", newline="\n")}

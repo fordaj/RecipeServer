@@ -55,6 +55,7 @@
     });
 
     list.replaceChildren(...sortedComments.map((comment) => createComment(comment)));
+    root.classList.toggle("is-empty", comments.length === 0);
   }
 
   function setCommentBusy(article, busy) {
