@@ -37,7 +37,7 @@ The repo does not include a test config file. On startup the app reads the recip
 - The canonical field name is plural `categories`. The legacy singular `category` is accepted wherever metadata is read (index, recipe overview, metadata API, editor load) but is normalized to `categories` and removed on save. New code and new recipe data must use `categories`.
 - Inline-code quantities become scaler spans (`1/2 cup`, `1 1/2 tbsp`, `1-2 tbsp`, `1 1/2-2 1/2 tbsp`). Unparseable `<code>` produces a lint warning; unit aliases live in `_UNIT_ALIASES` in `markdown_to_html.py`.
 - `POST /api/recipe-editor` rewrites the whole `recipe.md` through `python-frontmatter` and updates `updatedOn`. The per-field metadata endpoint rewrites the file but does not update `updatedOn`, so rating/comment activity does not change last-edited sorting.
-- MathJax is vendored under `src/recipeserver/assets/mathjax`; there is no JS package or build step in this repo.
+- KaTeX is vendored under `src/recipeserver/assets/katex`; there is no JS package or build step in this repo.
 
 ## Intentional design
 
