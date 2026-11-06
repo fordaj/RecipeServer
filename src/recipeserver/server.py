@@ -27,6 +27,7 @@ from ._logger import logger
 from collections.abc import Callable
 
 MarkdownSavedCallback = Callable[[Path], None]
+MarkdownDeletedCallback = Callable[[Path], None]
 
 
 def _json_default(value: object) -> str:
@@ -231,11 +232,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         *args,
         source_directory: Path,
         on_markdown_saved: MarkdownSavedCallback | None = None,
+        on_markdown_deleted: MarkdownDeletedCallback | None = None,
         config: Configuration | None = None,
         **kwargs,
     ):
         self.source_directory = Path(source_directory).resolve()
         self.on_markdown_saved = on_markdown_saved
+        self.on_markdown_deleted = on_markdown_deleted
         self.config = config
         super().__init__(*args, **kwargs)
 
@@ -840,6 +843,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             logger.info("Deleted recipe: {}", file_path)
             self._send_json(200, {"success": True})
 
+            if self.on_markdown_deleted is not None:
+                self.on_markdown_deleted(file_path)
+
         except OSError:
             logger.exception("Failed to delete recipe")
             self._send_json(500, {"error": "Unable to delete recipe"})
@@ -1030,9 +1036,11 @@ class Server:
         self,
         cfg: Configuration,
         on_markdown_saved: MarkdownSavedCallback | None = None,
+        on_markdown_deleted: MarkdownDeletedCallback | None = None,
     ):
         self.cfg = cfg
         self.on_markdown_saved = on_markdown_saved
+        self.on_markdown_deleted = on_markdown_deleted
         self._http_server: ThreadingHTTPServer | None = None
         self._thread: Thread | None = None
 
@@ -1057,6 +1065,7 @@ class Server:
             directory=str(self.cfg.site_directory),
             source_directory=self.cfg.source_directory,
             on_markdown_saved=self.on_markdown_saved,
+            on_markdown_deleted=self.on_markdown_deleted,
             config=self.cfg,
         )
 
