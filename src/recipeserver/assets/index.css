@@ -458,6 +458,81 @@ a {
   display: none;
 }
 
+/* ---------- Bulk selection ---------- */
+
+#recipe-list > li {
+  position: relative;
+}
+
+.recipe-selection {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  display: none;
+  padding: 0.6rem;
+}
+
+#recipe-list.selection-mode .recipe-selection {
+  display: block;
+}
+
+.recipe-selection-checkbox {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--card-bg);
+  accent-color: var(--food-color);
+  cursor: pointer;
+}
+
+.recipe-selection-checkbox:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+#recipe-list > li.selected {
+  border-color: var(--food-color);
+}
+
+#bulk-edit,
+#clear-selections {
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+#bulk-edit:hover,
+#clear-selections:hover {
+  border-color: var(--hover-border-color);
+  background: var(--hover-bg);
+}
+
+#bulk-edit:focus-visible,
+#clear-selections:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+#bulk-edit[hidden],
+#clear-selections[hidden] {
+  display: none;
+}
+
+#bulk-edit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+
 .recipe-card {
   min-width: 0;
   height: 100%;

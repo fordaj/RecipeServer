@@ -180,6 +180,76 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert 'data-date="2024-06-15"' in page
 
 
+def test_index_contains_bulk_selection_controls(tmp_path: Path):
+    recipe_path = tmp_path / "cinnamon-rolls" / "index.html"
+    recipe_path.parent.mkdir()
+    recipe_path.write_text("<h1>Cinnamon Rolls</h1>", encoding="UTF-8")
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.add(Recipe({"meals": ["Breakfast"], "categories": ["Baking"]}, recipe_path))
+
+    generator.convert()
+
+    page = (tmp_path / "index.html").read_text(encoding="UTF-8")
+    soup = BeautifulSoup(page, "html.parser")
+
+    assert 'id="recipe-selection"' in page
+    assert "Selection Mode" in page
+    selection_toggle = soup.select_one("#recipe-selection")
+    assert selection_toggle is not None
+    assert selection_toggle.get("type") == "checkbox"
+
+    assert 'id="bulk-edit" type="button" hidden' in page
+    assert 'id="clear-selections" type="button" hidden' in page
+    assert 'id="bulk-edit"' in page
+    assert 'id="clear-selections"' in page
+
+    advanced = soup.select_one(".recipe-advanced__content")
+    assert advanced is not None
+    assert advanced.select_one("#recipe-selection") is not None
+
+    recipe = soup.select_one("#recipe-list .recipe")
+    assert recipe is not None
+    checkbox = recipe.select_one(".recipe-selection-checkbox")
+    assert checkbox is not None
+    assert checkbox.get("type") == "checkbox"
+    assert recipe.get("data-path") == "/cinnamon-rolls/index.html"
+
+
+def test_recipe_editor_supports_bulk_edit_flow():
+    script = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "recipe-editor.js"
+    ).read_text(encoding="UTF-8")
+
+    assert "/api/recipe-bulk" in script
+    assert "/api/recipe-bulk-edit" in script
+    assert "/api/recipe-bulk-delete" in script
+    assert "Bulk Edit Recipes" in script
+    assert "Save All" in script
+    assert "MIXED" in script
+    assert "recipe-editor__field-mixed" in script
+    assert "Bulk Ratings" in script
+
+
+def test_index_js_wires_up_recipe_selection_and_bulk_edit():
+    script = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "index.js"
+    ).read_text(encoding="UTF-8")
+
+    assert 'document.querySelector("#recipe-selection")' in script
+    assert 'document.querySelector("#bulk-edit")' in script
+    assert 'document.querySelector("#clear-selections")' in script
+    assert '"selection-mode"' in script
+    assert "RecipeBulkEditor" in script
+
+
 def test_index_review_filter_is_populated_and_sorted_by_review_count(tmp_path: Path):
     recipe_ratings = {
         "alpha": [{"name": "Avery", "rating": 8}, {"name": "Blair", "rating": 7}],

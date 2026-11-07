@@ -273,6 +273,18 @@
   display: none;
 }
 
+.recipe-editor__bulk-details[hidden] {
+  display: none;
+}
+
+/* ---------- Bulk edit mixed-field markers ---------- */
+
+.recipe-editor__field-mixed .recipe-editor__mixed-indicator,
+.recipe-editor__field-mixed .recipe-editor__mixed-badge {
+  color: var(--danger-color);
+  font-weight: 700;
+}
+
 .recipe-editor__location {
   display: grid;
   grid-template-columns: 1fr;

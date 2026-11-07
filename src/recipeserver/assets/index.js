@@ -17,6 +17,9 @@ const initRecipeIndex = async () => {
     const clearFilters = document.querySelector("#clear-filters");
     const viewButtons = [...document.querySelectorAll("[data-view]")];
     const metadataStatus = document.querySelector("#metadata-status");
+    const selectionMode = document.querySelector("#recipe-selection");
+    const bulkEditButton = document.querySelector("#bulk-edit");
+    const clearSelectionsButton = document.querySelector("#clear-selections");
     const reviewFilter = document.querySelector("#review-filter");
     const reviewAll = document.querySelector("#filter-reviews-all");
     const reviewBoxes = [...document.querySelectorAll(".filter-reviews")];
@@ -280,6 +283,85 @@ const initRecipeIndex = async () => {
       });
       applyReviewFilter(getSelectedReviewers());
     });
+
+    const isRecipeSelected = (recipe) =>
+      Boolean(recipe.querySelector(".recipe-selection-checkbox")?.checked);
+
+    const getSelectedRecipes = () => recipes.filter((recipe) => isRecipeSelected(recipe));
+
+    const updateSelectionUi = () => {
+      const selectedCount = getSelectedRecipes().length;
+      const selectionActive = Boolean(selectionMode?.checked);
+
+      if (bulkEditButton) {
+        bulkEditButton.hidden = !selectionActive;
+        bulkEditButton.disabled = !selectionActive || selectedCount === 0;
+      }
+
+      if (clearSelectionsButton) {
+        clearSelectionsButton.hidden = !selectionActive;
+        clearSelectionsButton.disabled = selectedCount === 0;
+      }
+
+      for (const recipe of recipes) {
+        recipe.classList.toggle("selected", isRecipeSelected(recipe));
+      }
+    };
+
+    if (selectionMode) {
+      selectionMode.addEventListener("change", () => {
+        if (!selectionMode.checked) {
+          for (const recipe of recipes) {
+            const checkbox = recipe.querySelector(".recipe-selection-checkbox");
+            if (checkbox) checkbox.checked = false;
+          }
+        }
+        list.classList.toggle("selection-mode", selectionMode.checked);
+        updateSelectionUi();
+      });
+    }
+
+    if (bulkEditButton) {
+      bulkEditButton.addEventListener("click", async () => {
+        const selected = getSelectedRecipes();
+        if (!selected.length) return;
+
+        const paths = selected
+          .map((recipe) => (recipe.dataset.path || "").replace(/\.html$/i, ".md"))
+          .filter(Boolean);
+        if (!paths.length) return;
+
+        window.RecipeBulkEditor?.open(paths);
+      });
+    }
+
+    if (clearSelectionsButton) {
+      clearSelectionsButton.addEventListener("click", () => {
+        for (const recipe of recipes) {
+          const checkbox = recipe.querySelector(".recipe-selection-checkbox");
+          if (checkbox) checkbox.checked = false;
+        }
+        updateSelectionUi();
+      });
+    }
+
+    for (const recipe of recipes) {
+      recipe.addEventListener("click", (event) => {
+        if (!selectionMode?.checked) return;
+        if (event.target.closest(".recipe-selection")) return;
+        if (event.target.closest("a, button, select, textarea, input, details, summary")) return;
+
+        const checkbox = recipe.querySelector(".recipe-selection-checkbox");
+        if (!checkbox) return;
+
+        checkbox.checked = !checkbox.checked;
+        updateSelectionUi();
+      });
+
+      const checkbox = recipe.querySelector(".recipe-selection-checkbox");
+      checkbox?.addEventListener("change", () => updateSelectionUi());
+    }
+
     viewButtons.forEach((button) =>
       button.addEventListener("click", () => {
         {
@@ -291,6 +373,7 @@ const initRecipeIndex = async () => {
       }),
     );
 
+    updateSelectionUi();
     update();
   }
 };
