@@ -729,3 +729,36 @@
     animation: none;
   }
 }
+
+/* ---------- Bulk edit mode ---------- */
+
+.recipe-editor__metadata select.recipe-editor__bulk-action {
+  display: none;
+  width: auto;
+  align-self: flex-start;
+  height: 1.75rem;
+  padding: 0 1.5rem 0 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+.recipe-editor-dialog--bulk .recipe-editor__metadata select.recipe-editor__bulk-action {
+  display: block;
+}
+
+.recipe-editor-dialog--bulk .recipe-editor__files-details,
+.recipe-editor-dialog--bulk .recipe-editor__ai-details,
+.recipe-editor-dialog--bulk .recipe-editor__markdown-details,
+.recipe-editor-dialog--bulk .recipe-editor__numeric,
+.recipe-editor-dialog--bulk .recipe-editor__makes-count,
+.recipe-editor-dialog--bulk .recipe-editor__made-this {
+  display: none;
+}
+
+.recipe-editor__bulk-ratings-help {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}

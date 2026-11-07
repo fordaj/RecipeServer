@@ -459,6 +459,7 @@ a {
 }
 
 .recipe-card {
+  position: relative;
   min-width: 0;
   height: 100%;
   padding: 0 1.1rem 1.05rem;
@@ -822,4 +823,80 @@ a {
   #recipe-list > li:hover {
     transform: none;
   }
+}
+
+/* ---------- Selection mode and bulk actions ---------- */
+
+.recipe-select {
+  display: none;
+  position: absolute;
+  z-index: 2;
+  top: 0.55rem;
+  left: 0.55rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  margin: 0;
+  accent-color: var(--food-color);
+  cursor: pointer;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+body.selection-mode .recipe-select {
+  display: block;
+}
+
+body.selection-mode #recipe-list .recipe-card__image {
+  cursor: pointer;
+}
+
+.recipe-select:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-bulk-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recipe-bulk-actions[hidden] {
+  display: none;
+}
+
+.recipe-bulk-actions button {
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.recipe-bulk-actions__edit {
+  border-color: var(--food-color);
+  color: var(--food-color);
+}
+
+.recipe-bulk-actions button:hover:not(:disabled) {
+  border-color: var(--food-color);
+}
+
+.recipe-bulk-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.recipe-bulk-actions button:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+/* In selection mode the checkbox occupies the image's upper-left corner,
+   and the heading link keeps working for keyboard users. */
+body.selection-mode .recipe-card__image img {
+  transition: transform 200ms ease;
 }
