@@ -85,14 +85,16 @@ uv run python -m recipeserver --log-level DEBUG
 
 Recipe creation from text, URL, or image uses an OpenAI-compatible local model endpoint. Point it at a server such as Ollama, LM Studio, or `llama.cpp`:
 
-```bash
-# In config.txt, after the recipe directory line:
-model_endpoint=http://localhost:11434/v1
-all_purpose_model_name=llama3.2
-image_analysis_model=llava3
+```toml
+# In recipe-server-cfg.toml:
+source_directory = "/path/to/recipes"
+model_endpoint = "http://localhost:11434/v1"
+all_purpose_model_name = "llama3.2"
+image_analysis_model = "llava3"
+recipe_server_name = "My Recipe Server"
 ```
 
-The first line of `config.txt` remains the recipe source directory. If the `model_endpoint` line is absent, the app asks for the endpoint on startup:
+The TOML file lives in your user data directory (`recipe-server-cfg.toml`). Configuration can also be edited in the browser: choose **Configuration** from the menu on the home page, then Save and Cancel. Saving rebuilds the site immediately. If the `model_endpoint` key is absent, the app asks for the endpoint on startup:
 
 ```text
 Local model endpoint (for example http://localhost:11434/v1). Press Enter to skip:
@@ -100,7 +102,7 @@ All-purpose model name (press Enter to auto-detect from the endpoint):
 Image analysis model name (press Enter to auto-detect from the endpoint):
 ```
 
-Press <kbd>Enter</kbd> at the endpoint prompt to skip the integration. The empty setting is saved, so the app will not ask again; to enable it later, add or edit the `model_endpoint` line in `config.txt`. Set `all_purpose_model_name` (and `image_analysis_model` for From Image) when your server has more than one model, or leave it out and RecipeServer will ask `/v1/models` for the first available model.
+Press <kbd>Enter</kbd> at the endpoint prompt to skip the integration. The empty setting is saved, so the app will not ask again; to enable it later, add or edit the `model_endpoint` key in `recipe-server-cfg.toml` (or use the Configuration dialog). Set `all_purpose_model_name` (and `image_analysis_model` for From Image) when your server has more than one model, or leave it out and RecipeServer will ask `/v1/models` for the first available model.
 
 The AI controls behave as follows:
 
@@ -207,12 +209,12 @@ RecipeServer uses the operating system's application-data directory:
 
 Inside that directory:
 
-- `config.txt` contains the path to the recipe source directory on the first line, followed by optional `model_endpoint`, `all_purpose_model_name`, and `image_analysis_model` lines for the local AI integration.
+- `recipe-server-cfg.toml` (TOML) holds the configuration: the `source_directory` path, the `recipe_server_name`, and optional `model_endpoint`, `all_purpose_model_name`, and `image_analysis_model` keys for the local AI integration. A legacy `config.txt` file is migrated automatically on startup.
 - `site/` contains the generated website.
 
 The site directory is disposable. It is deleted and rebuilt every time RecipeServer starts. Never store source content or manual edits there.
 
-To change the recipe source directory, update the first line of `config.txt` or remove the file so the folder picker appears again.
+To change the recipe source directory, update the `source_directory` key in `recipe-server-cfg.toml` (or use **Configuration** on the home page), or remove the file so the folder picker appears again at startup.
 
 Runtime logs are written under `.logs/` in the directory where the app was started.
 
@@ -224,7 +226,7 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **A recipe is missing from the index:** Confirm that the file is named exactly `recipe.md` and lives under the configured recipe source directory.
 - **A recipe has no hero image or expected accent color:** Add a supported image next to `recipe.md`. The first image in filename-sorted order wins.
 - **Metadata warnings are visible:** Use the **Metadata Status** toggle in the index. Warnings are advisory and can be resolved by filling in the missing front matter fields.
-- **The From text, From URL, and From Image inputs are missing:** No local model endpoint is configured. Add `model_endpoint=` to `config.txt`, or remove that line and restart to be prompted again.
+- **The From text, From URL, and From Image inputs are missing:** No local model endpoint is configured. Add `model_endpoint` to `recipe-server-cfg.toml` (or use **Configuration**), or remove that key and restart to be prompted again.
 - **The From text, From URL, and From Image inputs are disabled:** The configured model endpoint could not be reached. Start the model server, check the endpoint URL, and reopen the create dialog.
 - **The From Image input is disabled while text/URL work:** The image prompt could not be loaded. Check `src/recipeserver/NewRecipeFromImagePrompt.md` exists, and that the endpoint serves a vision-capable `image_analysis_model`.
 - **AI generation fails with an HTTP error:** Confirm the endpoint is OpenAI-compatible and exposes `/v1/chat/completions`. Set `all_purpose_model_name` explicitly if auto-detection picks the wrong model.

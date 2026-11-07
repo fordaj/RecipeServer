@@ -26,7 +26,8 @@ class PullToRefresh {
 
   isDisabled() {
     const editorDialog = document.getElementById("recipe-markdown-editor");
-    return editorDialog?.open === true;
+    const configDialog = document.getElementById("config-editor");
+    return editorDialog?.open === true || configDialog?.open === true;
   }
 
   addStyles() {
