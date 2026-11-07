@@ -332,6 +332,32 @@ a {
   outline: 2px solid var(--food-color);
 }
 
+/* Bulk Edit uses the same filled style as the recipe editor's Save button. */
+.bulk-controls #bulk-edit {
+  border-color: var(--food-color);
+  background: var(--food-color);
+  color: var(--page-bg);
+}
+
+.bulk-controls #bulk-edit:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+/* Delete Selected uses the same red style as the recipe editor's Delete button. */
+.bulk-controls #bulk-delete {
+  background: var(--danger-color);
+  color: var(--danger-text-color);
+  border: none;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+
+.bulk-controls #bulk-delete:hover:not(:disabled) {
+  background: var(--danger-color-hover);
+}
+
 #bulk-selection-count {
   color: var(--muted-color);
   font-size: 0.85rem;

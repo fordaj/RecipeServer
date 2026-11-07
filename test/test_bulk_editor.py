@@ -155,6 +155,12 @@ def test_bulk_mixed_and_save_live_inside_field_labels_hidden_by_default():
     assert ".recipe-editor__mixed[hidden]" in css
     assert ".recipe-editor__bulk-field-save[hidden]" in css
     assert ".recipe-editor__field-control" in css
+    # Little Save buttons use the same filled styling as the main Save button.
+    bulk_save = css.split(".recipe-editor__bulk-field-save {")[1].split("}")[0]
+    assert "background: var(--food-color)" in bulk_save and "color: var(--page-bg)" in bulk_save
+    assert "background: var(--card-bg)" not in bulk_save
+    bulk_hover = css.split(".recipe-editor__bulk-field-save:hover:not(:disabled) {")[1].split("}")[0]
+    assert "var(--food-color-hover)" in bulk_hover
 
 
 def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
@@ -171,6 +177,23 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert soup.select_one("#bulk-controls") is not None
     assert soup.select_one("#bulk-edit").get_text(strip=True) == "Bulk Edit"
     assert soup.select_one("#clear-selections").get_text(strip=True) == "Clear Selections"
+    # Order left-to-right: Clear Selections, Delete Selected, Bulk Edit.
+    button_ids = [b["id"] for b in soup.select("#bulk-controls button")]
+    assert button_ids == ["clear-selections", "bulk-delete", "bulk-edit"]
+    index_css = (
+        Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css"
+    ).read_text(encoding="UTF-8")
+    assert ".bulk-controls #bulk-edit" in index_css and "background: var(--food-color)" in index_css
+    assert ".bulk-controls #bulk-delete" in index_css and "background: var(--danger-color)" in index_css
+    index_js = (
+        Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js"
+    ).read_text(encoding="UTF-8")
+    # File Explorer-style Ctrl/Shift multi-select.
+    assert "selectionAnchor" in index_js
+    assert "event.ctrlKey || event.metaKey" in index_js
+    assert "event.shiftKey" in index_js
+    assert "applyMultiSelect" in index_js
+    assert "visible.slice(start, end + 1)" in index_js
     box = soup.select_one(".recipe-select__checkbox")
     assert box is not None and box["data-path"] == "soup/recipe.md"
     assert soup.select_one("#recipe-list .recipe")["data-path"] == "soup/recipe.md"

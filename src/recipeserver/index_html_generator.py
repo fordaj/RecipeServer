@@ -707,9 +707,9 @@ class IndexHTMLGenerator:
                         <p id="recipe-count" aria-live="polite"></p>
                         <div id="bulk-controls" class="bulk-controls" hidden>
                             <span id="bulk-selection-count" aria-live="polite">0 selected</span>
-                            <button id="bulk-edit" type="button" disabled>Bulk Edit</button>
-                            <button id="bulk-delete" type="button" disabled>Delete Selected</button>
                             <button id="clear-selections" type="button">Clear Selections</button>
+                            <button id="bulk-delete" class="bulk-delete" type="button" disabled>Delete Selected</button>
+                            <button id="bulk-edit" class="bulk-edit" type="button" disabled>Bulk Edit</button>
                         </div>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
                         <div class="view-switcher" role="group" aria-label="Recipe view">

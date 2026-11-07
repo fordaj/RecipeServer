@@ -28,9 +28,49 @@ const initRecipeIndex = async () => {
     const clearSelections = document.querySelector("#clear-selections");
     const bulkCount = document.querySelector("#bulk-selection-count");
     const selectBoxes = [...document.querySelectorAll(".recipe-select__checkbox")];
+    // File Explorer-style anchor for Shift+click range selection.
+    let selectionAnchor = null;
 
     const getSelectedPaths = () =>
       selectBoxes.filter((box) => box.checked).map((box) => box.dataset.path);
+
+    const visibleRecipes = () => recipes.filter((recipe) => !recipe.hidden);
+    const boxFor = (recipe) => recipe?.querySelector(".recipe-select__checkbox");
+    const clearSelection = () => {
+      selectBoxes.forEach((box) => (box.checked = false));
+      selectionAnchor = null;
+      updateBulkControls();
+    };
+
+    // Conventional File Explorer multi-select:
+    //  plain click: select only this card (anchor = this card)
+    //  Ctrl/Cmd+click: toggle this card, keep others (anchor = this card)
+    //  Shift+click: select the range from the anchor to this card, replacing
+    //               the selection (anchor unchanged); Ctrl+Shift adds the range.
+    //  Checkbox clicks toggle a single card (plain/Ctrl), or extend a range
+    //  with Shift (anchor unchanged), just like the card click above.
+    const applyMultiSelect = (recipe, { ctrl = false, shift = false, viaCheckbox = false } = {}) => {
+      const box = boxFor(recipe);
+      if (!box) return;
+      const visible = visibleRecipes();
+      if (shift && selectionAnchor && visible.includes(selectionAnchor) && visible.includes(recipe)) {
+        const start = Math.min(visible.indexOf(selectionAnchor), visible.indexOf(recipe));
+        const end = Math.max(visible.indexOf(selectionAnchor), visible.indexOf(recipe));
+        if (!ctrl) selectBoxes.forEach((item) => (item.checked = false));
+        visible.slice(start, end + 1).forEach((item) => {
+          const itemBox = boxFor(item);
+          if (itemBox) itemBox.checked = true;
+        });
+      } else if (ctrl || viaCheckbox) {
+        box.checked = !box.checked;
+        selectionAnchor = recipe;
+      } else {
+        selectBoxes.forEach((item) => (item.checked = false));
+        box.checked = true;
+        selectionAnchor = recipe;
+      }
+      updateBulkControls();
+    };
 
     const updateBulkControls = () => {
       const selected = getSelectedPaths();
@@ -49,6 +89,7 @@ const initRecipeIndex = async () => {
       });
       if (bulkControls) bulkControls.hidden = !enabled;
       if (!enabled) {
+        selectionAnchor = null;
         selectBoxes.forEach((box) => (box.checked = false));
       }
       updateBulkControls();
@@ -326,24 +367,31 @@ const initRecipeIndex = async () => {
     if (selectionMode) {
       selectionMode.addEventListener("change", () => setSelectionMode(selectionMode.checked));
     }
-    selectBoxes.forEach((box) => box.addEventListener("change", updateBulkControls));
-    // In selection mode, clicking the card selects it instead of navigating.
+    // Keyboard (Space on a focused checkbox) toggles a single card and
+    // becomes the new anchor; mouse clicks go through applyMultiSelect.
+    selectBoxes.forEach((box) =>
+      box.addEventListener("change", () => {
+        selectionAnchor = box.closest(".recipe");
+        updateBulkControls();
+      }),
+    );
+    // Mouse: checkbox clicks support Ctrl/Shift ranges; card clicks use the
+    // full File Explorer semantics and never navigate in selection mode.
     list.addEventListener("click", (event) => {
       if (!selectionMode?.checked) return;
-      const link = event.target.closest(".recipe-card__link, .recipe-card__image");
-      if (!link || !list.contains(link)) return;
-      event.preventDefault();
-      const box = link.closest(".recipe")?.querySelector(".recipe-select__checkbox");
-      if (box) {
-        box.checked = !box.checked;
-        updateBulkControls();
+      const recipe = event.target.closest(".recipe");
+      if (!recipe || !list.contains(recipe)) return;
+      const modifiers = { ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey };
+      if (event.target.closest(".recipe-select")) {
+        event.preventDefault();
+        applyMultiSelect(recipe, { ...modifiers, viaCheckbox: true });
+        return;
       }
+      event.preventDefault();
+      applyMultiSelect(recipe, modifiers);
     });
     if (clearSelections) {
-      clearSelections.addEventListener("click", () => {
-        selectBoxes.forEach((box) => (box.checked = false));
-        updateBulkControls();
-      });
+      clearSelections.addEventListener("click", clearSelection);
     }
     if (bulkEdit) {
       bulkEdit.addEventListener("click", () => {
