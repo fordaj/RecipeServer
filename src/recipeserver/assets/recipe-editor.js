@@ -204,7 +204,25 @@
                         aria-label="Markdown source"
                         spellcheck="false" required></textarea>
                 </details>
-                    
+
+                <details class="recipe-editor__details recipe-editor__bulk-details" hidden>
+                    <summary>Bulk Ratings</summary>
+
+                    <fieldset class="recipe-editor__section">
+                        <label>
+                            Rating name
+                            <input id="recipe-editor-bulk-rating-name" type="text"
+                                placeholder="ex. Andy Ford">
+                        </label>
+
+                        <label>
+                            Rating score
+                            <input id="recipe-editor-bulk-rating-score" type="number"
+                                step="any" min="0" max="10" placeholder="5">
+                        </label>
+                    </fieldset>
+                </details>
+    
 
                 <p class="recipe-editor__status" role="status"></p>
                 <footer class="recipe-editor__footer">
@@ -222,6 +240,9 @@
         `;
 
     document.body.append(dialog);
+    window.RecipeBulkEditor = {
+      open: (paths) => openEditor("bulk", paths || []),
+    };
     return dialog;
   }
 
@@ -396,6 +417,136 @@
 
   function makesCountLabel(makes) {
     return `x${makes}`;
+  }
+
+  const BULK_METADATA_FIELDS = [
+    "tags",
+    "cuisine",
+    "categories",
+    "meals",
+    "makes",
+    "difficulty",
+    "contributor",
+    "createdOn",
+    "source",
+  ];
+
+  const BULK_LIST_FIELDS = ["tags", "cuisine", "categories", "meals"];
+
+  function bulkComparable(metadata, field) {
+    if (BULK_LIST_FIELDS.includes(field)) {
+      const value = metadata ? metadata[field] : null;
+      const list = Array.isArray(value) ? value : value ? [value] : [];
+      return list.map((item) => String(item).trim().toLowerCase()).filter(Boolean).sort();
+    }
+
+    if (field === "source") {
+      const source = metadata?.source;
+      const value = source && typeof source === "object" && !Array.isArray(source) ? source : {};
+      return ["author", "title", "format", "url"]
+        .map((key) => String(value[key] ?? "").trim())
+        .join("|");
+    }
+
+    return metadata ? metadata[field] : null;
+  }
+
+  async function requestBulkRecipes(paths) {
+    const url = new URL("/api/recipe-bulk", window.location.origin);
+    paths.forEach((path) => url.searchParams.append("paths", path));
+    const response = await fetch(url, { cache: "no-store" });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
+
+    if (!Array.isArray(result.recipes)) {
+      throw new Error("Invalid bulk recipes response");
+    }
+
+    return result.recipes;
+  }
+
+  async function saveBulkRecipes(paths, metadata) {
+    const response = await fetch(new URL("/api/recipe-bulk-edit", window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths, metadata }),
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || "Unable to save the selected recipes");
+    }
+
+    return result;
+  }
+
+  async function deleteBulkRecipes(paths) {
+    const response = await fetch(new URL("/api/recipe-bulk-delete", window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || "Unable to delete the selected recipes");
+    }
+
+    return result;
+  }
+
+  function markFieldMixed(label) {
+    label.classList.add("recipe-editor__field-mixed");
+
+    let indicator = label.querySelector(".recipe-editor__mixed-indicator");
+    if (!indicator) {
+      indicator = document.createElement("span");
+      indicator.className = "recipe-editor__mixed-indicator";
+      indicator.setAttribute("aria-hidden", "true");
+      label.insertBefore(indicator, label.querySelector("input"));
+    }
+    indicator.textContent = "*";
+
+    let badge = label.querySelector(".recipe-editor__mixed-badge");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "recipe-editor__mixed-badge";
+      label.insertBefore(badge, label.querySelector("input"));
+    }
+    badge.textContent = "MIXED";
+  }
+
+  function markMixedFields(recipes) {
+    if (!Array.isArray(recipes) || recipes.length < 2) return;
+
+    const mark = (field, valueOf) => {
+      const first = recipes[0]?.metadata || {};
+      const firstValue = valueOf(first);
+      const mixed = recipes.some(
+        (recipe) => JSON.stringify(valueOf(recipe?.metadata || {})) !== JSON.stringify(firstValue),
+      );
+
+      if (!mixed) return;
+
+      const input = form.elements.namedItem(field);
+      const label = input?.closest?.("label");
+      if (label) markFieldMixed(label);
+    };
+
+    for (const field of BULK_METADATA_FIELDS) {
+      mark(field, (metadata) => bulkComparable(metadata, field));
+    }
+
+    for (const field of ["author", "title", "format", "url"]) {
+      mark(`source.${field}`, (metadata) => {
+        const source = metadata?.source;
+        const value = source && typeof source === "object" && !Array.isArray(source) ? source : {};
+        return String(value[field] ?? "").trim();
+      });
+    }
   }
 
   function createRequestBody(payload, images) {
@@ -588,6 +739,9 @@
     const aiCancelButton = dialog.querySelector(".recipe-editor__ai-cancel");
     const aiControls = [aiText, aiUrl, aiTextButton, aiUrlButton];
     const aiImageControls = [aiImage, aiImageButton];
+    const bulkDetails = dialog.querySelector(".recipe-editor__bulk-details");
+    const bulkRatingName = dialog.querySelector("#recipe-editor-bulk-rating-name");
+    const bulkRatingScore = dialog.querySelector("#recipe-editor-bulk-rating-score");
 
     let originalContent = "";
     let originalMetadata = "";
@@ -595,6 +749,10 @@
     let scrollY = 0;
     let activeButton = null;
     let isCreating = false;
+    let isBulk = false;
+    let bulkPaths = [];
+    let bulkRecipes = [];
+    let bulkBaseline = {};
     let aiAvailable = false;
     let aiImageAvailable = false;
     let aiAbortController = null;
@@ -776,24 +934,30 @@
       if (!busy && dialog.open) dialog.close();
     }
 
-    async function openEditor(mode) {
+    async function openEditor(mode, paths = []) {
       if (busy) return;
 
-      activeButton = mode === "create" ? createButton : editButton;
+      const bulk = mode === "bulk";
+      isBulk = bulk;
       isCreating = mode === "create";
+      bulkPaths = bulk ? [...paths] : [];
+      bulkRecipes = [];
+      bulkBaseline = {};
+
+      activeButton = bulk ? null : mode === "create" ? createButton : editButton;
       document.body.classList.add("recipe-editor-open");
       lockBackgroundScroll();
       dialog.showModal();
 
-      heading.textContent = isCreating ? "Create Recipe" : "Edit Recipe";
+      heading.textContent = isCreating ? "Create Recipe" : bulk ? "Bulk Edit Recipes" : "Edit Recipe";
       madeThisButton.hidden = true;
       madeThisCount.hidden = true;
       updateMadeThisCount(0);
       madeThisButton.textContent = "I made this!";
       markdownDetails.open = false;
-      saveButton.textContent = isCreating ? "Create" : "Save";
+      saveButton.textContent = isCreating ? "Create" : bulk ? "Save All" : "Save";
       location.hidden = !isCreating;
-      status.textContent = isCreating ? "Loading folders…" : "Loading recipe…";
+      status.textContent = isCreating ? "Loading folders…" : bulk ? "Loading recipes…" : "Loading recipe…";
       textarea.value = "";
       originalContent = "";
       originalMetadata = "";
@@ -802,6 +966,10 @@
       aiSection.hidden = true;
       aiDetails.hidden = true;
       aiDetails.open = false;
+      bulkDetails.hidden = true;
+      bulkDetails.open = false;
+      bulkRatingName.value = "";
+      bulkRatingScore.value = "";
       aiAvailable = false;
       aiImageAvailable = false;
       aiAbortController = null;
@@ -872,6 +1040,16 @@ Try this
           } catch {
             setAiState(false, false);
           }
+        } else if (bulk) {
+          const recipes = await requestBulkRecipes(bulkPaths);
+          bulkRecipes = recipes;
+          bulkBaseline = (recipes[0] && recipes[0].metadata) || {};
+          populateMetadata(form, bulkBaseline);
+          originalMetadata = JSON.stringify(readMetadata(form));
+          updateMadeThisCount(normalizeMakes(bulkBaseline.makes));
+          markMixedFields(recipes);
+          textarea.required = false;
+          deleteButton.hidden = false;
         } else {
           const result = await requestEditor(getMarkdownPath());
           originalContent = result.content;
@@ -896,6 +1074,8 @@ Try this
           deleteButton.hidden = true;
           madeThisButton.hidden = true;
           madeThisCount.hidden = true;
+        } else if (bulk) {
+          deleteButton.hidden = false;
         } else {
           deleteButton.hidden = false;
           madeThisButton.hidden = false;
@@ -1021,6 +1201,49 @@ Try this
       const metadataContent = JSON.stringify(metadata);
       const images = [...imageInput.files];
 
+      if (isBulk) {
+        const changed = {};
+        for (const field of BULK_METADATA_FIELDS) {
+          if (JSON.stringify(bulkComparable(metadata, field)) !== JSON.stringify(bulkComparable(bulkBaseline, field))) {
+            changed[field] = metadata[field];
+          }
+        }
+
+        const bulkScore = bulkRatingScore ? Number(bulkRatingScore) : Number.NaN;
+        const bulkName = bulkRatingName ? bulkRatingName.value.trim() : "";
+        if (bulkName && Number.isFinite(bulkScore) && bulkScore >= 0 && bulkScore <= 10) {
+          const timestamp = new Date().toISOString();
+          changed.ratings = [
+            {
+              name: bulkName,
+              rating: bulkScore,
+              id: createRatingId(),
+              created: timestamp,
+              updated: timestamp,
+            },
+          ];
+        }
+
+        if (Object.keys(changed).length === 0) {
+          dialog.close();
+          return;
+        }
+
+        setBusy(true);
+        status.textContent = `Saving ${bulkPaths.length} recipes…`;
+
+        try {
+          const result = await saveBulkRecipes(bulkPaths, changed);
+          const failed = (result.results || []).filter((item) => !item.success).length;
+          status.textContent = failed ? `Saved with errors: ${failed} recipe(s) failed.` : `Saved! Reloading…`;
+          window.location.reload();
+        } catch (error) {
+          status.textContent = error.message;
+          setBusy(false);
+        }
+        return;
+      }
+
       if (
         !isCreating &&
         content === originalContent &&
@@ -1062,32 +1285,37 @@ Try this
     deleteButton.addEventListener("click", async () => {
       if (busy) return;
 
-      // Confirm deletion
+      const paths = isBulk && bulkPaths.length ? bulkPaths : [getMarkdownPath()];
+
       const confirmation = confirm(
-        "Are you sure you want to delete this recipe? This action cannot be undone.",
+        paths.length > 1
+          ? `Delete ${paths.length} recipes? This action cannot be undone.`
+          : "Are you sure you want to delete this recipe? This action cannot be undone.",
       );
       if (!confirmation) return;
 
       try {
         setBusy(true);
-        status.textContent = "Deleting recipe…";
+        status.textContent = paths.length > 1 ? "Deleting recipes…" : "Deleting recipe…";
 
-        // Get the path of the current recipe
-        const path = getMarkdownPath();
-        const url = new URL("/api/recipe", window.location.origin);
-        url.searchParams.set("path", path);
+        if (paths.length > 1) {
+          await deleteBulkRecipes(paths);
+        } else {
+          const url = new URL("/api/recipe", window.location.origin);
+          url.searchParams.set("path", paths[0]);
 
-        const response = await fetch(url, {
-          method: "DELETE",
-          cache: "no-store",
-        });
+          const response = await fetch(url, {
+            method: "DELETE",
+            cache: "no-store",
+          });
 
-        if (!response.ok) {
-          const result = await response.json().catch(() => ({}));
-          throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+          if (!response.ok) {
+            const result = await response.json().catch(() => ({}));
+            throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+          }
         }
 
-        status.textContent = "Recipe deleted! Reloading…";
+        status.textContent = paths.length > 1 ? "Recipes deleted! Reloading…" : "Recipe deleted! Reloading…";
         window.location.reload();
       } catch (error) {
         status.textContent = error.message;

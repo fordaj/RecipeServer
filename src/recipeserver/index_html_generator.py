@@ -419,6 +419,13 @@ class IndexHTMLGenerator:
                 else ""
             )
 
+            selection_html = (
+                '<label class="recipe-selection">'
+                f'<input class="recipe-selection-checkbox" type="checkbox" '
+                f'aria-label="Select {html.escape(title, quote=True)} for bulk edit">'
+                f"</label>"
+            )
+
             details = "".join(
                 (
                     self._detail("makes", "Makes", [f"x{makes_value}"] if makes_value else [])
@@ -489,6 +496,7 @@ class IndexHTMLGenerator:
             links.append(
                 f'<li class="recipe"'
                 f' data-title="{html.escape(title, quote=True)}"'
+                f' data-path="{html.escape(url, quote=True)}"'
                 f' data-search="{html.escape(search_text, quote=True)}"'
                 f' data-meals="{self.json_attribute(meals)}"'
                 f' data-categories="{self.json_attribute(categories)}"'
@@ -503,6 +511,7 @@ class IndexHTMLGenerator:
                 f' data-edited="{updated_on_value}"'
                 f' data-date="{date_value}">'
                 '<article class="recipe-card">'
+                f"{selection_html}"
                 f"{image_html}"
                 '<div class="recipe-card__heading">'
                 f'<h2><a class="recipe-card__link" href="{html.escape(url, quote=True)}">'
@@ -679,6 +688,15 @@ class IndexHTMLGenerator:
                                     >
                                     <span>Metadata Status</span>
                                 </label>
+
+                                <label class="metadata-status-toggle">
+                                    <input
+                                        id="recipe-selection"
+                                        type="checkbox"
+                                        aria-controls="recipe-list"
+                                    >
+                                    <span>Selection Mode</span>
+                                </label>
                             </div>
                         </details>
                     </section>
@@ -686,6 +704,8 @@ class IndexHTMLGenerator:
                     <div class="recipe-results-bar">
                         <p id="recipe-count" aria-live="polite"></p>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
+                        <button id="bulk-edit" type="button" hidden>Bulk Edit</button>
+                        <button id="clear-selections" type="button" hidden>Clear Selections</button>
                         <div class="view-switcher" role="group" aria-label="Recipe view">
                             <button type="button" data-view="list" aria-pressed="true">List</button>
                             <button type="button" data-view="cards" aria-pressed="false">Cards</button>
