@@ -423,7 +423,7 @@ def _chat(
         ],
         "temperature": 0.2,
         "max_tokens": MAX_MODEL_TOKENS,
-        "reasoning_effort": "none",  # TODO: Expose this in configuration
+        "reasoning_effort": "none",  # TODO: Expose this in configuration. It is also an ollama specific setting so that will need handled if other providers are used
         "stream": False,
     }
     user_chars = len(user_message) if isinstance(user_message, str) else len(json.dumps(user_message))
