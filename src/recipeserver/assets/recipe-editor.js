@@ -106,51 +106,76 @@
                     <fieldset class="recipe-editor__metadata">
                         <label>
                             Contributor
-                            <input name="contributor" type="text"
-                                placeholder="Andy Ford">
+                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                            <span class="recipe-editor__field-control">
+                                <input name="contributor" type="text" placeholder="Andy Ford">
+                                <button type="button" class="recipe-editor__bulk-field-save" data-field="contributor" aria-label="Save contributor to all selected recipes" hidden>Save</button>
+                            </span>
                         </label>
 
                         <label>
                             Contribution Date
-                            <input name="createdOn" type="date">
+                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                            <span class="recipe-editor__field-control">
+                                <input name="createdOn" type="date">
+                                <button type="button" class="recipe-editor__bulk-field-save" data-field="createdOn" aria-label="Save contribution date to all selected recipes" hidden>Save</button>
+                            </span>
                         </label>
 
                         <label>
                             Meals
-                            <input name="meals" type="text"
-                                placeholder="ex. Breakfast, Dessert">
+                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                            <span class="recipe-editor__field-control">
+                                <input name="meals" type="text" placeholder="ex. Breakfast, Dessert">
+                                <button type="button" class="recipe-editor__bulk-field-save" data-field="meals" aria-label="Save meals to all selected recipes" hidden>Save</button>
+                            </span>
                         </label>
 
                         <label>
                             Categories
-                            <input name="categories" type="text"
-                                placeholder="ex. Slow Cooker, Meat">
+                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                            <span class="recipe-editor__field-control">
+                                <input name="categories" type="text" placeholder="ex. Slow Cooker, Meat">
+                                <button type="button" class="recipe-editor__bulk-field-save" data-field="categories" aria-label="Save categories to all selected recipes" hidden>Save</button>
+                            </span>
                         </label>
 
                         <label>
                             Cuisine
-                            <input name="cuisine" type="text"
-                                placeholder="American">
+                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                            <span class="recipe-editor__field-control">
+                                <input name="cuisine" type="text" placeholder="American">
+                                <button type="button" class="recipe-editor__bulk-field-save" data-field="cuisine" aria-label="Save cuisine to all selected recipes" hidden>Save</button>
+                            </span>
                         </label>
 
                         <label>
                             Tags
-                            <input name="tags" type="text"
-                                placeholder="Chocolate, Sweet">
+                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                            <span class="recipe-editor__field-control">
+                                <input name="tags" type="text" placeholder="Chocolate, Sweet">
+                                <button type="button" class="recipe-editor__bulk-field-save" data-field="tags" aria-label="Save tags to all selected recipes" hidden>Save</button>
+                            </span>
                         </label>
 
 
                         <div class="recipe-editor__numeric">
                             <label>
                                 Makes
-                                <input name="makes" type="number"
-                                    step="1" placeholder="0">
+                                <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                                <span class="recipe-editor__field-control">
+                                    <input name="makes" type="number" step="1" placeholder="0">
+                                    <button type="button" class="recipe-editor__bulk-field-save" data-field="makes" aria-label="Save makes to all selected recipes" hidden>Save</button>
+                                </span>
                             </label>
 
                             <label>
                                 Difficulty
-                                <input name="difficulty" type="number"
-                                    step="any" placeholder="5">
+                                <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                                <span class="recipe-editor__field-control">
+                                    <input name="difficulty" type="number" step="any" placeholder="5">
+                                    <button type="button" class="recipe-editor__bulk-field-save" data-field="difficulty" aria-label="Save difficulty to all selected recipes" hidden>Save</button>
+                                </span>
                             </label>
                         </div>
 
@@ -164,34 +189,70 @@
 
                           <label>
                               Source Author
-                              <input name="source.author" type="text"
-                                  placeholder="First Last">
+                              <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                              <span class="recipe-editor__field-control">
+                                  <input name="source.author" type="text" placeholder="First Last">
+                                  <button type="button" class="recipe-editor__bulk-field-save" data-field="source" aria-label="Save source to all selected recipes" hidden>Save</button>
+                              </span>
                           </label>
 
                           <label>
                               Source Title
-                              <input name="source.title" type="text"
-                                  placeholder="Book Title, Website Name, AI Model, etc.">
+                              <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                              <span class="recipe-editor__field-control">
+                                  <input name="source.title" type="text" placeholder="Book Title, Website Name, AI Model, etc.">
+                                  <button type="button" class="recipe-editor__bulk-field-save" data-field="source" aria-label="Save source to all selected recipes" hidden>Save</button>
+                              </span>
                           </label>
 
                           <label>
                               Source Format
-                              <select name="source.format">
-                                  <option value="">Select format</option>
-                                  <option value="Website">Website</option>
-                                  <option value="AI">AI</option>
-                                  <option value="Book">Book</option>
-                                  <option value="Other">Other</option>
-                              </select>
+                              <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                              <span class="recipe-editor__field-control">
+                                  <select name="source.format">
+                                      <option value="">Select format</option>
+                                      <option value="Website">Website</option>
+                                      <option value="AI">AI</option>
+                                      <option value="Book">Book</option>
+                                      <option value="Other">Other</option>
+                                  </select>
+                                  <button type="button" class="recipe-editor__bulk-field-save" data-field="source" aria-label="Save source to all selected recipes" hidden>Save</button>
+                              </span>
                           </label>
 
                           <label>
                               Source URL
-                              <input name="source.url" type="url"
-                                  placeholder="https://example.com">
+                              <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                              <span class="recipe-editor__field-control">
+                                  <input name="source.url" type="url" placeholder="https://example.com">
+                                  <button type="button" class="recipe-editor__bulk-field-save" data-field="source" aria-label="Save source to all selected recipes" hidden>Save</button>
+                              </span>
                           </label>
                       </fieldset>
                 </details>
+
+                <details class="recipe-editor__details recipe-editor__ratings-details" hidden>
+                    <summary>Ratings</summary>
+                    <fieldset class="recipe-editor__metadata recipe-editor__bulk-rating">
+                        <label>
+                            Rating name
+                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
+                            <span class="recipe-editor__field-control">
+                                <input name="rating.name" type="text" placeholder="Andy Ford">
+                                <button type="button" class="recipe-editor__bulk-field-save" data-field="rating" aria-label="Save rating to all selected recipes" hidden>Save</button>
+                            </span>
+                        </label>
+                        <label>
+                            Rating score (0-10)
+                            <span class="recipe-editor__field-control">
+                                <input name="rating.score" type="number" step="any" min="0" max="10" placeholder="8">
+                            </span>
+                        </label>
+                        <p class="recipe-editor__bulk-help">Saving adds this named rating to every selected recipe, overriding any existing rating with the same name. Use the Save button inside the rating field to save only the rating.</p>
+                    </fieldset>
+                </details>
+
+                <p class="recipe-editor__bulk-list" hidden></p>
 
                 <details class="recipe-editor__details recipe-editor__markdown-details">
                     <summary>Markdown</summary>
@@ -253,6 +314,41 @@
       throw new Error(result.error || `Request failed (HTTP ${response.status})`);
     }
 
+    return result;
+  }
+
+  async function requestBulkEditor(paths) {
+    const url = new URL("/api/bulk-editor", window.location.origin);
+    for (const path of paths) url.searchParams.append("path", path);
+    const response = await fetch(url, { cache: "no-store" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    return result.recipes;
+  }
+
+  async function requestBulkSave(paths, payload) {
+    const response = await fetch(new URL("/api/bulk-editor", window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths, ...payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
+    return result;
+  }
+
+  async function requestBulkDelete(paths) {
+    const response = await fetch(new URL("/api/bulk-delete", window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
     return result;
   }
 
@@ -588,6 +684,11 @@
     const aiCancelButton = dialog.querySelector(".recipe-editor__ai-cancel");
     const aiControls = [aiText, aiUrl, aiTextButton, aiUrlButton];
     const aiImageControls = [aiImage, aiImageButton];
+    const bulkFieldSaves = [...dialog.querySelectorAll(".recipe-editor__bulk-field-save")];
+    const mixedBadges = [...dialog.querySelectorAll(".recipe-editor__mixed")];
+    const ratingsDetails = dialog.querySelector(".recipe-editor__ratings-details");
+    const bulkList = dialog.querySelector(".recipe-editor__bulk-list");
+    const filesDetails = dialog.querySelector(".recipe-editor__details");
 
     let originalContent = "";
     let originalMetadata = "";
@@ -595,6 +696,9 @@
     let scrollY = 0;
     let activeButton = null;
     let isCreating = false;
+    let isBulk = false;
+    let bulkPaths = [];
+    let bulkRecipes = [];
     let aiAvailable = false;
     let aiImageAvailable = false;
     let aiAbortController = null;
@@ -676,6 +780,7 @@
         .forEach((input) => {
           input.disabled = value;
         });
+      bulkFieldSaves.forEach((button) => { button.disabled = value; });
 
       aiControls.forEach((control) => {
         control.disabled = value || !aiAvailable;
@@ -776,11 +881,187 @@
       if (!busy && dialog.open) dialog.close();
     }
 
+    const BULK_FIELD_LABELS = {
+      contributor: "Contributor",
+      createdOn: "Contribution Date",
+      meals: "Meals",
+      categories: "Categories",
+      cuisine: "Cuisine",
+      tags: "Tags",
+      makes: "Makes",
+      difficulty: "Difficulty",
+      source: "Source",
+    };
+
+    function fieldValue(metadata, field) {
+      if (field === "source") return firstSource(metadata.source);
+      return metadata[field] ?? null;
+    }
+
+    function isMixed(recipes, field) {
+      if (recipes.length < 2) return false;
+      const first = JSON.stringify(fieldValue(recipes[0].metadata, field));
+      return recipes.some((r) => JSON.stringify(fieldValue(r.metadata, field)) !== first);
+    }
+
+    function resetBulkFieldChrome() {
+      // MIXED spans and per-field Save buttons live inside their labels,
+      // hidden by default; bulk mode reveals them.
+      mixedBadges.forEach((badge) => { badge.hidden = true; });
+      bulkFieldSaves.forEach((button) => { button.hidden = true; });
+      dialog.classList.remove('is-bulk');
+      dialog.querySelectorAll('label.is-mixed').forEach((el) => el.classList.remove('is-mixed'));
+    }
+
+    function setBulkFieldChrome(visible) {
+      bulkFieldSaves.forEach((button) => { button.hidden = !visible; });
+      dialog.classList.toggle('is-bulk', visible);
+      if (!visible) mixedBadges.forEach((badge) => { badge.hidden = true; });
+    }
+
+    function showMixed(inputName) {
+      const label = form.elements.namedItem(inputName)?.closest('label');
+      const badge = label?.querySelector('.recipe-editor__mixed');
+      if (!label || !badge) return;
+      badge.hidden = false;
+      label.classList.add('recipe-editor__field-label', 'is-mixed');
+    }
+
+    function markMixedFields() {
+      mixedBadges.forEach((badge) => { badge.hidden = true; });
+      dialog.querySelectorAll('label.is-mixed').forEach((el) => el.classList.remove('is-mixed'));
+      for (const field of Object.keys(BULK_FIELD_LABELS)) {
+        if (field === 'source') {
+          for (const sub of ['author', 'title', 'format', 'url']) {
+            const first = JSON.stringify(firstSource(bulkRecipes[0].metadata.source)[sub] ?? null);
+            if (bulkRecipes.length > 1 && bulkRecipes.some((r) => JSON.stringify(firstSource(r.metadata.source)[sub] ?? null) !== first)) {
+              showMixed('source.' + sub);
+            }
+          }
+        } else if (isMixed(bulkRecipes, field)) {
+          showMixed(field);
+        }
+      }
+      if (bulkRecipes.length > 1 && bulkRecipes.some((r) => JSON.stringify(r.ratings) !== JSON.stringify(bulkRecipes[0].ratings))) {
+        showMixed('rating.name');
+      }
+    }
+
+    function setupBulkFieldButtons() {
+      bulkFieldSaves.forEach((button) => {
+        button.addEventListener('click', async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (busy || !isBulk) return;
+          const field = button.dataset.field;
+          if (field === 'rating') {
+            const rating = readBulkRating();
+            if (!rating) return;
+            setBusy(true);
+            status.textContent = 'Saving rating to ' + bulkPaths.length + ' recipes...';
+            try {
+              await requestBulkSave(bulkPaths, { rating });
+              status.textContent = 'Rating saved to ' + bulkPaths.length + ' recipes! Reloading...';
+              window.location.reload();
+            } catch (error) {
+              status.textContent = error.message;
+              setBusy(false);
+            }
+            return;
+          }
+          const label = BULK_FIELD_LABELS[field] || field;
+          setBusy(true);
+          status.textContent = 'Saving ' + label + ' to ' + bulkPaths.length + ' recipes...';
+          try {
+            const metadata = readMetadata(form);
+            await requestBulkSave(bulkPaths, { metadata, fields: [field] });
+            status.textContent = label + ' saved to ' + bulkPaths.length + ' recipes! Reloading...';
+            window.location.reload();
+          } catch (error) {
+            status.textContent = error.message;
+            setBusy(false);
+          }
+        });
+      });
+    }
+
+    function readBulkRating() {
+      const name = form.elements.namedItem("rating.name")?.value.trim();
+      const scoreRaw = form.elements.namedItem("rating.score")?.value.trim();
+      if (!name || !scoreRaw) {
+        status.textContent = "Enter a rating name and score to save a rating.";
+        return null;
+      }
+      const score = Number(scoreRaw);
+      if (!Number.isFinite(score) || score < 0 || score > 10) {
+        status.textContent = "Rating score must be between 0 and 10.";
+        return null;
+      }
+      return { name, rating: score };
+    }
+
+    async function openBulkEditor(paths) {
+      if (busy || !paths?.length) return;
+      isBulk = true;
+      isCreating = false;
+      bulkPaths = [...paths];
+      activeButton = null;
+      document.body.classList.add("recipe-editor-open");
+      lockBackgroundScroll();
+      if (!dialog.open) dialog.showModal();
+      heading.textContent = `Bulk Edit Recipes (${bulkPaths.length} selected)`;
+      bulkList.hidden = false;
+      bulkList.textContent = bulkPaths.join(", ");
+      filesDetails.hidden = true;
+      aiDetails.hidden = true;
+      markdownDetails.hidden = true;
+      ratingsDetails.hidden = false;
+      ratingsDetails.open = true;
+      resetBulkFieldChrome();
+      setBulkFieldChrome(true);
+      madeThisButton.hidden = true;
+      madeThisCount.hidden = true;
+      location.hidden = true;
+      textarea.value = "";
+      originalContent = "";
+      originalMetadata = "";
+      status.textContent = "Loading recipes…";
+      saveButton.textContent = "Save All";
+      deleteButton.hidden = false;
+      deleteButton.textContent = `Delete ${bulkPaths.length} Recipes`;
+      setBusy(true);
+      try {
+        bulkRecipes = await requestBulkEditor(bulkPaths);
+        populateMetadata(form, bulkRecipes[0].metadata);
+        form.elements.namedItem("rating.name").value = "";
+        form.elements.namedItem("rating.score").value = "";
+        markMixedFields();
+        status.textContent = "";
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    document.addEventListener("bulk-edit", (event) => {
+      openBulkEditor(event.detail?.paths);
+    });
+
     async function openEditor(mode) {
       if (busy) return;
 
       activeButton = mode === "create" ? createButton : editButton;
       isCreating = mode === "create";
+      isBulk = false;
+      bulkPaths = [];
+      bulkRecipes = [];
+      resetBulkFieldChrome();
+      ratingsDetails.hidden = true;
+      bulkList.hidden = true;
+      filesDetails.hidden = false;
+      markdownDetails.hidden = false;
+      deleteButton.textContent = "Delete";
       document.body.classList.add("recipe-editor-open");
       lockBackgroundScroll();
       dialog.showModal();
@@ -793,6 +1074,7 @@
       markdownDetails.open = false;
       saveButton.textContent = isCreating ? "Create" : "Save";
       location.hidden = !isCreating;
+      resetBulkFieldChrome();
       status.textContent = isCreating ? "Loading folders…" : "Loading recipe…";
       textarea.value = "";
       originalContent = "";
@@ -978,6 +1260,8 @@ Try this
     });
     // END Close dialogue if a full click cycle occurs outside of dialogue
 
+    setupBulkFieldButtons();
+    resetBulkFieldChrome();
     if (editButton) editButton.addEventListener("click", () => openEditor("edit"));
     if (createButton) createButton.addEventListener("click", () => openEditor("create"));
     folderMode.addEventListener("change", updateFolderControls);
@@ -1023,6 +1307,7 @@ Try this
 
       if (
         !isCreating &&
+        !isBulk &&
         content === originalContent &&
         metadataContent === originalMetadata &&
         images.length === 0
@@ -1042,10 +1327,19 @@ Try this
       }
 
       setBusy(true);
-      status.textContent = isCreating ? "Creating recipe…" : "Saving recipe…";
+      status.textContent = isCreating ? "Creating recipe…" : isBulk ? "Saving recipes…" : "Saving recipe…";
 
       try {
-        if (isCreating) {
+        if (isBulk) {
+          const ratingName = form.elements.namedItem("rating.name")?.value.trim();
+          const ratingScore = form.elements.namedItem("rating.score")?.value.trim();
+          let rating = null;
+          if (ratingName || ratingScore) {
+            rating = readBulkRating();
+            if (!rating) { setBusy(false); return; }
+          }
+          await requestBulkSave(bulkPaths, { metadata, ...(rating ? { rating } : {}) });
+        } else if (isCreating) {
           await createRecipe(folder, folderMode.value !== "existing", content, metadata, images);
         } else {
           await requestEditor(getMarkdownPath(), { content, metadata }, images);
@@ -1061,6 +1355,21 @@ Try this
 
     deleteButton.addEventListener("click", async () => {
       if (busy) return;
+
+      if (isBulk) {
+        if (!confirm(`Delete ${bulkPaths.length} selected recipes? This cannot be undone.`)) return;
+        try {
+          setBusy(true);
+          status.textContent = "Deleting recipes…";
+          await requestBulkDelete(bulkPaths);
+          status.textContent = "Recipes deleted! Reloading…";
+          window.location.reload();
+        } catch (error) {
+          status.textContent = error.message;
+          setBusy(false);
+        }
+        return;
+      }
 
       // Confirm deletion
       const confirmation = confirm(
