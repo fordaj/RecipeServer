@@ -741,7 +741,6 @@
   display: none;
 }
 
-.recipe-editor__bulk-details[hidden],
 .recipe-editor__ratings-details[hidden] {
   display: none;
 }
@@ -752,20 +751,46 @@
   font-size: 0.85rem;
 }
 
-.recipe-editor__bulk-field-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+/* Per-field Save lives inside the input box, hidden except in bulk mode. */
+.recipe-editor__field-control {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.recipe-editor__field-control input,
+.recipe-editor__field-control select {
+  padding-right: 0.65rem;
+}
+
+.recipe-editor-dialog.is-bulk .recipe-editor__field-control input,
+.recipe-editor-dialog.is-bulk .recipe-editor__field-control select {
+  padding-right: 3.9rem;
 }
 
 .recipe-editor__bulk-field-save {
-  padding: 0.5rem 0.8rem;
+  position: absolute;
+  top: 50%;
+  right: 0.3rem;
+  transform: translateY(-50%);
+  padding: 0.25rem 0.55rem;
   border: 1px solid var(--food-color);
   border-radius: 6px;
   background: var(--card-bg);
   color: var(--food-color);
   font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.2;
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.recipe-editor__bulk-field-save[hidden] {
+  display: none;
+}
+
+.recipe-editor__mixed[hidden] {
+  display: none;
 }
 
 .recipe-editor__bulk-field-save:hover:not(:disabled) {
