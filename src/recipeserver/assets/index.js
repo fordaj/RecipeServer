@@ -17,6 +17,12 @@ const initRecipeIndex = async () => {
     const clearFilters = document.querySelector("#clear-filters");
     const viewButtons = [...document.querySelectorAll("[data-view]")];
     const metadataStatus = document.querySelector("#metadata-status");
+    const selectionMode = document.querySelector("#selection-mode");
+    const bulkActions = document.querySelector("#recipe-bulk-actions");
+    const bulkEditButton = document.querySelector("#bulk-edit");
+    const bulkEditCount = document.querySelector("#bulk-edit-count");
+    const clearSelectionsButton = document.querySelector("#clear-selections");
+    const selectBoxes = [...document.querySelectorAll(".recipe-select")];
     const reviewFilter = document.querySelector("#review-filter");
     const reviewAll = document.querySelector("#filter-reviews-all");
     const reviewBoxes = [...document.querySelectorAll(".filter-reviews")];
@@ -255,6 +261,62 @@ const initRecipeIndex = async () => {
         update();
       }),
     );
+
+    const selectedPaths = () =>
+      selectBoxes.filter((box) => box.checked).map((box) => box.dataset.path).filter(Boolean);
+
+    const updateBulkState = () => {
+      if (!bulkActions) return;
+      const count = selectBoxes.filter((box) => box.checked).length;
+      if (bulkEditCount) bulkEditCount.textContent = String(count);
+      if (bulkEditButton) bulkEditButton.disabled = count === 0;
+      if (clearSelectionsButton) clearSelectionsButton.disabled = count === 0;
+    };
+
+    const setSelectionMode = (enabled) => {
+      document.body.classList.toggle("selection-mode", enabled);
+      if (bulkActions) bulkActions.hidden = !enabled;
+      if (!enabled) selectBoxes.forEach((box) => (box.checked = false));
+      updateBulkState();
+    };
+
+    if (selectionMode) {
+      selectionMode.addEventListener("change", () => setSelectionMode(selectionMode.checked));
+    }
+
+    selectBoxes.forEach((box) => box.addEventListener("change", updateBulkState));
+
+    if (bulkEditButton) {
+      bulkEditButton.addEventListener("click", () => {
+        const paths = selectedPaths();
+        if (paths.length === 0) return;
+        document.dispatchEvent(
+          new CustomEvent("recipe:bulk-edit", { detail: { paths } }),
+        );
+      });
+    }
+
+    if (clearSelectionsButton) {
+      clearSelectionsButton.addEventListener("click", () => {
+        selectBoxes.forEach((box) => (box.checked = false));
+        updateBulkState();
+      });
+    }
+
+    // In selection mode, clicking a card's image toggles its checkbox
+    // instead of navigating away.
+    list.addEventListener("click", (event) => {
+      if (!document.body.classList.contains("selection-mode")) return;
+      const imageLink = event.target.closest(".recipe-card__image");
+      if (!imageLink || !list.contains(imageLink)) return;
+      event.preventDefault();
+      const card = imageLink.closest(".recipe-card");
+      const box = card?.querySelector(".recipe-select");
+      if (box) {
+        box.checked = !box.checked;
+        box.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
 
     if (reviewFilter) {
       document.addEventListener("click", (event) => {
