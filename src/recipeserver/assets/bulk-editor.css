@@ -1,0 +1,270 @@
+/* ---------- Bulk editor dialog ---------- */
+
+.bulk-editor-dialog {
+  width: min(760px, calc(100% - 2rem));
+  max-height: 88dvh;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  overflow: hidden;
+}
+
+.bulk-editor-dialog::backdrop {
+  background: var(--dialog-backdrop);
+}
+
+.bulk-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  max-height: 88dvh;
+  padding: 1rem;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bulk-editor__header,
+.bulk-editor__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.bulk-editor__header h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.bulk-editor__close {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1.75rem;
+  cursor: pointer;
+}
+
+.bulk-editor__close:hover {
+  background: var(--hover-bg);
+}
+
+.bulk-editor__close:focus-visible,
+.bulk-editor__footer button:focus-visible,
+.bulk-editor__field input:focus-visible,
+.bulk-editor__field select:focus-visible,
+.bulk-editor__apply:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.bulk-editor__summary {
+  flex: 0 0 auto;
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.9rem;
+}
+
+.bulk-editor__list {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bulk-editor__list li {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border: 1px solid var(--card-border-color);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.bulk-editor__list li.more {
+  color: var(--muted-color);
+  border: 0;
+}
+
+.bulk-editor__hint {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+.bulk-editor__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem 1rem;
+}
+
+@media (min-width: 560px) {
+  .bulk-editor__fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .bulk-editor__field--wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.bulk-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.bulk-editor__field > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.bulk-editor__field input,
+.bulk-editor__field select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 2.5rem;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.bulk-editor__field input[type="date"] {
+  display: block;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.bulk-editor__field input:disabled,
+.bulk-editor__field select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bulk-editor__field--disabled input,
+.bulk-editor__field--disabled select {
+  opacity: 0.5;
+}
+
+.bulk-editor__apply {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.bulk-editor__apply input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--food-color);
+  cursor: pointer;
+}
+
+.bulk-editor__delete {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem;
+  border: 1px solid var(--danger-color);
+  border-radius: 8px;
+}
+
+.bulk-editor__delete > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--danger-color);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bulk-editor__delete > label input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--danger-color);
+  cursor: pointer;
+}
+
+.bulk-editor__delete p {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+.bulk-editor__status {
+  flex: 0 0 auto;
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.bulk-editor__footer {
+  justify-content: flex-end;
+  padding-top: 0.25rem;
+}
+
+.bulk-editor__footer button {
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+  cursor: pointer;
+}
+
+.bulk-editor__footer button:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.bulk-editor__footer .bulk-editor__save {
+  border-color: var(--food-color);
+  background: var(--food-color);
+  color: var(--page-bg);
+}
+
+.bulk-editor__footer .bulk-editor__save:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+.bulk-editor__footer button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bulk-editor-dialog {
+    animation: none;
+  }
+}

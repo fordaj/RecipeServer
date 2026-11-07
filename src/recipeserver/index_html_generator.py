@@ -26,6 +26,8 @@ RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor.css"
 RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor.js"
 CONFIG_EDITOR_CSS_PATH = "/assets/config-editor.css"
 CONFIG_EDITOR_JS_PATH = "/assets/config-editor.js"
+BULK_EDITOR_CSS_PATH = "/assets/bulk-editor.css"
+BULK_EDITOR_JS_PATH = "/assets/bulk-editor.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
@@ -57,6 +59,8 @@ RECIPE_EDITOR_CSS_URL = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
 RECIPE_EDITOR_JS_URL = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
 CONFIG_EDITOR_CSS_URL = _versioned_asset_url(CONFIG_EDITOR_CSS_PATH)
 CONFIG_EDITOR_JS_URL = _versioned_asset_url(CONFIG_EDITOR_JS_PATH)
+BULK_EDITOR_CSS_URL = _versioned_asset_url(BULK_EDITOR_CSS_PATH)
+BULK_EDITOR_JS_URL = _versioned_asset_url(BULK_EDITOR_JS_PATH)
 
 _DETAIL_ICONS = {
     "makes": "/assets/chef-hat.svg",
@@ -486,9 +490,11 @@ class IndexHTMLGenerator:
                 )
             )
 
+            markdown_path = relative_path.with_suffix(".md").as_posix()
             links.append(
                 f'<li class="recipe"'
                 f' data-title="{html.escape(title, quote=True)}"'
+                f' data-path="{html.escape(markdown_path, quote=True)}"'
                 f' data-search="{html.escape(search_text, quote=True)}"'
                 f' data-meals="{self.json_attribute(meals)}"'
                 f' data-categories="{self.json_attribute(categories)}"'
@@ -505,6 +511,9 @@ class IndexHTMLGenerator:
                 '<article class="recipe-card">'
                 f"{image_html}"
                 '<div class="recipe-card__heading">'
+                '<label class="recipe-select">'
+                f'<input type="checkbox" class="recipe-select__input" aria-label="Select {html.escape(title, quote=True)} for bulk editing">'
+                "</label>"
                 f'<h2><a class="recipe-card__link" href="{html.escape(url, quote=True)}">'
                 f"{html.escape(title)}</a></h2>"
                 "</div>"
@@ -554,10 +563,12 @@ class IndexHTMLGenerator:
                 <link rel="stylesheet" href="{INDEX_CSS_URL}">
                 <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_URL}">
                 <link rel="stylesheet" href="{CONFIG_EDITOR_CSS_URL}">
+                <link rel="stylesheet" href="{BULK_EDITOR_CSS_URL}">
                 <script src="{MENU_JS_URL}" defer></script>
                 <script src="{INDEX_JS_URL}" defer></script>
                 <script src="{RECIPE_EDITOR_JS_URL}" defer></script>
                 <script src="{CONFIG_EDITOR_JS_URL}" defer></script>
+                <script src="{BULK_EDITOR_JS_URL}" defer></script>
             </head>
             <body>
                 <main class="recipes">
@@ -686,6 +697,15 @@ class IndexHTMLGenerator:
                     <div class="recipe-results-bar">
                         <p id="recipe-count" aria-live="polite"></p>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
+                        <div class="bulk-bar" aria-label="Bulk selection">
+                            <label class="select-all">
+                                <input id="select-all-recipes" type="checkbox">
+                                <span>Select visible</span>
+                            </label>
+                            <span id="bulk-selection-count" class="bulk-selection-count" aria-live="polite"></span>
+                            <button id="bulk-edit-open" type="button" disabled>Bulk edit</button>
+                            <button id="bulk-clear-selection" type="button" hidden>Clear</button>
+                        </div>
                         <div class="view-switcher" role="group" aria-label="Recipe view">
                             <button type="button" data-view="list" aria-pressed="true">List</button>
                             <button type="button" data-view="cards" aria-pressed="false">Cards</button>

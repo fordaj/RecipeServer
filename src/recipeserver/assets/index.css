@@ -423,6 +423,90 @@ a {
   display: none;
 }
 
+/* ---------- Bulk selection ---------- */
+
+.bulk-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-color);
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.select-all input,
+.recipe-select__input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--food-color);
+  cursor: pointer;
+}
+
+.select-all input:focus-visible,
+.recipe-select__input:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.bulk-selection-count {
+  min-width: 5.5rem;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+#bulk-edit-open,
+#bulk-clear-selection {
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+#bulk-edit-open:hover:not(:disabled),
+#bulk-clear-selection:hover {
+  border-color: var(--hover-border-color);
+  background: var(--hover-bg);
+}
+
+#bulk-edit-open:focus-visible,
+#bulk-clear-selection:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+#bulk-edit-open:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+#bulk-clear-selection[hidden] {
+  display: none;
+}
+
+.recipe-select {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding-top: 0.35rem;
+  cursor: pointer;
+}
+
+.recipe-card__heading .recipe-select {
+  margin-right: 0.15rem;
+}
+
 /* ---------- Recipe cards and list ---------- */
 
 #recipe-list {
