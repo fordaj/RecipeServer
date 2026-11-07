@@ -193,6 +193,31 @@
                       </fieldset>
                 </details>
 
+                <details class="recipe-editor__details recipe-editor__bulk-details" hidden>
+                    <summary>Save Individual Fields</summary>
+                    <fieldset class="recipe-editor__section recipe-editor__bulk-fields">
+                        <p class="recipe-editor__bulk-help">Save a single field to every selected recipe without changing the other fields.</p>
+                        <div class="recipe-editor__bulk-field-actions"></div>
+                    </fieldset>
+                </details>
+
+                <details class="recipe-editor__details recipe-editor__ratings-details" hidden>
+                    <summary>Ratings</summary>
+                    <fieldset class="recipe-editor__metadata recipe-editor__bulk-rating">
+                        <label>
+                            Rating name
+                            <input name="rating.name" type="text" placeholder="Andy Ford">
+                        </label>
+                        <label>
+                            Rating score (0-10)
+                            <input name="rating.score" type="number" step="any" min="0" max="10" placeholder="8">
+                        </label>
+                        <p class="recipe-editor__bulk-help">Saving adds this named rating to every selected recipe, overriding any existing rating with the same name.</p>
+                    </fieldset>
+                </details>
+
+                <p class="recipe-editor__bulk-list" hidden></p>
+
                 <details class="recipe-editor__details recipe-editor__markdown-details">
                     <summary>Markdown</summary>
 
@@ -253,6 +278,41 @@
       throw new Error(result.error || `Request failed (HTTP ${response.status})`);
     }
 
+    return result;
+  }
+
+  async function requestBulkEditor(paths) {
+    const url = new URL("/api/bulk-editor", window.location.origin);
+    for (const path of paths) url.searchParams.append("path", path);
+    const response = await fetch(url, { cache: "no-store" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    return result.recipes;
+  }
+
+  async function requestBulkSave(paths, payload) {
+    const response = await fetch(new URL("/api/bulk-editor", window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths, ...payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
+    return result;
+  }
+
+  async function requestBulkDelete(paths) {
+    const response = await fetch(new URL("/api/bulk-delete", window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+    }
     return result;
   }
 
@@ -588,6 +648,11 @@
     const aiCancelButton = dialog.querySelector(".recipe-editor__ai-cancel");
     const aiControls = [aiText, aiUrl, aiTextButton, aiUrlButton];
     const aiImageControls = [aiImage, aiImageButton];
+    const bulkDetails = dialog.querySelector(".recipe-editor__bulk-details");
+    const bulkFieldActions = dialog.querySelector(".recipe-editor__bulk-field-actions");
+    const ratingsDetails = dialog.querySelector(".recipe-editor__ratings-details");
+    const bulkList = dialog.querySelector(".recipe-editor__bulk-list");
+    const filesDetails = dialog.querySelector(".recipe-editor__details");
 
     let originalContent = "";
     let originalMetadata = "";
@@ -595,6 +660,9 @@
     let scrollY = 0;
     let activeButton = null;
     let isCreating = false;
+    let isBulk = false;
+    let bulkPaths = [];
+    let bulkRecipes = [];
     let aiAvailable = false;
     let aiImageAvailable = false;
     let aiAbortController = null;
@@ -676,6 +744,7 @@
         .forEach((input) => {
           input.disabled = value;
         });
+      bulkFieldActions.querySelectorAll("button").forEach((button) => { button.disabled = value; });
 
       aiControls.forEach((control) => {
         control.disabled = value || !aiAvailable;
@@ -776,11 +845,206 @@
       if (!busy && dialog.open) dialog.close();
     }
 
+    const BULK_FIELD_LABELS = {
+      contributor: "Contributor",
+      createdOn: "Contribution Date",
+      meals: "Meals",
+      categories: "Categories",
+      cuisine: "Cuisine",
+      tags: "Tags",
+      makes: "Makes",
+      difficulty: "Difficulty",
+      source: "Source",
+    };
+
+    function fieldValue(metadata, field) {
+      if (field === "source") return firstSource(metadata.source);
+      return metadata[field] ?? null;
+    }
+
+    function isMixed(recipes, field) {
+      if (recipes.length < 2) return false;
+      const first = JSON.stringify(fieldValue(recipes[0].metadata, field));
+      return recipes.some((r) => JSON.stringify(fieldValue(r.metadata, field)) !== first);
+    }
+
+    function markMixedFields() {
+      // Clear previous badges.
+      dialog.querySelectorAll(".recipe-editor__mixed").forEach((el) => el.remove());
+      dialog.querySelectorAll("label[data-mixed-marked]").forEach((el) => { delete el.dataset.mixedMarked; el.classList.remove("is-mixed"); });
+      const mark = (inputName, field) => {
+        if (!isMixed(bulkRecipes, field)) return;
+        const input = form.elements.namedItem(inputName);
+        const label = input?.closest("label");
+        if (!label || label.dataset.mixedMarked) return;
+        label.dataset.mixedMarked = "1";
+        label.classList.add("recipe-editor__field-label", "is-mixed");
+        const badge = document.createElement("span");
+        badge.className = "recipe-editor__mixed";
+        badge.textContent = "* MIXED";
+        label.prepend(badge);
+      };
+      for (const field of Object.keys(BULK_FIELD_LABELS)) {
+        if (field === "source") {
+          for (const sub of ["author", "title", "format", "url"]) {
+            const input = form.elements.namedItem(`source.${sub}`);
+            const label = input?.closest("label");
+            if (!label || label.dataset.mixedMarked) continue;
+            // Source is mixed if any sub-field differs.
+            const mixed = bulkRecipes.length > 1 && bulkRecipes.some((r) => {
+              const first = JSON.stringify(firstSource(bulkRecipes[0].metadata.source)[sub] ?? null);
+              return JSON.stringify(firstSource(r.metadata.source)[sub] ?? null) !== first;
+            });
+            if (!mixed) continue;
+            label.dataset.mixedMarked = "1";
+            label.classList.add("recipe-editor__field-label", "is-mixed");
+            const badge = document.createElement("span");
+            badge.className = "recipe-editor__mixed";
+            badge.textContent = "* MIXED";
+            label.prepend(badge);
+          }
+        } else {
+          mark(field, field);
+        }
+      }
+      // Ratings mixed if any recipe's rating list differs.
+      const ratingsMixed = bulkRecipes.length > 1 && bulkRecipes.some((r) => JSON.stringify(r.ratings) !== JSON.stringify(bulkRecipes[0].ratings));
+      const ratingLabel = form.elements.namedItem("rating.name")?.closest("label");
+      if (ratingsMixed && ratingLabel && !ratingLabel.dataset.mixedMarked) {
+        ratingLabel.dataset.mixedMarked = "1";
+        ratingLabel.classList.add("recipe-editor__field-label", "is-mixed");
+        const badge = document.createElement("span");
+        badge.className = "recipe-editor__mixed";
+        badge.textContent = "* MIXED";
+        ratingLabel.prepend(badge);
+      }
+    }
+
+    function buildBulkFieldButtons() {
+      bulkFieldActions.replaceChildren();
+      for (const [field, label] of Object.entries(BULK_FIELD_LABELS)) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "recipe-editor__bulk-field-save";
+        button.dataset.field = field;
+        button.textContent = `Save ${label} to all`;
+        button.addEventListener("click", async () => {
+          if (busy) return;
+          setBusy(true);
+          status.textContent = `Saving ${label} to ${bulkPaths.length} recipes…`;
+          try {
+            const metadata = readMetadata(form);
+            await requestBulkSave(bulkPaths, { metadata, fields: [field] });
+            status.textContent = `${label} saved to ${bulkPaths.length} recipes! Reloading…`;
+            window.location.reload();
+          } catch (error) {
+            status.textContent = error.message;
+            setBusy(false);
+          }
+        });
+        bulkFieldActions.append(button);
+      }
+      const ratingButton = document.createElement("button");
+      ratingButton.type = "button";
+      ratingButton.className = "recipe-editor__bulk-field-save";
+      ratingButton.dataset.field = "rating";
+      ratingButton.textContent = "Save rating to all";
+      ratingButton.addEventListener("click", async () => {
+        if (busy) return;
+        const rating = readBulkRating();
+        if (!rating) return;
+        setBusy(true);
+        status.textContent = `Saving rating to ${bulkPaths.length} recipes…`;
+        try {
+          await requestBulkSave(bulkPaths, { rating });
+          status.textContent = `Rating saved to ${bulkPaths.length} recipes! Reloading…`;
+          window.location.reload();
+        } catch (error) {
+          status.textContent = error.message;
+          setBusy(false);
+        }
+      });
+      bulkFieldActions.append(ratingButton);
+    }
+
+    function readBulkRating() {
+      const name = form.elements.namedItem("rating.name")?.value.trim();
+      const scoreRaw = form.elements.namedItem("rating.score")?.value.trim();
+      if (!name || !scoreRaw) {
+        status.textContent = "Enter a rating name and score to save a rating.";
+        return null;
+      }
+      const score = Number(scoreRaw);
+      if (!Number.isFinite(score) || score < 0 || score > 10) {
+        status.textContent = "Rating score must be between 0 and 10.";
+        return null;
+      }
+      return { name, rating: score };
+    }
+
+    async function openBulkEditor(paths) {
+      if (busy || !paths?.length) return;
+      isBulk = true;
+      isCreating = false;
+      bulkPaths = [...paths];
+      activeButton = null;
+      document.body.classList.add("recipe-editor-open");
+      lockBackgroundScroll();
+      if (!dialog.open) dialog.showModal();
+      heading.textContent = `Bulk Edit Recipes (${bulkPaths.length} selected)`;
+      bulkList.hidden = false;
+      bulkList.textContent = bulkPaths.join(", ");
+      filesDetails.hidden = true;
+      aiDetails.hidden = true;
+      markdownDetails.hidden = true;
+      bulkDetails.hidden = false;
+      ratingsDetails.hidden = false;
+      bulkDetails.open = true;
+      ratingsDetails.open = true;
+      madeThisButton.hidden = true;
+      madeThisCount.hidden = true;
+      location.hidden = true;
+      textarea.value = "";
+      originalContent = "";
+      originalMetadata = "";
+      status.textContent = "Loading recipes…";
+      saveButton.textContent = "Save All";
+      deleteButton.hidden = false;
+      deleteButton.textContent = `Delete ${bulkPaths.length} Recipes`;
+      buildBulkFieldButtons();
+      setBusy(true);
+      try {
+        bulkRecipes = await requestBulkEditor(bulkPaths);
+        populateMetadata(form, bulkRecipes[0].metadata);
+        form.elements.namedItem("rating.name").value = "";
+        form.elements.namedItem("rating.score").value = "";
+        markMixedFields();
+        status.textContent = "";
+      } catch (error) {
+        status.textContent = error.message;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    document.addEventListener("bulk-edit", (event) => {
+      openBulkEditor(event.detail?.paths);
+    });
+
     async function openEditor(mode) {
       if (busy) return;
 
       activeButton = mode === "create" ? createButton : editButton;
       isCreating = mode === "create";
+      isBulk = false;
+      bulkPaths = [];
+      bulkRecipes = [];
+      bulkDetails.hidden = true;
+      ratingsDetails.hidden = true;
+      bulkList.hidden = true;
+      filesDetails.hidden = false;
+      markdownDetails.hidden = false;
+      deleteButton.textContent = "Delete";
       document.body.classList.add("recipe-editor-open");
       lockBackgroundScroll();
       dialog.showModal();
@@ -793,6 +1057,8 @@
       markdownDetails.open = false;
       saveButton.textContent = isCreating ? "Create" : "Save";
       location.hidden = !isCreating;
+      dialog.querySelectorAll(".recipe-editor__mixed").forEach((el) => el.remove());
+      dialog.querySelectorAll("label[data-mixed-marked]").forEach((el) => { delete el.dataset.mixedMarked; el.classList.remove("is-mixed"); });
       status.textContent = isCreating ? "Loading folders…" : "Loading recipe…";
       textarea.value = "";
       originalContent = "";
@@ -1023,6 +1289,7 @@ Try this
 
       if (
         !isCreating &&
+        !isBulk &&
         content === originalContent &&
         metadataContent === originalMetadata &&
         images.length === 0
@@ -1042,10 +1309,19 @@ Try this
       }
 
       setBusy(true);
-      status.textContent = isCreating ? "Creating recipe…" : "Saving recipe…";
+      status.textContent = isCreating ? "Creating recipe…" : isBulk ? "Saving recipes…" : "Saving recipe…";
 
       try {
-        if (isCreating) {
+        if (isBulk) {
+          const ratingName = form.elements.namedItem("rating.name")?.value.trim();
+          const ratingScore = form.elements.namedItem("rating.score")?.value.trim();
+          let rating = null;
+          if (ratingName || ratingScore) {
+            rating = readBulkRating();
+            if (!rating) { setBusy(false); return; }
+          }
+          await requestBulkSave(bulkPaths, { metadata, ...(rating ? { rating } : {}) });
+        } else if (isCreating) {
           await createRecipe(folder, folderMode.value !== "existing", content, metadata, images);
         } else {
           await requestEditor(getMarkdownPath(), { content, metadata }, images);
@@ -1061,6 +1337,21 @@ Try this
 
     deleteButton.addEventListener("click", async () => {
       if (busy) return;
+
+      if (isBulk) {
+        if (!confirm(`Delete ${bulkPaths.length} selected recipes? This cannot be undone.`)) return;
+        try {
+          setBusy(true);
+          status.textContent = "Deleting recipes…";
+          await requestBulkDelete(bulkPaths);
+          status.textContent = "Recipes deleted! Reloading…";
+          window.location.reload();
+        } catch (error) {
+          status.textContent = error.message;
+          setBusy(false);
+        }
+        return;
+      }
 
       // Confirm deletion
       const confirmation = confirm(

@@ -717,6 +717,70 @@
   }
 }
 
+/* ---------- Bulk editor ---------- */
+
+.recipe-editor__mixed {
+  color: var(--danger-color);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.recipe-editor__field-label.is-mixed input,
+.recipe-editor__field-label.is-mixed select {
+  border-color: var(--danger-color);
+}
+
+.recipe-editor__bulk-list {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.recipe-editor__bulk-list[hidden] {
+  display: none;
+}
+
+.recipe-editor__bulk-details[hidden],
+.recipe-editor__ratings-details[hidden] {
+  display: none;
+}
+
+.recipe-editor__bulk-help {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+.recipe-editor__bulk-field-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.recipe-editor__bulk-field-save {
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--food-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+  font: inherit;
+  cursor: pointer;
+}
+
+.recipe-editor__bulk-field-save:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.recipe-editor__bulk-field-save:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.recipe-editor__bulk-field-save:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 /* ---------- Reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
