@@ -85,6 +85,16 @@
                         <button type="button" class="recipe-editor__ai-generate-url">
                             Generate from URL
                         </button>
+                    </div>
+
+                    <div class="recipe-editor__ai-field">
+                        <label for="recipe-editor-ai-image">From Image</label>
+                        <input id="recipe-editor-ai-image" type="file"
+                            class="recipe-editor__ai-image"
+                            accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif">
+                        <button type="button" class="recipe-editor__ai-generate-image">
+                            Generate from image
+                        </button>
                     </div> 
 
                     </fieldset>
@@ -273,11 +283,23 @@
   }
 
   async function requestAiRecipe(inputType, input, onProgress, signal) {
+    let headers = { "Content-Type": "application/json" };
+    let body = JSON.stringify({ inputType, input, stream: true });
+
+    if (inputType === "image") {
+      // `input` is a File for image uploads; send it as multipart form data.
+      body = new FormData();
+      body.append("inputType", inputType);
+      body.append("stream", "true");
+      body.append("image", input, input.name);
+      headers = {};
+    }
+
     const response = await fetch(new URL("/api/ai-recipe", window.location.origin), {
       method: "POST",
       cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ inputType, input, stream: true }),
+      headers,
+      body,
       signal,
     });
 
@@ -559,10 +581,13 @@
     const aiStatus = dialog.querySelector(".recipe-editor__ai-status");
     const aiText = dialog.querySelector(".recipe-editor__ai-text");
     const aiUrl = dialog.querySelector(".recipe-editor__ai-url");
+    const aiImage = dialog.querySelector(".recipe-editor__ai-image");
     const aiTextButton = dialog.querySelector(".recipe-editor__ai-generate-text");
     const aiUrlButton = dialog.querySelector(".recipe-editor__ai-generate-url");
+    const aiImageButton = dialog.querySelector(".recipe-editor__ai-generate-image");
     const aiCancelButton = dialog.querySelector(".recipe-editor__ai-cancel");
     const aiControls = [aiText, aiUrl, aiTextButton, aiUrlButton];
+    const aiImageControls = [aiImage, aiImageButton];
 
     let originalContent = "";
     let originalMetadata = "";
@@ -571,18 +596,28 @@
     let activeButton = null;
     let isCreating = false;
     let aiAvailable = false;
+    let aiImageAvailable = false;
     let aiAbortController = null;
 
     function setAiProgress(message) {
       aiStatus.textContent = message;
     }
 
-    function setAiState(configured, available) {
+    function setAiState(
+      configured,
+      available,
+      imageConfigured = available,
+      imageAvailable = imageConfigured,
+    ) {
       aiAvailable = configured && available;
+      aiImageAvailable = configured && imageConfigured && imageAvailable;
       aiSection.hidden = !configured;
       aiDetails.hidden = !configured || !isCreating;
       aiControls.forEach((control) => {
         control.disabled = busy || !aiAvailable;
+      });
+      aiImageControls.forEach((control) => {
+        control.disabled = busy || !aiImageAvailable;
       });
 
       if (!configured) {
@@ -590,6 +625,9 @@
       } else if (!available) {
         aiStatus.textContent =
           "The configured local model is unavailable. Start it, then reopen this dialog.";
+      } else if (!aiImageAvailable) {
+        aiStatus.textContent =
+          "The image analysis model is not configured. From Image is unavailable.";
       } else {
         aiStatus.textContent = "";
       }
@@ -641,6 +679,9 @@
 
       aiControls.forEach((control) => {
         control.disabled = value || !aiAvailable;
+      });
+      aiImageControls.forEach((control) => {
+        control.disabled = value || !aiImageAvailable;
       });
     }
 
@@ -762,10 +803,12 @@
       aiDetails.hidden = true;
       aiDetails.open = false;
       aiAvailable = false;
+      aiImageAvailable = false;
       aiAbortController = null;
       aiStatus.textContent = "";
       aiText.value = "";
       aiUrl.value = "";
+      aiImage.value = "";
       aiCancelButton.hidden = true;
       setBusy(true);
 
@@ -816,7 +859,16 @@ Try this
 
           try {
             const ai = await requestAiStatus();
-            setAiState(Boolean(ai.configured), Boolean(ai.available));
+            setAiState(
+              Boolean(ai.configured),
+              Boolean(ai.available),
+              ai.image_configured === undefined
+                ? Boolean(ai.configured)
+                : Boolean(ai.image_configured),
+              ai.image_available === undefined
+                ? Boolean(ai.available)
+                : Boolean(ai.image_available),
+            );
           } catch {
             setAiState(false, false);
           }
@@ -854,19 +906,35 @@ Try this
 
     async function generateFromAi(inputType) {
       if (busy || !aiAvailable) return;
+      if (inputType === "image" && !aiImageAvailable) return;
 
-      const input = inputType === "url" ? aiUrl.value.trim() : aiText.value.trim();
-      if (!input) {
-        aiStatus.textContent =
-          inputType === "url" ? "Paste a URL first." : "Paste recipe text first.";
-        return;
+      let input;
+      if (inputType === "image") {
+        input = aiImage.files?.[0];
+        if (!input) {
+          aiStatus.textContent = "Choose a recipe image first.";
+          return;
+        }
+      } else {
+        input = inputType === "url" ? aiUrl.value.trim() : aiText.value.trim();
+        if (!input) {
+          aiStatus.textContent =
+            inputType === "url" ? "Paste a URL first." : "Paste recipe text first.";
+          return;
+        }
       }
 
       const controller = new AbortController();
       aiAbortController = controller;
       aiCancelButton.hidden = false;
       setBusy(true);
-      setAiProgress(inputType === "url" ? `URL received: ${input}` : "Recipe text received.");
+      setAiProgress(
+        inputType === "url"
+          ? `URL received: ${input}`
+          : inputType === "image"
+            ? `Image received: ${input.name}`
+            : "Recipe text received.",
+      );
       status.textContent = "";
 
       try {
@@ -927,6 +995,7 @@ Try this
     textarea.required = markdownDetails.open;
     aiTextButton.addEventListener("click", () => generateFromAi("text"));
     aiUrlButton.addEventListener("click", () => generateFromAi("url"));
+    aiImageButton.addEventListener("click", () => generateFromAi("image"));
     aiCancelButton.addEventListener("click", () => {
       if (aiAbortController) aiAbortController.abort();
     });
