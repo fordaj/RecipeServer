@@ -8,20 +8,44 @@ from ._logger import logger
 
 
 MODEL_ENDPOINT_KEY = "model_endpoint"
-MODEL_NAME_KEY = "model_name"
+MODEL_NAME_KEY = "model_name"  # Legacy key, read-only compatibility for the all-purpose model.
+ALL_PURPOSE_MODEL_NAME_KEY = "all_purpose_model_name"
+IMAGE_ANALYSIS_MODEL_KEY = "image_analysis_model"
 RECIPE_SERVER_NAME_KEY = "recipe_server_name"
 SERVER_NAME_KEY = "server_name"
 DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
 NEW_RECIPE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipePrompt.md"
+NEW_RECIPE_FROM_IMAGE_PROMPT_PATH = (
+    Path(__file__).resolve().parent / "NewRecipeFromImagePrompt.md"
+)
 
 
 class Configuration:
     def __init__(self):
         self.source_directory: Path = Path()
         self.model_endpoint: str = ""
-        self.model_name: str = ""
+        self._all_purpose_model_name: str = ""
+        self.image_analysis_model: str = ""
         self._recipe_server_name: str = DEFAULT_RECIPE_SERVER_NAME
         self.new_recipe_prompt: str = ""
+        self.new_recipe_from_image_prompt: str = ""
+
+    @property
+    def all_purpose_model_name(self) -> str:
+        return self._all_purpose_model_name
+
+    @all_purpose_model_name.setter
+    def all_purpose_model_name(self, value: str) -> None:
+        self._all_purpose_model_name = value
+
+    @property
+    def model_name(self) -> str:
+        """Legacy alias for the all-purpose model name."""
+        return self._all_purpose_model_name
+
+    @model_name.setter
+    def model_name(self, value: str) -> None:
+        self._all_purpose_model_name = value
 
     @property
     def recipe_server_name(self) -> str:
@@ -46,6 +70,12 @@ class Configuration:
     @property
     def ai_configured(self) -> bool:
         return bool(self.model_endpoint.strip() and self.new_recipe_prompt.strip())
+
+    @property
+    def image_ai_configured(self) -> bool:
+        return bool(
+            self.model_endpoint.strip() and self.new_recipe_from_image_prompt.strip()
+        )
 
     def get_source_dir_from_user(self) -> Path:
         root = Tk()
@@ -77,7 +107,14 @@ class Configuration:
         """Read the source directory (first bare line) and optional model keys."""
         source_value = ""
         settings: dict[str, str] = {}
-        known_keys = {MODEL_ENDPOINT_KEY, MODEL_NAME_KEY, RECIPE_SERVER_NAME_KEY, SERVER_NAME_KEY}
+        known_keys = {
+            MODEL_ENDPOINT_KEY,
+            MODEL_NAME_KEY,
+            ALL_PURPOSE_MODEL_NAME_KEY,
+            IMAGE_ANALYSIS_MODEL_KEY,
+            RECIPE_SERVER_NAME_KEY,
+            SERVER_NAME_KEY,
+        }
 
         for raw_line in contents.splitlines():
             line = raw_line.strip()
@@ -96,7 +133,7 @@ class Configuration:
         """Optionally ask for an OpenAI-compatible local model endpoint."""
         print(
             "Optionally configure a local AI model so recipes can be created "
-            "from text or a URL."
+            "from text, a URL, or an image."
         )
 
         try:
@@ -110,39 +147,59 @@ class Configuration:
         if not endpoint:
             logger.info("No local model configured; AI recipe creation is disabled")
             self.model_endpoint = ""
-            self.model_name = ""
+            self.all_purpose_model_name = ""
+            self.image_analysis_model = ""
             return
 
         if "://" not in endpoint:
             endpoint = f"http://{endpoint}"
 
         try:
-            model_name = input(
-                "Model name (press Enter to auto-detect from the endpoint): "
+            all_purpose_model_name = input(
+                "All-purpose model name (press Enter to auto-detect from the endpoint): "
             ).strip()
         except (EOFError, KeyboardInterrupt):
-            model_name = ""
+            all_purpose_model_name = ""
+
+        try:
+            image_analysis_model = input(
+                "Image analysis model name (press Enter to auto-detect from the endpoint): "
+            ).strip()
+        except (EOFError, KeyboardInterrupt):
+            image_analysis_model = ""
 
         self.model_endpoint = endpoint
-        self.model_name = model_name
+        self.all_purpose_model_name = all_purpose_model_name
+        self.image_analysis_model = image_analysis_model
         logger.info(
             f"Configured local model endpoint: {endpoint} "
-            f"(model: {model_name or 'auto-detect'})"
+            f"(all-purpose model: {all_purpose_model_name or 'auto-detect'}, "
+            f"image analysis model: {image_analysis_model or 'auto-detect'})"
         )
+
+    @staticmethod
+    def _load_prompt_file(path: Path) -> str:
+        """Load a prompt file fresh so edits apply on the next run."""
+        try:
+            prompt = path.read_text(encoding="UTF-8").strip()
+        except OSError:
+            logger.exception(f"Failed to read new recipe prompt: {path}")
+            prompt = ""
+
+        logger.info(f"Loaded new recipe prompt from {path} ({len(prompt)} characters)")
+        return prompt
 
     def load_new_recipe_prompt(self) -> str:
         """Load the prompt requirements fresh so edits apply on the next run."""
-        try:
-            prompt = NEW_RECIPE_PROMPT_PATH.read_text(encoding="UTF-8").strip()
-        except OSError:
-            logger.exception(f"Failed to read new recipe prompt: {NEW_RECIPE_PROMPT_PATH}")
-            prompt = ""
-
+        prompt = self._load_prompt_file(NEW_RECIPE_PROMPT_PATH)
         self.new_recipe_prompt = prompt
-        logger.info(
-            f"Loaded new recipe prompt from {NEW_RECIPE_PROMPT_PATH} "
-            f"({len(prompt)} characters)"
-        )
+        self.load_new_recipe_from_image_prompt()
+        return prompt
+
+    def load_new_recipe_from_image_prompt(self) -> str:
+        """Load the image transcription prompt fresh so edits apply on the next run."""
+        prompt = self._load_prompt_file(NEW_RECIPE_FROM_IMAGE_PROMPT_PATH)
+        self.new_recipe_from_image_prompt = prompt
         return prompt
 
     def _write_config(self, config_file: Path) -> None:
@@ -150,14 +207,17 @@ class Configuration:
             str(self.source_directory),
             f"{MODEL_ENDPOINT_KEY}={self.model_endpoint}",
         ]
-        if self.model_name:
-            lines.append(f"{MODEL_NAME_KEY}={self.model_name}")
+        if self.all_purpose_model_name:
+            lines.append(f"{ALL_PURPOSE_MODEL_NAME_KEY}={self.all_purpose_model_name}")
+        if self.image_analysis_model:
+            lines.append(f"{IMAGE_ANALYSIS_MODEL_KEY}={self.image_analysis_model}")
         lines.append(f"{RECIPE_SERVER_NAME_KEY}={self.recipe_server_name}")
 
         logger.debug(
             f"Saving configuration to {config_file} "
             f"(source={self.source_directory}, endpoint={self.model_endpoint or '(none)'}, "
-            f"model={self.model_name or '(auto)'}, "
+            f"all-purpose model={self.all_purpose_model_name or '(auto)'}, "
+            f"image analysis model={self.image_analysis_model or '(auto)'}, "
             f"server name={self.recipe_server_name!r})"
         )
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
@@ -202,11 +262,18 @@ class Configuration:
 
         if MODEL_ENDPOINT_KEY in settings:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")
-            self.model_name = settings.get(MODEL_NAME_KEY, "")
+            # The legacy singular model_name key remains readable but is
+            # normalized to all_purpose_model_name on save.
+            self.all_purpose_model_name = (
+                settings.get(ALL_PURPOSE_MODEL_NAME_KEY)
+                or settings.get(MODEL_NAME_KEY, "")
+            )
+            self.image_analysis_model = settings.get(IMAGE_ANALYSIS_MODEL_KEY, "")
             logger.info(
                 f"Using configured local model endpoint: "
                 f"{self.model_endpoint or '(none)'} "
-                f"(model: {self.model_name or 'auto-detect'})"
+                f"(all-purpose model: {self.all_purpose_model_name or 'auto-detect'}, "
+                f"image analysis model: {self.image_analysis_model or 'auto-detect'})"
             )
         else:
             logger.debug(
@@ -218,6 +285,7 @@ class Configuration:
         logger.info(
             f"AI recipe creation is {'enabled' if self.ai_configured else 'disabled'} "
             f"(endpoint={'set' if self.model_endpoint else 'missing'}, "
-            f"prompt={'set' if self.new_recipe_prompt else 'missing'})"
+            f"prompt={'set' if self.new_recipe_prompt else 'missing'}, "
+            f"image prompt={'set' if self.new_recipe_from_image_prompt else 'missing'})"
         )
         self._write_config(config_file)
