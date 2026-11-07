@@ -19,7 +19,6 @@ from PIL import Image, UnidentifiedImageError
 
 from ._logger import logger
 
-
 MODEL_TIMEOUT_SECONDS = 120
 AVAILABILITY_TIMEOUT_SECONDS = 3
 URL_TIMEOUT_SECONDS = 20
@@ -123,10 +122,7 @@ def ai_status(config: object | None) -> dict[str, Any]:
         return status
 
     available = is_available(endpoint)
-    logger.info(
-        f"Local model status: configured={configured}, available={available}, "
-        f"endpoint={endpoint}"
-    )
+    logger.info(f"Local model status: configured={configured}, available={available}, " f"endpoint={endpoint}")
     status["available"] = available
     status["image_available"] = bool(available and image_configured)
     return status
@@ -209,9 +205,7 @@ def list_models(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) ->
 
     with urlopen(request, timeout=timeout) as response:
         if not 200 <= response.status < 300:
-            logger.warning(
-                f"Model list request to {models_url} returned HTTP {response.status}"
-            )
+            logger.warning(f"Model list request to {models_url} returned HTTP {response.status}")
             return []
         payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
 
@@ -247,8 +241,7 @@ def is_available(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -
         # Some compatible servers do not expose /models but still accept chat requests.
         if exc.code in {404, 405}:
             logger.debug(
-                f"{endpoint} does not expose a model list (HTTP {exc.code}); "
-                "assuming chat requests are supported"
+                f"{endpoint} does not expose a model list (HTTP {exc.code}); " "assuming chat requests are supported"
             )
             return True
         logger.warning(f"Model endpoint {endpoint} returned HTTP {exc.code}")
@@ -307,9 +300,7 @@ def fetch_url_content(url: str) -> tuple[str, str]:
         raise SourceFetchError("The URL content is too large to send to the model")
 
     title, text = _extract_url_text(body, content_type, charset, url)
-    logger.debug(
-        f"Extracted {len(text)} characters of text from {url} (title={title!r})"
-    )
+    logger.debug(f"Extracted {len(text)} characters of text from {url} (title={title!r})")
     return title, text
 
 
@@ -318,21 +309,14 @@ def _build_user_message(input_type: str, input_value: str) -> tuple[str, str]:
 
     if input_type == "url":
         title, text = fetch_url_content(input_value)
-        prompt_text = (
-            f"Recipe URL: {input_value}\n"
-            f"Page title: {title}\n\n"
-            f"Recipe content:\n{text}"
-        )
+        prompt_text = f"Recipe URL: {input_value}\n" f"Page title: {title}\n\n" f"Recipe content:\n{text}"
     elif input_type == "text":
         prompt_text = f"Recipe text:\n{input_value}"
     else:
         raise ValueError("inputType must be 'url', 'text', or 'image'")
 
     if len(prompt_text) > MAX_PROMPT_INPUT_CHARS:
-        prompt_text = (
-            prompt_text[:MAX_PROMPT_INPUT_CHARS]
-            + "\n\n[The source was truncated because it was very long.]"
-        )
+        prompt_text = prompt_text[:MAX_PROMPT_INPUT_CHARS] + "\n\n[The source was truncated because it was very long.]"
 
     return prompt_text, title
 
@@ -345,10 +329,7 @@ def image_data_uri(image_filename: str, image_bytes: bytes) -> str:
     suffix = "." + image_filename.rsplit(".", 1)[-1].lower() if "." in image_filename else ""
     mime_type = IMAGE_MIME_TYPES.get(suffix) or mimetypes.guess_type(image_filename)[0]
     if suffix not in IMAGE_MIME_TYPES or mime_type not in IMAGE_MIME_TYPES.values():
-        raise ValueError(
-            "Unsupported image type for AI generation. "
-            "Use a JPG, PNG, GIF, WebP, BMP, or TIFF image."
-        )
+        raise ValueError("Unsupported image type for AI generation. " "Use a JPG, PNG, GIF, WebP, BMP, or TIFF image.")
     if len(image_bytes) > MAX_IMAGE_BYTES:
         raise ValueError("The recipe image is too large to send to the model")
 
@@ -406,24 +387,18 @@ def _extract_chat_content(payload: object) -> tuple[str, dict[str, Any]]:
                 message = choice.get("message")
                 if isinstance(message, dict):
                     content = _content_text(message.get("content"))
-                    reasoning = _content_text(
-                        message.get("reasoning_content") or message.get("reasoning")
-                    )
+                    reasoning = _content_text(message.get("reasoning_content") or message.get("reasoning"))
                 if not content:
                     content = _content_text(choice.get("text"))
                 if not reasoning:
-                    reasoning = _content_text(
-                        choice.get("reasoning_content") or choice.get("reasoning")
-                    )
+                    reasoning = _content_text(choice.get("reasoning_content") or choice.get("reasoning"))
 
         if not content:
             message = payload.get("message")
             if isinstance(message, dict):
                 content = _content_text(message.get("content"))
                 if not reasoning:
-                    reasoning = _content_text(
-                        message.get("reasoning_content") or message.get("reasoning")
-                    )
+                    reasoning = _content_text(message.get("reasoning_content") or message.get("reasoning"))
 
     diagnostics["content_chars"] = len(content)
     diagnostics["reasoning_chars"] = len(reasoning)
@@ -448,13 +423,10 @@ def _chat(
         ],
         "temperature": 0.2,
         "max_tokens": MAX_MODEL_TOKENS,
+        "reasoning_effort": "none",  # TODO: Expose this in configuration
         "stream": False,
     }
-    user_chars = (
-        len(user_message)
-        if isinstance(user_message, str)
-        else len(json.dumps(user_message))
-    )
+    user_chars = len(user_message) if isinstance(user_message, str) else len(json.dumps(user_message))
     logger.info(
         f"Sending {stage} request to {chat_url} (model={model_name}, "
         f"system_prompt_chars={len(prompt)}, user_chars={user_chars})"
@@ -472,9 +444,7 @@ def _chat(
 
     try:
         with urlopen(request, timeout=MODEL_TIMEOUT_SECONDS) as response:
-            logger.debug(
-                f"Model request to {chat_url} returned HTTP {response.status}"
-            )
+            logger.debug(f"Model request to {chat_url} returned HTTP {response.status}")
             body = _read_response(response, MAX_MODEL_RESPONSE_BYTES)
             logger.debug(f"Received {len(body)} bytes from the model")
     except HTTPError as exc:
@@ -504,9 +474,7 @@ def _chat(
     )
     logger.debug(f"{stage} content preview: {diagnostics['content_preview']!r}")
     if diagnostics["reasoning_chars"]:
-        logger.debug(
-            f"{stage} reasoning preview: {diagnostics['reasoning_preview']!r}"
-        )
+        logger.debug(f"{stage} reasoning preview: {diagnostics['reasoning_preview']!r}")
 
     if not content.strip():
         if diagnostics["finish_reason"] == "length":
@@ -635,10 +603,7 @@ def generate_recipe(
     report_progress("Checking the configured AI model...")
     model_name = resolve_model_name(endpoint, configured_name)
     if not model_name:
-        raise ModelUnavailable(
-            "Could not determine a model name. "
-            "Configure all_purpose_model_name in config.txt."
-        )
+        raise ModelUnavailable("Could not determine a model name. " "Configure all_purpose_model_name in config.txt.")
 
     image_model_name = ""
     if input_type == "image":
@@ -646,8 +611,7 @@ def generate_recipe(
         image_model_name = resolve_model_name(endpoint, configured_image_name)
         if not image_model_name:
             raise ModelUnavailable(
-                "Could not determine an image analysis model name. "
-                "Configure image_analysis_model in config.txt."
+                "Could not determine an image analysis model name. " "Configure image_analysis_model in config.txt."
             )
 
     if input_type == "url":
@@ -682,24 +646,18 @@ def generate_recipe(
             f"Image transcription from '{image_model_name}' "
             f"({len(transcription)} characters): {transcription[:2000]!r}"
         )
-        report_progress(
-            "Image transcribed. Sending the extracted text to "
-            f"{model_name}..."
-        )
+        report_progress("Image transcribed. Sending the extracted text to " f"{model_name}...")
         # Second stage: the all-purpose model drafts the recipe from the
         # transcription, using NewRecipePrompt.md.
         user_message = f"Recipe text (transcribed from image):\n{transcription}"
         if len(user_message) > MAX_PROMPT_INPUT_CHARS:
             user_message = (
-                user_message[:MAX_PROMPT_INPUT_CHARS]
-                + "\n\n[The source was truncated because it was very long.]"
+                user_message[:MAX_PROMPT_INPUT_CHARS] + "\n\n[The source was truncated because it was very long.]"
             )
     else:
         user_message, title = _build_user_message(input_type, input_value)
         if input_type == "url":
-            report_progress(
-                f"Page fetched. Sending the source URL and extracted text to {model_name}..."
-            )
+            report_progress(f"Page fetched. Sending the source URL and extracted text to {model_name}...")
         else:
             report_progress(f"Sending the recipe text to {model_name}...")
 
