@@ -93,13 +93,13 @@
 }
 
 .config-editor__footer button {
-  padding: 0.65rem 1.25rem;
+  padding: 0.65rem 1rem;
+
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--card-bg);
-  color: var(--text-color);
-  font: inherit;
-  font-size: 0.95rem;
+  color: var(--food-color);
+
   cursor: pointer;
 }
 
@@ -112,13 +112,13 @@
   cursor: wait;
 }
 
-.config-editor__save {
+.config-editor__footer .config-editor__save {
   border-color: var(--food-color);
   background: var(--food-color);
   color: var(--page-bg);
 }
 
-.config-editor__save:hover:not(:disabled) {
+.config-editor__footer .config-editor__save:hover:not(:disabled) {
   border-color: var(--food-color-hover);
   background: var(--food-color-hover);
   color: var(--page-bg);

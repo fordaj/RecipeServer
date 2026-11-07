@@ -189,9 +189,20 @@ function createEditorDialog() {
   dialog.addEventListener("cancel", (event) => {
     if (state.busy) event.preventDefault();
   });
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) closeEditor();
+  // BEGIN Close dialogue if a full click cycle occurs outside of dialogue
+  let pointerDownTarget = null;
+
+  dialog.addEventListener("pointerdown", (event) => {
+    pointerDownTarget = event.target;
   });
+
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog && pointerDownTarget === dialog) {
+      closeEditor();
+    }
+    pointerDownTarget = null;
+  });
+  // END Close dialogue if a full click cycle occurs outside of dialogue
 }
 
 function initialize() {

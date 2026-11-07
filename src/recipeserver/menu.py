@@ -56,11 +56,11 @@ def sandwich_menu_html() -> str:
         "</button>"
         '<div class="sandwich-menu__panel" hidden role="menu">'
         '<button class="sandwich-menu__item" type="button" '
+        'data-config="open" role="menuitem">Configuration</button>'
+        '<button class="sandwich-menu__item" type="button" '
         'data-archive="source" role="menuitem">Download Source Archive</button>'
         '<button class="sandwich-menu__item" type="button" '
         'data-archive="site" role="menuitem">Download Site Archive</button>'
-        '<button class="sandwich-menu__item" type="button" '
-        'data-config="open" role="menuitem">Configuration</button>'
         '<p class="sandwich-menu__status" role="status" '
         'aria-live="polite" hidden></p>'
         "</div>"
