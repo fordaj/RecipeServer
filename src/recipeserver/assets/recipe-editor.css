@@ -768,6 +768,7 @@
   padding-right: 3.9rem;
 }
 
+/* Same filled style as the main Save button (.recipe-editor__save). */
 .recipe-editor__bulk-field-save {
   position: absolute;
   top: 50%;
@@ -776,13 +777,19 @@
   padding: 0.25rem 0.55rem;
   border: 1px solid var(--food-color);
   border-radius: 6px;
-  background: var(--card-bg);
-  color: var(--food-color);
+  background: var(--food-color);
+  color: var(--page-bg);
   font: inherit;
   font-size: 0.8rem;
   line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
+}
+
+.recipe-editor__bulk-field-save:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
 }
 
 .recipe-editor__bulk-field-save[hidden] {
@@ -791,10 +798,6 @@
 
 .recipe-editor__mixed[hidden] {
   display: none;
-}
-
-.recipe-editor__bulk-field-save:hover:not(:disabled) {
-  background: var(--hover-bg);
 }
 
 .recipe-editor__bulk-field-save:focus-visible {
