@@ -14,4 +14,10 @@ The image is expected to contain a recipe. Account for common cooking terminolog
 - If text is partially legible, transcribe the readable portion and mark the uncertain portion as [illegible].
 - If a word or quantity is ambiguous, indicate the uncertainty rather than guessing.
 
+Do not engage in chain-of-thought reasoning.
+
+Do not explain your reasoning or provide intermediate analysis.
+
+Perform the transcription directly and return only the requested output.
+
 Return only the transcription. Do not summarize, interpret, or reformat the recipe.
