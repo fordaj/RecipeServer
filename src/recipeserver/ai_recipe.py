@@ -603,7 +603,7 @@ def generate_recipe(
     report_progress("Checking the configured AI model...")
     model_name = resolve_model_name(endpoint, configured_name)
     if not model_name:
-        raise ModelUnavailable("Could not determine a model name. " "Configure all_purpose_model_name in config.txt.")
+        raise ModelUnavailable("Could not determine a model name. " "Configure all_purpose_model_name in recipe-server-cfg.toml.")
 
     image_model_name = ""
     if input_type == "image":
@@ -611,7 +611,7 @@ def generate_recipe(
         image_model_name = resolve_model_name(endpoint, configured_image_name)
         if not image_model_name:
             raise ModelUnavailable(
-                "Could not determine an image analysis model name. " "Configure image_analysis_model in config.txt."
+                "Could not determine an image analysis model name. " "Configure image_analysis_model in recipe-server-cfg.toml."
             )
 
     if input_type == "url":

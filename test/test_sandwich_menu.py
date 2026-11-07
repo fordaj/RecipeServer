@@ -93,10 +93,19 @@ def test_sandwich_menu_html_uses_menu_icon_and_both_downloads():
     assert 'd="M4 19h16"' in html
 
     items = menu.select(".sandwich-menu__item")
-    assert [(item["data-archive"], item.get_text(strip=True)) for item in items] == [
+    archive_items = [
+        (item["data-archive"], item.get_text(strip=True))
+        for item in items
+        if item.has_attr("data-archive")
+    ]
+    assert archive_items == [
         ("source", "Download Source Archive"),
         ("site", "Download Site Archive"),
     ]
+    config_items = [
+        item for item in items if item.get("data-config") == "open"
+    ]
+    assert [item.get_text(strip=True) for item in config_items] == ["Configuration"]
 
 
 def test_index_page_includes_sandwich_menu_and_assets(tmp_path: Path):
@@ -126,6 +135,7 @@ def test_index_page_includes_sandwich_menu_and_assets(tmp_path: Path):
     assert 'data-archive="site"' in page
     assert "Download Source Archive" in page
     assert "Download Site Archive" in page
+    assert 'data-config="open"' in page
 
 
 def test_archive_endpoints_download_7z_with_browser_date_filename(tmp_path: Path):

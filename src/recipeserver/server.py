@@ -29,6 +29,7 @@ from ._logger import logger
 from collections.abc import Callable
 
 MarkdownSavedCallback = Callable[[Path], None]
+ConfigSavedCallback = Callable[[], None]
 
 
 def _json_default(value: object) -> str:
@@ -242,13 +243,22 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         *args,
         source_directory: Path,
         on_markdown_saved: MarkdownSavedCallback | None = None,
+        on_config_saved: ConfigSavedCallback | None = None,
         config: Configuration | None = None,
         **kwargs,
     ):
-        self.source_directory = Path(source_directory).resolve()
+        self._source_directory = Path(source_directory).resolve()
         self.on_markdown_saved = on_markdown_saved
+        self.on_config_saved = on_config_saved
         self.config = config
         super().__init__(*args, **kwargs)
+
+    @property
+    def source_directory(self) -> Path:
+        """Recipe source directory, following live configuration changes."""
+        if self.config is not None and str(self.config.source_directory):
+            return Path(self.config.source_directory).resolve()
+        return self._source_directory
 
     def do_GET(self):
         parsed = urlsplit(self.path)
@@ -271,6 +281,25 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
             logger.debug(f"Responding to /api/ai-status with {status}")
             self._send_json(200, status)
+            return
+
+        if parsed.path in ("/api/config", "/api/config/"):
+            logger.debug("Received /api/config request")
+            try:
+                if self.config is None:
+                    raise ValueError("Configuration is not available")
+                self._send_json(
+                    200,
+                    {
+                        "values": self.config.get_config_values(),
+                        "fields": self.config.field_specs(),
+                    },
+                )
+            except ValueError as exc:
+                self._send_json(500, {"error": str(exc)})
+            except Exception:
+                logger.exception("Failed to read configuration")
+                self._send_json(500, {"error": "Unable to read configuration"})
             return
 
         if parsed.path == "/api/recipe-folders":
@@ -363,8 +392,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/recipe-editor",
             "/api/recipe",
             "/api/ai-recipe",
+            "/api/config",
         ) and not parsed.path.startswith("/api/metadata/"):
             self.send_error(404, "Unknown API endpoint")
+            return
+
+        if parsed.path == "/api/config":
+            self._handle_config_update()
             return
 
         if parsed.path == "/api/ai-recipe":
@@ -651,6 +685,45 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         except Exception:
             logger.exception("Failed to regenerate recipe HTML")
             self._send_json(500, {"error": "Markdown saved, but HTML regeneration failed"})
+
+    def _handle_config_update(self) -> None:
+        try:
+            payload = self._read_json_payload()
+            if self.config is None:
+                raise ValueError("Configuration is not available")
+            changed = self.config.apply_config_values(
+                payload.get("values")
+            )
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+        except OSError:
+            logger.exception("Failed to save configuration")
+            self._send_json(500, {"error": "Unable to save configuration"})
+            return
+
+        logger.info("Saved configuration (changed: {})", ", ".join(changed) or "none")
+        if self.on_config_saved is not None:
+            try:
+                self.on_config_saved()
+            except Exception:
+                logger.exception("Configuration saved, but regeneration failed")
+                self._send_json(
+                    500, {"error": "Configuration saved, but regeneration failed"}
+                )
+                return
+
+        self._send_json(
+            200,
+            {
+                "success": True,
+                "values": self.config.get_config_values(),
+                "changed": changed,
+            },
+        )
 
     def _handle_ai_recipe(self) -> None:
         image: tuple[str, bytes] | None = None
@@ -1182,9 +1255,11 @@ class Server:
         self,
         cfg: Configuration,
         on_markdown_saved: MarkdownSavedCallback | None = None,
+        on_config_saved: ConfigSavedCallback | None = None,
     ):
         self.cfg = cfg
         self.on_markdown_saved = on_markdown_saved
+        self.on_config_saved = on_config_saved
         self._http_server: ThreadingHTTPServer | None = None
         self._thread: Thread | None = None
 
@@ -1209,6 +1284,7 @@ class Server:
             directory=str(self.cfg.site_directory),
             source_directory=self.cfg.source_directory,
             on_markdown_saved=self.on_markdown_saved,
+            on_config_saved=self.on_config_saved,
             config=self.cfg,
         )
 

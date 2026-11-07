@@ -1,8 +1,12 @@
 import sys
+import json
+import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 from platformdirs import user_data_path
 from tkinter import Tk, filedialog
 from typing import Optional
+from urllib.parse import urlsplit
 
 from ._logger import logger
 
@@ -13,11 +17,125 @@ ALL_PURPOSE_MODEL_NAME_KEY = "all_purpose_model_name"
 IMAGE_ANALYSIS_MODEL_KEY = "image_analysis_model"
 RECIPE_SERVER_NAME_KEY = "recipe_server_name"
 SERVER_NAME_KEY = "server_name"
+SOURCE_DIRECTORY_KEY = "source_directory"
+CONFIG_FILENAME = "recipe-server-cfg.toml"
+LEGACY_CONFIG_FILENAME = "config.txt"
 DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
 NEW_RECIPE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipePrompt.md"
 NEW_RECIPE_FROM_IMAGE_PROMPT_PATH = (
     Path(__file__).resolve().parent / "NewRecipeFromImagePrompt.md"
 )
+_MAX_MODEL_NAME_LENGTH = 256
+
+
+@dataclass(frozen=True)
+class ConfigField:
+    """One editable configuration value.
+
+    Add a field by appending an entry to ``CONFIG_FIELDS`` and applying the
+    value in :meth:`Configuration.apply_config_values`. The server exposes
+    these specs to the configuration editor UI, so no client code changes
+    are needed for new fields.
+    """
+
+    key: str
+    label: str
+    help_text: str
+    input_type: str = "text"  # "text", "url", or "path"
+    placeholder: str = ""
+    required: bool = False
+
+
+CONFIG_FIELDS: tuple[ConfigField, ...] = (
+    ConfigField(
+        RECIPE_SERVER_NAME_KEY,
+        "Server name",
+        "Shown as the site title. Blank falls back to 'My Recipe Server'.",
+        placeholder=DEFAULT_RECIPE_SERVER_NAME,
+        required=True,
+    ),
+    ConfigField(
+        SOURCE_DIRECTORY_KEY,
+        "Recipes directory",
+        "Must be an existing directory. The site is rebuilt from this folder on save.",
+        input_type="path",
+        placeholder="/path/to/recipes",
+        required=True,
+    ),
+    ConfigField(
+        MODEL_ENDPOINT_KEY,
+        "Local model endpoint",
+        "OpenAI-compatible endpoint, for example http://localhost:11434/v1. "
+        "Leave blank to disable AI recipe creation. A scheme is added if omitted.",
+        input_type="url",
+        placeholder="http://localhost:11434/v1",
+    ),
+    ConfigField(
+        ALL_PURPOSE_MODEL_NAME_KEY,
+        "All-purpose model name",
+        "Leave blank to auto-detect from the endpoint.",
+        placeholder="llama3.2",
+    ),
+    ConfigField(
+        IMAGE_ANALYSIS_MODEL_KEY,
+        "Image analysis model name",
+        "Used for From Image recipe creation. Leave blank to auto-detect from the endpoint.",
+        placeholder="llava3",
+    ),
+)
+
+
+def _validate_config_value(key: str, value: str) -> str:
+    """Normalize and validate one configuration value.
+
+    Returns the value to store. Raises ``ValueError`` with a user-facing
+    message when the value is not acceptable.
+    """
+    label = next((field.label for field in CONFIG_FIELDS if field.key == key), key)
+
+    if key == RECIPE_SERVER_NAME_KEY:
+        return value.strip() or DEFAULT_RECIPE_SERVER_NAME
+
+    if key == SOURCE_DIRECTORY_KEY:
+        candidate = Path(value.strip()).expanduser()
+        if not value.strip():
+            raise ValueError(f"{label} is required and must be an existing directory.")
+        if not candidate.is_dir():
+            raise ValueError(f"{label} must be an existing directory.")
+        return str(candidate.resolve())
+
+    if key == MODEL_ENDPOINT_KEY:
+        endpoint = value.strip()
+        if not endpoint:
+            return ""
+        if "://" not in endpoint:
+            endpoint = f"http://{endpoint}"
+        parts = urlsplit(endpoint)
+        if parts.scheme not in ("http", "https") or not parts.netloc:
+            raise ValueError(
+                f"{label} must be a valid http:// or https:// endpoint "
+                "(or left blank to disable AI recipe creation)."
+            )
+        return endpoint
+
+    if key in (ALL_PURPOSE_MODEL_NAME_KEY, IMAGE_ANALYSIS_MODEL_KEY):
+        name = value.strip()
+        if len(name) > _MAX_MODEL_NAME_LENGTH:
+            raise ValueError(
+                f"{label} must be at most {_MAX_MODEL_NAME_LENGTH} characters."
+            )
+        return name
+
+    raise ValueError(f"Unknown configuration key: {key}")
+
+
+def _toml_string(value: str) -> str:
+    """Render a string as a TOML basic string.
+
+    JSON string escaping is a subset of TOML basic-string escaping, so the
+    stdlib JSON encoder handles backslashes, quotes, and control characters.
+    """
+    return json.dumps(value, ensure_ascii=True)
 
 
 class Configuration:
@@ -29,6 +147,7 @@ class Configuration:
         self._recipe_server_name: str = DEFAULT_RECIPE_SERVER_NAME
         self.new_recipe_prompt: str = ""
         self.new_recipe_from_image_prompt: str = ""
+        self._config_file: Optional[Path] = None
 
     @property
     def all_purpose_model_name(self) -> str:
@@ -100,7 +219,130 @@ class Configuration:
         data_dir = user_data_path("recipe-server", appauthor=False)
         data_dir.mkdir(parents=True, exist_ok=True)
 
-        return data_dir / "config.txt"
+        return data_dir / CONFIG_FILENAME
+
+    def _resolve_config_file(self, optional_config_path: Optional[Path] = None) -> Path:
+        """Pick the config file to use, migrating the legacy file if needed.
+
+        An explicitly passed path is always used as-is. Otherwise the TOML
+        file is preferred; when it does not exist yet but a legacy
+        ``config.txt`` does, that file is read and rewritten as TOML on save.
+        """
+        if optional_config_path:
+            return optional_config_path
+
+        data_dir = user_data_path("recipe-server", appauthor=False)
+        data_dir.mkdir(parents=True, exist_ok=True)
+        toml_file = data_dir / CONFIG_FILENAME
+        if toml_file.exists():
+            return toml_file
+
+        legacy_file = data_dir / LEGACY_CONFIG_FILENAME
+        if legacy_file.exists():
+            logger.info(
+                f"Migrating legacy configuration {legacy_file} to {toml_file}"
+            )
+            return legacy_file
+
+        return toml_file
+
+    @staticmethod
+    def field_specs() -> list[dict[str, str | bool]]:
+        """Serialisable field descriptions for the configuration editor UI."""
+        return [
+            {
+                "key": field.key,
+                "label": field.label,
+                "help": field.help_text,
+                "input_type": field.input_type,
+                "placeholder": field.placeholder,
+                "required": field.required,
+            }
+            for field in CONFIG_FIELDS
+        ]
+
+    def get_config_values(self) -> dict[str, str]:
+        """Current values of every editable configuration field."""
+        values: dict[str, str] = {}
+        for field in CONFIG_FIELDS:
+            if field.key == SOURCE_DIRECTORY_KEY:
+                values[field.key] = str(self.source_directory)
+            else:
+                values[field.key] = str(getattr(self, field.key))
+        return values
+
+    def apply_config_values(self, values: dict) -> list[str]:
+        """Validate and apply edited values, then persist them.
+
+        Returns the list of keys whose stored value changed. Raises
+        ``ValueError`` with a user-facing message on invalid input.
+        """
+        if not isinstance(values, dict):
+            raise ValueError("Expected an object of configuration values.")
+
+        known_keys = {field.key for field in CONFIG_FIELDS}
+        normalized: dict[str, str] = {}
+        for key, value in values.items():
+            if key not in known_keys:
+                raise ValueError(f"Unknown configuration key: {key}")
+            if value is None:
+                value = ""
+            if not isinstance(value, str):
+                raise ValueError(f"Configuration value '{key}' must be text.")
+            normalized[key] = _validate_config_value(key, value)
+
+        from copy import deepcopy
+
+        before = deepcopy(self.get_config_values())
+        for key, value in normalized.items():
+            if key == SOURCE_DIRECTORY_KEY:
+                self.source_directory = Path(value)
+            else:
+                setattr(self, key, value)
+
+        self._write_config(self._config_file or self._resolve_config_file())
+
+        after = self.get_config_values()
+        return [key for key in normalized if before.get(key) != after.get(key)]
+
+    @staticmethod
+    def _parse_toml_config(contents: str) -> tuple[str, dict[str, str]] | None:
+        """Read the source directory and settings from TOML text.
+
+        Returns ``None`` when the text is not valid TOML.
+        """
+        try:
+            data = tomllib.loads(contents)
+        except tomllib.TOMLDecodeError:
+            logger.exception("Configuration file is not valid TOML")
+            return None
+
+        if not isinstance(data, dict):
+            return None
+
+        source_value = ""
+        settings: dict[str, str] = {}
+        known_keys = {
+            SOURCE_DIRECTORY_KEY,
+            MODEL_ENDPOINT_KEY,
+            MODEL_NAME_KEY,
+            ALL_PURPOSE_MODEL_NAME_KEY,
+            IMAGE_ANALYSIS_MODEL_KEY,
+            RECIPE_SERVER_NAME_KEY,
+            SERVER_NAME_KEY,
+        }
+        for key, value in data.items():
+            if not isinstance(value, str):
+                logger.warning(
+                    f"Ignoring non-text configuration value for {key!r}"
+                )
+                continue
+            if key == SOURCE_DIRECTORY_KEY:
+                source_value = value.strip()
+            elif key in known_keys:
+                settings[key] = value.strip()
+
+        return source_value, settings
 
     @staticmethod
     def _parse_config(contents: str) -> tuple[str, dict[str, str]]:
@@ -204,14 +446,14 @@ class Configuration:
 
     def _write_config(self, config_file: Path) -> None:
         lines = [
-            str(self.source_directory),
-            f"{MODEL_ENDPOINT_KEY}={self.model_endpoint}",
+            "# RecipeServer configuration.",
+            "# Edit through the Configuration dialog in the app, or by hand here.",
+            f"{SOURCE_DIRECTORY_KEY} = {_toml_string(str(self.source_directory))}",
+            f"{MODEL_ENDPOINT_KEY} = {_toml_string(self.model_endpoint)}",
+            f"{ALL_PURPOSE_MODEL_NAME_KEY} = {_toml_string(self.all_purpose_model_name)}",
+            f"{IMAGE_ANALYSIS_MODEL_KEY} = {_toml_string(self.image_analysis_model)}",
+            f"{RECIPE_SERVER_NAME_KEY} = {_toml_string(self.recipe_server_name)}",
         ]
-        if self.all_purpose_model_name:
-            lines.append(f"{ALL_PURPOSE_MODEL_NAME_KEY}={self.all_purpose_model_name}")
-        if self.image_analysis_model:
-            lines.append(f"{IMAGE_ANALYSIS_MODEL_KEY}={self.image_analysis_model}")
-        lines.append(f"{RECIPE_SERVER_NAME_KEY}={self.recipe_server_name}")
 
         logger.debug(
             f"Saving configuration to {config_file} "
@@ -222,8 +464,8 @@ class Configuration:
         )
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
 
-    def handle_configuration(self, optional_config_txt: Optional[Path] = None):
-        config_file = optional_config_txt if optional_config_txt else self.get_config_contents_path_from_user_dir()
+    def handle_configuration(self, optional_config_path: Optional[Path] = None):
+        config_file = self._resolve_config_file(optional_config_path)
 
         config_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -232,8 +474,15 @@ class Configuration:
             config_file.touch()
 
         logger.debug(f"Reading {config_file}")
-        config_contents = config_file.read_text(encoding="UTF-8").strip()
-        config_source, settings = self._parse_config(config_contents)
+        config_contents = config_file.read_text(encoding="UTF-8")
+        if config_file.suffix == ".toml":
+            parsed = self._parse_toml_config(config_contents.strip())
+            if parsed is None:
+                config_source, settings = "", {}
+            else:
+                config_source, settings = parsed
+        else:
+            config_source, settings = self._parse_config(config_contents.strip())
         logger.debug(
             f"Parsed configuration: source={config_source!r}, "
             f"keys={sorted(settings)}"
@@ -288,4 +537,15 @@ class Configuration:
             f"prompt={'set' if self.new_recipe_prompt else 'missing'}, "
             f"image prompt={'set' if self.new_recipe_from_image_prompt else 'missing'})"
         )
-        self._write_config(config_file)
+        write_file = config_file
+        if config_file.suffix != ".toml":
+            # A legacy config.txt was read; persist as TOML from now on.
+            write_file = config_file.with_name(CONFIG_FILENAME)
+            self._write_config(write_file)
+            try:
+                config_file.unlink(missing_ok=True)
+            except OSError:
+                logger.warning(f"Could not remove legacy configuration {config_file}")
+        else:
+            self._write_config(write_file)
+        self._config_file = write_file

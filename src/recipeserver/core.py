@@ -102,57 +102,65 @@ class Core:
             logger.info(f'Updated recipe and index: "{markdown}"')
 
     def regen(self):
-        start = time.perf_counter()
-
         if not self._regen_lock.acquire(blocking=False):
             logger.debug("Skipping regeneration because one is already running")
             return
 
         try:
-            working_dir = self.cfg.source_directory.resolve()
-
-            if self.cfg.site_directory.exists():
-                logger.debug(f'Deleting "{self.cfg.site_directory}"')
-                rmtree(self.cfg.site_directory)
-
-            self.cfg.site_directory.mkdir(parents=True)
-            logger.debug(f'Created "{self.cfg.site_directory}"')
-            self.copy_assets(self.cfg.site_directory)
-
-            markdown_files = [markdown for markdown in working_dir.rglob("recipe.md") if markdown.is_file()]
-
-            self._recipes.clear()
-
-            if markdown_files:
-                with ThreadPoolExecutor(max_workers=min(NUM_WORKERS, len(markdown_files))) as executor:
-                    futures = {
-                        executor.submit(self.convert_recipe, markdown): markdown
-                        for markdown in markdown_files
-                    }
-
-                    for future in as_completed(futures):
-                        markdown = futures[future]
-                        try:
-                            html, converter = future.result()
-                        except Exception:
-                            # One broken recipe should not prevent the rest of the site from building.
-                            logger.exception(
-                                f'Failed to convert recipe "{markdown}", skipping it'
-                            )
-                            continue
-
-                        self._recipes[markdown.resolve()] = Recipe(
-                            converter.metadata,
-                            html,
-                            converter.title,
-                        )
-
-            self._update_index()
-
-            logger.info(f"Regenerated site with {NUM_WORKERS} workers " f"in {time.perf_counter() - start:.1f}s")
-
+            self._regen_locked()
         finally:
             self._regen_lock.release()
+
+    def on_config_save(self):
+        """Rebuild the whole site after a configuration change."""
+        with self._regen_lock:
+            self._regen_locked()
+            logger.info("Regenerated site after configuration change")
+
+    def _regen_locked(self):
+        """Full site rebuild; caller must hold ``_regen_lock``."""
+        start = time.perf_counter()
+        working_dir = self.cfg.source_directory.resolve()
+
+        if self.cfg.site_directory.exists():
+            logger.debug(f'Deleting "{self.cfg.site_directory}"')
+            rmtree(self.cfg.site_directory)
+
+        self.cfg.site_directory.mkdir(parents=True)
+        logger.debug(f'Created "{self.cfg.site_directory}"')
+        self.copy_assets(self.cfg.site_directory)
+
+        markdown_files = [markdown for markdown in working_dir.rglob("recipe.md") if markdown.is_file()]
+
+        self._recipes.clear()
+
+        if markdown_files:
+            with ThreadPoolExecutor(max_workers=min(NUM_WORKERS, len(markdown_files))) as executor:
+                futures = {
+                    executor.submit(self.convert_recipe, markdown): markdown
+                    for markdown in markdown_files
+                }
+
+                for future in as_completed(futures):
+                    markdown = futures[future]
+                    try:
+                        html, converter = future.result()
+                    except Exception:
+                        # One broken recipe should not prevent the rest of the site from building.
+                        logger.exception(
+                            f'Failed to convert recipe "{markdown}", skipping it'
+                        )
+                        continue
+
+                    self._recipes[markdown.resolve()] = Recipe(
+                        converter.metadata,
+                        html,
+                        converter.title,
+                    )
+
+        self._update_index()
+
+        logger.info(f"Regenerated site with {NUM_WORKERS} workers " f"in {time.perf_counter() - start:.1f}s")
 
 
 def parse_args():
@@ -196,7 +204,7 @@ def main(_cfg: Configuration):
     # observer.start()
     core.regen()
 
-    server = Server(cfg, on_markdown_saved=core.on_markdown_save)
+    server = Server(cfg, on_markdown_saved=core.on_markdown_save, on_config_saved=core.on_config_save)
     server.start()
 
     shutdown_event = Event()
