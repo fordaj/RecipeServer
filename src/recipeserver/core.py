@@ -101,6 +101,34 @@ class Core:
 
             logger.info(f'Updated recipe and index: "{markdown}"')
 
+    def on_recipes_save(self, markdowns: list[Path]) -> None:
+        """Convert several recipes in one batch, then update the index once."""
+        with self._regen_lock:
+            for markdown in markdowns:
+                markdown = markdown.resolve()
+
+                try:
+                    html, converter = self.convert_recipe(markdown)
+                except Exception:
+                    logger.exception(f'Failed to convert recipe "{markdown}" during bulk save')
+                    continue
+
+                self._recipes[markdown] = Recipe(converter.metadata, html, converter.title)
+
+            self._update_index()
+
+            logger.info(f"Bulk-updated {len(markdowns)} recipe(s) and index")
+
+    def on_recipes_deleted(self, markdowns: list[Path]) -> None:
+        """Drop deleted recipes from the index, then rebuild it once."""
+        with self._regen_lock:
+            for markdown in markdowns:
+                self._recipes.pop(markdown.resolve(), None)
+
+            self._update_index()
+
+            logger.info(f"Bulk-deleted {len(markdowns)} recipe(s) and rebuilt index")
+
     def regen(self):
         if not self._regen_lock.acquire(blocking=False):
             logger.debug("Skipping regeneration because one is already running")
@@ -204,7 +232,13 @@ def main(_cfg: Configuration):
     # observer.start()
     core.regen()
 
-    server = Server(cfg, on_markdown_saved=core.on_markdown_save, on_config_saved=core.on_config_save)
+    server = Server(
+        cfg,
+        on_markdown_saved=core.on_markdown_save,
+        on_config_saved=core.on_config_save,
+        on_recipes_saved=core.on_recipes_save,
+        on_recipes_deleted=core.on_recipes_deleted,
+    )
     server.start()
 
     shutdown_event = Event()
