@@ -77,7 +77,6 @@
 .config-editor__close:focus-visible,
 .config-editor__footer button:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 2px;
 }
 
 .config-editor__close:disabled {
@@ -160,20 +159,32 @@
   font-size: 0.85rem;
 }
 
+/* Mirrors .recipe-editor__metadata input: width/min-width pin the control
+   to its track so it cannot bleed past the dialog on mobile. */
 .config-editor__field input {
+  width: 100%;
+  min-width: 0;
   height: 2.5rem;
-  padding: 0 0.6rem;
   box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--input-bg);
   color: var(--text-color);
+
   font: inherit;
+  font-size: 1rem;
 }
 
 .config-editor__field input:focus {
+  outline: none;
+  border-color: var(--food-color);
+}
+
+.config-editor__field input:focus-visible {
   outline: 2px solid var(--food-color);
-  outline-offset: 1px;
+  border-color: var(--food-color);
 }
 
 .config-editor__field input:disabled {
