@@ -24,6 +24,8 @@ INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor.css"
 RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor.js"
+CONFIG_EDITOR_CSS_PATH = "/assets/config-editor.css"
+CONFIG_EDITOR_JS_PATH = "/assets/config-editor.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 TAG_SVG = FILE_PATH.parent / "assets" / "tag.svg"
@@ -53,6 +55,8 @@ INDEX_CSS_URL = _versioned_asset_url(INDEX_CSS_PATH)
 INDEX_JS_URL = _versioned_asset_url(INDEX_JS_PATH)
 RECIPE_EDITOR_CSS_URL = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
 RECIPE_EDITOR_JS_URL = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
+CONFIG_EDITOR_CSS_URL = _versioned_asset_url(CONFIG_EDITOR_CSS_PATH)
+CONFIG_EDITOR_JS_URL = _versioned_asset_url(CONFIG_EDITOR_JS_PATH)
 
 _DETAIL_ICONS = {
     "makes": "/assets/chef-hat.svg",
@@ -549,9 +553,11 @@ class IndexHTMLGenerator:
                 <link rel="stylesheet" href="{MENU_CSS_URL}">
                 <link rel="stylesheet" href="{INDEX_CSS_URL}">
                 <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_URL}">
+                <link rel="stylesheet" href="{CONFIG_EDITOR_CSS_URL}">
                 <script src="{MENU_JS_URL}" defer></script>
                 <script src="{INDEX_JS_URL}" defer></script>
                 <script src="{RECIPE_EDITOR_JS_URL}" defer></script>
+                <script src="{CONFIG_EDITOR_JS_URL}" defer></script>
             </head>
             <body>
                 <main class="recipes">
