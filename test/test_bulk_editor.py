@@ -124,6 +124,39 @@ def test_bulk_delete_removes_files_and_notifies(bulk_server):
     assert error.value.code == 400
 
 
+def test_bulk_mixed_and_save_live_inside_field_labels_hidden_by_default():
+    script = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "recipe-editor.js"
+    ).read_text(encoding="UTF-8")
+    css = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "recipe-editor.css"
+    ).read_text(encoding="UTF-8")
+    # Each metadata field label contains a hidden * MIXED span and a hidden Save button inside its input control.
+    assert script.count('<span class="recipe-editor__mixed" hidden>* MIXED</span>') >= 12
+    assert script.count('class="recipe-editor__bulk-field-save"') >= 12
+    assert 'class="recipe-editor__field-control"' in script
+    assert 'data-field="categories"' in script and 'data-field="source"' in script and 'data-field="rating"' in script
+    # Old standalone bulk panel is gone.
+    assert "Save Individual Fields" not in script
+    assert "recipe-editor__bulk-field-actions" not in script
+    # Mixed/save are toggled (unhidden) rather than created/removed.
+    assert "badge.hidden = false" in script
+    assert "button.hidden = !visible" in script
+    assert 'dialog.classList.toggle(\'is-bulk\', visible)' in script or 'dialog.classList.toggle("is-bulk"' in script
+    assert "setupBulkFieldButtons()" in script
+    assert ".recipe-editor__mixed[hidden]" in css
+    assert ".recipe-editor__bulk-field-save[hidden]" in css
+    assert ".recipe-editor__field-control" in css
+
+
 def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     recipe_path = tmp_path / "soup" / "recipe.html"
     recipe_path.parent.mkdir()
