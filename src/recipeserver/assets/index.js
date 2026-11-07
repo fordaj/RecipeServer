@@ -21,6 +21,11 @@ const initRecipeIndex = async () => {
     const reviewAll = document.querySelector("#filter-reviews-all");
     const reviewBoxes = [...document.querySelectorAll(".filter-reviews")];
     const reviewLabel = document.querySelector("#review-filter-label");
+    const selectBoxes = [...document.querySelectorAll(".recipe-select__input")];
+    const selectAll = document.querySelector("#select-all-recipes");
+    const bulkEditButton = document.querySelector("#bulk-edit-open");
+    const bulkClearButton = document.querySelector("#bulk-clear-selection");
+    const bulkCount = document.querySelector("#bulk-selection-count");
 
     const getValues = (recipe, key) =>
       JSON.parse(recipe.dataset[key] || "[]").map((value) => value.toLowerCase());
@@ -39,6 +44,23 @@ const initRecipeIndex = async () => {
       reviewLabel.textContent = reviewers
         ? `Filter Reviews: ${reviewers.size} selected`
         : "Filter Reviews: All";
+    };
+
+    const updateBulkBar = (visible = null) => {
+      const selectedCount = selectBoxes.filter((box) => box.checked).length;
+      if (bulkCount) {
+        bulkCount.textContent = selectedCount ? `${selectedCount} selected` : "";
+      }
+      if (bulkEditButton) bulkEditButton.disabled = selectedCount === 0;
+      if (bulkClearButton) bulkClearButton.hidden = selectedCount === 0;
+      if (selectAll) {
+        const pool = visible || recipes.filter((recipe) => !recipe.hidden);
+        const poolBoxes = pool
+          .map((recipe) => recipe.querySelector(".recipe-select__input"))
+          .filter(Boolean);
+        selectAll.checked = poolBoxes.length > 0 && poolBoxes.every((box) => box.checked);
+        selectAll.indeterminate = poolBoxes.some((box) => box.checked) && !selectAll.checked;
+      }
     };
 
     // The warning icon lives in assets/warning.svg; load it once and
@@ -93,9 +115,7 @@ const initRecipeIndex = async () => {
           : ratings;
         const details = recipe.querySelector(".recipe-card__details");
         const existing = details?.querySelector(".recipe-rating");
-        const warning = details?.querySelector(
-          ".recipe-detail--rating.recipe-detail--warning",
-        );
+        const warning = details?.querySelector(".recipe-detail--rating.recipe-detail--warning");
 
         if (matching.length === 0) {
           if (existing) existing.hidden = true;
@@ -232,6 +252,7 @@ const initRecipeIndex = async () => {
 
         count.textContent = `${visible.length} of ${recipes.length} recipes`;
         clearFilters.hidden = !filtering;
+        updateBulkBar(visible);
       }
     };
 
@@ -290,6 +311,26 @@ const initRecipeIndex = async () => {
         }
       }),
     );
+
+    selectBoxes.forEach((box) => box.addEventListener("change", () => updateBulkBar()));
+
+    if (selectAll) {
+      selectAll.addEventListener("change", () => {
+        const visible = recipes.filter((recipe) => !recipe.hidden);
+        for (const recipe of visible) {
+          const box = recipe.querySelector(".recipe-select__input");
+          if (box) box.checked = selectAll.checked;
+        }
+        updateBulkBar(visible);
+      });
+    }
+
+    if (bulkClearButton) {
+      bulkClearButton.addEventListener("click", () => {
+        selectBoxes.forEach((box) => (box.checked = false));
+        updateBulkBar();
+      });
+    }
 
     update();
   }
