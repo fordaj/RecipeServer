@@ -717,6 +717,98 @@
   }
 }
 
+/* ---------- Bulk editor ---------- */
+
+.recipe-editor__mixed {
+  color: var(--danger-color);
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.recipe-editor__field-label.is-mixed input,
+.recipe-editor__field-label.is-mixed select {
+  border-color: var(--danger-color);
+}
+
+.recipe-editor__bulk-list {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.recipe-editor__bulk-list[hidden] {
+  display: none;
+}
+
+.recipe-editor__ratings-details[hidden] {
+  display: none;
+}
+
+.recipe-editor__bulk-help {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+/* Per-field Save lives inside the input box, hidden except in bulk mode. */
+.recipe-editor__field-control {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.recipe-editor__field-control input,
+.recipe-editor__field-control select {
+  padding-right: 0.65rem;
+}
+
+.recipe-editor-dialog.is-bulk .recipe-editor__field-control input,
+.recipe-editor-dialog.is-bulk .recipe-editor__field-control select {
+  padding-right: 3.9rem;
+}
+
+/* Same filled style as the main Save button (.recipe-editor__save). */
+.recipe-editor__bulk-field-save {
+  position: absolute;
+  top: 50%;
+  right: 0.3rem;
+  transform: translateY(-50%);
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--food-color);
+  border-radius: 6px;
+  background: var(--food-color);
+  color: var(--page-bg);
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.recipe-editor__bulk-field-save:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+.recipe-editor__bulk-field-save[hidden] {
+  display: none;
+}
+
+.recipe-editor__mixed[hidden] {
+  display: none;
+}
+
+.recipe-editor__bulk-field-save:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.recipe-editor__bulk-field-save:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 /* ---------- Reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {

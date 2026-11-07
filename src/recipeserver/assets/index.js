@@ -21,6 +21,38 @@ const initRecipeIndex = async () => {
     const reviewAll = document.querySelector("#filter-reviews-all");
     const reviewBoxes = [...document.querySelectorAll(".filter-reviews")];
     const reviewLabel = document.querySelector("#review-filter-label");
+    const selectionMode = document.querySelector("#bulk-selection-mode");
+    const bulkControls = document.querySelector("#bulk-controls");
+    const bulkEdit = document.querySelector("#bulk-edit");
+    const bulkDelete = document.querySelector("#bulk-delete");
+    const clearSelections = document.querySelector("#clear-selections");
+    const bulkCount = document.querySelector("#bulk-selection-count");
+    const selectBoxes = [...document.querySelectorAll(".recipe-select__checkbox")];
+
+    const getSelectedPaths = () =>
+      selectBoxes.filter((box) => box.checked).map((box) => box.dataset.path);
+
+    const updateBulkControls = () => {
+      const selected = getSelectedPaths();
+      if (bulkCount) bulkCount.textContent = `${selected.length} selected`;
+      if (bulkEdit) bulkEdit.disabled = selected.length === 0;
+      if (bulkDelete) bulkDelete.disabled = selected.length === 0;
+      for (const box of selectBoxes) {
+        box.closest(".recipe")?.classList.toggle("is-selected", box.checked);
+      }
+    };
+
+    const setSelectionMode = (enabled) => {
+      list.classList.toggle("selection-mode", enabled);
+      document.querySelectorAll(".recipe-select").forEach((label) => {
+        label.hidden = !enabled;
+      });
+      if (bulkControls) bulkControls.hidden = !enabled;
+      if (!enabled) {
+        selectBoxes.forEach((box) => (box.checked = false));
+      }
+      updateBulkControls();
+    };
 
     const getValues = (recipe, key) =>
       JSON.parse(recipe.dataset[key] || "[]").map((value) => value.toLowerCase());
@@ -93,9 +125,7 @@ const initRecipeIndex = async () => {
           : ratings;
         const details = recipe.querySelector(".recipe-card__details");
         const existing = details?.querySelector(".recipe-rating");
-        const warning = details?.querySelector(
-          ".recipe-detail--rating.recipe-detail--warning",
-        );
+        const warning = details?.querySelector(".recipe-detail--rating.recipe-detail--warning");
 
         if (matching.length === 0) {
           if (existing) existing.hidden = true;
@@ -290,6 +320,65 @@ const initRecipeIndex = async () => {
         }
       }),
     );
+
+    if (selectionMode) {
+      selectionMode.addEventListener("change", () => setSelectionMode(selectionMode.checked));
+    }
+    selectBoxes.forEach((box) => box.addEventListener("change", updateBulkControls));
+    // In selection mode, clicking the card selects it instead of navigating.
+    list.addEventListener("click", (event) => {
+      if (!selectionMode?.checked) return;
+      const link = event.target.closest(".recipe-card__link, .recipe-card__image");
+      if (!link || !list.contains(link)) return;
+      event.preventDefault();
+      const box = link.closest(".recipe")?.querySelector(".recipe-select__checkbox");
+      if (box) {
+        box.checked = !box.checked;
+        updateBulkControls();
+      }
+    });
+    if (clearSelections) {
+      clearSelections.addEventListener("click", () => {
+        selectBoxes.forEach((box) => (box.checked = false));
+        updateBulkControls();
+      });
+    }
+    if (bulkEdit) {
+      bulkEdit.addEventListener("click", () => {
+        const paths = getSelectedPaths();
+        if (!paths.length) return;
+        document.dispatchEvent(new CustomEvent("bulk-edit", { detail: { paths } }));
+      });
+    }
+    if (bulkDelete) {
+      bulkDelete.addEventListener("click", async () => {
+        const paths = getSelectedPaths();
+        if (!paths.length) return;
+        if (
+          !confirm(
+            `Delete ${paths.length} selected recipe${paths.length === 1 ? "" : "s"}? This cannot be undone.`,
+          )
+        )
+          return;
+        bulkDelete.disabled = true;
+        try {
+          const response = await fetch(new URL("/api/bulk-delete", window.location.origin), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ paths }),
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || result.success !== true) {
+            throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+          }
+          window.location.reload();
+        } catch (error) {
+          alert(error.message || "Unable to delete selected recipes.");
+          updateBulkControls();
+        }
+      });
+    }
+    setSelectionMode(Boolean(selectionMode?.checked));
 
     update();
   }

@@ -410,6 +410,15 @@ class IndexHTMLGenerator:
             else:
                 rating_html = ""
 
+            markdown_path = relative_path.with_suffix(".md").as_posix()
+            select_html = (
+                '<label class="recipe-select" hidden>'
+                f'<input type="checkbox" class="recipe-select__checkbox" data-path="{html.escape(markdown_path, quote=True)}"'
+                f' aria-label="Select {html.escape(title, quote=True)} for bulk editing">'
+                '<span class="recipe-select__box" aria-hidden="true"></span>'
+                "</label>"
+            )
+
             image_html = (
                 f'<a class="recipe-card__image" href="{html.escape(url, quote=True)}" '
                 f'aria-label="View {html.escape(title, quote=True)} recipe">'
@@ -488,6 +497,7 @@ class IndexHTMLGenerator:
 
             links.append(
                 f'<li class="recipe"'
+                f' data-path="{html.escape(markdown_path, quote=True)}"'
                 f' data-title="{html.escape(title, quote=True)}"'
                 f' data-search="{html.escape(search_text, quote=True)}"'
                 f' data-meals="{self.json_attribute(meals)}"'
@@ -503,6 +513,7 @@ class IndexHTMLGenerator:
                 f' data-edited="{updated_on_value}"'
                 f' data-date="{date_value}">'
                 '<article class="recipe-card">'
+                f"{select_html}"
                 f"{image_html}"
                 '<div class="recipe-card__heading">'
                 f'<h2><a class="recipe-card__link" href="{html.escape(url, quote=True)}">'
@@ -679,12 +690,27 @@ class IndexHTMLGenerator:
                                     >
                                     <span>Metadata Status</span>
                                 </label>
+
+                                <label class="metadata-status-toggle bulk-selection-toggle">
+                                    <input
+                                        id="bulk-selection-mode"
+                                        type="checkbox"
+                                        aria-controls="recipe-list bulk-controls"
+                                    >
+                                    <span>Selection Mode</span>
+                                </label>
                             </div>
                         </details>
                     </section>
 
                     <div class="recipe-results-bar">
                         <p id="recipe-count" aria-live="polite"></p>
+                        <div id="bulk-controls" class="bulk-controls" hidden>
+                            <span id="bulk-selection-count" aria-live="polite">0 selected</span>
+                            <button id="clear-selections" type="button">Clear Selections</button>
+                            <button id="bulk-delete" class="bulk-delete" type="button" disabled>Delete Selected</button>
+                            <button id="bulk-edit" class="bulk-edit" type="button" disabled>Bulk Edit</button>
+                        </div>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
                         <div class="view-switcher" role="group" aria-label="Recipe view">
                             <button type="button" data-view="list" aria-pressed="true">List</button>
