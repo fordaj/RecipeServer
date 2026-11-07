@@ -204,7 +204,12 @@ def main(_cfg: Configuration):
     # observer.start()
     core.regen()
 
-    server = Server(cfg, on_markdown_saved=core.on_markdown_save, on_config_saved=core.on_config_save)
+    server = Server(
+        cfg,
+        on_markdown_saved=core.on_markdown_save,
+        on_config_saved=core.on_config_save,
+        on_recipes_deleted=core.regen,
+    )
     server.start()
 
     shutdown_event = Event()

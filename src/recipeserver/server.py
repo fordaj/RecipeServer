@@ -173,6 +173,87 @@ def _validate_editor_metadata(metadata: object) -> dict:
     return validated
 
 
+def _editor_metadata_with_ratings(metadata: dict) -> dict:
+    """Return editor metadata plus ratings, normalized for bulk editors."""
+    values = _editor_metadata(metadata)
+    values["ratings"] = metadata.get("ratings") if isinstance(metadata.get("ratings"), list) else []
+    return values
+
+
+def _validate_bulk_metadata(metadata: object) -> dict:
+    """Validate a (possibly partial) bulk-edited metadata payload.
+
+    Unlike the single-recipe editor payload, absent fields are skipped so a
+    bulk save only touches the metadata the user actually changed.
+    """
+    if not isinstance(metadata, dict):
+        raise ValueError("Expected a metadata object")
+
+    validated: dict = {}
+
+    for field, expected_type in EDITOR_METADATA_FIELDS.items():
+        if field not in metadata:
+            continue
+
+        value = metadata.get(field)
+
+        if value is None:
+            validated[field] = None
+        elif expected_type == "string_list":
+            if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+                raise ValueError(f"'{field}' must be a list of strings or null")
+            validated[field] = value
+        elif expected_type == "string":
+            if not isinstance(value, str):
+                raise ValueError(f"'{field}' must be a string or null")
+            validated[field] = value
+        elif expected_type == "integer":
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ValueError(f"'{field}' must be an integer or null")
+            validated[field] = value
+        elif expected_type == "number":
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"'{field}' must be a number or null")
+            validated[field] = value
+        elif field == "source" and expected_type == "object":
+            if value is None:
+                validated[field] = None
+                continue
+            if not isinstance(value, dict):
+                raise ValueError(f"'{field}' must be an object or null")
+
+            allowed_fields = {"author", "title", "format", "url"}
+
+            validated[field] = {
+                key: (value.get(key).strip() or None if isinstance(value.get(key), str) else None)
+                for key in allowed_fields
+            }
+
+    if "ratings" in metadata and metadata.get("ratings") is not None:
+        validated["ratings"] = _validate_ratings(metadata.get("ratings"))
+
+    return validated
+
+
+def _merge_bulk_ratings(existing: object, incoming: list) -> list:
+    """Override incoming ratings by name, keeping unrelated existing ratings."""
+    override_names = {
+        unicodedata.normalize("NFKC", str(rating.get("name") or "").strip()).casefold()
+        for rating in incoming
+        if isinstance(rating, dict)
+    }
+
+    base = existing if isinstance(existing, list) else []
+    kept = [
+        rating
+        for rating in base
+        if isinstance(rating, dict)
+        and unicodedata.normalize("NFKC", str(rating.get("name") or "").strip()).casefold() not in override_names
+    ]
+
+    return kept + [rating for rating in incoming if isinstance(rating, dict)]
+
+
 def _validate_makes(value: object) -> int | None:
     """Validate a ``makes`` counter value for the per-field metadata endpoint."""
     if value is None:
@@ -244,12 +325,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         source_directory: Path,
         on_markdown_saved: MarkdownSavedCallback | None = None,
         on_config_saved: ConfigSavedCallback | None = None,
+        on_recipes_deleted: Callable[[], None] | None = None,
         config: Configuration | None = None,
         **kwargs,
     ):
         self._source_directory = Path(source_directory).resolve()
         self.on_markdown_saved = on_markdown_saved
         self.on_config_saved = on_config_saved
+        self.on_recipes_deleted = on_recipes_deleted
         self.config = config
         super().__init__(*args, **kwargs)
 
@@ -310,7 +393,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(500, {"error": "Unable to list recipe folders"})
             return
 
-        if parsed.path not in ("/api/markdown", "/api/recipe-editor") and not parsed.path.startswith("/api/metadata/"):
+        if parsed.path == "/api/recipe-bulk":
+            self._handle_recipe_bulk_get(parsed)
+            return
+
+        if parsed.path not in ("/api/markdown", "/api/recipe-editor", "/api/recipe-bulk") and not parsed.path.startswith("/api/metadata/"):
             if parsed.path.startswith("/api/"):
                 self.send_error(404, "Unknown API endpoint")
                 return
@@ -390,6 +477,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path not in (
             "/api/markdown",
             "/api/recipe-editor",
+            "/api/recipe-bulk",
+            "/api/recipe-bulk-edit",
+            "/api/recipe-bulk-delete",
             "/api/recipe",
             "/api/ai-recipe",
             "/api/config",
@@ -403,6 +493,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         if parsed.path == "/api/ai-recipe":
             self._handle_ai_recipe()
+            return
+
+        if parsed.path == "/api/recipe-bulk-edit":
+            self._handle_recipe_bulk_edit()
+            return
+
+        if parsed.path == "/api/recipe-bulk-delete":
+            self._handle_recipe_bulk_delete()
             return
 
         if parsed.path == "/api/recipe":
@@ -685,6 +783,150 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         except Exception:
             logger.exception("Failed to regenerate recipe HTML")
             self._send_json(500, {"error": "Markdown saved, but HTML regeneration failed"})
+
+    def _handle_recipe_bulk_get(self, parsed) -> None:
+        query = parse_qs(parsed.query)
+        bulk_paths = query.get("paths", [])
+
+        if len(bulk_paths) < 1 or any(not path.strip() for path in bulk_paths):
+            self._send_json(400, {"error": "Expected at least one path parameter"})
+            return
+
+        recipes = []
+        for relative_path in bulk_paths:
+            file_path = self._resolve_markdown_path(relative_path)
+
+            if not file_path.is_file():
+                self._send_json(404, {"error": "Markdown file not found"})
+                return
+
+            post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+            recipes.append(
+                {
+                    "path": relative_path,
+                    "metadata": _editor_metadata_with_ratings(post.metadata),
+                }
+            )
+
+        self._send_json(200, {"recipes": recipes})
+
+    def _handle_recipe_bulk_edit(self) -> None:
+        try:
+            payload = self._read_json_payload()
+            paths = payload.get("paths")
+            metadata = payload.get("metadata")
+
+            if (
+                not isinstance(paths, list)
+                or not paths
+                or not all(isinstance(path, str) and path.strip() for path in paths)
+            ):
+                raise ValueError("Expected a list of recipe paths")
+
+            validated = _validate_bulk_metadata(metadata)
+
+            results = []
+            for relative_path in dict.fromkeys(paths):
+                try:
+                    file_path = self._resolve_markdown_path(relative_path)
+
+                    if not file_path.is_file():
+                        results.append({"path": relative_path, "success": False, "error": "Markdown file not found"})
+                        continue
+
+                    if not validated:
+                        # Nothing was requested, so leave the recipe untouched.
+                        results.append({"path": relative_path, "success": True})
+                        continue
+
+                    post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+
+                    ratings = validated.get("ratings")
+                    if ratings is not None:
+                        validated["ratings"] = _merge_bulk_ratings(post.metadata.get("ratings"), ratings)
+
+                    _apply_editor_metadata(post.metadata, validated)
+
+                    # Migrate the legacy singular field to the canonical plural one.
+                    post.metadata.pop("category", None)
+
+                    post.metadata["updatedOn"] = (
+                        datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                    )
+
+                    file_path.write_text(frontmatter.dumps(post), encoding="utf-8", newline="")
+
+                    logger.info("Saved bulk recipe editor metadata: {}", file_path)
+
+                    if self.on_markdown_saved is not None:
+                        self.on_markdown_saved(file_path)
+
+                    results.append({"path": relative_path, "success": True})
+
+                except Exception:
+                    logger.exception('Failed to bulk edit recipe: "{}"', relative_path)
+                    results.append({"path": relative_path, "success": False, "error": "Unable to save recipe"})
+
+            self._send_json(200, {"success": True, "results": results})
+
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+        except OSError:
+            logger.exception("Failed to bulk edit recipes")
+            self._send_json(500, {"error": "Unable to save recipes"})
+
+    def _handle_recipe_bulk_delete(self) -> None:
+        try:
+            payload = self._read_json_payload()
+            paths = payload.get("paths")
+
+            if (
+                not isinstance(paths, list)
+                or not paths
+                or not all(isinstance(path, str) and path.strip() for path in paths)
+            ):
+                raise ValueError("Expected a list of recipe paths")
+
+            results = []
+            for relative_path in dict.fromkeys(paths):
+                try:
+                    file_path = self._resolve_markdown_path(relative_path)
+
+                    if not file_path.is_file():
+                        results.append({"path": relative_path, "success": False, "error": "Markdown file not found"})
+                        continue
+
+                    recipe_dir = file_path.parent
+                    file_path.unlink()
+
+                    if not any(recipe_dir.iterdir()):
+                        recipe_dir.rmdir()
+
+                    logger.info("Deleted recipe: {}", file_path)
+                    results.append({"path": relative_path, "success": True})
+
+                except Exception:
+                    logger.exception('Failed to bulk delete recipe: "{}"', relative_path)
+                    results.append({"path": relative_path, "success": False, "error": "Unable to delete recipe"})
+
+            if self.on_recipes_deleted is not None:
+                self.on_recipes_deleted()
+
+            self._send_json(200, {"success": True, "results": results})
+
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+        except OSError:
+            logger.exception("Failed to bulk delete recipes")
+            self._send_json(500, {"error": "Unable to delete recipes"})
 
     def _handle_config_update(self) -> None:
         try:
@@ -1256,10 +1498,12 @@ class Server:
         cfg: Configuration,
         on_markdown_saved: MarkdownSavedCallback | None = None,
         on_config_saved: ConfigSavedCallback | None = None,
+        on_recipes_deleted: Callable[[], None] | None = None,
     ):
         self.cfg = cfg
         self.on_markdown_saved = on_markdown_saved
         self.on_config_saved = on_config_saved
+        self.on_recipes_deleted = on_recipes_deleted
         self._http_server: ThreadingHTTPServer | None = None
         self._thread: Thread | None = None
 
@@ -1285,6 +1529,7 @@ class Server:
             source_directory=self.cfg.source_directory,
             on_markdown_saved=self.on_markdown_saved,
             on_config_saved=self.on_config_saved,
+            on_recipes_deleted=self.on_recipes_deleted,
             config=self.cfg,
         )
 
