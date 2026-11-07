@@ -111,6 +111,22 @@ class Core:
         finally:
             self._regen_lock.release()
 
+    def on_recipes_deleted(self, markdown_paths) -> None:
+        """Drop deleted recipes from the index and remove their pages."""
+        paths = list(markdown_paths)
+        with self._regen_lock:
+            for markdown in paths:
+                markdown = markdown.resolve()
+                recipe = self._recipes.pop(markdown, None)
+                if recipe is not None:
+                    html = recipe.html_file
+                else:
+                    relative = markdown.relative_to(self.cfg.source_directory.resolve())
+                    html = (self.cfg.site_directory / relative).with_suffix(".html")
+                html.unlink(missing_ok=True)
+            self._update_index()
+            logger.info(f'Removed {len(paths)} recipe(s) from index')
+
     def on_config_save(self):
         """Rebuild the whole site after a configuration change."""
         with self._regen_lock:
@@ -204,7 +220,10 @@ def main(_cfg: Configuration):
     # observer.start()
     core.regen()
 
-    server = Server(cfg, on_markdown_saved=core.on_markdown_save, on_config_saved=core.on_config_save)
+    server_kwargs = {"on_markdown_saved": core.on_markdown_save, "on_config_saved": core.on_config_save}
+    if hasattr(core, "on_recipes_deleted"):
+        server_kwargs["on_recipes_deleted"] = core.on_recipes_deleted
+    server = Server(cfg, **server_kwargs)
     server.start()
 
     shutdown_event = Event()

@@ -10,6 +10,7 @@ from io import BytesIO
 import json
 import math
 import re
+import uuid
 import socket
 import sys
 import tempfile
@@ -30,6 +31,9 @@ from collections.abc import Callable
 
 MarkdownSavedCallback = Callable[[Path], None]
 ConfigSavedCallback = Callable[[], None]
+RecipesDeletedCallback = Callable[[list[Path]], None]
+
+BULK_MAX_PATHS = 100
 
 
 def _json_default(value: object) -> str:
@@ -55,6 +59,10 @@ EDITOR_METADATA_FIELDS = {
     "updatedOn": "string",
     "source": "object",
 }
+
+# Fields a bulk edit may overwrite. ``updatedOn`` is always refreshed by
+# the server, so it is never accepted as a bulk-editable field.
+BULK_EDITABLE_FIELDS = tuple(field for field in EDITOR_METADATA_FIELDS if field != "updatedOn")
 
 
 def _editor_metadata(metadata: dict) -> dict:
@@ -173,6 +181,71 @@ def _validate_editor_metadata(metadata: object) -> dict:
     return validated
 
 
+def _validate_bulk_paths(value: object) -> list[str]:
+    """Validate the ``paths`` array shared by the bulk endpoints."""
+    if not isinstance(value, list) or not value:
+        raise ValueError("'paths' must be a non-empty list")
+    if len(value) > BULK_MAX_PATHS:
+        raise ValueError(f"'paths' must contain at most {BULK_MAX_PATHS} recipes")
+    if not all(isinstance(item, str) and item for item in value):
+        raise ValueError("'paths' must be a list of non-empty strings")
+    unique: list[str] = []
+    for item in value:
+        if item not in unique:
+            unique.append(item)
+    return unique
+
+
+def _validate_bulk_fields(value: object) -> list[str]:
+    """Validate the optional ``fields`` subset for a bulk edit."""
+    if value is None:
+        return list(BULK_EDITABLE_FIELDS)
+    if not isinstance(value, list) or not value:
+        raise ValueError("'fields' must be a non-empty list")
+    unknown = [field for field in value if field not in BULK_EDITABLE_FIELDS]
+    if unknown:
+        raise ValueError(f"Unknown bulk-editable field(s): {', '.join(map(str, unknown))}")
+    return list(dict.fromkeys(value))
+
+
+def _validate_bulk_rating(value: object) -> tuple[str, int | float] | None:
+    """Validate a bulk rating override: add a named rating, overriding ties."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("'rating' must be an object with 'name' and 'rating'")
+    name = value.get("name")
+    score = value.get("rating", value.get("score"))
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 100:
+        raise ValueError("'rating.name' must be 1 to 100 characters")
+    if isinstance(score, bool) or not isinstance(score, (int, float)):
+        raise ValueError("'rating.rating' must be a number between 0 and 10")
+    if score < 0 or score > 10 or not math.isfinite(score):
+        raise ValueError("'rating.rating' must be between 0 and 10")
+    return name.strip(), score
+
+
+def _apply_rating_override(ratings: object, name: str, score: int | float) -> list[dict]:
+    """Return ratings with the named rating added or overridden in place."""
+    current = ratings if isinstance(ratings, list) else []
+    updated: list[dict] = []
+    replaced = False
+    normalized = unicodedata.normalize("NFKC", name).casefold()
+    now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    for item in current:
+        if not isinstance(item, dict):
+            continue
+        existing = item.get("name")
+        if isinstance(existing, str) and unicodedata.normalize("NFKC", existing.strip()).casefold() == normalized:
+            updated.append({**item, "name": existing.strip(), "rating": score, "updated": now})
+            replaced = True
+        else:
+            updated.append(item)
+    if not replaced:
+        updated.append({"name": name, "created": now, "updated": now, "id": str(uuid.uuid4()), "rating": score})
+    return updated
+
+
 def _validate_makes(value: object) -> int | None:
     """Validate a ``makes`` counter value for the per-field metadata endpoint."""
     if value is None:
@@ -244,12 +317,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         source_directory: Path,
         on_markdown_saved: MarkdownSavedCallback | None = None,
         on_config_saved: ConfigSavedCallback | None = None,
+        on_recipes_deleted: RecipesDeletedCallback | None = None,
         config: Configuration | None = None,
         **kwargs,
     ):
         self._source_directory = Path(source_directory).resolve()
         self.on_markdown_saved = on_markdown_saved
         self.on_config_saved = on_config_saved
+        self.on_recipes_deleted = on_recipes_deleted
         self.config = config
         super().__init__(*args, **kwargs)
 
@@ -308,6 +383,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             except OSError:
                 logger.exception("Failed to list recipe folders")
                 self._send_json(500, {"error": "Unable to list recipe folders"})
+            return
+
+        if parsed.path in ("/api/bulk-editor", "/api/bulk-editor/"):
+            self._handle_bulk_editor_get(parsed)
             return
 
         if parsed.path not in ("/api/markdown", "/api/recipe-editor") and not parsed.path.startswith("/api/metadata/"):
@@ -386,6 +465,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlsplit(self.path)
+
+        if parsed.path in ("/api/bulk-editor", "/api/bulk-editor/", "/api/bulk-delete", "/api/bulk-delete/"):
+            if parsed.path.startswith("/api/bulk-delete"):
+                self._handle_bulk_delete()
+            else:
+                self._handle_bulk_editor_post()
+            return
 
         if parsed.path not in (
             "/api/markdown",
@@ -685,6 +771,136 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         except Exception:
             logger.exception("Failed to regenerate recipe HTML")
             self._send_json(500, {"error": "Markdown saved, but HTML regeneration failed"})
+
+    def _handle_bulk_editor_get(self, parsed) -> None:
+        try:
+            raw_paths = _validate_bulk_paths(parse_qs(parsed.query).get("path", []))
+            file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+        recipes = []
+        try:
+            for raw_path, file_path in zip(raw_paths, file_paths):
+                if not file_path.is_file():
+                    self._send_json(404, {"error": f"Markdown file not found: {raw_path}"})
+                    return
+                post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+                ratings = post.metadata.get("ratings")
+                recipes.append(
+                    {
+                        "path": raw_path,
+                        "metadata": _editor_metadata(post.metadata),
+                        "ratings": ratings if isinstance(ratings, list) else [],
+                    }
+                )
+        except Exception:
+            logger.exception("Failed to read bulk editor data")
+            self._send_json(500, {"error": "Unable to read recipe data"})
+            return
+        self._send_json(200, {"recipes": recipes})
+
+    def _handle_bulk_editor_post(self) -> None:
+        try:
+            payload = self._read_json_payload()
+            raw_paths = _validate_bulk_paths(payload.get("paths"))
+            fields = _validate_bulk_fields(payload.get("fields"))
+            metadata = _validate_editor_metadata(payload.get("metadata")) if payload.get("metadata") is not None else {}
+            rating_override = _validate_bulk_rating(payload.get("rating"))
+            if not metadata and rating_override is None:
+                raise ValueError("Expected 'metadata' and/or 'rating'")
+            file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        # Pre-check every target before writing any of them.
+        for raw_path, file_path in zip(raw_paths, file_paths):
+            if not file_path.is_file():
+                self._send_json(404, {"error": f"Markdown file not found: {raw_path}"})
+                return
+
+        saved: list[Path] = []
+        try:
+            for file_path in file_paths:
+                post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+                if metadata:
+                    subset = {field: metadata.get(field) for field in fields}
+                    _apply_editor_metadata(post.metadata, subset)
+                    post.metadata.pop("category", None)
+                if rating_override is not None:
+                    name, score = rating_override
+                    post.metadata["ratings"] = _apply_rating_override(post.metadata.get("ratings"), name, score)
+                if metadata or rating_override is not None:
+                    post.metadata["updatedOn"] = (
+                        datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                    )
+                file_path.write_text(frontmatter.dumps(post), encoding="utf-8", newline="")
+                saved.append(file_path)
+                logger.info("Bulk-saved recipe: {}", file_path)
+        except OSError:
+            logger.exception("Failed to save bulk edit")
+            self._send_json(500, {"error": "Unable to save recipes"})
+            return
+        except Exception:
+            logger.exception("Failed to parse recipe for bulk edit")
+            self._send_json(500, {"error": "Unable to parse recipe data"})
+            return
+
+        if self.on_markdown_saved is not None:
+            try:
+                for file_path in saved:
+                    self.on_markdown_saved(file_path)
+            except Exception:
+                logger.exception("Bulk edit saved, but HTML regeneration failed")
+                self._send_json(500, {"error": "Recipes saved, but HTML regeneration failed"})
+                return
+
+        self._send_json(200, {"success": True, "paths": raw_paths, "count": len(raw_paths)})
+
+    def _handle_bulk_delete(self) -> None:
+        try:
+            payload = self._read_json_payload()
+            raw_paths = _validate_bulk_paths(payload.get("paths"))
+            file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        for raw_path, file_path in zip(raw_paths, file_paths):
+            if not file_path.is_file():
+                self._send_json(404, {"error": f"Markdown file not found: {raw_path}"})
+                return
+
+        deleted: list[Path] = []
+        try:
+            for file_path in file_paths:
+                file_path.unlink()
+                deleted.append(file_path)
+                recipe_dir = file_path.parent
+                if recipe_dir != self.source_directory and not any(recipe_dir.iterdir()):
+                    recipe_dir.rmdir()
+                logger.info("Bulk-deleted recipe: {}", file_path)
+        except OSError:
+            logger.exception("Failed to bulk-delete recipes")
+            self._send_json(500, {"error": "Unable to delete recipes"})
+            return
+
+        if self.on_recipes_deleted is not None:
+            try:
+                self.on_recipes_deleted(deleted)
+            except Exception:
+                logger.exception("Recipes deleted, but index regeneration failed")
+                self._send_json(500, {"error": "Recipes deleted, but index regeneration failed"})
+                return
+
+        self._send_json(200, {"success": True, "paths": raw_paths, "count": len(raw_paths)})
 
     def _handle_config_update(self) -> None:
         try:
@@ -1063,6 +1279,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 return
 
             logger.info("Deleted recipe: {}", file_path)
+            if self.on_recipes_deleted is not None:
+                try:
+                    self.on_recipes_deleted([file_path])
+                except Exception:
+                    logger.exception("Recipe deleted, but index regeneration failed")
+                    self._send_json(500, {"error": "Recipe deleted, but index regeneration failed"})
+                    return
             self._send_json(200, {"success": True})
 
         except OSError:
@@ -1256,10 +1479,12 @@ class Server:
         cfg: Configuration,
         on_markdown_saved: MarkdownSavedCallback | None = None,
         on_config_saved: ConfigSavedCallback | None = None,
+        on_recipes_deleted: RecipesDeletedCallback | None = None,
     ):
         self.cfg = cfg
         self.on_markdown_saved = on_markdown_saved
         self.on_config_saved = on_config_saved
+        self.on_recipes_deleted = on_recipes_deleted
         self._http_server: ThreadingHTTPServer | None = None
         self._thread: Thread | None = None
 
@@ -1285,6 +1510,7 @@ class Server:
             source_directory=self.cfg.source_directory,
             on_markdown_saved=self.on_markdown_saved,
             on_config_saved=self.on_config_saved,
+            on_recipes_deleted=self.on_recipes_deleted,
             config=self.cfg,
         )
 
