@@ -59,19 +59,10 @@ class RecipeScaler {
     this.update();
   }
 
-  async update() {
+  update() {
     if (!this.isReady) {
       return;
     }
-
-    const mathJax = window.MathJax;
-
-    if (!mathJax?.startup?.promise) {
-      console.warn("RecipeScaler: MathJax hasn't loaded. Check script order.");
-      return;
-    }
-
-    await mathJax.startup.promise;
 
     const scale =
       this.scaleSelect.value === "custom"
@@ -82,10 +73,6 @@ class RecipeScaler {
       return;
     }
 
-    // Clear MathJax's bookkeeping for the old rendered content.
-    if (typeof mathJax.typesetClear === "function") {
-      mathJax.typesetClear([...this.quantities]);
-    }
     for (const element of this.quantities) {
       const quantity = parseFloat(element.dataset.quantity);
       const unit = element.dataset.unit ?? "";
@@ -102,22 +89,26 @@ class RecipeScaler {
         formatted = this.formatQuantityRange(scaled, quantityEnd, scale, unit, formatted);
       }
 
-      element.innerHTML = formatted;
+      this.renderQuantity(element, formatted);
     }
-
-    await this.typesetMath();
   }
 
-  async typesetMath() {
-    const mathJax = window.MathJax;
+  renderQuantity(element, formatted) {
+    const match = /^\$(.*)\$(.*)$/s.exec(formatted);
+    const latex = match ? match[1] : formatted;
+    const suffix = match ? match[2] : "";
 
-    if (typeof mathJax?.typesetPromise !== "function") {
-      console.warn("RecipeScaler: MathJax typesetting is unavailable.");
+    if (typeof window.katex?.render !== "function") {
+      console.warn("RecipeScaler: KaTeX hasn't loaded. Check script order.");
+      element.textContent = `${latex}${suffix}`;
       return;
     }
 
-    await mathJax.startup.promise;
-    await mathJax.typesetPromise([...this.quantities]);
+    katex.render(latex, element, { throwOnError: false });
+
+    if (suffix) {
+      element.append(document.createTextNode(suffix));
+    }
   }
 
   formatQuantityRange(scaledStart, quantityEndRaw, scale, unit, formattedStart) {

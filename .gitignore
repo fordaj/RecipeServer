@@ -22,6 +22,9 @@ __pycache__/
 build/
 develop-eggs/
 dist/
+# KaTeX serves its browser build directly from dist/; keep those vendored files.
+!src/recipeserver/assets/katex/dist/
+!src/recipeserver/assets/katex/dist/**
 downloads/
 eggs/
 .eggs/
