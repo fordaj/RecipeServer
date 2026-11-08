@@ -47,11 +47,7 @@ def parse_metadata_datetime(value: object) -> datetime | None:
 
 def is_finite_rating_score(score: object) -> bool:
     """Return True when *score* is a usable numeric rating value."""
-    return (
-        isinstance(score, (int, float))
-        and not isinstance(score, bool)
-        and math.isfinite(score)
-    )
+    return isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(score)
 
 
 def iter_valid_rating_entries(ratings: object) -> Iterable[tuple[str, int | float]]:
