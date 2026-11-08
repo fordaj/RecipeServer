@@ -17,6 +17,10 @@ There is no CI and no Python linter/typechecker/formatter configuration. The onl
 
 The repo does not include a test config file. On startup the app reads the recipe source directory from the `source_directory` key in `<user-data>/recipe-server-cfg.toml` (TOML; a legacy `config.txt` is migrated automatically); if that key is missing or points at a non-directory, it opens a Tk directory picker and writes the chosen path to that file. Optional local-model settings live in the same file (`model_endpoint`, `all_purpose_model_name`, and `image_analysis_model`; the legacy keys `model_name` and `server_name` are still read but normalized to the canonical keys on save). If `model_endpoint` is absent, startup asks for it with `input()` (Enter skips); a skipped value is saved so the app does not ask again. All of these values can also be edited in the browser through the **Configuration** entry in the home page's menu (`GET|POST /api/config`); each save triggers a full site rebuild.
 
+## Logging conventions
+
+- The logger is `loguru` (`src/recipeserver/_logger.py`), which does not do printf-style substitution. Never pass format arguments to log calls: `logger.info("... %s", value)` and `logger.info("... {}", value)` print the placeholders literally. Always use f-strings: `logger.info(f"... {value}")` (use `!r` to preserve repr formatting).
+
 ## Architecture / flow
 
 - Entrypoint: `src/recipeserver/__main__.py` -> `core.main`. `handle_configuration()` resolves the recipe source directory and optional local-model settings, then `core.main` loads `NewRecipePrompt.md` and `NewRecipeFromImagePrompt.md`, builds `Core`, calls `regen()`, starts `Server`, and runs `Tray`.
