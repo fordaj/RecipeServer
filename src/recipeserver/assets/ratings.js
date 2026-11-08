@@ -2,6 +2,7 @@
   const root = document.querySelector("#recipe-ratings");
   if (!root) return;
 
+  // ----- DOM references ----- //
   const form = root.querySelector("#recipe-rating-form");
   const addButton = root.querySelector(".recipe-ratings__add");
   const cancelButton = root.querySelector("#cancel-rating");
@@ -11,79 +12,90 @@
   const scoreValue = root.querySelector("#rating-score-value");
   const status = root.querySelector("#rating-status");
   const list = root.querySelector("#rating-list");
-  const recipePath = getMarkdownPath();
+  const helpers = window.RecipeFeedback || {};
+  const recipePath = (helpers.getMarkdownPath || getMarkdownPathFallback)();
 
-  function getMarkdownPath() {
+  function getMarkdownPathFallback() {
     const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
     return page.replace(/\.html$/i, ".md");
   }
 
+  // ----- Data helpers ----- //
   function normalizedName(name) {
-    return name.trim().normalize("NFKC").toLowerCase();
+    return String(name || "").trim().normalize("NFKC").toLowerCase();
   }
 
   function createRatingId() {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
-      const random = (Math.random() * 16) | 0;
-      const value = character === "x" ? random : (random & 0x3) | 0x8;
-      return value.toString(16);
-    });
+    return helpers.createId ? helpers.createId() : `rating-${Date.now()}`;
   }
 
   async function getRatings() {
+    if (helpers.fetchMetadata) {
+      return helpers.fetchMetadata("ratings", recipePath);
+    }
     const params = new URLSearchParams({ path: recipePath });
     const response = await fetch(`/api/metadata/ratings?${params}`);
-
     if (!response.ok) {
       throw new Error(`Failed to load ratings (HTTP ${response.status})`);
     }
-
     const data = await response.json();
-
     if (!Array.isArray(data.value)) {
       throw new Error("Invalid ratings response");
     }
-
     return data.value;
   }
 
   async function saveRatings(ratings) {
+    if (helpers.saveMetadata) {
+      return helpers.saveMetadata("ratings", recipePath, ratings);
+    }
     const response = await fetch("/api/metadata/ratings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: recipePath, value: ratings }),
     });
     const result = await response.json().catch(() => ({}));
-
     if (!response.ok || result.success !== true) {
       throw new Error(result.error || `Unable to save ratings (HTTP ${response.status})`);
     }
   }
 
-  function getInitials(name) {
-    return name
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0].toUpperCase())
-      .join("");
+  // ----- Rating value parsing ----- //
+  function parseRatingText(text) {
+    const value = String(text ?? "").trim();
+    if (!value) {
+      return null;
+    }
+    const isValidFormat = /^(?:\d+(?:\.\d*)?|\.\d+)$/.test(value);
+    const rating = isValidFormat ? Number(value) : NaN;
+    return Number.isFinite(rating) && rating >= 0 && rating <= 10 ? rating : null;
+  }
+
+  function validateRatingInput(input) {
+    const value = String(input.value ?? "").trim();
+    const parsed = parseRatingText(value);
+    input.setCustomValidity(parsed !== null || !value ? "" : "Enter a number from 0 to 10.");
+    return parsed;
   }
 
   function getRatingLabel(rating) {
     return `${rating / 2} out of 5 stars (${rating} out of 10)`;
   }
 
-  function parseRating(input) {
-    const value = input.value.trim();
-    const isValidFormat = /^(?:\d+(?:\.\d*)?|\.\d+)$/.test(value);
-    const rating = isValidFormat ? Number(value) : NaN;
-    const isValid = Number.isFinite(rating) && rating >= 0 && rating <= 10;
+  // ----- Rendering ----- //
+  function getInitials(name) {
+    return helpers.getInitials ? helpers.getInitials(name) : String(name || "").slice(0, 2).toUpperCase();
+  }
 
-    input.setCustomValidity(isValid || !value ? "" : "Enter a number from 0 to 10.");
-    return isValid ? rating : null;
+  function createDate(timestamp) {
+    if (helpers.createDateElement) {
+      return helpers.createDateElement(timestamp, "recipe-rating__date");
+    }
+    const dateElement = document.createElement("time");
+    dateElement.className = "recipe-rating__date";
+    if (timestamp) dateElement.dateTime = timestamp;
+    dateElement.textContent = String(timestamp || "");
+    return dateElement;
   }
 
   function createStarMeter(rating) {
@@ -96,21 +108,20 @@
     return meter;
   }
 
-  function createDate(timestamp) {
-    const dateElement = document.createElement("time");
-    dateElement.className = "recipe-rating__date";
-    dateElement.dateTime = timestamp;
+  function updateScorePreview(input, preview, meter) {
+    const score = parseRatingText(input.value);
+    validateRatingInput(input);
 
-    const date = new Date(timestamp);
-    dateElement.textContent = Number.isNaN(date.getTime())
-      ? timestamp
-      : date.toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        });
+    if (score === null) {
+      preview.textContent = "—/10";
+      meter.style.setProperty("--rating-fill", "0%");
+      meter.setAttribute("aria-label", "Enter a rating from 0 to 10");
+      return;
+    }
 
-    return dateElement;
+    preview.textContent = `${score}/10`;
+    meter.style.setProperty("--rating-fill", `${(score / 10) * 100}%`);
+    meter.setAttribute("aria-label", getRatingLabel(score));
   }
 
   function updateAverage(ratings) {
@@ -118,7 +129,6 @@
     if (!primary) return;
 
     let summary = primary.querySelector(".recipe-overview__rating");
-
     if (ratings.length === 0) {
       summary?.remove();
       return;
@@ -154,7 +164,6 @@
     const author = document.createElement("span");
     author.className = "recipe-rating__author";
     author.textContent = name;
-
     meta.append(author, createDate(rating.updated || rating.created));
 
     const meter = createStarMeter(Number(rating.rating));
@@ -164,11 +173,7 @@
 
     const actions = document.createElement("div");
     actions.className = "recipe-rating__actions";
-
-    for (const [action, label] of [
-      ["edit", "Edit"],
-      ["delete", "Remove"],
-    ]) {
+    for (const [action, label] of [["edit", "Edit"], ["delete", "Remove"]]) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.action = action;
@@ -186,22 +191,17 @@
   }
 
   function renderAllRatings(ratings) {
-    const sortedRatings = [...ratings].sort((a, b) => {
-      const timestampA = Date.parse(a.updated || a.created) || 0;
-      const timestampB = Date.parse(b.updated || b.created) || 0;
-      return timestampB - timestampA;
-    });
-
-    list.replaceChildren(...sortedRatings.map(createRating));
+    const sort = helpers.sortByUpdatedDesc || ((items) => [...items]);
+    list.replaceChildren(...sort(ratings).map(createRating));
     root.classList.toggle("is-empty", ratings.length === 0);
     updateAverage(ratings);
   }
 
+  // ----- Form controls ----- //
   function setFormOpen(open) {
     form.hidden = !open;
     addButton.setAttribute("aria-expanded", String(open));
     status.textContent = "";
-
     if (open) authorInput.focus();
   }
 
@@ -211,23 +211,8 @@
     });
   }
 
-  function updateScorePreview(input, preview, meter) {
-    const score = parseRating(input);
-
-    if (score === null) {
-      preview.textContent = "—/10";
-      meter.style.setProperty("--rating-fill", "0%");
-      meter.setAttribute("aria-label", "Enter a rating from 0 to 10");
-      return;
-    }
-
-    preview.textContent = `${score}/10`;
-    meter.style.setProperty("--rating-fill", `${(score / 10) * 100}%`);
-    meter.setAttribute("aria-label", getRatingLabel(score));
-  }
-
-  function createEditForm(article, rating) {
-    const content = article.querySelector(".recipe-rating__content");
+  // ----- Edit form ----- //
+  function buildEditForm(rating) {
     const editForm = document.createElement("form");
     editForm.className = "recipe-rating__edit";
 
@@ -241,46 +226,44 @@
     const scoreLine = document.createElement("div");
     scoreLine.className = "recipe-rating__meter";
 
-    const scoreInput = document.createElement("input");
-    scoreInput.type = "text";
-    scoreInput.inputMode = "decimal";
-    scoreInput.maxLength = 16;
-    scoreInput.required = true;
-    scoreInput.value = String(rating.rating);
-    scoreInput.setAttribute("aria-label", "Rating out of 10");
+    const editScoreInput = document.createElement("input");
+    editScoreInput.type = "text";
+    editScoreInput.inputMode = "decimal";
+    editScoreInput.maxLength = 16;
+    editScoreInput.required = true;
+    editScoreInput.value = String(rating.rating);
+    editScoreInput.setAttribute("aria-label", "Rating out of 10");
 
     const meter = createStarMeter(Number(rating.rating));
     const score = document.createElement("output");
     score.className = "recipe-rating__score";
-
-    updateScorePreview(scoreInput, score, meter);
-    scoreInput.addEventListener("input", () => updateScorePreview(scoreInput, score, meter));
-    scoreLine.append(scoreInput, meter, score);
+    updateScorePreview(editScoreInput, score, meter);
+    editScoreInput.addEventListener("input", () => updateScorePreview(editScoreInput, score, meter));
+    scoreLine.append(editScoreInput, meter, score);
 
     const actions = document.createElement("div");
     actions.className = "recipe-rating__actions recipe-rating__form-actions";
-
     const cancel = document.createElement("button");
     cancel.type = "button";
     cancel.textContent = "Cancel";
-
     const save = document.createElement("button");
     save.type = "submit";
     save.textContent = "Save";
+    actions.append(cancel, save);
 
     const message = document.createElement("p");
     message.className = "recipe-rating__status";
     message.setAttribute("role", "status");
 
-    actions.append(cancel, save);
     editForm.append(nameInput, scoreLine, actions, message);
-    content.replaceChildren(editForm);
+    return { editForm, nameInput, scoreInput: editScoreInput, cancel, message };
+  }
 
-    cancel.addEventListener("click", () => article.replaceWith(createRating(rating)));
+  function submitEditRating({ editForm, article, rating, nameInput, scoreInput: editScoreInput, message }) {
     editForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const name = nameInput.value.trim();
-      const scoreValue = parseRating(scoreInput);
+      const scoreValue = validateRatingInput(editScoreInput);
 
       if (!name || scoreValue === null) {
         editForm.reportValidity();
@@ -288,15 +271,12 @@
       }
 
       setBusy(editForm, true);
-
       try {
         const latest = await getRatings();
         const index = latest.findIndex((item) => item.id === rating.id);
-
         if (index === -1) {
           throw new Error("Rating no longer exists. Reload the page.");
         }
-
         if (latest.some((item) => item.id !== rating.id && normalizedName(item.name) === normalizedName(name))) {
           throw new Error("A rating from this name already exists.");
         }
@@ -307,7 +287,6 @@
           rating: scoreValue,
           updated: new Date().toISOString(),
         };
-
         await saveRatings(latest);
         renderAllRatings(latest);
       } catch (error) {
@@ -316,23 +295,29 @@
         message.textContent = error.message || "Unable to save this rating.";
       }
     });
-
-    nameInput.focus();
   }
 
+  function openEditForm(article, rating) {
+    const content = article.querySelector(".recipe-rating__content");
+    const controls = buildEditForm(rating);
+    content.replaceChildren(controls.editForm);
+
+    controls.cancel.addEventListener("click", () => article.replaceWith(createRating(rating)));
+    submitEditRating({ article, rating, ...controls });
+    controls.nameInput.focus();
+  }
+
+  // ----- Mutations ----- //
   async function deleteRating(article) {
     if (!window.confirm("Remove this rating? This cannot be undone.")) return;
 
     setBusy(article, true);
-
     try {
       const ratings = await getRatings();
       const index = ratings.findIndex((rating) => rating.id === article.dataset.ratingId);
-
       if (index === -1) {
         throw new Error("Rating no longer exists.");
       }
-
       ratings.splice(index, 1);
       await saveRatings(ratings);
       renderAllRatings(ratings);
@@ -345,14 +330,14 @@
 
   async function loadRatings() {
     try {
-      const ratings = await getRatings();
-      renderAllRatings(ratings);
+      renderAllRatings(await getRatings());
     } catch (error) {
       console.error("Unable to load ratings:", error);
       status.textContent = "Unable to load ratings.";
     }
   }
 
+  // ----- Event wiring ----- //
   addButton.addEventListener("click", () => {
     form.reset();
     scoreInput.value = "5";
@@ -372,14 +357,13 @@
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const name = authorInput.value.trim();
-    const ratingValue = parseRating(scoreInput);
+    const ratingValue = validateRatingInput(scoreInput);
 
     if (!name) {
       status.textContent = "Please enter your name.";
       form.reportValidity();
       return;
     }
-
     if (ratingValue === null) {
       status.textContent = "Enter a rating from 0 to 10.";
       form.reportValidity();
@@ -388,28 +372,18 @@
 
     saveButton.disabled = true;
     status.textContent = "Saving rating…";
-
     try {
       const ratings = await getRatings();
-
       if (ratings.some((rating) => normalizedName(rating.name) === normalizedName(name))) {
         throw new Error("A rating from this name already exists. Edit that rating instead.");
       }
 
       const timestamp = new Date().toISOString();
-      const updatedRatings = [
+      await saveRatings([
         ...ratings,
-        {
-          name,
-          created: timestamp,
-          updated: timestamp,
-          id: createRatingId(),
-          rating: ratingValue,
-        },
-      ];
-
-      await saveRatings(updatedRatings);
-      renderAllRatings(updatedRatings);
+        { name, created: timestamp, updated: timestamp, id: createRatingId(), rating: ratingValue },
+      ]);
+      renderAllRatings(await getRatings());
       form.reset();
       setFormOpen(false);
     } catch (error) {
@@ -432,7 +406,7 @@
         const ratings = await getRatings();
         const rating = ratings.find((item) => item.id === article.dataset.ratingId);
         if (!rating) throw new Error("Rating no longer exists. Reload the page.");
-        createEditForm(article, rating);
+        openEditForm(article, rating);
       } catch (error) {
         console.error("Unable to edit rating:", error);
         window.alert(error.message || "Unable to edit this rating.");
