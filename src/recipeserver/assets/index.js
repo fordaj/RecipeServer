@@ -29,8 +29,55 @@ const initRecipeIndex = async () => {
     const bulkCount = document.querySelector("#bulk-selection-count");
     const selectBoxes = [...document.querySelectorAll(".recipe-select__checkbox")];
 
+    let selectionAnchor = null;
+
     const getSelectedPaths = () =>
       selectBoxes.filter((box) => box.checked).map((box) => box.dataset.path);
+
+    const visibleRecipes = () => recipes.filter((recipe) => !recipe.hidden);
+
+    const applyMultiSelect = (targetRecipe, event) => {
+      const visible = visibleRecipes();
+      const targetIndex = visible.indexOf(targetRecipe);
+      if (targetIndex < 0) return;
+
+      const targetBox = targetRecipe.querySelector(".recipe-select__checkbox");
+      if (!targetBox) return;
+
+      if (event.shiftKey && selectionAnchor) {
+        const anchorIndex = visible.indexOf(selectionAnchor);
+        if (anchorIndex >= 0) {
+          const start = Math.min(anchorIndex, targetIndex);
+          const end = Math.max(anchorIndex, targetIndex);
+          if (!(event.ctrlKey || event.metaKey)) {
+            selectBoxes.forEach((box) => {
+              box.checked = false;
+            });
+          }
+          visible.slice(start, end + 1).forEach((recipe) => {
+            const box = recipe.querySelector(".recipe-select__checkbox");
+            if (box) box.checked = true;
+          });
+        } else {
+          selectBoxes.forEach((box) => {
+            box.checked = false;
+          });
+          targetBox.checked = true;
+          selectionAnchor = targetRecipe;
+        }
+      } else if (event.ctrlKey || event.metaKey) {
+        targetBox.checked = !targetBox.checked;
+        selectionAnchor = targetRecipe;
+      } else {
+        selectBoxes.forEach((box) => {
+          box.checked = false;
+        });
+        targetBox.checked = true;
+        selectionAnchor = targetRecipe;
+      }
+
+      updateBulkControls();
+    };
 
     const updateBulkControls = () => {
       const selected = getSelectedPaths();
@@ -50,6 +97,7 @@ const initRecipeIndex = async () => {
       if (bulkControls) bulkControls.hidden = !enabled;
       if (!enabled) {
         selectBoxes.forEach((box) => (box.checked = false));
+        selectionAnchor = null;
       }
       updateBulkControls();
     };
@@ -324,22 +372,29 @@ const initRecipeIndex = async () => {
     if (selectionMode) {
       selectionMode.addEventListener("change", () => setSelectionMode(selectionMode.checked));
     }
-    selectBoxes.forEach((box) => box.addEventListener("change", updateBulkControls));
+    selectBoxes.forEach((box) => {
+      box.addEventListener("click", (event) => {
+        if (!selectionMode?.checked) return;
+        event.preventDefault();
+        const recipe = box.closest(".recipe");
+        if (recipe) applyMultiSelect(recipe, event);
+      });
+    });
     // In selection mode, clicking the card selects it instead of navigating.
     list.addEventListener("click", (event) => {
       if (!selectionMode?.checked) return;
-      const link = event.target.closest(".recipe-card__link, .recipe-card__image");
+      const checkbox = event.target.closest(".recipe-select__checkbox");
+      if (checkbox) return;
+      const link = event.target.closest(".recipe-card__link, .recipe-card__image, .recipe-card");
       if (!link || !list.contains(link)) return;
       event.preventDefault();
-      const box = link.closest(".recipe")?.querySelector(".recipe-select__checkbox");
-      if (box) {
-        box.checked = !box.checked;
-        updateBulkControls();
-      }
+      const recipe = link.closest(".recipe");
+      if (recipe) applyMultiSelect(recipe, event);
     });
     if (clearSelections) {
       clearSelections.addEventListener("click", () => {
         selectBoxes.forEach((box) => (box.checked = false));
+        selectionAnchor = null;
         updateBulkControls();
       });
     }
