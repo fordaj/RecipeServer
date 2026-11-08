@@ -72,6 +72,7 @@ def _icon_html(asset_path: Path, class_name: str | None = None) -> str:
         svg["class"] = [class_name]
     return str(svg)
 
+
 CSS_PATH = "/assets/style.css"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 RECIPE_JS = "/assets/recipe.js"
@@ -320,11 +321,7 @@ class MarkdownToHTMLConverter:
         """
 
         def group_terms(container: Tag) -> None:
-            terms = [
-                child
-                for child in container.children
-                if getattr(child, "name", None) in ("dt", "dd")
-            ]
+            terms = [child for child in container.children if getattr(child, "name", None) in ("dt", "dd")]
             if not terms:
                 return
 
@@ -813,7 +810,11 @@ class MarkdownToHTMLConverter:
             "<", "\\u003c"
         )  # sanitize input so it is not executable
 
-        has_ratings = any(is_finite_rating_score(rating.get("rating")) for rating in _as_list(self.metadata.get("ratings")) if isinstance(rating, dict))
+        has_ratings = any(
+            is_finite_rating_score(rating.get("rating"))
+            for rating in _as_list(self.metadata.get("ratings"))
+            if isinstance(rating, dict)
+        )
         comments = _as_list(self.metadata.get("comments"))
         has_comments = any(isinstance(comment, dict) for comment in comments)
 
