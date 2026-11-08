@@ -344,7 +344,7 @@ class Configuration:
         known_keys = _known_toml_keys()
         for key, value in data.items():
             if not isinstance(value, str):
-                logger.warning("Ignoring non-text configuration value for %r", key)
+                logger.warning(f"Ignoring non-text configuration value for {key!r}")
                 continue
             if key == SOURCE_DIRECTORY_KEY:
                 source_value = value.strip()
@@ -405,10 +405,9 @@ class Configuration:
             "Image analysis model name (press Enter to auto-detect from the endpoint): "
         )
         logger.info(
-            "Configured local model endpoint: %s (all-purpose model: %s, image analysis model: %s)",
-            self.model_endpoint,
-            self.all_purpose_model_name or "auto-detect",
-            self.image_analysis_model or "auto-detect",
+            f"Configured local model endpoint: {self.model_endpoint} "
+            f"(all-purpose model: {self.all_purpose_model_name or 'auto-detect'}, "
+            f"image analysis model: {self.image_analysis_model or 'auto-detect'})"
         )
 
     @staticmethod
@@ -459,10 +458,10 @@ class Configuration:
     def _read_and_parse_config(self, config_file: Path) -> tuple[str, dict[str, str]]:
         config_file.parent.mkdir(parents=True, exist_ok=True)
         if not config_file.exists():
-            logger.debug("Creating %s", config_file)
+            logger.debug(f"Creating {config_file}")
             config_file.touch()
 
-        logger.debug("Reading %s", config_file)
+        logger.debug(f"Reading {config_file}")
         config_contents = config_file.read_text(encoding="UTF-8").strip()
         if config_file.suffix == ".toml":
             parsed = self._parse_toml_config(config_contents)
@@ -470,24 +469,24 @@ class Configuration:
         else:
             config_source, settings = self._parse_config(config_contents)
 
-        logger.debug("Parsed configuration: source=%r, keys=%s", config_source, sorted(settings))
+        logger.debug(f"Parsed configuration: source={config_source!r}, keys={sorted(settings)}")
         return config_source, settings
 
     def _resolve_source_directory(self, config_source: str) -> Path:
         source_directory = Path(config_source).expanduser() if config_source else Path()
         if not config_source or not source_directory.is_dir():
-            logger.warning("Recipe source directory is missing or invalid: %r", config_source)
+            logger.warning(f"Recipe source directory is missing or invalid: {config_source!r}")
             print("Recipes directory not found, please select from the file dialogue")
             source_directory = self.get_source_dir_from_user()
         resolved_source_directory = source_directory.resolve()
-        logger.info("Using recipe source directory: %s", resolved_source_directory)
+        logger.info(f"Using recipe source directory: {resolved_source_directory}")
         return resolved_source_directory
 
     def _apply_loaded_settings(self, settings: dict[str, str]) -> None:
         server_name_value = settings.get(RECIPE_SERVER_NAME_KEY) or settings.get(SERVER_NAME_KEY, "")
         if server_name_value:
             self.recipe_server_name = server_name_value
-        logger.debug("Configured recipe server name: %r", self.recipe_server_name)
+        logger.debug(f"Configured recipe server name: {self.recipe_server_name!r}")
 
         if MODEL_ENDPOINT_KEY in settings:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")
@@ -498,14 +497,13 @@ class Configuration:
             )
             self.image_analysis_model = settings.get(IMAGE_ANALYSIS_MODEL_KEY, "")
             logger.info(
-                "Using configured local model endpoint: %s (all-purpose model: %s, image analysis model: %s)",
-                self.model_endpoint or "(none)",
-                self.all_purpose_model_name or "auto-detect",
-                self.image_analysis_model or "auto-detect",
+                f"Using configured local model endpoint: {self.model_endpoint or '(none)'} "
+                f"(all-purpose model: {self.all_purpose_model_name or 'auto-detect'}, "
+                f"image analysis model: {self.image_analysis_model or 'auto-detect'})"
             )
             return
 
-        logger.debug("No %s key in configuration; prompting the user", MODEL_ENDPOINT_KEY)
+        logger.debug(f"No {MODEL_ENDPOINT_KEY} key in configuration; prompting the user")
         self.get_model_settings_from_user()
 
     def _persist_configuration(self, config_file: Path) -> Path:
@@ -517,7 +515,7 @@ class Configuration:
             try:
                 config_file.unlink(missing_ok=True)
             except OSError:
-                logger.warning("Could not remove legacy configuration %s", config_file)
+                logger.warning(f"Could not remove legacy configuration {config_file}")
             return write_file
 
         self._write_config(write_file)
@@ -532,11 +530,10 @@ class Configuration:
 
         self.load_new_recipe_prompt()
         logger.info(
-            "AI recipe creation is %s (endpoint=%s, prompt=%s, image prompt=%s)",
-            "enabled" if self.ai_configured else "disabled",
-            "set" if self.model_endpoint else "missing",
-            "set" if self.new_recipe_prompt else "missing",
-            "set" if self.new_recipe_from_image_prompt else "missing",
+            f"AI recipe creation is {'enabled' if self.ai_configured else 'disabled'} "
+            f"(endpoint={'set' if self.model_endpoint else 'missing'}, "
+            f"prompt={'set' if self.new_recipe_prompt else 'missing'}, "
+            f"image prompt={'set' if self.new_recipe_from_image_prompt else 'missing'})"
         )
 
         self._config_file = self._persist_configuration(config_file)
