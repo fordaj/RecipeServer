@@ -10,7 +10,12 @@ from textwrap import dedent
 from bs4 import BeautifulSoup, Tag
 from fractions import Fraction
 from ._logger import logger
-from .recipe_utils import is_finite_rating_score, iter_valid_rating_entries, json_default
+from .recipe_utils import (
+    is_finite_rating_score,
+    iter_valid_rating_entries,
+    json_default,
+    parse_metadata_datetime,
+)
 from coloraide import Color
 from importlib.metadata import version
 
@@ -66,6 +71,7 @@ def _icon_html(asset_path: Path, class_name: str | None = None) -> str:
     if class_name is not None:
         svg["class"] = [class_name]
     return str(svg)
+
 
 CSS_PATH = "/assets/style.css"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
@@ -132,22 +138,7 @@ _json_default = json_default
 
 def _parse_datetime(value: object) -> datetime | None:
     """Parse metadata timestamps as timezone-aware UTC datetimes."""
-    if isinstance(value, datetime):
-        parsed = value
-    elif isinstance(value, date):
-        return datetime.combine(value, time.min, tzinfo=timezone.utc)
-    elif isinstance(value, str):
-        try:
-            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    else:
-        return None
-
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-
-    return parsed.astimezone(timezone.utc)
+    return parse_metadata_datetime(value)
 
 
 def _is_date_only(value: object) -> bool:
@@ -330,11 +321,7 @@ class MarkdownToHTMLConverter:
         """
 
         def group_terms(container: Tag) -> None:
-            terms = [
-                child
-                for child in container.children
-                if getattr(child, "name", None) in ("dt", "dd")
-            ]
+            terms = [child for child in container.children if getattr(child, "name", None) in ("dt", "dd")]
             if not terms:
                 return
 
@@ -823,7 +810,11 @@ class MarkdownToHTMLConverter:
             "<", "\\u003c"
         )  # sanitize input so it is not executable
 
-        has_ratings = any(is_finite_rating_score(rating.get("rating")) for rating in _as_list(self.metadata.get("ratings")) if isinstance(rating, dict))
+        has_ratings = any(
+            is_finite_rating_score(rating.get("rating"))
+            for rating in _as_list(self.metadata.get("ratings"))
+            if isinstance(rating, dict)
+        )
         comments = _as_list(self.metadata.get("comments"))
         has_comments = any(isinstance(comment, dict) for comment in comments)
 
