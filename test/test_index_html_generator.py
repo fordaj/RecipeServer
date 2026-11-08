@@ -166,8 +166,8 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     stylesheets = [link["href"] for link in soup.select('link[rel="stylesheet"]')]
     assert stylesheets[0].startswith("/assets/definitions.css?v=")
     assert stylesheets.index(next(url for url in stylesheets if url.startswith("/assets/index.css?v="))) > 0
-    assert '<link rel="stylesheet" href="/assets/recipe-editor.css?v=' in page
-    assert '<script src="/assets/recipe-editor.js?v=' in page
+    assert '<link rel="stylesheet" href="/assets/recipe-editor/recipe-editor.css?v=' in page
+    assert '<script src="/assets/recipe-editor/recipe-editor.js?v=' in page
     assert 'id="create-recipe"' in page
     assert "stroke=\"currentColor\"" in page
     index_script = (
@@ -416,21 +416,18 @@ def test_average_rating_ignores_booleans_and_invalid_scores():
 
 
 def test_recipe_editor_includes_local_model_source_inputs():
-    script = (
-        Path(__file__).parents[1]
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "recipe-editor.js"
-    ).read_text(encoding="UTF-8")
+    base = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "recipe-editor"
+    script = (base / "recipe-editor.js").read_text(encoding="UTF-8")
+    ai = (base / "ai.html").read_text(encoding="UTF-8")
+    markup = script + ai
 
-    assert "From text" in script
-    assert "From URL" in script
-    assert "From Image" in script
-    assert "Generate from text" in script
-    assert "Generate from image" in script
-    assert 'class="recipe-editor__section recipe-editor__ai"' in script
-    assert "Cancel generation" in script
+    assert "From text" in markup
+    assert "From URL" in markup
+    assert "From Image" in markup
+    assert "Generate from text" in markup
+    assert "Generate from image" in markup
+    assert 'class="recipe-editor__section recipe-editor__ai"' in markup
+    assert "Cancel generation" in markup
     assert "AbortController" in script
     assert "/api/ai-status" in script
     assert "/api/ai-recipe" in script
@@ -438,15 +435,11 @@ def test_recipe_editor_includes_local_model_source_inputs():
 
 
 def test_recipe_editor_only_shows_ai_section_when_creating():
-    script = (
-        Path(__file__).parents[1]
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "recipe-editor.js"
-    ).read_text(encoding="UTF-8")
+    base = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "recipe-editor"
+    script = (base / "recipe-editor.js").read_text(encoding="UTF-8")
+    ai = (base / "ai.html").read_text(encoding="UTF-8")
 
-    assert 'class="recipe-editor__details recipe-editor__ai-details"' in script
+    assert 'class="recipe-editor__details recipe-editor__ai-details"' in ai
     assert "aiDetails.hidden = !configured || !isCreating" in script
     assert "aiDetails.open = false" in script
     assert 'createdOn: get("createdOn") || null' in script
@@ -458,6 +451,7 @@ def test_recipe_editor_css_keeps_files_and_ai_sections_single_column():
         / "src"
         / "recipeserver"
         / "assets"
+        / "recipe-editor"
         / "recipe-editor.css"
     ).read_text(encoding="UTF-8")
 
@@ -490,7 +484,7 @@ def test_definitions_css_centralizes_theme_values():
     ):
         assert token in css
 
-    for asset in ("style.css", "index.css", "recipe-editor.css", "comments.css", "ratings.css"):
+    for asset in ("style.css", "index.css", "recipe-editor/recipe-editor.css", "comments.css", "ratings.css"):
         component = (
             Path(__file__).parents[1]
             / "src"

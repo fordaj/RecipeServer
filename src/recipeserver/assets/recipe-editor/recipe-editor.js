@@ -9,6 +9,7 @@
   const AI_RECIPE_API = "/api/ai-recipe";
   const MAKES_METADATA_API = "/api/metadata/makes";
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
+  const EDITOR_ASSETS_BASE = "/assets/recipe-editor";
 
   const BULK_FIELD_LABELS = {
     contributor: "Contributor",
@@ -54,309 +55,37 @@ Try this
 
   // ----- Dialog markup ----- //
 
-  function getEditorMarkup() {
-    return `
-            <form class="recipe-editor" method="dialog">
-                <header class="recipe-editor__header">
-                    <h2>Edit Recipe</h2>
-                    <span class="recipe-editor__makes-count" hidden>
-                        <span class="recipe-editor__makes-icon" aria-hidden="true" focusable="false"></span><span class="recipe-editor__makes-value">x0</span>
-                    </span>
-                    <button type="button" class="recipe-editor__made-this" hidden>
-                        I made this!
-                    </button>
-                    <button type="button" class="recipe-editor__close"
-                        aria-label="Close editor">&times;</button>
-                </header>
-
-                ${getFilesSectionMarkup()}
-                ${getAutoGenerateSectionMarkup()}
-                ${getDetailsSectionMarkup()}
-                ${getSourcesSectionMarkup()}
-                ${getRatingsSectionMarkup()}
-
-                <p class="recipe-editor__bulk-list" hidden></p>
-
-                <details class="recipe-editor__details recipe-editor__markdown-details">
-                    <summary>Markdown</summary>
-
-                    <label class="recipe-editor__markdown-label"
-                        for="recipe-editor-source">Markdown</label>
-
-                    <textarea id="recipe-editor-source"
-                        class="recipe-editor__source"
-                        aria-label="Markdown source"
-                        spellcheck="false" required></textarea>
-                </details>
-
-
-                <p class="recipe-editor__status" role="status"></p>
-                <footer class="recipe-editor__footer">
-                    <button type="button" class="recipe-editor__cancel">
-                        Cancel
-                    </button>
-                    <button type="button" class="recipe-editor__delete" hidden>
-                        Delete
-                    </button>
-                    <button type="submit" class="recipe-editor__save">
-                        Save
-                    </button>
-                </footer>
-            </form>
-        `;
+  async function fetchEditorTemplate(name) {
+    const response = await fetch(`${EDITOR_ASSETS_BASE}/${name}.html`, { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`Failed to load editor template: ${name} (HTTP ${response.status})`);
+    }
+    return response.text();
   }
 
-  function getFilesSectionMarkup() {
-    return `
-                <details class="recipe-editor__details">
-                    <summary>Files</summary>
+  async function loadEditorMarkup() {
+    const [form, files, ai, details, sources, ratings] = await Promise.all([
+      fetchEditorTemplate("form"),
+      fetchEditorTemplate("files"),
+      fetchEditorTemplate("ai"),
+      fetchEditorTemplate("details"),
+      fetchEditorTemplate("sources"),
+      fetchEditorTemplate("ratings"),
+    ]);
 
-                      <fieldset class="recipe-editor__section">
-                <div class="recipe-editor__location" hidden>
-                    <label>
-                        Folder
-                        <select class="recipe-editor__folder-mode" aria-label="Folder location">
-                            <option value="title">Use recipe title (recommended)</option>
-                            <option value="existing">Existing folder</option>
-                            <option value="new">New folder</option>
-                        </select>
-                    </label>
-                    <label class="recipe-editor__existing-folder">
-                        Choose folder
-                        <select class="recipe-editor__folder-select"></select>
-                    </label>
-                    <label class="recipe-editor__folder-path" hidden>
-                        New folder path
-                        <input type="text" class="recipe-editor__new-folder"
-                            placeholder="Desserts/Chocolate">
-                    </label>
-                </div>
-
-                    <label for="recipe-editor-images">Recipe images</label>
-                    <input id="recipe-editor-images" type="file" multiple
-                        accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif,.svg,.avif">
-                    <p class="recipe-editor__images-help">
-                        Images are saved beside the recipe. Up to 20 files and 25 MB per save.
-                    </p>
-                    <p class="recipe-editor__images-selected" aria-live="polite"></p>
-
-                    </fieldset>
-                </details>`;
+    return form
+      .replace("<!--SECTION:files-->", files)
+      .replace("<!--SECTION:ai-->", ai)
+      .replace("<!--SECTION:details-->", details)
+      .replace("<!--SECTION:sources-->", sources)
+      .replace("<!--SECTION:ratings-->", ratings);
   }
 
-  function getAutoGenerateSectionMarkup() {
-    return `
-                <details class="recipe-editor__details recipe-editor__ai-details">
-                    <summary>Auto-Generate</summary>
-
-                      <fieldset class="recipe-editor__section recipe-editor__ai">
-                    <h3>Create from source</h3>
-                    <p class="recipe-editor__ai-status" role="status"></p>
-
-                    <button type="button" class="recipe-editor__ai-cancel" hidden>
-                        Cancel generation
-                    </button>
-
-                    <div class="recipe-editor__ai-field">
-                        <label for="recipe-editor-ai-text">From text</label>
-                        <textarea id="recipe-editor-ai-text"
-                            class="recipe-editor__ai-text" rows="5"
-                            placeholder="Paste recipe text here"></textarea>
-                        <button type="button" class="recipe-editor__ai-generate-text">
-                            Generate from text
-                        </button>
-                    </div>
-
-                    <div class="recipe-editor__ai-field">
-                        <label for="recipe-editor-ai-url">From URL</label>
-                        <input id="recipe-editor-ai-url" type="url"
-                            class="recipe-editor__ai-url"
-                            placeholder="https://example.com/recipe">
-                        <button type="button" class="recipe-editor__ai-generate-url">
-                            Generate from URL
-                        </button>
-                    </div>
-
-                    <div class="recipe-editor__ai-field">
-                        <label for="recipe-editor-ai-image">From Image</label>
-                        <input id="recipe-editor-ai-image" type="file"
-                            class="recipe-editor__ai-image"
-                            accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif">
-                        <button type="button" class="recipe-editor__ai-generate-image">
-                            Generate from image
-                        </button>
-                    </div>
-
-                    </fieldset>
-                </details>`;
-  }
-
-  function getDetailsSectionMarkup() {
-    return `
-                <details class="recipe-editor__details">
-                    <summary>Details</summary>
-
-                    <fieldset class="recipe-editor__metadata">
-                        <label>
-                            Contributor
-                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                            <span class="recipe-editor__field-control">
-                                <input name="contributor" type="text" placeholder="Andy Ford">
-                                <button type="button" class="recipe-editor__bulk-field-save" data-field="contributor" aria-label="Save contributor to all selected recipes" hidden>Save</button>
-                            </span>
-                        </label>
-
-                        <label>
-                            Contribution Date
-                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                            <span class="recipe-editor__field-control">
-                                <input name="createdOn" type="date">
-                                <button type="button" class="recipe-editor__bulk-field-save" data-field="createdOn" aria-label="Save contribution date to all selected recipes" hidden>Save</button>
-                            </span>
-                        </label>
-
-                        <label>
-                            Meals
-                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                            <span class="recipe-editor__field-control">
-                                <input name="meals" type="text" placeholder="ex. Breakfast, Dessert">
-                                <button type="button" class="recipe-editor__bulk-field-save" data-field="meals" aria-label="Save meals to all selected recipes" hidden>Save</button>
-                            </span>
-                        </label>
-
-                        <label>
-                            Categories
-                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                            <span class="recipe-editor__field-control">
-                                <input name="categories" type="text" placeholder="ex. Slow Cooker, Meat">
-                                <button type="button" class="recipe-editor__bulk-field-save" data-field="categories" aria-label="Save categories to all selected recipes" hidden>Save</button>
-                            </span>
-                        </label>
-
-                        <label>
-                            Cuisine
-                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                            <span class="recipe-editor__field-control">
-                                <input name="cuisine" type="text" placeholder="American">
-                                <button type="button" class="recipe-editor__bulk-field-save" data-field="cuisine" aria-label="Save cuisine to all selected recipes" hidden>Save</button>
-                            </span>
-                        </label>
-
-                        <label>
-                            Tags
-                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                            <span class="recipe-editor__field-control">
-                                <input name="tags" type="text" placeholder="Chocolate, Sweet">
-                                <button type="button" class="recipe-editor__bulk-field-save" data-field="tags" aria-label="Save tags to all selected recipes" hidden>Save</button>
-                            </span>
-                        </label>
-
-
-                        <div class="recipe-editor__numeric">
-                            <label>
-                                Makes
-                                <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                                <span class="recipe-editor__field-control">
-                                    <input name="makes" type="number" step="1" placeholder="0">
-                                    <button type="button" class="recipe-editor__bulk-field-save" data-field="makes" aria-label="Save makes to all selected recipes" hidden>Save</button>
-                                </span>
-                            </label>
-
-                            <label>
-                                Difficulty
-                                <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                                <span class="recipe-editor__field-control">
-                                    <input name="difficulty" type="number" step="any" placeholder="5">
-                                    <button type="button" class="recipe-editor__bulk-field-save" data-field="difficulty" aria-label="Save difficulty to all selected recipes" hidden>Save</button>
-                                </span>
-                            </label>
-                        </div>
-
-                    </fieldset>
-                </details>`;
-  }
-
-  function getSourcesSectionMarkup() {
-    return `
-                <details class="recipe-editor__details">
-                    <summary>Sources</summary>
-
-                      <fieldset class="recipe-editor__metadata">
-
-                          <label>
-                              Source Author
-                              <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                              <span class="recipe-editor__field-control">
-                                  <input name="source.author" type="text" placeholder="First Last">
-                                  <button type="button" class="recipe-editor__bulk-field-save" data-field="source" aria-label="Save source to all selected recipes" hidden>Save</button>
-                              </span>
-                          </label>
-
-                          <label>
-                              Source Title
-                              <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                              <span class="recipe-editor__field-control">
-                                  <input name="source.title" type="text" placeholder="Book Title, Website Name, AI Model, etc.">
-                                  <button type="button" class="recipe-editor__bulk-field-save" data-field="source" aria-label="Save source to all selected recipes" hidden>Save</button>
-                              </span>
-                          </label>
-
-                          <label>
-                              Source Format
-                              <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                              <span class="recipe-editor__field-control">
-                                  <select name="source.format">
-                                      <option value="">Select format</option>
-                                      <option value="Website">Website</option>
-                                      <option value="AI">AI</option>
-                                      <option value="Book">Book</option>
-                                      <option value="Other">Other</option>
-                                  </select>
-                                  <button type="button" class="recipe-editor__bulk-field-save" data-field="source" aria-label="Save source to all selected recipes" hidden>Save</button>
-                              </span>
-                          </label>
-
-                          <label>
-                              Source URL
-                              <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                              <span class="recipe-editor__field-control">
-                                  <input name="source.url" type="url" placeholder="https://example.com">
-                                  <button type="button" class="recipe-editor__bulk-field-save" data-field="source" aria-label="Save source to all selected recipes" hidden>Save</button>
-                              </span>
-                          </label>
-                      </fieldset>
-                </details>`;
-  }
-
-  function getRatingsSectionMarkup() {
-    return `
-                <details class="recipe-editor__details recipe-editor__ratings-details" hidden>
-                    <summary>Ratings</summary>
-                    <fieldset class="recipe-editor__metadata recipe-editor__bulk-rating">
-                        <label>
-                            Rating name
-                            <span class="recipe-editor__mixed" hidden>* MIXED</span>
-                            <span class="recipe-editor__field-control">
-                                <input name="rating.name" type="text" placeholder="Andy Ford">
-                                <button type="button" class="recipe-editor__bulk-field-save" data-field="rating" aria-label="Save rating to all selected recipes" hidden>Save</button>
-                            </span>
-                        </label>
-                        <label>
-                            Rating score (0-10)
-                            <span class="recipe-editor__field-control">
-                                <input name="rating.score" type="number" step="any" min="0" max="10" placeholder="8">
-                            </span>
-                        </label>
-                        <p class="recipe-editor__bulk-help">Saving adds this named rating to every selected recipe, overriding any existing rating with the same name. Use the Save button inside the rating field to save only the rating.</p>
-                    </fieldset>
-                </details>`;
-  }
-
-  function createEditor() {
+  async function createEditor() {
     const dialog = document.createElement("dialog");
     dialog.id = EDITOR_ID;
     dialog.className = "recipe-editor-dialog";
-    dialog.innerHTML = getEditorMarkup();
+    dialog.innerHTML = await loadEditorMarkup();
     document.body.append(dialog);
     return dialog;
   }
@@ -1469,7 +1198,7 @@ Try this
     const createButton = document.querySelector("#create-recipe");
     if (!editButton && !createButton) return;
 
-    const dialog = createEditor();
+    const dialog = await createEditor();
     const refs = finalizeDomRefs(collectDomRefs(dialog));
     const state = createState(editButton, createButton);
 

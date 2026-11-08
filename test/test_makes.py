@@ -136,14 +136,30 @@ def test_makes_metadata_endpoint_reports_saved_but_regeneration_failed(tmp_path:
 
 
 def _asset(name: str) -> str:
-    path = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / name
+    assets = Path(__file__).parents[1] / "src" / "recipeserver" / "assets"
+    path = assets / name
+    if not path.exists() and name in {"recipe-editor.js", "recipe-editor.css"}:
+        path = assets / "recipe-editor" / name
+    return path.read_text(encoding="UTF-8")
+
+
+def _editor_template(name: str) -> str:
+    path = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "recipe-editor"
+        / name
+    )
     return path.read_text(encoding="UTF-8")
 
 
 def test_recipe_editor_made_this_button_is_in_header_and_hidden_when_creating():
     script = _asset("recipe-editor.js")
+    form = _editor_template("form.html")
 
-    header = script.split('<header class="recipe-editor__header">')[1].split("</header>")[0]
+    header = form.split('<header class="recipe-editor__header">')[1].split("</header>")[0]
     assert "recipe-editor__made-this" in header
     assert "I made this!" in header
     assert "hidden" in header
@@ -162,20 +178,21 @@ def test_recipe_editor_made_this_button_is_in_header_and_hidden_when_creating():
 
 def test_recipe_editor_makes_count_shows_chef_hat_x_count():
     script = _asset("recipe-editor.js")
+    form = _editor_template("form.html")
     chef_hat = _asset("chef-hat.svg")
 
     # The icon is loaded from the shared chef-hat asset, not inlined in JS.
     assert "/assets/chef-hat.svg" in script
     assert "loadSvgIcon" in script
-    assert "recipe-editor__makes-icon" in script
+    assert "recipe-editor__makes-icon" in form
     assert "<svg" not in script
     for path_data in (
         "M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589",
         "M6 17h12",
     ):
         assert path_data in chef_hat
-    assert 'aria-hidden="true"' in script
-    assert 'focusable="false"' in script
+    assert 'aria-hidden="true"' in form
+    assert 'focusable="false"' in form
 
     # Count is rendered as x<makecount> beside the button, not in its label.
     assert "function makesCountLabel(makes)" in script
@@ -188,8 +205,9 @@ def test_recipe_editor_makes_count_shows_chef_hat_x_count():
 
 def test_recipe_editor_markdown_is_in_closed_details():
     script = _asset("recipe-editor.js")
+    form = _editor_template("form.html")
 
-    details = script.split('<details class="recipe-editor__details recipe-editor__markdown-details">')[1]
+    details = form.split('<details class="recipe-editor__details recipe-editor__markdown-details">')[1]
     details = details.split("</details>")[0]
     assert "<summary>Markdown</summary>" in details
     assert 'id="recipe-editor-source"' in details
