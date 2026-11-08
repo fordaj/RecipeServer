@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 import unicodedata
 from collections.abc import Iterable
-from datetime import date, datetime
+from datetime import date, datetime, time, timezone
 
 
 def json_default(value: object) -> str:
@@ -18,6 +18,31 @@ def json_default(value: object) -> str:
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
+def parse_metadata_datetime(value: object) -> datetime | None:
+    """Parse a metadata timestamp as a timezone-aware UTC datetime.
+
+    Accepts ``datetime``, ``date``, and ISO 8601 strings (including ``Z``).
+    Naive datetimes are interpreted as UTC. Returns ``None`` when the value
+    cannot be parsed.
+    """
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, date):
+        return datetime.combine(value, time.min, tzinfo=timezone.utc)
+    elif isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+
+    return parsed.astimezone(timezone.utc)
 
 
 def is_finite_rating_score(score: object) -> bool:

@@ -10,7 +10,12 @@ from textwrap import dedent
 from bs4 import BeautifulSoup, Tag
 from fractions import Fraction
 from ._logger import logger
-from .recipe_utils import is_finite_rating_score, iter_valid_rating_entries, json_default
+from .recipe_utils import (
+    is_finite_rating_score,
+    iter_valid_rating_entries,
+    json_default,
+    parse_metadata_datetime,
+)
 from coloraide import Color
 from importlib.metadata import version
 
@@ -132,22 +137,7 @@ _json_default = json_default
 
 def _parse_datetime(value: object) -> datetime | None:
     """Parse metadata timestamps as timezone-aware UTC datetimes."""
-    if isinstance(value, datetime):
-        parsed = value
-    elif isinstance(value, date):
-        return datetime.combine(value, time.min, tzinfo=timezone.utc)
-    elif isinstance(value, str):
-        try:
-            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    else:
-        return None
-
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-
-    return parsed.astimezone(timezone.utc)
+    return parse_metadata_datetime(value)
 
 
 def _is_date_only(value: object) -> bool:
