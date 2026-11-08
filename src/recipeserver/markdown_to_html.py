@@ -56,6 +56,7 @@ LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 NOTEBOOK_SVG = FILE_PATH.parent / "assets" / "notebook.svg"
 PENCIL_SVG = FILE_PATH.parent / "assets" / "pencil.svg"
 PLUS_SVG = FILE_PATH.parent / "assets" / "plus.svg"
+ARCHIVE_SVG = FILE_PATH.parent / "assets" / "archive.svg"
 
 
 @lru_cache(maxsize=None)
@@ -395,6 +396,10 @@ class MarkdownToHTMLConverter:
         if secondary.contents:
             overview.append(secondary)
 
+        tertiary = self._build_overview_tertiary_row(metadata, soup)
+        if tertiary.contents:
+            overview.append(tertiary)
+
         return overview if overview.contents else None
 
     def _build_overview_primary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:
@@ -488,6 +493,22 @@ class MarkdownToHTMLConverter:
             secondary.append(group)
 
         return secondary
+
+    def _build_overview_tertiary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:
+        """Build the third overview row, reserved for the archived badge."""
+        tertiary = soup.new_tag("div", attrs={"class": "recipe-overview__tertiary"})
+
+        if metadata.get("archived") is True:
+            self._append_overview_icon_value(
+                tertiary,
+                soup,
+                icon_path=ARCHIVE_SVG,
+                class_name="recipe-overview__archived",
+                value="Archived",
+                formatter=lambda value: str(value),
+            )
+
+        return tertiary
 
     @staticmethod
     def _first_scalar(value: object) -> object:

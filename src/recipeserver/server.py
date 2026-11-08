@@ -78,6 +78,7 @@ EDITOR_METADATA_FIELDS = {
     "contributor": "string",
     "createdOn": "string",
     "updatedOn": "string",
+    "archived": "boolean",
     "source": "object",
 }
 
@@ -103,6 +104,9 @@ def _editor_metadata(metadata: dict) -> dict:
 
     # The editor edits one source at a time; older recipes may store a list.
     values["source"] = _normalize_source_value(values["source"])
+
+    # ``archived`` defaults to False when absent (or not a boolean).
+    values["archived"] = metadata.get("archived") is True
 
     return values
 
@@ -187,6 +191,12 @@ def _validate_number_field(field: str, value: object) -> int | float:
     return value
 
 
+def _validate_boolean_field(field: str, value: object) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"'{field}' must be a boolean or null")
+    return value
+
+
 def _validate_source_field(field: str, value: object) -> dict | None:
     if isinstance(value, list):
         value = next((item for item in value if isinstance(item, dict)), None)
@@ -208,6 +218,7 @@ def _validate_editor_field(field: str, expected_type: str, value: object) -> obj
         "string": _validate_string_field,
         "integer": _validate_integer_field,
         "number": _validate_number_field,
+        "boolean": _validate_boolean_field,
     }
     if expected_type in validators:
         return validators[expected_type](field, value)
@@ -579,6 +590,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(200, {"value": metadata["category"]})
         elif field_name in ("comments", "ratings"):
             self._send_json(200, {"value": []})
+        elif field_name == "archived":
+            self._send_json(200, {"value": False})
         else:
             self._send_json(404, {"error": f"Metadata field '{field_name}' not found"})
 
@@ -921,6 +934,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 value = _validate_ratings(value)
             elif field_name == "makes":
                 value = _validate_makes(value)
+            elif field_name == "archived":
+                if value is not None:
+                    value = _validate_boolean_field(field_name, value)
 
             file_path = self._resolve_markdown_path(recipe_path)
         except _RequestTooLarge:
