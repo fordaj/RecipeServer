@@ -1,8 +1,6 @@
 import html
 import hashlib
 import json
-import math
-import unicodedata
 from datetime import date, datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -17,6 +15,7 @@ from ._logger import logger
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
+from .recipe_utils import iter_valid_rating_entries, normalize_reviewer_name
 
 FILE_PATH = Path(__file__)
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
@@ -118,31 +117,11 @@ class IndexHTMLGenerator:
 
     @staticmethod
     def _reviewer_key(name: str) -> str:
-        return unicodedata.normalize("NFKC", name.strip()).casefold()
+        return normalize_reviewer_name(name)
 
     @staticmethod
     def _valid_ratings(metadata: dict) -> list[tuple[str, int | float]]:
-        ratings = metadata.get("ratings", [])
-        if not isinstance(ratings, list):
-            return []
-
-        valid: list[tuple[str, int | float]] = []
-        for rating in ratings:
-            if not isinstance(rating, dict):
-                continue
-
-            score = rating.get("rating")
-            if (
-                not isinstance(score, (int, float))
-                or isinstance(score, bool)
-                or not math.isfinite(score)
-            ):
-                continue
-
-            name = rating.get("name")
-            valid.append((name.strip() if isinstance(name, str) else "", score))
-
-        return valid
+        return list(iter_valid_rating_entries(metadata.get("ratings", [])))
 
     @classmethod
     def _average_rating(cls, metadata: dict) -> tuple[float | None, int]:
