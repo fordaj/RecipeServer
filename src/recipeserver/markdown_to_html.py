@@ -5,11 +5,12 @@ from functools import lru_cache
 from .pallette import Pallette
 from .config import Configuration
 from .image_handler import ImageToColorConverter, get_first_image_in_dir
-import json, math, markdown, re, frontmatter
+import json, markdown, re, frontmatter
 from textwrap import dedent
 from bs4 import BeautifulSoup, Tag
 from fractions import Fraction
 from ._logger import logger
+from .recipe_utils import is_finite_rating_score, iter_valid_rating_entries, json_default
 from coloraide import Color
 from importlib.metadata import version
 
@@ -125,11 +126,8 @@ def dark_mode_color(hex_color):
     return result.to_string(hex=True)
 
 
-def _json_default(value: object) -> str:
-    """Serialize YAML dates that JSON does not understand."""
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+# Shared serializer for YAML/date values in embedded recipe metadata.
+_json_default = json_default
 
 
 def _parse_datetime(value: object) -> datetime | None:
@@ -400,15 +398,7 @@ class MarkdownToHTMLConverter:
         # First row: ratings, meals, difficulty
         primary = soup.new_tag("div", attrs={"class": "recipe-overview__primary"})
 
-        ratings = metadata.get("ratings")
-        rating_scores = [
-            score
-            for rating in _as_list(ratings)
-            if isinstance(rating, dict)
-            and isinstance((score := rating.get("rating")), (int, float))
-            and not isinstance(score, bool)
-            and math.isfinite(score)
-        ]
+        rating_scores = [score for _, score in iter_valid_rating_entries(metadata.get("ratings"))]
 
         if rating_scores:
             average = sum(rating_scores) / len(rating_scores)
@@ -833,14 +823,7 @@ class MarkdownToHTMLConverter:
             "<", "\\u003c"
         )  # sanitize input so it is not executable
 
-        ratings = _as_list(self.metadata.get("ratings"))
-        has_ratings = any(
-            isinstance(rating, dict)
-            and isinstance((score := rating.get("rating")), (int, float))
-            and not isinstance(score, bool)
-            and math.isfinite(score)
-            for rating in ratings
-        )
+        has_ratings = any(is_finite_rating_score(rating.get("rating")) for rating in _as_list(self.metadata.get("ratings")) if isinstance(rating, dict))
         comments = _as_list(self.metadata.get("comments"))
         has_comments = any(isinstance(comment, dict) for comment in comments)
 
