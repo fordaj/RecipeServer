@@ -1,73 +1,65 @@
 const initRecipeIndex = async () => {
-  {
-    const list = document.querySelector("#recipe-list");
-    if (!list) return;
-    const recipes = [...list.querySelectorAll(".recipe")];
-    const search = document.querySelector("#recipe-search");
-    const filters = [
-      ["meals", document.querySelector("#filter-meal")],
-      ["cuisine", document.querySelector("#filter-cuisine")],
-      ["categories", document.querySelector("#filter-category")],
-      ["tags", document.querySelector("#filter-tag")],
-      ["contributors", document.querySelector("#filter-contributor")],
-      ["sourceTitles", document.querySelector("#filter-source-title")],
-    ];
-    const sort = document.querySelector("#sort-recipes");
-    const count = document.querySelector("#recipe-count");
-    const clearFilters = document.querySelector("#clear-filters");
-    const viewButtons = [...document.querySelectorAll("[data-view]")];
-    const metadataStatus = document.querySelector("#metadata-status");
-    const reviewFilter = document.querySelector("#review-filter");
-    const reviewAll = document.querySelector("#filter-reviews-all");
-    const reviewBoxes = [...document.querySelectorAll(".filter-reviews")];
-    const reviewLabel = document.querySelector("#review-filter-label");
-    const selectionMode = document.querySelector("#bulk-selection-mode");
-    const bulkControls = document.querySelector("#bulk-controls");
-    const bulkEdit = document.querySelector("#bulk-edit");
-    const bulkDelete = document.querySelector("#bulk-delete");
-    const clearSelections = document.querySelector("#clear-selections");
-    const bulkCount = document.querySelector("#bulk-selection-count");
-    const selectBoxes = [...document.querySelectorAll(".recipe-select__checkbox")];
+  const list = document.querySelector("#recipe-list");
+  if (!list) return;
 
-    let selectionAnchor = null;
+  // ----- DOM References ----- //
+  const recipes = [...list.querySelectorAll(".recipe")];
+  const search = document.querySelector("#recipe-search");
+  const filterControls = [
+    ["meals", document.querySelector("#filter-meal")],
+    ["cuisine", document.querySelector("#filter-cuisine")],
+    ["categories", document.querySelector("#filter-category")],
+    ["tags", document.querySelector("#filter-tag")],
+    ["contributors", document.querySelector("#filter-contributor")],
+    ["sourceTitles", document.querySelector("#filter-source-title")],
+  ];
+  const sort = document.querySelector("#sort-recipes");
+  const count = document.querySelector("#recipe-count");
+  const clearFilters = document.querySelector("#clear-filters");
+  const viewButtons = [...document.querySelectorAll("[data-view]")];
+  const metadataStatus = document.querySelector("#metadata-status");
+  const reviewFilter = document.querySelector("#review-filter");
+  const reviewAll = document.querySelector("#filter-reviews-all");
+  const reviewBoxes = [...document.querySelectorAll(".filter-reviews")];
+  const reviewLabel = document.querySelector("#review-filter-label");
+  const selectionMode = document.querySelector("#bulk-selection-mode");
+  const bulkControls = document.querySelector("#bulk-controls");
+  const bulkEdit = document.querySelector("#bulk-edit");
+  const bulkDelete = document.querySelector("#bulk-delete");
+  const clearSelections = document.querySelector("#clear-selections");
+  const bulkCount = document.querySelector("#bulk-selection-count");
+  const selectBoxes = [...document.querySelectorAll(".recipe-select__checkbox")];
 
-    const getSelectedPaths = () =>
-      selectBoxes.filter((box) => box.checked).map((box) => box.dataset.path);
+  let selectionAnchor = null;
 
-    const visibleRecipes = () => recipes.filter((recipe) => !recipe.hidden);
+  // ----- Bulk Selection ----- //
+  const getSelectedPaths = () =>
+    selectBoxes.filter((box) => box.checked).map((box) => box.dataset.path);
 
-    const applyMultiSelect = (targetRecipe, event) => {
-      const visible = visibleRecipes();
-      const targetIndex = visible.indexOf(targetRecipe);
-      if (targetIndex < 0) return;
+  const visibleRecipes = () => recipes.filter((recipe) => !recipe.hidden);
 
-      const targetBox = targetRecipe.querySelector(".recipe-select__checkbox");
-      if (!targetBox) return;
+  const applyMultiSelect = (targetRecipe, event) => {
+    const visible = visibleRecipes();
+    const targetIndex = visible.indexOf(targetRecipe);
+    if (targetIndex < 0) return;
 
-      if (event.shiftKey && selectionAnchor) {
-        const anchorIndex = visible.indexOf(selectionAnchor);
-        if (anchorIndex >= 0) {
-          const start = Math.min(anchorIndex, targetIndex);
-          const end = Math.max(anchorIndex, targetIndex);
-          if (!(event.ctrlKey || event.metaKey)) {
-            selectBoxes.forEach((box) => {
-              box.checked = false;
-            });
-          }
-          visible.slice(start, end + 1).forEach((recipe) => {
-            const box = recipe.querySelector(".recipe-select__checkbox");
-            if (box) box.checked = true;
-          });
-        } else {
+    const targetBox = targetRecipe.querySelector(".recipe-select__checkbox");
+    if (!targetBox) return;
+
+    if (event.shiftKey && selectionAnchor) {
+      const anchorIndex = visible.indexOf(selectionAnchor);
+      if (anchorIndex >= 0) {
+        const start = Math.min(anchorIndex, targetIndex);
+        const end = Math.max(anchorIndex, targetIndex);
+        if (!(event.ctrlKey || event.metaKey)) {
           selectBoxes.forEach((box) => {
             box.checked = false;
           });
-          targetBox.checked = true;
-          selectionAnchor = targetRecipe;
         }
-      } else if (event.ctrlKey || event.metaKey) {
-        targetBox.checked = !targetBox.checked;
-        selectionAnchor = targetRecipe;
+        visible.slice(start, end + 1).forEach((recipe) => {
+          const box = recipe.querySelector(".recipe-select__checkbox");
+          if (box) box.checked = true;
+        });
       } else {
         selectBoxes.forEach((box) => {
           box.checked = false;
@@ -75,368 +67,375 @@ const initRecipeIndex = async () => {
         targetBox.checked = true;
         selectionAnchor = targetRecipe;
       }
-
-      updateBulkControls();
-    };
-
-    const updateBulkControls = () => {
-      const selected = getSelectedPaths();
-      if (bulkCount) bulkCount.textContent = `${selected.length} selected`;
-      if (bulkEdit) bulkEdit.disabled = selected.length === 0;
-      if (bulkDelete) bulkDelete.disabled = selected.length === 0;
-      for (const box of selectBoxes) {
-        box.closest(".recipe")?.classList.toggle("is-selected", box.checked);
-      }
-    };
-
-    const setSelectionMode = (enabled) => {
-      list.classList.toggle("selection-mode", enabled);
-      document.querySelectorAll(".recipe-select").forEach((label) => {
-        label.hidden = !enabled;
+    } else if (event.ctrlKey || event.metaKey) {
+      targetBox.checked = !targetBox.checked;
+      selectionAnchor = targetRecipe;
+    } else {
+      selectBoxes.forEach((box) => {
+        box.checked = false;
       });
-      if (bulkControls) bulkControls.hidden = !enabled;
-      if (!enabled) {
-        selectBoxes.forEach((box) => (box.checked = false));
-        selectionAnchor = null;
-      }
-      updateBulkControls();
-    };
-
-    const getValues = (recipe, key) =>
-      JSON.parse(recipe.dataset[key] || "[]").map((value) => value.toLowerCase());
-
-    const compareTitle = (a, b) =>
-      a.dataset.title.localeCompare(b.dataset.title, undefined, { sensitivity: "base" });
-
-    const getSelectedReviewers = () => {
-      if (!reviewAll || reviewAll.checked) return null;
-      const selected = reviewBoxes.filter((box) => box.checked).map((box) => box.value);
-      return selected.length ? new Set(selected) : null;
-    };
-
-    const updateReviewLabel = (reviewers) => {
-      if (!reviewLabel) return;
-      reviewLabel.textContent = reviewers
-        ? `Filter Reviews: ${reviewers.size} selected`
-        : "Filter Reviews: All";
-    };
-
-    // The warning icon lives in assets/warning.svg; load it once and
-    // inline it so it can inherit the chip's colour via currentColor.
-    let ratingWarningIcon = "";
-    try {
-      const response = await fetch("/assets/warning.svg", { cache: "no-store" });
-      if (response.ok) {
-        const svg = new DOMParser().parseFromString(
-          await response.text(),
-          "image/svg+xml",
-        ).documentElement;
-        svg.setAttribute("class", "recipe-icon");
-        svg.setAttribute("aria-hidden", "true");
-        svg.setAttribute("focusable", "false");
-        ratingWarningIcon = new XMLSerializer().serializeToString(svg);
-      }
-    } catch {
-      ratingWarningIcon = "";
+      targetBox.checked = true;
+      selectionAnchor = targetRecipe;
     }
 
-    const ratingWarningMessage = (reviewers) => {
-      if (!reviewers) return "Missing ratings";
-      const names = reviewBoxes
-        .filter((box) => box.checked)
-        .map((box) => box.closest("label")?.querySelector("span")?.textContent.trim())
-        .filter(Boolean);
-      return names.length === 1
-        ? `No rating from ${names[0]}`
-        : "No ratings from selected reviewers";
-    };
+    updateBulkControls();
+  };
 
-    const ensureRatingWarning = (details) => {
-      let warning = details.querySelector(".recipe-detail--rating.recipe-detail--warning");
-      if (warning) return warning;
+  const updateBulkControls = () => {
+    const selected = getSelectedPaths();
+    if (bulkCount) bulkCount.textContent = `${selected.length} selected`;
+    if (bulkEdit) bulkEdit.disabled = selected.length === 0;
+    if (bulkDelete) bulkDelete.disabled = selected.length === 0;
+    for (const box of selectBoxes) {
+      box.closest(".recipe")?.classList.toggle("is-selected", box.checked);
+    }
+  };
 
-      warning = document.createElement("span");
-      warning.className = "recipe-detail recipe-detail--rating recipe-detail--warning";
-      warning.innerHTML =
-        '<span class="recipe-detail__value"><span class="recipe-chip recipe-warning-chip">' +
-        `${ratingWarningIcon} Ratings</span></span>`;
-      details.prepend(warning);
-      return warning;
-    };
+  const setSelectionMode = (enabled) => {
+    list.classList.toggle("selection-mode", enabled);
+    document.querySelectorAll(".recipe-select").forEach((label) => {
+      label.hidden = !enabled;
+    });
+    if (bulkControls) bulkControls.hidden = !enabled;
+    if (!enabled) {
+      selectBoxes.forEach((box) => (box.checked = false));
+      selectionAnchor = null;
+    }
+    updateBulkControls();
+  };
 
-    const applyReviewFilter = (reviewers) => {
-      if (!reviewFilter) return;
-      for (const recipe of recipes) {
-        const ratings = JSON.parse(recipe.dataset.ratings || "[]");
-        const matching = reviewers
-          ? ratings.filter((rating) => reviewers.has(rating.name))
-          : ratings;
-        const details = recipe.querySelector(".recipe-card__details");
-        const existing = details?.querySelector(".recipe-rating");
-        const warning = details?.querySelector(".recipe-detail--rating.recipe-detail--warning");
+  // ----- Filter and Sort Helpers ----- //
+  const getDatasetValues = (recipe, datasetKey) =>
+    JSON.parse(recipe.dataset[datasetKey] || "[]").map((value) => value.toLowerCase());
 
-        if (matching.length === 0) {
-          if (existing) existing.hidden = true;
-          recipe.dataset.rating = "";
+  const compareTitle = (leftRecipe, rightRecipe) =>
+    leftRecipe.dataset.title.localeCompare(rightRecipe.dataset.title, undefined, {
+      sensitivity: "base",
+    });
 
-          if (details && (warning || reviewers !== null)) {
-            const ratingWarning = warning || ensureRatingWarning(details);
-            const message = ratingWarningMessage(reviewers);
-            ratingWarning.setAttribute("title", message);
-            ratingWarning.setAttribute("aria-label", message);
-            ratingWarning.hidden = !metadataStatus?.checked;
-          }
-          continue;
-        }
+  const compareByDateField = (datasetField, direction, leftRecipe, rightRecipe) => {
+    const leftDateText = leftRecipe.dataset[datasetField] || null;
+    const rightDateText = rightRecipe.dataset[datasetField] || null;
 
-        const average =
-          matching.reduce((total, rating) => total + Number(rating.rating), 0) / matching.length;
+    if (leftDateText === null && rightDateText !== null) return 1;
+    if (rightDateText === null && leftDateText !== null) return -1;
 
-        let rating = existing;
-        if (!rating && details) {
-          rating = document.createElement("span");
-          rating.className = "recipe-rating";
-          rating.innerHTML =
-            '<span class="recipe-rating__star" aria-hidden="true">★</span>' +
-            '<span class="recipe-rating__score"></span>' +
-            '<span class="recipe-rating__count"></span>';
-          details.prepend(rating);
-        }
-
-        if (!rating) {
-          recipe.dataset.rating = "";
-          continue;
-        }
-
-        if (warning) warning.hidden = true;
-        rating.hidden = false;
-        rating.setAttribute(
-          "aria-label",
-          `Rated ${average.toFixed(1)} out of 10 from ${matching.length} ratings`,
-        );
-        rating.querySelector(".recipe-rating__score").textContent = `${average.toFixed(1)}/10`;
-        rating.querySelector(".recipe-rating__count").textContent = `(${matching.length})`;
-        recipe.dataset.rating = String(average);
+    if (leftDateText !== rightDateText) {
+      const leftDate = new Date(leftDateText);
+      const rightDate = new Date(rightDateText);
+      if (Number.isNaN(leftDate) || Number.isNaN(rightDate)) {
+        // Fallback to string comparison if dates are invalid
+        return (direction === "desc" ? -1 : 1) * leftDateText.localeCompare(rightDateText);
       }
-    };
+      return (direction === "desc" ? -1 : 1) * (leftDate - rightDate);
+    }
 
-    const update = () => {
-      {
-        const query = search.value.trim().toLowerCase();
-        const reviewers = getSelectedReviewers();
-        applyReviewFilter(reviewers);
-        updateReviewLabel(reviewers);
+    return compareTitle(leftRecipe, rightRecipe);
+  };
 
-        const filtering =
-          query !== "" || reviewers !== null || filters.some(([, control]) => control.value !== "");
-        const visible = recipes.filter(
-          (recipe) =>
-            recipe.dataset.search.toLowerCase().includes(query) &&
-            filters.every(
-              ([key, control]) => !control.value || getValues(recipe, key).includes(control.value),
-            ),
-        );
+  const compareByNumericField = (datasetField, direction, leftRecipe, rightRecipe) => {
+    const leftValue =
+      leftRecipe.dataset[datasetField] === "" ? null : Number(leftRecipe.dataset[datasetField]);
+    const rightValue =
+      rightRecipe.dataset[datasetField] === "" ? null : Number(rightRecipe.dataset[datasetField]);
 
-        const [key, direction] = sort.value.split(":");
-        visible.sort((a, b) => {
-          {
-            if (key === "title") {
-              {
-                return direction === "desc" ? compareTitle(b, a) : compareTitle(a, b);
-              }
-            }
+    if (leftValue === null && rightValue !== null) return 1;
+    if (rightValue === null && leftValue !== null) return -1;
+    if (leftValue !== rightValue) {
+      return (direction === "desc" ? -1 : 1) * (leftValue - rightValue);
+    }
+    return compareTitle(leftRecipe, rightRecipe);
+  };
 
-            if (key === "date") {
-              const aDate = a.dataset.date || null;
-              const bDate = b.dataset.date || null;
-              if (aDate === null && bDate !== null) return 1;
-              if (bDate === null && aDate !== null) return -1;
-              if (aDate !== bDate) {
-                // For date comparison, we need to parse the dates properly
-                const dateA = new Date(aDate);
-                const dateB = new Date(bDate);
-                if (isNaN(dateA) || isNaN(dateB)) {
-                  // Fallback to string comparison if dates are invalid
-                  return (direction === "desc" ? -1 : 1) * aDate.localeCompare(bDate);
-                }
-                return (direction === "desc" ? -1 : 1) * (dateA - dateB);
-              }
-              return compareTitle(a, b);
-            } else if (key === "edited") {
-              const aDate = a.dataset.edited || null;
-              const bDate = b.dataset.edited || null;
+  const getSelectedReviewers = () => {
+    if (!reviewAll || reviewAll.checked) return null;
+    const selected = reviewBoxes.filter((box) => box.checked).map((box) => box.value);
+    return selected.length ? new Set(selected) : null;
+  };
 
-              if (aDate === null && bDate !== null) return 1;
-              if (bDate === null && aDate !== null) return -1;
+  const updateReviewLabel = (reviewers) => {
+    if (!reviewLabel) return;
+    reviewLabel.textContent = reviewers
+      ? `Filter Reviews: ${reviewers.size} selected`
+      : "Filter Reviews: All";
+  };
 
-              if (aDate !== bDate) {
-                // For date comparison, we need to parse the dates properly
-                const dateA = new Date(aDate);
-                const dateB = new Date(bDate);
-                if (isNaN(dateA) || isNaN(dateB)) {
-                  // Fallback to string comparison if dates are invalid
-                  return (direction === "desc" ? -1 : 1) * aDate.localeCompare(bDate);
-                }
-                return (direction === "desc" ? -1 : 1) * (dateA - dateB);
-              }
+  // ----- Rating Warning Icon ----- //
+  // The warning icon lives in assets/warning.svg; load it once and
+  // inline it so it can inherit the chip's colour via currentColor.
+  let ratingWarningIcon = "";
+  try {
+    const response = await fetch("/assets/warning.svg", { cache: "no-store" });
+    if (response.ok) {
+      const svg = new DOMParser().parseFromString(
+        await response.text(),
+        "image/svg+xml",
+      ).documentElement;
+      svg.setAttribute("class", "recipe-icon");
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("focusable", "false");
+      ratingWarningIcon = new XMLSerializer().serializeToString(svg);
+    }
+  } catch {
+    ratingWarningIcon = "";
+  }
 
-              return compareTitle(a, b);
-            }
-            const aValue = a.dataset[key] === "" ? null : Number(a.dataset[key]);
-            const bValue = b.dataset[key] === "" ? null : Number(b.dataset[key]);
-            if (aValue === null && bValue !== null) return 1;
-            if (bValue === null && aValue !== null) return -1;
-            if (aValue !== bValue) {
-              {
-                return (direction === "desc" ? -1 : 1) * (aValue - bValue);
-              }
-            }
-            return compareTitle(a, b);
-          }
-        });
+  const ratingWarningMessage = (reviewers) => {
+    if (!reviewers) return "Missing ratings";
+    const names = reviewBoxes
+      .filter((box) => box.checked)
+      .map((box) => box.closest("label")?.querySelector("span")?.textContent.trim())
+      .filter(Boolean);
+    return names.length === 1 ? `No rating from ${names[0]}` : "No ratings from selected reviewers";
+  };
 
-        for (const recipe of visible) {
-          {
-            list.appendChild(recipe);
-            recipe.hidden = false;
-          }
+  const ensureRatingWarning = (details) => {
+    let warning = details.querySelector(".recipe-detail--rating.recipe-detail--warning");
+    if (warning) return warning;
+
+    warning = document.createElement("span");
+    warning.className = "recipe-detail recipe-detail--rating recipe-detail--warning";
+    warning.innerHTML =
+      '<span class="recipe-detail__value"><span class="recipe-chip recipe-warning-chip">' +
+      `${ratingWarningIcon} Ratings</span></span>`;
+    details.prepend(warning);
+    return warning;
+  };
+
+  const applyReviewFilter = (reviewers) => {
+    if (!reviewFilter) return;
+    for (const recipe of recipes) {
+      const ratings = JSON.parse(recipe.dataset.ratings || "[]");
+      const matching = reviewers ? ratings.filter((rating) => reviewers.has(rating.name)) : ratings;
+      const details = recipe.querySelector(".recipe-card__details");
+      const existing = details?.querySelector(".recipe-rating");
+      const warning = details?.querySelector(".recipe-detail--rating.recipe-detail--warning");
+
+      if (matching.length === 0) {
+        if (existing) existing.hidden = true;
+        recipe.dataset.rating = "";
+
+        if (details && (warning || reviewers !== null)) {
+          const ratingWarning = warning || ensureRatingWarning(details);
+          const message = ratingWarningMessage(reviewers);
+          ratingWarning.setAttribute("title", message);
+          ratingWarning.setAttribute("aria-label", message);
+          ratingWarning.hidden = !metadataStatus?.checked;
         }
-
-        for (const recipe of recipes) {
-          {
-            if (!visible.includes(recipe)) recipe.hidden = true;
-          }
-        }
-
-        count.textContent = `${visible.length} of ${recipes.length} recipes`;
-        clearFilters.hidden = !filtering;
+        continue;
       }
-    };
 
-    [search, ...filters.map(([, control]) => control), sort].forEach((control) =>
-      control.addEventListener(control === search ? "input" : "change", update),
+      const average =
+        matching.reduce((total, rating) => total + Number(rating.rating), 0) / matching.length;
+
+      let rating = existing;
+      if (!rating && details) {
+        rating = document.createElement("span");
+        rating.className = "recipe-rating";
+        rating.innerHTML =
+          '<span class="recipe-rating__star" aria-hidden="true">★</span>' +
+          '<span class="recipe-rating__score"></span>' +
+          '<span class="recipe-rating__count"></span>';
+        details.prepend(rating);
+      }
+
+      if (!rating) {
+        recipe.dataset.rating = "";
+        continue;
+      }
+
+      if (warning) warning.hidden = true;
+      rating.hidden = false;
+      rating.setAttribute(
+        "aria-label",
+        `Rated ${average.toFixed(1)} out of 10 from ${matching.length} ratings`,
+      );
+      rating.querySelector(".recipe-rating__score").textContent = `${average.toFixed(1)}/10`;
+      rating.querySelector(".recipe-rating__count").textContent = `(${matching.length})`;
+      recipe.dataset.rating = String(average);
+    }
+  };
+
+  // ----- Filter, Sort, and Render ----- //
+  const getFilteredRecipes = (query) =>
+    recipes.filter(
+      (recipe) =>
+        recipe.dataset.search.toLowerCase().includes(query) &&
+        filterControls.every(
+          ([datasetKey, control]) =>
+            !control.value || getDatasetValues(recipe, datasetKey).includes(control.value),
+        ),
     );
 
-    if (reviewAll) {
-      reviewAll.addEventListener("change", () => {
-        if (reviewAll.checked) {
-          reviewBoxes.forEach((box) => (box.checked = false));
-        }
-        update();
-      });
+  const sortVisibleRecipes = (visible, sortValue) => {
+    const [sortKey, sortDirection] = sortValue.split(":");
+    visible.sort((leftRecipe, rightRecipe) => {
+      if (sortKey === "title") {
+        return sortDirection === "desc"
+          ? compareTitle(rightRecipe, leftRecipe)
+          : compareTitle(leftRecipe, rightRecipe);
+      }
+
+      if (sortKey === "date" || sortKey === "edited") {
+        return compareByDateField(sortKey, sortDirection, leftRecipe, rightRecipe);
+      }
+
+      return compareByNumericField(sortKey, sortDirection, leftRecipe, rightRecipe);
+    });
+  };
+
+  const renderRecipeList = (visible, isFiltering) => {
+    for (const recipe of visible) {
+      list.appendChild(recipe);
+      recipe.hidden = false;
     }
 
-    reviewBoxes.forEach((box) =>
-      box.addEventListener("change", () => {
-        if (box.checked && reviewAll) reviewAll.checked = false;
-        if (reviewAll && !reviewBoxes.some((item) => item.checked)) reviewAll.checked = true;
-        update();
-      }),
-    );
-
-    if (reviewFilter) {
-      document.addEventListener("click", (event) => {
-        if (reviewFilter.open && !reviewFilter.contains(event.target)) {
-          reviewFilter.open = false;
-        }
-      });
+    for (const recipe of recipes) {
+      if (!visible.includes(recipe)) recipe.hidden = true;
     }
 
-    clearFilters.addEventListener("click", () => {
-      {
-        search.value = "";
-        filters.forEach(([, control]) => (control.value = ""));
-        if (reviewAll) reviewAll.checked = true;
+    count.textContent = `${visible.length} of ${recipes.length} recipes`;
+    clearFilters.hidden = !isFiltering;
+  };
+
+  const update = () => {
+    const query = search.value.trim().toLowerCase();
+    const reviewers = getSelectedReviewers();
+    applyReviewFilter(reviewers);
+    updateReviewLabel(reviewers);
+
+    const isFiltering =
+      query !== "" ||
+      reviewers !== null ||
+      filterControls.some(([, control]) => control.value !== "");
+    const visible = getFilteredRecipes(query);
+    sortVisibleRecipes(visible, sort.value);
+    renderRecipeList(visible, isFiltering);
+  };
+
+  // ----- Event Wiring ----- //
+  [search, ...filterControls.map(([, control]) => control), sort].forEach((control) =>
+    control.addEventListener(control === search ? "input" : "change", update),
+  );
+
+  if (reviewAll) {
+    reviewAll.addEventListener("change", () => {
+      if (reviewAll.checked) {
         reviewBoxes.forEach((box) => (box.checked = false));
-        update();
-        search.focus();
+      }
+      update();
+    });
+  }
+
+  reviewBoxes.forEach((box) =>
+    box.addEventListener("change", () => {
+      if (box.checked && reviewAll) reviewAll.checked = false;
+      if (reviewAll && !reviewBoxes.some((item) => item.checked)) reviewAll.checked = true;
+      update();
+    }),
+  );
+
+  if (reviewFilter) {
+    document.addEventListener("click", (event) => {
+      if (reviewFilter.open && !reviewFilter.contains(event.target)) {
+        reviewFilter.open = false;
       }
     });
-    metadataStatus.addEventListener("change", () => {
-      document.querySelectorAll(".recipe-detail--warning").forEach((warning) => {
-        warning.hidden = !metadataStatus.checked;
-      });
-      applyReviewFilter(getSelectedReviewers());
-    });
-    viewButtons.forEach((button) =>
-      button.addEventListener("click", () => {
-        {
-          const view = button.dataset.view;
-          list.classList.toggle("list-view", view === "list");
-          list.classList.toggle("card-view", view === "cards");
-          viewButtons.forEach((item) => item.setAttribute("aria-pressed", item === button));
-        }
-      }),
-    );
+  }
 
-    if (selectionMode) {
-      selectionMode.addEventListener("change", () => setSelectionMode(selectionMode.checked));
-    }
-    selectBoxes.forEach((box) => {
-      box.addEventListener("click", (event) => {
-        if (!selectionMode?.checked) return;
-        event.preventDefault();
-        const recipe = box.closest(".recipe");
-        if (recipe) applyMultiSelect(recipe, event);
-      });
+  clearFilters.addEventListener("click", () => {
+    search.value = "";
+    filterControls.forEach(([, control]) => (control.value = ""));
+    if (reviewAll) reviewAll.checked = true;
+    reviewBoxes.forEach((box) => (box.checked = false));
+    update();
+    search.focus();
+  });
+
+  metadataStatus.addEventListener("change", () => {
+    document.querySelectorAll(".recipe-detail--warning").forEach((warning) => {
+      warning.hidden = !metadataStatus.checked;
     });
-    // In selection mode, clicking the card selects it instead of navigating.
-    list.addEventListener("click", (event) => {
+    applyReviewFilter(getSelectedReviewers());
+  });
+
+  viewButtons.forEach((button) =>
+    button.addEventListener("click", () => {
+      const view = button.dataset.view;
+      list.classList.toggle("list-view", view === "list");
+      list.classList.toggle("card-view", view === "cards");
+      viewButtons.forEach((item) => item.setAttribute("aria-pressed", item === button));
+    }),
+  );
+
+  if (selectionMode) {
+    selectionMode.addEventListener("change", () => setSelectionMode(selectionMode.checked));
+  }
+  selectBoxes.forEach((box) => {
+    box.addEventListener("click", (event) => {
       if (!selectionMode?.checked) return;
-      const checkbox = event.target.closest(".recipe-select__checkbox");
-      if (checkbox) return;
-      const link = event.target.closest(".recipe-card__link, .recipe-card__image, .recipe-card");
-      if (!link || !list.contains(link)) return;
       event.preventDefault();
-      const recipe = link.closest(".recipe");
+      const recipe = box.closest(".recipe");
       if (recipe) applyMultiSelect(recipe, event);
     });
-    if (clearSelections) {
-      clearSelections.addEventListener("click", () => {
-        selectBoxes.forEach((box) => (box.checked = false));
-        selectionAnchor = null;
-        updateBulkControls();
-      });
-    }
-    if (bulkEdit) {
-      bulkEdit.addEventListener("click", () => {
-        const paths = getSelectedPaths();
-        if (!paths.length) return;
-        document.dispatchEvent(new CustomEvent("bulk-edit", { detail: { paths } }));
-      });
-    }
-    if (bulkDelete) {
-      bulkDelete.addEventListener("click", async () => {
-        const paths = getSelectedPaths();
-        if (!paths.length) return;
-        if (
-          !confirm(
-            `Delete ${paths.length} selected recipe${paths.length === 1 ? "" : "s"}? This cannot be undone.`,
-          )
-        )
-          return;
-        bulkDelete.disabled = true;
-        try {
-          const response = await fetch(new URL("/api/bulk-delete", window.location.origin), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ paths }),
-          });
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok || result.success !== true) {
-            throw new Error(result.error || `Request failed (HTTP ${response.status})`);
-          }
-          window.location.reload();
-        } catch (error) {
-          alert(error.message || "Unable to delete selected recipes.");
-          updateBulkControls();
-        }
-      });
-    }
-    setSelectionMode(Boolean(selectionMode?.checked));
-
-    update();
+  });
+  // In selection mode, clicking the card selects it instead of navigating.
+  list.addEventListener("click", (event) => {
+    if (!selectionMode?.checked) return;
+    const checkbox = event.target.closest(".recipe-select__checkbox");
+    if (checkbox) return;
+    const link = event.target.closest(".recipe-card__link, .recipe-card__image, .recipe-card");
+    if (!link || !list.contains(link)) return;
+    event.preventDefault();
+    const recipe = link.closest(".recipe");
+    if (recipe) applyMultiSelect(recipe, event);
+  });
+  if (clearSelections) {
+    clearSelections.addEventListener("click", () => {
+      selectBoxes.forEach((box) => (box.checked = false));
+      selectionAnchor = null;
+      updateBulkControls();
+    });
   }
+  if (bulkEdit) {
+    bulkEdit.addEventListener("click", () => {
+      const paths = getSelectedPaths();
+      if (!paths.length) return;
+      document.dispatchEvent(new CustomEvent("bulk-edit", { detail: { paths } }));
+    });
+  }
+  if (bulkDelete) {
+    bulkDelete.addEventListener("click", async () => {
+      const paths = getSelectedPaths();
+      if (!paths.length) return;
+      if (
+        !confirm(
+          `Delete ${paths.length} selected recipe${paths.length === 1 ? "" : "s"}? This cannot be undone.`,
+        )
+      )
+        return;
+      bulkDelete.disabled = true;
+      try {
+        const response = await fetch(new URL("/api/bulk-delete", window.location.origin), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paths }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || result.success !== true) {
+          throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+        }
+        window.location.reload();
+      } catch (error) {
+        alert(error.message || "Unable to delete selected recipes.");
+        updateBulkControls();
+      }
+    });
+  }
+
+  // ----- Initialization ----- //
+  setSelectionMode(Boolean(selectionMode?.checked));
+  update();
 };
 
 document.addEventListener("DOMContentLoaded", () => {
