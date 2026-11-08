@@ -235,63 +235,66 @@ class MarkdownToHTMLConverter:
         normalized = unit.strip().lower()
         return _UNIT_ALIASES.get(normalized, unit.strip())
 
-    def _mathjaxify_inline_code_blocks(self, soup: BeautifulSoup) -> None:
-        def parse_quantity(
-            value: str,
-        ) -> tuple[float, str, float | None] | None:
-            value = value.strip()
-            if not value:
-                return None
+    @staticmethod
+    def _quantity_amount_to_float(amount: str) -> float:
+        """Convert a number, fraction, or mixed number string to a float."""
+        parts = amount.split()
+        if len(parts) == 2:
+            return float(Fraction(parts[0])) + float(Fraction(parts[1]))
+        return float(Fraction(amount))
 
-            number = r"(?:\d+/\d+|\d+(?:\.\d+)?)"
-            mixed_number = rf"(?:\d+\s+\d+/\d+|{number})"
+    @classmethod
+    def _parse_quantity_code(cls, value: str) -> tuple[float, str, float | None] | None:
+        """Parse an inline quantity such as ``1 1/2 tbsp`` or ``1-2 cups``.
 
-            # Range: "1-2 tbsp", "1/2-3/4 tsp",
-            #        "1 1/2 - 2 1/2 tbsp", "1 1/2-2 1/2 tbsp"
-            ranged = re.fullmatch(
-                rf"({mixed_number})\s*[-–—]\s*({mixed_number})\s*(.*)",
-                value,
-            )
-            if ranged:
-                start, end, unit = ranged.groups()
-
-                def to_float(amount: str) -> float:
-                    parts = amount.split()
-                    if len(parts) == 2:
-                        return float(Fraction(parts[0])) + float(Fraction(parts[1]))
-                    return float(Fraction(amount))
-
-                return to_float(start), unit.strip(), to_float(end)
-
-            # Mixed number: "1 1/2 tbsp"
-            mixed = re.fullmatch(
-                rf"(\d+)\s+(\d+/\d+)\s*(.*)",
-                value,
-            )
-            if mixed:
-                whole, fraction, unit = mixed.groups()
-                return (
-                    float(Fraction(whole)) + float(Fraction(fraction)),
-                    unit.strip(),
-                    None,
-                )
-
-            # Single number/fraction with optional attached or spaced unit
-            single = re.fullmatch(rf"({number})\s*(.*)", value)
-            if single:
-                amount, unit = single.groups()
-                return float(Fraction(amount)), unit.strip(), None
-
+        Returns ``(start, unit, end)`` where ``end`` is set for ranges.
+        """
+        value = value.strip()
+        if not value:
             return None
 
-        for code in soup.find_all("code"):
-            parsed = parse_quantity(code.get_text(strip=True))
+        number = r"(?:\d+/\d+|\d+(?:\.\d+)?)"
+        mixed_number = rf"(?:\d+\s+\d+/\d+|{number})"
 
+        # Range: "1-2 tbsp", "1/2-3/4 tsp", "1 1/2 - 2 1/2 tbsp"
+        ranged = re.fullmatch(
+            rf"({mixed_number})\s*[-–—]\s*({mixed_number})\s*(.*)",
+            value,
+        )
+        if ranged:
+            start, end, unit = ranged.groups()
+            return (
+                cls._quantity_amount_to_float(start),
+                unit.strip(),
+                cls._quantity_amount_to_float(end),
+            )
+
+        # Mixed number: "1 1/2 tbsp"
+        mixed = re.fullmatch(rf"(\d+)\s+(\d+/\d+)\s*(.*)", value)
+        if mixed:
+            whole, fraction, unit = mixed.groups()
+            return (
+                float(Fraction(whole)) + float(Fraction(fraction)),
+                unit.strip(),
+                None,
+            )
+
+        # Single number/fraction with optional attached or spaced unit
+        single = re.fullmatch(rf"({number})\s*(.*)", value)
+        if single:
+            amount, unit = single.groups()
+            return float(Fraction(amount)), unit.strip(), None
+
+        return None
+
+    def _convert_quantity_code_spans(self, soup: BeautifulSoup) -> None:
+        """Replace inline ``<code>`` quantities with scaler ``<span>`` elements."""
+        for code in soup.find_all("code"):
+            parsed = self._parse_quantity_code(code.get_text(strip=True))
             if parsed is None:
                 continue
 
             quantity, unit, quantity_end = parsed
-
             unit = self._get_sanitized_unit(unit)
 
             span = soup.new_tag("span")
@@ -380,76 +383,85 @@ class MarkdownToHTMLConverter:
         parent.append(svg)
 
     def _build_recipe_overview(self, metadata: dict, soup: BeautifulSoup) -> Tag | None:
+        """Build the overview rows shown above the hero image."""
         overview = soup.new_tag("div", attrs={"class": "recipe-overview"})
 
-        # First row: ratings, meals, difficulty
-        primary = soup.new_tag("div", attrs={"class": "recipe-overview__primary"})
-
-        rating_scores = [score for _, score in iter_valid_rating_entries(metadata.get("ratings"))]
-
-        if rating_scores:
-            average = sum(rating_scores) / len(rating_scores)
-
-            rating = soup.new_tag(
-                "span",
-                attrs={"class": "recipe-overview__rating"},
-            )
-            rating.string = f"★ {average:.1f}/10"
-            primary.append(rating)
-
-        makes = metadata.get("makes")
-
-        if isinstance(makes, list):
-            makes = makes[0] if makes else None
-
-        if makes is not None and makes != "":
-            item = soup.new_tag(
-                "span",
-                attrs={"class": "recipe-overview__difficulty"},
-            )
-            self._append_svg_icon(
-                item,
-                CHEF_HAT_SVG,
-            )
-            item.append(f"x{makes}")
-
-            primary.append(item)
-
-        difficulty = metadata.get("difficulty")
-
-        if isinstance(difficulty, list):
-            difficulty = difficulty[0] if difficulty else None
-
-        if difficulty is not None and difficulty != "":
-            item = soup.new_tag(
-                "span",
-                attrs={"class": "recipe-overview__difficulty"},
-            )
-            self._append_svg_icon(
-                item,
-                GAUGE_SVG,
-            )
-            item.append(f"{difficulty}/10")
-
-            primary.append(item)
-
-        meals = _as_list(metadata.get("meals"))
-        if meals:
-            meal = soup.new_tag("span", attrs={"class": "recipe-overview__meals"})
-            self._append_svg_icon(
-                meal,
-                UTENSILS_SVG,
-            )
-            meal.append(", ".join(str(value) for value in meals))
-            primary.append(meal)
-
+        primary = self._build_overview_primary_row(metadata, soup)
         if primary.contents:
             overview.append(primary)
 
-        # Second row: cuisine, categories, and tags
+        secondary = self._build_overview_secondary_row(metadata, soup)
+        if secondary.contents:
+            overview.append(secondary)
+
+        return overview if overview.contents else None
+
+    def _build_overview_primary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:
+        """Build the row for rating, yield, difficulty, and meal type."""
+        primary = soup.new_tag("div", attrs={"class": "recipe-overview__primary"})
+
+        self._append_overview_rating(primary, metadata, soup)
+        self._append_overview_icon_value(
+            primary,
+            soup,
+            icon_path=CHEF_HAT_SVG,
+            class_name="recipe-overview__difficulty",
+            value=self._first_scalar(metadata.get("makes")),
+            formatter=lambda value: f"x{value}",
+        )
+        self._append_overview_icon_value(
+            primary,
+            soup,
+            icon_path=GAUGE_SVG,
+            class_name="recipe-overview__difficulty",
+            value=self._first_scalar(metadata.get("difficulty")),
+            formatter=lambda value: f"{value}/10",
+        )
+        self._append_overview_icon_value(
+            primary,
+            soup,
+            icon_path=UTENSILS_SVG,
+            class_name="recipe-overview__meals",
+            value=_as_list(metadata.get("meals")),
+            formatter=lambda values: ", ".join(str(value) for value in values),
+        )
+
+        return primary
+
+    def _append_overview_rating(self, container: Tag, metadata: dict, soup: BeautifulSoup) -> None:
+        rating_scores = [score for _, score in iter_valid_rating_entries(metadata.get("ratings"))]
+        if not rating_scores:
+            return
+
+        average = sum(rating_scores) / len(rating_scores)
+        rating = soup.new_tag("span", attrs={"class": "recipe-overview__rating"})
+        rating.string = f"★ {average:.1f}/10"
+        container.append(rating)
+
+    def _append_overview_icon_value(
+        self,
+        container: Tag,
+        soup: BeautifulSoup,
+        *,
+        icon_path: Path,
+        class_name: str,
+        value: object,
+        formatter,
+    ) -> None:
+        """Append an icon+text overview item when *value* is present."""
+        if value is None or value == "" or value == []:
+            return
+
+        item = soup.new_tag("span", attrs={"class": class_name})
+        self._append_svg_icon(item, icon_path)
+        item.append(formatter(value))
+        container.append(item)
+
+    def _build_overview_secondary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:
+        """Build the row for cuisine, categories, and tags."""
         secondary = soup.new_tag("div", attrs={"class": "recipe-overview__secondary"})
 
-        icons = {
+        detail_icons = {
             "cuisine": PIN_SVG,
             "categories": POT_SVG,
             "tags": TAG_SVG,
@@ -462,27 +474,26 @@ class MarkdownToHTMLConverter:
             if not values:
                 continue
 
-            group = soup.new_tag(
-                "span",
-                attrs={"class": f"recipe-overview__{key}"},
-            )
-
-            self._append_svg_icon(group, icons[key])
+            group = soup.new_tag("span", attrs={"class": f"recipe-overview__{key}"})
+            self._append_svg_icon(group, detail_icons[key])
 
             for index, value in enumerate(values):
                 if index:
                     group.append(", ")
-
                 label = soup.new_tag("span")
                 label.string = str(value)
                 group.append(label)
 
             secondary.append(group)
 
-        if secondary.contents:
-            overview.append(secondary)
+        return secondary
 
-        return overview if overview.contents else None
+    @staticmethod
+    def _first_scalar(value: object) -> object:
+        """Return a scalar metadata value, unwrapping a single-item list."""
+        if isinstance(value, list):
+            return value[0] if value else None
+        return value
 
     def _inject_recipe_overview(self, soup: BeautifulSoup) -> None:
         title = soup.find("h1")
@@ -540,9 +551,9 @@ class MarkdownToHTMLConverter:
                     "data-local-time": "true",
                 }
 
-            time = soup.new_tag("time", attrs=time_attrs)
-            time.string = _display_date(created_on)
-            label.append(time)
+            time_element = soup.new_tag("time", attrs=time_attrs)
+            time_element.string = _display_date(created_on)
+            label.append(time_element)
 
         item.append(label)
 
@@ -642,12 +653,12 @@ class MarkdownToHTMLConverter:
             main.append(sources)
 
     def _build_recipe_version(self, metadata: dict, soup: BeautifulSoup) -> Tag:
-        version = soup.new_tag(
+        version_element = soup.new_tag(
             "div",
             attrs={"class": "recipe-version"},
         )
 
-        self._append_svg_icon(version, TAG_SVG)
+        self._append_svg_icon(version_element, TAG_SVG)
 
         label = soup.new_tag("span")
 
@@ -672,25 +683,25 @@ class MarkdownToHTMLConverter:
                     "data-time-prefix": "Edited ",
                 }
 
-            time = soup.new_tag("time", attrs=time_attrs)
-            time.string = f"Edited {_display_date(updated_on)}"
-            label.append(time)
+            time_element = soup.new_tag("time", attrs=time_attrs)
+            time_element.string = f"Edited {_display_date(updated_on)}"
+            label.append(time_element)
 
-        version.append(label)
+        version_element.append(label)
 
-        return version
+        return version_element
 
     def _inject_recipe_version(self, soup: BeautifulSoup) -> None:
         main = soup.find("main", class_="recipe")
         if main is None:
             return
 
-        version = self._build_recipe_version(self.metadata, soup)
-        main.append(version)
+        version_element = self._build_recipe_version(self.metadata, soup)
+        main.append(version_element)
 
     def _postprocess(self, content: str) -> str:
         soup = BeautifulSoup(content, "html.parser")
-        self._mathjaxify_inline_code_blocks(soup)
+        self._convert_quantity_code_spans(soup)
         self._group_recipe_meta_terms(soup)
         self._enable_checkbox_inputs(soup)
         self._inject_recipe_overview(soup)
@@ -698,6 +709,9 @@ class MarkdownToHTMLConverter:
         self._inject_recipe_sources(soup)
         self._inject_recipe_version(soup)
 
+        # The HTML <title> uses the raw heading/front matter value (escaped) for
+        # fidelity. Keep the converter's title as the rendered heading text so
+        # callers get the same plain text the page displays.
         heading = soup.find("h1")
         if heading is not None:
             rendered_title = heading.get_text(" ", strip=True)
@@ -782,48 +796,33 @@ class MarkdownToHTMLConverter:
     def convert(self, markdown_file: Path, html_file: Path):
         logger.file(f"Converting {markdown_file.relative_to(self.cfg.source_directory)}")
 
-        markdown_content = markdown_file.read_text(encoding="UTF-8", newline="\n").splitlines()
-        self._preprocess(markdown_content)
+        # ----- Load and parse source ----- #
+        markdown_lines = markdown_file.read_text(encoding="UTF-8", newline="\n").splitlines()
+        self._preprocess(markdown_lines)
 
-        content = "\n".join(markdown_content)
-        post = frontmatter.loads(content)
+        post = frontmatter.loads("\n".join(markdown_lines))
         self.metadata = post.metadata
 
-        title = (
+        # Resolve the page title from the Markdown heading, front matter, or
+        # directory name. The raw source title is used for the HTML <title>
+        # element; _postprocess updates self.title to the rendered heading text.
+        source_title = (
             self._get_title_from_markdown_content(post.content.splitlines())
             or str(post.metadata.get("title") or "").strip()
             or self._deslugify(markdown_file.parent.name)
         )
-        self.title = title
+        self.title = source_title
 
-        # Set heading color
-        image = get_first_image_in_dir(markdown_file.parent)
-        if image:
-            logger.file(f"Found image: {image}")
-            try:
-                self.heading_color = ImageToColorConverter().get_hex_color_from_image(image)
-            except (OSError, ValueError) as exc:
-                logger.warning(f'Could not derive an accent color from "{image}": {exc}')
-
+        # ----- Resolve appearance and metadata ----- #
+        self.heading_color = self._resolve_heading_color(markdown_file.parent)
         self._lint_metadata(markdown_file)
-        self.metadata_json = json.dumps(self.metadata, default=_json_default).replace(
-            "<", "\\u003c"
-        )  # sanitize input so it is not executable
+        self.metadata_json = self._serialize_metadata_json(self.metadata)
 
-        has_ratings = any(
-            is_finite_rating_score(rating.get("rating"))
-            for rating in _as_list(self.metadata.get("ratings"))
-            if isinstance(rating, dict)
-        )
-        comments = _as_list(self.metadata.get("comments"))
-        has_comments = any(isinstance(comment, dict) for comment in comments)
+        has_ratings = self._has_valid_ratings(self.metadata)
+        has_comments = self._has_comments(self.metadata)
 
-        comments_html = self._get_comments_html(has_comments)
-        ratings_html = self._get_ratings_html(has_ratings)
-
-        markdown_body = post.content
-
-        md = markdown.Markdown(
+        # ----- Render Markdown body ----- #
+        markdown_renderer = markdown.Markdown(
             extensions=[
                 "pymdownx.extra",
                 "pymdownx.blocks.html",
@@ -831,16 +830,68 @@ class MarkdownToHTMLConverter:
                 "pymdownx.arithmatex",
             ]
         )
+        body = markdown_renderer.convert(post.content)
 
-        body = md.convert(markdown_body)
+        # ----- Build, postprocess, and write HTML ----- #
+        html = self._build_recipe_html(
+            source_title=source_title,
+            body=body,
+            ratings_html=self._get_ratings_html(has_ratings),
+            comments_html=self._get_comments_html(has_comments),
+        )
+        html = self._postprocess(html)
 
-        # Build HTML
-        html = dedent(f"""<!DOCTYPE html>
+        html_file.write_text(html, encoding="UTF-8", newline="\n")
+        logger.debug(f'Created "{html_file}"')  # TODO get_pretty_path_str
+
+        self.lint_html(html, html_file)
+
+    def _resolve_heading_color(self, recipe_directory: Path) -> str:
+        """Return an accent color derived from the recipe's hero image."""
+        image = get_first_image_in_dir(recipe_directory)
+        if not image:
+            return Pallette.DEFAULT_TITLE
+
+        logger.file(f"Found image: {image}")
+        try:
+            return ImageToColorConverter().get_hex_color_from_image(image)
+        except (OSError, ValueError) as exc:
+            logger.warning(f'Could not derive an accent color from "{image}": {exc}')
+            return Pallette.DEFAULT_TITLE
+
+    @staticmethod
+    def _serialize_metadata_json(metadata: dict[str, object]) -> str:
+        """Serialize metadata for embedding in a script tag."""
+        # Sanitize "<" so embedded JSON cannot break out of the script element.
+        return json.dumps(metadata, default=_json_default).replace("<", "\\u003c")
+
+    @staticmethod
+    def _has_valid_ratings(metadata: dict[str, object]) -> bool:
+        return any(
+            is_finite_rating_score(rating.get("rating"))
+            for rating in _as_list(metadata.get("ratings"))
+            if isinstance(rating, dict)
+        )
+
+    @staticmethod
+    def _has_comments(metadata: dict[str, object]) -> bool:
+        return any(isinstance(comment, dict) for comment in _as_list(metadata.get("comments")))
+
+    def _build_recipe_html(
+        self,
+        *,
+        source_title: str,
+        body: str,
+        ratings_html: str,
+        comments_html: str,
+    ) -> str:
+        """Render the full recipe page HTML shell."""
+        return dedent(f"""<!DOCTYPE html>
         <html lang="en">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>{escape(title)}</title>
+            <title>{escape(source_title)}</title>
             <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
             <link rel="stylesheet" href="{DEFINITIONS_CSS_PATH}">
             <link rel="stylesheet" href="{CSS_PATH}">
@@ -873,15 +924,6 @@ class MarkdownToHTMLConverter:
         </body>
         </html>
         """)
-
-        # Postprocess
-        html = self._postprocess(html)
-
-        # Write to file
-        html_file.write_text(html, encoding="UTF-8", newline="\n")
-        logger.debug(f'Created "{html_file}"')  # TODO get_pretty_path_str
-
-        self.lint_html(html, html_file)
 
     def _lint_metadata(self, markdown_file: Path):
         has_meal_or_cuisine = "meals" in self.metadata or "cuisine" in self.metadata
