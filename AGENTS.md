@@ -48,7 +48,7 @@ The repo does not include a test config file. On startup the app reads the recip
 
 These choices are deliberate and are not bugs to "fix":
 
-- This is a local desktop app, not a headless service. Startup may open a Tk directory picker, and the process runs a `pystray` tray icon. The server listens on fixed port 8000, binds `0.0.0.0`, and has no authentication; the tray opens `http://localhost:8000`.
+- This is a local desktop app, not a headless service. Startup may open a Tk directory picker, and the process runs a `pystray` tray icon. The server listens on the configured port (`server_port`, default 8000), binds `0.0.0.0`, and has no authentication; the tray opens `http://localhost:<port>`. A port change takes effect on the next start.
 - Generated HTML is disposable output. The Markdown files in the source tree are the source of truth, and the site directory is deleted and rebuilt on every startup. Never store source content or manual edits in the site directory.
 - The local AI integration is optional and never writes recipe files. Its output only prefills the create dialog; the normal create endpoint is still the only path that saves a new recipe.
 - Browser edits are written back to the source Markdown, not to generated HTML. The editor is the only path that updates `updatedOn`.
