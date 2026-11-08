@@ -17,7 +17,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Scales quantities inside inline code, such as `1 1/2 cups` or `1-2 tbsp`.
 - Uses the first image in each recipe folder as the hero image and derives a page accent color from it.
 - Shows metadata warnings for recipes missing recommended fields.
-- Typesets math with a bundled copy of MathJax.
+- Typesets math with a bundled copy of KaTeX.
 - Regenerates the affected recipe page and the index whenever a recipe is saved.
 - Provides a tray icon to open the recipes page, view server status, start or stop the server, and quit.
 
@@ -261,7 +261,7 @@ src/recipeserver/
 ├── server.py               # HTTP server and JSON APIs
 ├── tray.py                 # system tray icon and menu
 ├── NewRecipePrompt.md      # model prompt requirements, reloaded at startup
-└── assets/                 # CSS, JavaScript, icons, and vendored MathJax
+└── assets/                 # CSS, JavaScript, icons, and vendored KaTeX
 test/                       # pytest suite
 serve.sh / serve.bat        # launch helpers
 ```
@@ -279,8 +279,8 @@ serve.sh / serve.bat        # launch helpers
 - The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, not when the app is built.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
 - The server uses the port set in Configuration (default `8000`), binds to `0.0.0.0`, and has no authentication. Run it only on a trusted local network.
-- There is no JavaScript build step. Frontend assets are served directly, and MathJax is vendored in `src/recipeserver/assets/mathjax`.
+- There is no JavaScript build step. Frontend assets are served directly, and KaTeX is vendored in `src/recipeserver/assets/katex`.
 
-## MathJax
+## KaTeX
 
-Updated last on 10/23/2026 to latest version v4.1.3 using `pnpm install mathjax@4`.
+Updated last on 11/08/2026 to KaTeX 0.19.1 using `pnpm install katex` (see `src/recipeserver/assets/katex/README.md`).
