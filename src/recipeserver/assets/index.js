@@ -23,6 +23,7 @@ const initRecipeIndex = async () => {
   const reviewBoxes = [...document.querySelectorAll(".filter-reviews")];
   const reviewLabel = document.querySelector("#review-filter-label");
   const selectionMode = document.querySelector("#bulk-selection-mode");
+  const showArchived = document.querySelector("#show-archived");
   const bulkControls = document.querySelector("#bulk-controls");
   const bulkEdit = document.querySelector("#bulk-edit");
   const bulkDelete = document.querySelector("#bulk-delete");
@@ -257,9 +258,13 @@ const initRecipeIndex = async () => {
   };
 
   // ----- Filter, Sort, and Render ----- //
+  const isArchivedVisible = (recipe) =>
+    !showArchived || showArchived.checked || recipe.dataset.archived !== "true";
+
   const getFilteredRecipes = (query) =>
     recipes.filter(
       (recipe) =>
+        isArchivedVisible(recipe) &&
         recipe.dataset.search.toLowerCase().includes(query) &&
         filterControls.every(
           ([datasetKey, control]) =>
@@ -294,7 +299,8 @@ const initRecipeIndex = async () => {
       if (!visible.includes(recipe)) recipe.hidden = true;
     }
 
-    count.textContent = `${visible.length} of ${recipes.length} recipes`;
+    const total = recipes.filter(isArchivedVisible).length;
+    count.textContent = `${visible.length} of ${total} recipes`;
     clearFilters.hidden = !isFiltering;
   };
 
@@ -307,6 +313,7 @@ const initRecipeIndex = async () => {
     const isFiltering =
       query !== "" ||
       reviewers !== null ||
+      Boolean(showArchived?.checked) ||
       filterControls.some(([, control]) => control.value !== "");
     const visible = getFilteredRecipes(query);
     sortVisibleRecipes(visible, sort.value);
@@ -343,9 +350,14 @@ const initRecipeIndex = async () => {
     });
   }
 
+  if (showArchived) {
+    showArchived.addEventListener("change", update);
+  }
+
   clearFilters.addEventListener("click", () => {
     search.value = "";
     filterControls.forEach(([, control]) => (control.value = ""));
+    if (showArchived) showArchived.checked = false;
     if (reviewAll) reviewAll.checked = true;
     reviewBoxes.forEach((box) => (box.checked = false));
     update();

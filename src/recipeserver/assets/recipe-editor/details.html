@@ -139,5 +139,22 @@
         </span>
       </label>
     </div>
+
+    <label class="recipe-editor__checkbox">
+      <span class="recipe-editor__field-control">
+        <input name="archived" type="checkbox" />
+        <span>Archived</span>
+        <span class="recipe-editor__mixed" hidden>* MIXED</span>
+        <button
+          type="button"
+          class="recipe-editor__bulk-field-save"
+          data-field="archived"
+          aria-label="Save archived to all selected recipes"
+          hidden
+        >
+          Save
+        </button>
+      </span>
+    </label>
   </fieldset>
 </details>
