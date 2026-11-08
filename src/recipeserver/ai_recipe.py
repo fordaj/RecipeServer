@@ -7,6 +7,7 @@ import json
 import mimetypes
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -66,65 +67,98 @@ class SourceFetchError(RuntimeError):
     """Recipe source content could not be fetched."""
 
 
-def _all_purpose_model_name(config: object | None) -> str:
-    name = str(getattr(config, "all_purpose_model_name", "") or "").strip()
-    if name:
-        return name
+@dataclass(frozen=True)
+class AIConfigView:
+    """Typed snapshot of AI-related configuration values."""
+
+    endpoint: str
+    all_purpose_model_name: str
+    image_analysis_model: str
+    new_recipe_prompt: str
+    new_recipe_from_image_prompt: str
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.endpoint and self.new_recipe_prompt)
+
+    @property
+    def is_image_configured(self) -> bool:
+        return bool(self.endpoint and self.new_recipe_from_image_prompt)
+
+
+def _read_config_text(config: object | None, name: str) -> str:
+    return str(getattr(config, name, "") or "").strip()
+
+
+def _resolve_all_purpose_model_name(config: object | None) -> str:
+    configured_name = _read_config_text(config, "all_purpose_model_name")
+    if configured_name:
+        return configured_name
     # Fall back to the legacy attribute name for older configurations.
-    return str(getattr(config, "model_name", "") or "").strip()
+    return _read_config_text(config, "model_name")
+
+
+def resolve_ai_config(config: object | None) -> AIConfigView:
+    return AIConfigView(
+        endpoint=_read_config_text(config, "model_endpoint"),
+        all_purpose_model_name=_resolve_all_purpose_model_name(config),
+        image_analysis_model=_read_config_text(config, "image_analysis_model"),
+        new_recipe_prompt=_read_config_text(config, "new_recipe_prompt"),
+        new_recipe_from_image_prompt=_read_config_text(config, "new_recipe_from_image_prompt"),
+    )
+
+
+# Compatibility aliases: retained because these helpers were previously module-level.
+def _all_purpose_model_name(config: object | None) -> str:
+    return _resolve_all_purpose_model_name(config)
 
 
 def _image_analysis_model_name(config: object | None) -> str:
-    return str(getattr(config, "image_analysis_model", "") or "").strip()
+    return _read_config_text(config, "image_analysis_model")
 
 
 def is_configured(config: object | None) -> bool:
-    if config is None:
-        return False
-
-    endpoint = str(getattr(config, "model_endpoint", "") or "").strip()
-    prompt = str(getattr(config, "new_recipe_prompt", "") or "").strip()
-    return bool(endpoint and prompt)
+    return resolve_ai_config(config).is_configured
 
 
 def is_image_configured(config: object | None) -> bool:
-    if config is None:
-        return False
-
-    endpoint = str(getattr(config, "model_endpoint", "") or "").strip()
-    prompt = str(getattr(config, "new_recipe_from_image_prompt", "") or "").strip()
-    return bool(endpoint and prompt)
+    return resolve_ai_config(config).is_image_configured
 
 
 def ai_status(config: object | None) -> dict[str, Any]:
-    endpoint = str(getattr(config, "model_endpoint", "") or "").strip()
-    model_name = _all_purpose_model_name(config)
-    image_model_name = _image_analysis_model_name(config)
-    configured = is_configured(config)
-    image_configured = is_image_configured(config)
+    resolved = resolve_ai_config(config)
     status: dict[str, Any] = {
-        "configured": configured,
+        "configured": resolved.is_configured,
         "available": False,
-        "model": model_name,
-        "all_purpose_model": model_name,
-        "image_model": image_model_name,
-        "image_configured": image_configured,
+        "model": resolved.all_purpose_model_name,
+        "all_purpose_model": resolved.all_purpose_model_name,
+        "image_model": resolved.image_analysis_model,
+        "image_configured": resolved.is_image_configured,
         "image_available": False,
     }
     logger.debug(
-        f"Checking local model status: configured={configured}, "
-        f"image_configured={image_configured}, endpoint={endpoint or '(none)'}, "
-        f"model={model_name or '(auto)'}, image_model={image_model_name or '(auto)'}"
+        "Checking local model status: configured=%s, image_configured=%s, endpoint=%s, "
+        "model=%s, image_model=%s",
+        resolved.is_configured,
+        resolved.is_image_configured,
+        resolved.endpoint or "(none)",
+        resolved.all_purpose_model_name or "(auto)",
+        resolved.image_analysis_model or "(auto)",
     )
 
-    if not configured and not image_configured:
+    if not resolved.is_configured and not resolved.is_image_configured:
         logger.info("AI recipe creation is not configured")
         return status
 
-    available = is_available(endpoint)
-    logger.info(f"Local model status: configured={configured}, available={available}, " f"endpoint={endpoint}")
+    available = is_available(resolved.endpoint)
+    logger.info(
+        "Local model status: configured=%s, available=%s, endpoint=%s",
+        resolved.is_configured,
+        available,
+        resolved.endpoint,
+    )
     status["available"] = available
-    status["image_available"] = bool(available and image_configured)
+    status["image_available"] = bool(available and resolved.is_image_configured)
     return status
 
 
@@ -347,17 +381,50 @@ def _content_text(content: object) -> str:
     """Flatten a chat message content value (string or list of parts)."""
     if isinstance(content, str):
         return content
-    if isinstance(content, list):
-        parts = []
-        for part in content:
-            if isinstance(part, str):
-                parts.append(part)
-            elif isinstance(part, dict):
-                text = part.get("text") or part.get("content")
-                if isinstance(text, str):
-                    parts.append(text)
-        return "".join(parts)
-    return ""
+    if not isinstance(content, list):
+        return ""
+
+    parts: list[str] = []
+    for part in content:
+        if isinstance(part, str):
+            parts.append(part)
+            continue
+        if not isinstance(part, dict):
+            continue
+        text = part.get("text") or part.get("content")
+        if isinstance(text, str):
+            parts.append(text)
+    return "".join(parts)
+
+
+def _extract_reasoning_text(message: dict[str, Any]) -> str:
+    return _content_text(message.get("reasoning_content") or message.get("reasoning"))
+
+
+def _extract_choice_content(choice: object) -> tuple[str, str, Any]:
+    if not isinstance(choice, dict):
+        return "", "", None
+
+    message = choice.get("message")
+    content = ""
+    reasoning = ""
+    if isinstance(message, dict):
+        content = _content_text(message.get("content"))
+        reasoning = _extract_reasoning_text(message)
+
+    if not content:
+        content = _content_text(choice.get("text"))
+    if not reasoning:
+        reasoning = _content_text(choice.get("reasoning_content") or choice.get("reasoning"))
+
+    return content, reasoning, choice.get("finish_reason")
+
+
+def _extract_payload_fallback_content(payload: dict[str, Any]) -> tuple[str, str]:
+    message = payload.get("message")
+    if not isinstance(message, dict):
+        return "", ""
+    return _content_text(message.get("content")), _extract_reasoning_text(message)
 
 
 def _extract_chat_content(payload: object) -> tuple[str, dict[str, Any]]:
@@ -381,24 +448,12 @@ def _extract_chat_content(payload: object) -> tuple[str, dict[str, Any]]:
         diagnostics["usage"] = payload.get("usage")
         choices = payload.get("choices")
         if isinstance(choices, list) and choices:
-            choice = choices[0]
-            if isinstance(choice, dict):
-                diagnostics["finish_reason"] = choice.get("finish_reason")
-                message = choice.get("message")
-                if isinstance(message, dict):
-                    content = _content_text(message.get("content"))
-                    reasoning = _content_text(message.get("reasoning_content") or message.get("reasoning"))
-                if not content:
-                    content = _content_text(choice.get("text"))
-                if not reasoning:
-                    reasoning = _content_text(choice.get("reasoning_content") or choice.get("reasoning"))
+            content, reasoning, diagnostics["finish_reason"] = _extract_choice_content(choices[0])
 
         if not content:
-            message = payload.get("message")
-            if isinstance(message, dict):
-                content = _content_text(message.get("content"))
-                if not reasoning:
-                    reasoning = _content_text(message.get("reasoning_content") or message.get("reasoning"))
+            fallback_content, fallback_reasoning = _extract_payload_fallback_content(payload)
+            content = fallback_content or content
+            reasoning = reasoning or fallback_reasoning
 
     diagnostics["content_chars"] = len(content)
     diagnostics["reasoning_chars"] = len(reasoning)
@@ -578,109 +633,89 @@ def parse_model_output(output: str) -> tuple[str, dict[str, Any]]:
     return content, metadata
 
 
-def generate_recipe(
-    config: object,
-    input_type: str,
-    input_value: str,
-    progress_callback: Callable[[str], None] | None = None,
-    image_bytes: bytes | None = None,
-    image_filename: str = "",
-) -> dict[str, Any]:
-    if not is_configured(config):
-        raise ModelUnavailable("The local model is not configured")
-    if input_type == "image" and not is_image_configured(config):
-        raise ModelUnavailable("The image analysis model is not configured")
+def _truncate_prompt_text(prompt_text: str) -> str:
+    if len(prompt_text) <= MAX_PROMPT_INPUT_CHARS:
+        return prompt_text
+    return prompt_text[:MAX_PROMPT_INPUT_CHARS] + "\n\n[The source was truncated because it was very long.]"
 
-    def report_progress(message: str) -> None:
-        if progress_callback is not None:
-            progress_callback(message)
 
-    endpoint = str(getattr(config, "model_endpoint", "") or "").strip()
-    prompt = str(getattr(config, "new_recipe_prompt", "") or "").strip()
-    image_prompt = str(getattr(config, "new_recipe_from_image_prompt", "") or "").strip()
-    configured_name = _all_purpose_model_name(config)
-
-    report_progress("Checking the configured AI model...")
+def _require_model_name(endpoint: str, configured_name: str, missing_message: str) -> str:
     model_name = resolve_model_name(endpoint, configured_name)
     if not model_name:
-        raise ModelUnavailable("Could not determine a model name. " "Configure all_purpose_model_name in recipe-server-cfg.toml.")
+        raise ModelUnavailable(missing_message)
+    return model_name
 
-    image_model_name = ""
-    if input_type == "image":
-        configured_image_name = _image_analysis_model_name(config)
-        image_model_name = resolve_model_name(endpoint, configured_image_name)
-        if not image_model_name:
-            raise ModelUnavailable(
-                "Could not determine an image analysis model name. " "Configure image_analysis_model in recipe-server-cfg.toml."
-            )
 
+def _report_progress(progress_callback: Callable[[str], None] | None, message: str) -> None:
+    if progress_callback is not None:
+        progress_callback(message)
+
+
+def _prepare_image_draft_input(
+    resolved: AIConfigView,
+    all_purpose_model_name: str,
+    image_model_name: str,
+    image_bytes: bytes | None,
+    image_filename: str,
+    progress_callback: Callable[[str], None] | None,
+) -> tuple[str, str]:
+    # Stage 1 (vision): transcribe the image. Stage 2 (all-purpose): draft recipe.
+    _report_progress(progress_callback, f"Sending the image to {image_model_name} for transcription...")
+    data_uri = image_data_uri(image_filename, image_bytes or b"")
+    image_user_content: list[dict[str, Any]] = [
+        {"type": "text", "text": "Recipe image:"},
+        {"type": "image_url", "image_url": {"url": data_uri}},
+    ]
+    logger.info(
+        "Transcribing recipe image with local model '%s' (%d bytes, %s)",
+        image_model_name,
+        len(image_bytes or b""),
+        image_filename,
+    )
+    transcription = _chat(
+        resolved.endpoint,
+        image_model_name,
+        resolved.new_recipe_from_image_prompt,
+        image_user_content,
+        stage="image transcription",
+    )
+    logger.info(
+        "Image transcription from '%s' (%d characters): %r",
+        image_model_name,
+        len(transcription),
+        transcription[:2000],
+    )
+    _report_progress(
+        progress_callback,
+        f"Image transcribed. Sending the extracted text to {all_purpose_model_name}...",
+    )
+    return _truncate_prompt_text(f"Recipe text (transcribed from image):\n{transcription}"), ""
+
+
+def _prepare_text_or_url_draft_input(
+    input_type: str,
+    input_value: str,
+    all_purpose_model_name: str,
+    progress_callback: Callable[[str], None] | None,
+) -> tuple[str, str]:
+    user_message, title = _build_user_message(input_type, input_value)
     if input_type == "url":
-        report_progress(f"Fetching recipe page: {input_value}")
-    elif input_type == "image":
-        report_progress("Preparing the recipe image...")
+        _report_progress(
+            progress_callback,
+            f"Page fetched. Sending the source URL and extracted text to {all_purpose_model_name}...",
+        )
     else:
-        report_progress("Preparing the recipe text...")
+        _report_progress(progress_callback, f"Sending the recipe text to {all_purpose_model_name}...")
+    return user_message, title
 
-    title = ""
-    if input_type == "image":
-        # First stage: the image analysis model transcribes the image,
-        # using NewRecipeFromImagePrompt.md alongside the image data.
-        report_progress(f"Sending the image to {image_model_name} for transcription...")
-        data_uri = image_data_uri(image_filename, image_bytes or b"")
-        image_user_content: list[dict[str, Any]] = [
-            {"type": "text", "text": "Recipe image:"},
-            {"type": "image_url", "image_url": {"url": data_uri}},
-        ]
-        logger.info(
-            f"Transcribing recipe image with local model '{image_model_name}' "
-            f"({len(image_bytes or b'')} bytes, {image_filename})"
-        )
-        transcription = _chat(
-            endpoint,
-            image_model_name,
-            image_prompt,
-            image_user_content,
-            stage="image transcription",
-        )
-        logger.info(
-            f"Image transcription from '{image_model_name}' "
-            f"({len(transcription)} characters): {transcription[:2000]!r}"
-        )
-        report_progress("Image transcribed. Sending the extracted text to " f"{model_name}...")
-        # Second stage: the all-purpose model drafts the recipe from the
-        # transcription, using NewRecipePrompt.md.
-        user_message = f"Recipe text (transcribed from image):\n{transcription}"
-        if len(user_message) > MAX_PROMPT_INPUT_CHARS:
-            user_message = (
-                user_message[:MAX_PROMPT_INPUT_CHARS] + "\n\n[The source was truncated because it was very long.]"
-            )
-    else:
-        user_message, title = _build_user_message(input_type, input_value)
-        if input_type == "url":
-            report_progress(f"Page fetched. Sending the source URL and extracted text to {model_name}...")
-        else:
-            report_progress(f"Sending the recipe text to {model_name}...")
 
-    logger.info(
-        f"Generating recipe from {input_type} input with local model '{model_name}' "
-        f"({len(user_message)} characters of source content)"
-    )
-    report_progress(f"Generating recipe with {model_name}...")
-    output = _chat(
-        endpoint,
-        model_name,
-        prompt,
-        user_message,
-        stage="recipe drafting" if input_type == "image" else "recipe generation",
-    )
-    report_progress("AI response received. Preparing the recipe draft...")
-    content, metadata = parse_model_output(output)
-    logger.info(
-        f"Model returned {len(output)} characters; parsed "
-        f"{len(content)} characters of Markdown and metadata fields "
-        f"{sorted(metadata)}"
-    )
-
+def _apply_default_source(
+    metadata: dict[str, Any],
+    input_type: str,
+    model_name: str,
+    input_value: str,
+    title: str,
+) -> None:
     default_source = _source_for_input(
         input_type,
         model_name,
@@ -690,9 +725,88 @@ def generate_recipe(
     source = metadata.get("source")
     if not isinstance(source, dict):
         metadata["source"] = default_source
-    else:
-        for field, value in default_source.items():
-            if not source.get(field):
-                source[field] = value
+        return
+    for field, value in default_source.items():
+        if not source.get(field):
+            source[field] = value
 
+
+def generate_recipe(
+    config: object,
+    input_type: str,
+    input_value: str,
+    progress_callback: Callable[[str], None] | None = None,
+    image_bytes: bytes | None = None,
+    image_filename: str = "",
+) -> dict[str, Any]:
+    resolved = resolve_ai_config(config)
+    if not resolved.is_configured:
+        raise ModelUnavailable("The local model is not configured")
+    if input_type == "image" and not resolved.is_image_configured:
+        raise ModelUnavailable("The image analysis model is not configured")
+
+    _report_progress(progress_callback, "Checking the configured AI model...")
+    all_purpose_model_name = _require_model_name(
+        resolved.endpoint,
+        resolved.all_purpose_model_name,
+        "Could not determine a model name. Configure all_purpose_model_name in recipe-server-cfg.toml.",
+    )
+
+    image_model_name = ""
+    if input_type == "image":
+        image_model_name = _require_model_name(
+            resolved.endpoint,
+            resolved.image_analysis_model,
+            "Could not determine an image analysis model name. Configure image_analysis_model in recipe-server-cfg.toml.",
+        )
+
+    # Report the input-specific preparation step before doing any expensive work.
+    if input_type == "url":
+        _report_progress(progress_callback, f"Fetching recipe page: {input_value}")
+    elif input_type == "image":
+        _report_progress(progress_callback, "Preparing the recipe image...")
+    else:
+        _report_progress(progress_callback, "Preparing the recipe text...")
+
+    if input_type == "image":
+        user_message, title = _prepare_image_draft_input(
+            resolved,
+            all_purpose_model_name,
+            image_model_name,
+            image_bytes,
+            image_filename,
+            progress_callback,
+        )
+    else:
+        user_message, title = _prepare_text_or_url_draft_input(
+            input_type,
+            input_value,
+            all_purpose_model_name,
+            progress_callback,
+        )
+
+    logger.info(
+        "Generating recipe from %s input with local model '%s' (%d characters of source content)",
+        input_type,
+        all_purpose_model_name,
+        len(user_message),
+    )
+    _report_progress(progress_callback, f"Generating recipe with {all_purpose_model_name}...")
+    output = _chat(
+        resolved.endpoint,
+        all_purpose_model_name,
+        resolved.new_recipe_prompt,
+        user_message,
+        stage="recipe drafting" if input_type == "image" else "recipe generation",
+    )
+    _report_progress(progress_callback, "AI response received. Preparing the recipe draft...")
+
+    content, metadata = parse_model_output(output)
+    logger.info(
+        "Model returned %d characters; parsed %d characters of Markdown and metadata fields %s",
+        len(output),
+        len(content),
+        sorted(metadata),
+    )
+    _apply_default_source(metadata, input_type, all_purpose_model_name, input_value, title)
     return {"content": content, "metadata": metadata}
