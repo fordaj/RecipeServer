@@ -53,6 +53,7 @@ RecipesDeletedCallback = Callable[[list[Path]], None]
 BULK_MAX_PATHS = 100
 ARCHIVE_STREAM_CHUNK_BYTES = 64 * 1024
 
+# Default port; the configured port (Configuration.server_port) wins when set.
 SERVER_PORT = 8000
 SERVER_BIND_ADDRESS = "0.0.0.0"
 LOCALHOST = "localhost"
@@ -215,8 +216,7 @@ def _validate_source_field(field: str, value: object) -> dict | None:
 
     allowed_fields = {"author", "title", "format", "url"}
     return {
-        key: (value.get(key).strip() or None if isinstance(value.get(key), str) else None)
-        for key in allowed_fields
+        key: (value.get(key).strip() or None if isinstance(value.get(key), str) else None) for key in allowed_fields
     }
 
 
@@ -755,7 +755,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self.wfile.flush()
 
         try:
-            result = self._generate_ai_recipe(request, progress_callback=lambda msg: send_event("progress", message=msg))
+            result = self._generate_ai_recipe(
+                request, progress_callback=lambda msg: send_event("progress", message=msg)
+            )
         except (ai_recipe.ModelUnavailable, ai_recipe.ModelRequestError, ai_recipe.SourceFetchError, ValueError) as exc:
             logger.warning(f"AI recipe generation failed: {exc}")
             send_event("error", message=str(exc))
@@ -811,7 +813,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         self._create_recipe(folder_path, folder, create_folder, content, metadata, images)
 
-    def _create_recipe(self, folder_path: Path, folder: str, create_folder: bool, content: str, metadata: dict, images) -> None:
+    def _create_recipe(
+        self, folder_path: Path, folder: str, create_folder: bool, content: str, metadata: dict, images
+    ) -> None:
         try:
             folder_path = self._prepare_recipe_folder(folder_path, folder, create_folder, content, metadata)
             if folder_path is None:
@@ -837,7 +841,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             logger.exception("Recipe created, but HTML regeneration failed")
             self._send_json(500, {"error": "Recipe created, but HTML regeneration failed"})
 
-    def _prepare_recipe_folder(self, folder_path: Path, folder: str, create_folder: bool, content: str, metadata: dict) -> Path | None:
+    def _prepare_recipe_folder(
+        self, folder_path: Path, folder: str, create_folder: bool, content: str, metadata: dict
+    ) -> Path | None:
         if not create_folder:
             if not folder_path.is_dir():
                 self._send_json(404, {"error": "Recipe folder not found"})
@@ -860,7 +866,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     @staticmethod
     def _metadata_for_new_recipe(metadata: dict) -> dict:
         recipe_metadata = {key: value for key, value in metadata.items() if value is not None}
-        recipe_metadata["updatedOn"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        recipe_metadata["updatedOn"] = (
+            datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        )
         return recipe_metadata
 
     def _handle_recipe_editor_post(self) -> None:
@@ -894,7 +902,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
             _apply_editor_metadata(recipe_post.metadata, metadata)
             recipe_post.metadata.pop("category", None)
-            recipe_post.metadata["updatedOn"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            recipe_post.metadata["updatedOn"] = (
+                datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            )
             recipe_post.content = content
 
             self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=False)
@@ -1088,9 +1098,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 recipe_post.metadata.pop("category", None)
             if rating_override is not None:
                 name, score = rating_override
-                recipe_post.metadata["ratings"] = _apply_rating_override(recipe_post.metadata.get("ratings"), name, score)
+                recipe_post.metadata["ratings"] = _apply_rating_override(
+                    recipe_post.metadata.get("ratings"), name, score
+                )
             if metadata or rating_override is not None:
-                recipe_post.metadata["updatedOn"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                recipe_post.metadata["updatedOn"] = (
+                    datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                )
 
             file_path.write_text(frontmatter.dumps(recipe_post), encoding="utf-8", newline="")
             saved.append(file_path)
@@ -1399,7 +1413,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raise ValueError("Invalid image filename")
 
         reserved_names = {
-            "CON", "PRN", "AUX", "NUL",
+            "CON",
+            "PRN",
+            "AUX",
+            "NUL",
             *(f"COM{number}" for number in range(1, 10)),
             *(f"LPT{number}" for number in range(1, 10)),
         }
@@ -1565,6 +1582,12 @@ class Server:
         self._http_server: ThreadingHTTPServer | None = None
         self._thread: Thread | None = None
 
+    @property
+    def port(self) -> int:
+        """Configured listen port, falling back to the default."""
+        configured = getattr(self.cfg, "server_port", None)
+        return configured if isinstance(configured, int) and 1 <= configured <= 65535 else SERVER_PORT
+
     def _port_in_use(self, port: int) -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             return sock.connect_ex((LOCALHOST, port)) == 0
@@ -1578,7 +1601,7 @@ class Server:
             return
 
         if self._port_in_use(SERVER_PORT):
-            logger.error(f"Port {SERVER_PORT} in use!")
+            logger.error(f"Port {self.port} in use!")
             sys.exit(1)
 
         handler = partial(
@@ -1592,9 +1615,9 @@ class Server:
         )
 
         try:
-            http_server = ThreadingHTTPServer((SERVER_BIND_ADDRESS, SERVER_PORT), handler)
+            http_server = ThreadingHTTPServer((SERVER_BIND_ADDRESS, self.port), handler)
         except OSError:
-            logger.exception(f"Failed to start server on port {SERVER_PORT}")
+            logger.exception(f"Failed to start server on port {self.port}")
             raise
 
         self._http_server = http_server
@@ -1612,9 +1635,9 @@ class Server:
             except OSError:
                 ip_address = "unavailable"
 
-        logger.info(f"Server started on port {SERVER_PORT}")
-        logger.info(f"Hostname: http://{socket.gethostname()}.local:{SERVER_PORT}")
-        logger.info(f"IP: http://{ip_address}:{SERVER_PORT}")
+        logger.info(f"Server started on port {self.port}")
+        logger.info(f"Hostname: http://{socket.gethostname()}.local:{self.port}")
+        logger.info(f"IP: http://{ip_address}:{self.port}")
 
     def stop(self):
         if self._http_server is None:

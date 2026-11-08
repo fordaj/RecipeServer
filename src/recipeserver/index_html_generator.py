@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 from bs4 import BeautifulSoup
 
 from ._logger import logger
-from .config import DEFAULT_RECIPE_SERVER_NAME, Configuration
+from .config import DEFAULT_FOOD_COLOR, DEFAULT_RECIPE_SERVER_NAME, Configuration
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
@@ -688,6 +688,23 @@ class IndexHTMLGenerator:
         reviewer_options_html: str,
     ) -> str:
         server_name_html = html.escape(self._server_name())
+        food_color = getattr(self.cfg, "food_color", None) or DEFAULT_FOOD_COLOR
+        from .markdown_to_html import dark_mode_color
+
+        food_color_style = dedent(f"""\
+            <style>
+                :root {{
+                    --food-color: {food_color};
+                    --food-color-hover: color-mix(in srgb, {food_color} 82%, black);
+                }}
+                @media (prefers-color-scheme: dark) {{
+                    :root {{
+                        --food-color: {dark_mode_color(food_color)};
+                        --food-color-hover: color-mix(in srgb, {dark_mode_color(food_color)} 82%, white);
+                    }}
+                }}
+            </style>
+            """)
         meal_options = self._build_select_options_html(filter_values["meals"])
         cuisine_options = self._build_select_options_html(filter_values["cuisine"])
         status_options = self._build_select_options_html(filter_values["status"])
@@ -705,6 +722,7 @@ class IndexHTMLGenerator:
                 <title>{server_name_html}</title>
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
                 <link rel="stylesheet" href="{DEFINITIONS_CSS_URL}">
+                {food_color_style}
                 <link rel="stylesheet" href="{MENU_CSS_URL}">
                 <link rel="stylesheet" href="{INDEX_CSS_URL}">
                 <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_URL}">

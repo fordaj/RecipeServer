@@ -179,7 +179,7 @@ class MarkdownToHTMLConverter:
         self.cfg = cfg
         self.metadata: dict[str, object] = {}
         self.metadata_json: str = ""
-        self.heading_color: str = Pallette.DEFAULT_TITLE
+        self.heading_color: str = getattr(cfg, "food_color", None) or Pallette.DEFAULT_TITLE
         self.title: str = ""
 
     def get_doc_specific_overrides(self) -> str:
@@ -873,17 +873,22 @@ class MarkdownToHTMLConverter:
         self.lint_html(html, html_file)
 
     def _resolve_heading_color(self, recipe_directory: Path) -> str:
-        """Return an accent color derived from the recipe's hero image."""
+        """Return an accent color derived from the recipe's hero image.
+
+        Falls back to the configured food color when there is no usable
+        hero image.
+        """
+        fallback = getattr(self.cfg, "food_color", None) or Pallette.DEFAULT_TITLE
         image = get_first_image_in_dir(recipe_directory)
         if not image:
-            return Pallette.DEFAULT_TITLE
+            return fallback
 
         logger.file(f"Found image: {image}")
         try:
             return ImageToColorConverter().get_hex_color_from_image(image)
         except (OSError, ValueError) as exc:
             logger.warning(f'Could not derive an accent color from "{image}": {exc}')
-            return Pallette.DEFAULT_TITLE
+            return fallback
 
     @staticmethod
     def _serialize_metadata_json(metadata: dict[str, object]) -> str:

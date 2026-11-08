@@ -50,7 +50,8 @@ class Tray:
             return image.convert("RGBA")
 
     def _open_recipes(self, icon, item):
-        webbrowser.open("http://localhost:8000")
+        port = getattr(self.server, "port", 8000)
+        webbrowser.open(f"http://localhost:{port}")
 
     def _server_status(self, item):
         return "Server: Running" if self.server.is_running else "Server: Stopped"

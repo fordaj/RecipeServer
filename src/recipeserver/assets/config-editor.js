@@ -67,9 +67,16 @@ function buildFields(fields, values) {
     input.name = field.key;
     input.spellcheck = false;
     if (field.placeholder) input.placeholder = field.placeholder;
-    // Browser-level validation for URL fields; the server validates
-    // strictly and reports the real rules in the help text.
-    input.type = field.input_type === "url" ? "url" : "text";
+    // Browser-level validation for URL and number fields; the server
+    // validates strictly and reports the real rules in the help text.
+    input.type =
+      field.input_type === "url" ? "url" : field.input_type === "number" ? "number" : "text";
+    if (input.type === "number") {
+      input.min = "1";
+      input.max = "65535";
+      input.step = "1";
+      input.inputMode = "numeric";
+    }
     if (field.required) input.required = true;
     input.value = values[field.key] ?? "";
     input.addEventListener("input", () => {
