@@ -665,7 +665,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(500, {"error": "Unable to save configuration"})
             return
 
-        logger.info("Saved configuration (changed: {})", ", ".join(changed) or "none")
+        logger.info(f"Saved configuration (changed: {', '.join(changed) or 'none'})")
         if self.on_config_saved is not None:
             try:
                 self.on_config_saved()
@@ -825,7 +825,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             recipe_post = frontmatter.Post(content, **self._metadata_for_new_recipe(metadata))
             self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=True)
 
-            logger.info("Created recipe: {}", file_path)
+            logger.info(f"Created recipe: {file_path}")
             self._notify_markdown_saved(file_path)
             self._send_json(201, {"success": True, "path": file_path.relative_to(self.source_directory).as_posix()})
         except FileExistsError:
@@ -898,7 +898,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             recipe_post.content = content
 
             self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=False)
-            logger.info("Saved recipe editor content: {}", file_path)
+            logger.info(f"Saved recipe editor content: {file_path}")
             self._notify_markdown_saved(file_path)
             self._send_json(200, {"success": True})
         except FileExistsError as exc:
@@ -975,7 +975,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 metadata.pop("category", None)
 
             file_path.write_text(frontmatter.dumps(recipe_post), encoding="utf-8", newline="")
-            logger.info("Updated metadata field '{}' in file: {}", field_name, file_path)
+            logger.info(f"Updated metadata field '{field_name}' in file: {file_path}")
 
             if self.on_markdown_saved is not None:
                 try:
@@ -1016,7 +1016,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 return
 
             file_path.write_text(content, encoding="utf-8", newline="")
-            logger.info("Saved Markdown file: {}", file_path)
+            logger.info(f"Saved Markdown file: {file_path}")
             self._notify_markdown_saved(file_path)
             self._send_json(200, {"success": True})
         except OSError:
@@ -1094,7 +1094,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
             file_path.write_text(frontmatter.dumps(recipe_post), encoding="utf-8", newline="")
             saved.append(file_path)
-            logger.info("Bulk-saved recipe: {}", file_path)
+            logger.info(f"Bulk-saved recipe: {file_path}")
         return saved
 
     def _handle_bulk_delete(self) -> None:
@@ -1139,7 +1139,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             recipe_dir = file_path.parent
             if recipe_dir != self.source_directory and not any(recipe_dir.iterdir()):
                 recipe_dir.rmdir()
-            logger.info("Bulk-deleted recipe: {}", file_path)
+            logger.info(f"Bulk-deleted recipe: {file_path}")
         return deleted
 
     # ----- DELETE handlers -------------------------------------------------
@@ -1173,7 +1173,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(500, {"error": "Unable to delete recipe"})
             return
 
-        logger.info("Deleted recipe: {}", file_path)
+        logger.info(f"Deleted recipe: {file_path}")
         if self.on_recipes_deleted is not None:
             try:
                 self.on_recipes_deleted([file_path])
@@ -1578,7 +1578,7 @@ class Server:
             return
 
         if self._port_in_use(SERVER_PORT):
-            logger.error("Port {} in use!", SERVER_PORT)
+            logger.error(f"Port {SERVER_PORT} in use!")
             sys.exit(1)
 
         handler = partial(
@@ -1594,7 +1594,7 @@ class Server:
         try:
             http_server = ThreadingHTTPServer((SERVER_BIND_ADDRESS, SERVER_PORT), handler)
         except OSError:
-            logger.exception("Failed to start server on port {}", SERVER_PORT)
+            logger.exception(f"Failed to start server on port {SERVER_PORT}")
             raise
 
         self._http_server = http_server
@@ -1612,9 +1612,9 @@ class Server:
             except OSError:
                 ip_address = "unavailable"
 
-        logger.info("Server started on port {}", SERVER_PORT)
-        logger.info("Hostname: http://{}.local:{}", socket.gethostname(), SERVER_PORT)
-        logger.info("IP: http://{}:{}", ip_address, SERVER_PORT)
+        logger.info(f"Server started on port {SERVER_PORT}")
+        logger.info(f"Hostname: http://{socket.gethostname()}.local:{SERVER_PORT}")
+        logger.info(f"IP: http://{ip_address}:{SERVER_PORT}")
 
     def stop(self):
         if self._http_server is None:

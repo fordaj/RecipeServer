@@ -137,12 +137,10 @@ def ai_status(config: object | None) -> dict[str, Any]:
         "image_available": False,
     }
     logger.debug(
-        "Checking local model status: configured=%s, image_configured=%s, endpoint=%s, " "model=%s, image_model=%s",
-        resolved.is_configured,
-        resolved.is_image_configured,
-        resolved.endpoint or "(none)",
-        resolved.all_purpose_model_name or "(auto)",
-        resolved.image_analysis_model or "(auto)",
+        f"Checking local model status: configured={resolved.is_configured}, "
+        f"image_configured={resolved.is_image_configured}, endpoint={resolved.endpoint or '(none)'}, "
+        f"model={resolved.all_purpose_model_name or '(auto)'}, "
+        f"image_model={resolved.image_analysis_model or '(auto)'}"
     )
 
     if not resolved.is_configured and not resolved.is_image_configured:
@@ -151,10 +149,7 @@ def ai_status(config: object | None) -> dict[str, Any]:
 
     available = is_available(resolved.endpoint)
     logger.info(
-        "Local model status: configured=%s, available=%s, endpoint=%s",
-        resolved.is_configured,
-        available,
-        resolved.endpoint,
+        f"Local model status: configured={resolved.is_configured}, available={available}, endpoint={resolved.endpoint}"
     )
     status["available"] = available
     status["image_available"] = bool(available and resolved.is_image_configured)
@@ -713,10 +708,8 @@ def _prepare_image_draft_input(
         {"type": "image_url", "image_url": {"url": data_uri}},
     ]
     logger.info(
-        "Transcribing recipe image with local model '%s' (%d bytes, %s)",
-        image_model_name,
-        len(image_bytes or b""),
-        image_filename,
+        f"Transcribing recipe image with local model '{image_model_name}' "
+        f"({len(image_bytes or b'')} bytes, {image_filename})"
     )
     transcription = _chat(
         resolved.endpoint,
@@ -726,10 +719,7 @@ def _prepare_image_draft_input(
         stage="image transcription",
     )
     logger.info(
-        "Image transcription from '%s' (%d characters): %r",
-        image_model_name,
-        len(transcription),
-        transcription[:2000],
+        f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}"
     )
     _report_progress(
         progress_callback,
@@ -832,10 +822,8 @@ def generate_recipe(
         )
 
     logger.info(
-        "Generating recipe from %s input with local model '%s' (%d characters of source content)",
-        input_type,
-        all_purpose_model_name,
-        len(user_message),
+        f"Generating recipe from {input_type} input with local model '{all_purpose_model_name}' "
+        f"({len(user_message)} characters of source content)"
     )
     _report_progress(progress_callback, f"Generating recipe with {all_purpose_model_name}...")
     output = _chat(
@@ -849,10 +837,8 @@ def generate_recipe(
 
     content, metadata = parse_model_output(output)
     logger.info(
-        "Model returned %d characters; parsed %d characters of Markdown and metadata fields %s",
-        len(output),
-        len(content),
-        sorted(metadata),
+        f"Model returned {len(output)} characters; parsed {len(content)} characters of Markdown "
+        f"and metadata fields {sorted(metadata)}"
     )
     _apply_default_source(metadata, input_type, all_purpose_model_name, input_value, title)
     return {"content": content, "metadata": metadata}
