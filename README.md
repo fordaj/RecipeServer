@@ -220,7 +220,7 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 
 ## Troubleshooting
 
-- **Port 8000 is unavailable:** RecipeServer always uses port 8000. Stop whatever else is using that port before launching it.
+- **The configured port is unavailable:** RecipeServer listens on the port set in Configuration (default 8000). Either stop whatever else is using that port or change `server_port` in `recipe-server-cfg.toml` (or use **Configuration**) and restart the app.
 - **No tray icon appears:** Check that the app is running in a desktop session with tray support. On Linux, an X11-compatible `pystray` backend is required.
 - **The folder picker does not appear:** Make sure the Python installation includes Tk.
 - **A recipe is missing from the index:** Confirm that the file is named exactly `recipe.md` and lives under the configured recipe source directory.
@@ -278,7 +278,7 @@ serve.sh / serve.bat        # launch helpers
 - AI recipe generation never writes files. It returns Markdown and metadata to the editor, which saves only when the user submits the create form.
 - The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, not when the app is built.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
-- The server always uses port `8000`, binds to `0.0.0.0`, and has no authentication. Run it only on a trusted local network.
+- The server uses the port set in Configuration (default `8000`), binds to `0.0.0.0`, and has no authentication. Run it only on a trusted local network.
 - There is no JavaScript build step. Frontend assets are served directly, and MathJax is vendored in `src/recipeserver/assets/mathjax`.
 
 ## MathJax

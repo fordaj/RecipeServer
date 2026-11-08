@@ -1,5 +1,6 @@
 import sys
 import json
+import re
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,10 +18,15 @@ ALL_PURPOSE_MODEL_NAME_KEY = "all_purpose_model_name"
 IMAGE_ANALYSIS_MODEL_KEY = "image_analysis_model"
 RECIPE_SERVER_NAME_KEY = "recipe_server_name"
 SERVER_NAME_KEY = "server_name"
+SERVER_PORT_KEY = "server_port"
+FOOD_COLOR_KEY = "food_color"
 SOURCE_DIRECTORY_KEY = "source_directory"
 CONFIG_FILENAME = "recipe-server-cfg.toml"
 LEGACY_CONFIG_FILENAME = "config.txt"
 DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
+DEFAULT_SERVER_PORT = 8000
+# Matches the --food-color default in assets/definitions.css.
+DEFAULT_FOOD_COLOR = "#8d5542"
 NEW_RECIPE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipePrompt.md"
 NEW_RECIPE_FROM_IMAGE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipeFromImagePrompt.md"
 _MAX_MODEL_NAME_LENGTH = 256
@@ -52,6 +58,33 @@ def _normalize_model_endpoint(value: str, *, strict: bool = True) -> str:
     return endpoint
 
 
+_HEX_COLOR_PATTERN = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+def _normalize_food_color(value: str) -> str:
+    """Normalize a hex color to lowercase ``#rrggbb`` form."""
+    color = value.strip()
+    if not _HEX_COLOR_PATTERN.match(color):
+        raise ValueError(
+            "Food color must be a hex string such as #8d5542 (or #842)."
+        )
+    digits = color[1:].lower()
+    if len(digits) == 3:
+        digits = "".join(char * 2 for char in digits)
+    return f"#{digits}"
+
+
+def _normalize_server_port(value: str) -> int:
+    """Parse and range-check a server port."""
+    text = value.strip()
+    if not text.isdigit():
+        raise ValueError("Server port must be a whole number between 1 and 65535.")
+    port = int(text)
+    if not 1 <= port <= 65535:
+        raise ValueError("Server port must be between 1 and 65535.")
+    return port
+
+
 @dataclass(frozen=True)
 class ConfigField:
     """One editable configuration value.
@@ -65,7 +98,7 @@ class ConfigField:
     key: str
     label: str
     help_text: str
-    input_type: str = "text"  # "text", "url", or "path"
+    input_type: str = "text"  # "text", "url", "path", or "number"
     placeholder: str = ""
     required: bool = False
 
@@ -106,6 +139,22 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         "Used for From Image recipe creation. Leave blank to auto-detect from the endpoint.",
         placeholder="llava3",
     ),
+    ConfigField(
+        SERVER_PORT_KEY,
+        "Server port",
+        "Port the local server listens on. Takes effect the next time the app starts.",
+        input_type="number",
+        placeholder=str(DEFAULT_SERVER_PORT),
+        required=True,
+    ),
+    ConfigField(
+        FOOD_COLOR_KEY,
+        "Food color",
+        "Accent color used across the site, as a hex string such as #8d5542. "
+        "Blank falls back to the recommended default. Recipes with a photo "
+        "still derive their own accent from that photo.",
+        placeholder=DEFAULT_FOOD_COLOR,
+    ),
 )
 
 
@@ -137,6 +186,26 @@ def _validate_config_value(key: str, value: str) -> str:
                 "(or left blank to disable AI recipe creation)."
             ) from None
 
+    if key == SERVER_PORT_KEY:
+        if not value.strip():
+            return str(DEFAULT_SERVER_PORT)
+        try:
+            return str(_normalize_server_port(value))
+        except ValueError:
+            raise ValueError(
+                f"{label} must be a whole number between 1 and 65535."
+            ) from None
+
+    if key == FOOD_COLOR_KEY:
+        if not value.strip():
+            return DEFAULT_FOOD_COLOR
+        try:
+            return _normalize_food_color(value)
+        except ValueError:
+            raise ValueError(
+                f"{label} must be a hex string such as #8d5542."
+            ) from None
+
     if key in (ALL_PURPOSE_MODEL_NAME_KEY, IMAGE_ANALYSIS_MODEL_KEY):
         name = value.strip()
         if len(name) > _MAX_MODEL_NAME_LENGTH:
@@ -164,6 +233,8 @@ class Configuration:
         self._all_purpose_model_name: str = ""
         self.image_analysis_model: str = ""
         self._recipe_server_name: str = DEFAULT_RECIPE_SERVER_NAME
+        self._server_port: int = DEFAULT_SERVER_PORT
+        self._food_color: str = DEFAULT_FOOD_COLOR
         self.new_recipe_prompt: str = ""
         self.new_recipe_from_image_prompt: str = ""
         self._config_file: Optional[Path] = None
@@ -200,6 +271,28 @@ class Configuration:
     @server_name.setter
     def server_name(self, value: str) -> None:
         self._recipe_server_name = value.strip() or DEFAULT_RECIPE_SERVER_NAME
+
+    @property
+    def server_port(self) -> int:
+        return self._server_port
+
+    @server_port.setter
+    def server_port(self, value) -> None:
+        try:
+            self._server_port = _normalize_server_port(str(value))
+        except ValueError:
+            self._server_port = DEFAULT_SERVER_PORT
+
+    @property
+    def food_color(self) -> str:
+        return self._food_color
+
+    @food_color.setter
+    def food_color(self, value: str) -> None:
+        try:
+            self._food_color = _normalize_food_color(str(value))
+        except ValueError:
+            self._food_color = DEFAULT_FOOD_COLOR
 
     @property
     def site_directory(self) -> Path:
@@ -343,6 +436,9 @@ class Configuration:
         settings: dict[str, str] = {}
         known_keys = _known_toml_keys()
         for key, value in data.items():
+            if key == SERVER_PORT_KEY and isinstance(value, int) and not isinstance(value, bool):
+                settings[key] = str(value)
+                continue
             if not isinstance(value, str):
                 logger.warning(f"Ignoring non-text configuration value for {key!r}")
                 continue
@@ -444,6 +540,8 @@ class Configuration:
             f"{ALL_PURPOSE_MODEL_NAME_KEY} = {_toml_string(self.all_purpose_model_name)}",
             f"{IMAGE_ANALYSIS_MODEL_KEY} = {_toml_string(self.image_analysis_model)}",
             f"{RECIPE_SERVER_NAME_KEY} = {_toml_string(self.recipe_server_name)}",
+            f"{SERVER_PORT_KEY} = {_toml_string(str(self.server_port))}",
+            f"{FOOD_COLOR_KEY} = {_toml_string(self.food_color)}",
         ]
 
         logger.debug(
@@ -451,7 +549,8 @@ class Configuration:
             f"(source={self.source_directory}, endpoint={self.model_endpoint or '(none)'}, "
             f"all-purpose model={self.all_purpose_model_name or '(auto)'}, "
             f"image analysis model={self.image_analysis_model or '(auto)'}, "
-            f"server name={self.recipe_server_name!r})"
+            f"server name={self.recipe_server_name!r}, "
+            f"port={self.server_port}, food color={self.food_color})"
         )
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
 
@@ -487,6 +586,36 @@ class Configuration:
         if server_name_value:
             self.recipe_server_name = server_name_value
         logger.debug(f"Configured recipe server name: {self.recipe_server_name!r}")
+
+        if SERVER_PORT_KEY in settings:
+            try:
+                validated_port = _normalize_server_port(settings[SERVER_PORT_KEY])
+                self.server_port = validated_port
+            except ValueError:
+                logger.warning(
+                    "Ignoring invalid %s value %r; using default port %s",
+                    SERVER_PORT_KEY,
+                    settings[SERVER_PORT_KEY],
+                    DEFAULT_SERVER_PORT,
+                )
+                self.server_port = DEFAULT_SERVER_PORT
+        if FOOD_COLOR_KEY in settings:
+            try:
+                validated_color = _normalize_food_color(settings[FOOD_COLOR_KEY])
+                self.food_color = validated_color
+            except ValueError:
+                logger.warning(
+                    "Ignoring invalid %s value %r; using default food color %s",
+                    FOOD_COLOR_KEY,
+                    settings[FOOD_COLOR_KEY],
+                    DEFAULT_FOOD_COLOR,
+                )
+                self.food_color = DEFAULT_FOOD_COLOR
+        logger.debug(
+            "Configured server port: %s, food color: %s",
+            self.server_port,
+            self.food_color,
+        )
 
         if MODEL_ENDPOINT_KEY in settings:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")

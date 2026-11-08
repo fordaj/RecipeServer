@@ -5,11 +5,15 @@ from pathlib import Path
 from recipeserver.config import (
     ALL_PURPOSE_MODEL_NAME_KEY,
     CONFIG_FILENAME,
+    DEFAULT_FOOD_COLOR,
     DEFAULT_RECIPE_SERVER_NAME,
+    DEFAULT_SERVER_PORT,
+    FOOD_COLOR_KEY,
     IMAGE_ANALYSIS_MODEL_KEY,
     MODEL_ENDPOINT_KEY,
     MODEL_NAME_KEY,
     RECIPE_SERVER_NAME_KEY,
+    SERVER_PORT_KEY,
     Configuration,
 )
 
@@ -107,6 +111,8 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
         ALL_PURPOSE_MODEL_NAME_KEY: "",
         IMAGE_ANALYSIS_MODEL_KEY: "",
         RECIPE_SERVER_NAME_KEY: DEFAULT_RECIPE_SERVER_NAME,
+        SERVER_PORT_KEY: "8000",
+        FOOD_COLOR_KEY: "#8d5542",
     }
 
     def unexpected_input(prompt=""):
@@ -327,3 +333,100 @@ def test_apply_config_values_rejects_invalid_values(tmp_path, monkeypatch):
 
     # Nothing was applied on failure.
     assert config.source_directory == source.resolve()
+
+
+def _load_config(tmp_path, monkeypatch, extra_lines=""):
+    source = tmp_path / "recipes"
+    source.mkdir(exist_ok=True)
+    config_file = tmp_path / CONFIG_FILENAME
+    config_file.write_text(
+        f"source_directory = {json.dumps(str(source))}\n{MODEL_ENDPOINT_KEY} = \"\"\n{extra_lines}",
+        encoding="UTF-8",
+    )
+
+    def unexpected_input(prompt=""):
+        raise AssertionError("Existing model configuration should not prompt")
+
+    monkeypatch.setattr("builtins.input", unexpected_input)
+    config = Configuration()
+    config.handle_configuration(config_file)
+    return config, config_file
+
+
+def test_configuration_defaults_server_port_and_food_color(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    assert config.server_port == DEFAULT_SERVER_PORT == 8000
+    assert config.food_color == DEFAULT_FOOD_COLOR == "#8d5542"
+    assert config.get_config_values()[SERVER_PORT_KEY] == "8000"
+    assert config.get_config_values()[FOOD_COLOR_KEY] == "#8d5542"
+
+
+def test_configuration_reads_and_persists_custom_port_and_food_color(tmp_path, monkeypatch):
+    config, config_file = _load_config(
+        tmp_path,
+        monkeypatch,
+        f'{SERVER_PORT_KEY} = "9000"\n{FOOD_COLOR_KEY} = "#ABCDEF"\n',
+    )
+
+    assert config.server_port == 9000
+    assert config.food_color == "#abcdef"
+
+    saved = _toml(config_file)
+    assert saved[SERVER_PORT_KEY] == "9000"
+    assert saved[FOOD_COLOR_KEY] == "#abcdef"
+
+
+def test_configuration_reads_bare_integer_port_from_toml(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch, f"{SERVER_PORT_KEY} = 9001\n")
+
+    assert config.server_port == 9001
+
+
+def test_configuration_falls_back_to_defaults_for_invalid_saved_values(tmp_path, monkeypatch):
+    config, _ = _load_config(
+        tmp_path,
+        monkeypatch,
+        f'{SERVER_PORT_KEY} = "not-a-port"\n{FOOD_COLOR_KEY} = "not-a-color"\n',
+    )
+
+    assert config.server_port == DEFAULT_SERVER_PORT
+    assert config.food_color == DEFAULT_FOOD_COLOR
+
+
+def test_apply_config_values_normalizes_port_and_food_color(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    changed = config.apply_config_values(
+        {SERVER_PORT_KEY: " 9000 ", FOOD_COLOR_KEY: "#ABC"}
+    )
+
+    assert changed == [SERVER_PORT_KEY, FOOD_COLOR_KEY]
+    assert config.server_port == 9000
+    assert config.food_color == "#aabbcc"
+    saved = _toml(config_file)
+    assert saved[SERVER_PORT_KEY] == "9000"
+    assert saved[FOOD_COLOR_KEY] == "#aabbcc"
+
+    # Blank values fall back to the recommended defaults.
+    changed = config.apply_config_values({SERVER_PORT_KEY: " ", FOOD_COLOR_KEY: ""})
+    assert changed == [SERVER_PORT_KEY, FOOD_COLOR_KEY]
+    assert config.server_port == DEFAULT_SERVER_PORT
+    assert config.food_color == DEFAULT_FOOD_COLOR
+
+
+def test_apply_config_values_rejects_invalid_port_and_food_color(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    import pytest
+
+    for bad_port in ["0", "65536", "abc", "80.5", "-1"]:
+        with pytest.raises(ValueError, match="Server port must be"):
+            config.apply_config_values({SERVER_PORT_KEY: bad_port})
+
+    for bad_color in ["red", "#12", "#12345", "123456", "#gggggg"]:
+        with pytest.raises(ValueError, match="Food color must be"):
+            config.apply_config_values({FOOD_COLOR_KEY: bad_color})
+
+    assert config.server_port == DEFAULT_SERVER_PORT
+    assert config.food_color == DEFAULT_FOOD_COLOR
