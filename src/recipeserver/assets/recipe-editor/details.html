@@ -88,6 +88,23 @@
     </label>
 
     <label>
+      Status
+      <span class="recipe-editor__mixed" hidden>* MIXED</span>
+      <span class="recipe-editor__field-control">
+        <input name="status" type="text" placeholder="In Rotation, Try Me" />
+        <button
+          type="button"
+          class="recipe-editor__bulk-field-save"
+          data-field="status"
+          aria-label="Save status to all selected recipes"
+          hidden
+        >
+          Save
+        </button>
+      </span>
+    </label>
+
+    <label>
       Tags
       <span class="recipe-editor__mixed" hidden>* MIXED</span>
       <span class="recipe-editor__field-control">

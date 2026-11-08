@@ -8,6 +8,7 @@ const initRecipeIndex = async () => {
   const filterControls = [
     ["meals", document.querySelector("#filter-meal")],
     ["cuisine", document.querySelector("#filter-cuisine")],
+    ["status", document.querySelector("#filter-status")],
     ["categories", document.querySelector("#filter-category")],
     ["tags", document.querySelector("#filter-tag")],
     ["contributors", document.querySelector("#filter-contributor")],

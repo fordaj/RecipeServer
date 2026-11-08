@@ -50,6 +50,7 @@ LINK_SVG = ASSETS_DIR / "link.svg"
 WARNING_SVG = ASSETS_DIR / "warning.svg"
 PLUS_SVG = ASSETS_DIR / "plus.svg"
 ARCHIVE_SVG = ASSETS_DIR / "archive.svg"
+INFO_SVG = ASSETS_DIR / "info.svg"
 
 # Detail kinds that render with a mapped asset icon.
 _DETAIL_ICON_URLS = {
@@ -60,6 +61,7 @@ _DETAIL_ICON_URLS = {
     "tags": "/assets/tag.svg",
     "cuisine": "/assets/pin.svg",
     "archived": "/assets/archive.svg",
+    "status": "/assets/info.svg",
 }
 
 # Maximum number of reviewers shown in the review filter.
@@ -379,6 +381,8 @@ class IndexHTMLGenerator:
         categories = self.collect_metadata_values(metadata, "categories", "category")
         tags = self.collect_metadata_values(metadata, "tags")
         cuisine = self.collect_metadata_values(metadata, "cuisine")
+        # Status is a single string value; only the first value is used.
+        status = self.collect_metadata_values(metadata, "status")[:1]
         contributors = [
             value.strip() for value in self.collect_metadata_values(metadata, "contributor") if value.strip()
         ]
@@ -389,11 +393,12 @@ class IndexHTMLGenerator:
         filter_values["categories"].update(categories)
         filter_values["tags"].update(tags)
         filter_values["cuisine"].update(cuisine)
+        filter_values["status"].update(status)
         filter_values["contributors"].update(contributors)
         filter_values["source_titles"].update(source_titles)
 
         # ----- Compute sort and search attributes ----- #
-        search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *contributors, *source_titles])
+        search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *status, *contributors, *source_titles])
         reviewer_ratings = [
             {"name": self._reviewer_key(name) if name else "", "rating": score}
             for name, score in self._valid_ratings(metadata)
@@ -442,6 +447,7 @@ class IndexHTMLGenerator:
             difficulty_value=difficulty_value,
             meals=meals,
             cuisine=cuisine,
+            status=status,
             categories=categories,
             tags=tags,
             contributors=contributors,
@@ -460,6 +466,7 @@ class IndexHTMLGenerator:
             f' data-categories="{self.serialize_for_html_attribute(categories)}"'
             f' data-tags="{self.serialize_for_html_attribute(tags)}"'
             f' data-cuisine="{self.serialize_for_html_attribute(cuisine)}"'
+            f' data-status="{self.serialize_for_html_attribute(status)}"'
             f' data-contributors="{self.serialize_for_html_attribute(contributors)}"'
             f' data-source-titles="{self.serialize_for_html_attribute(source_titles)}"'
             f' data-ratings="{self.serialize_for_html_attribute(reviewer_ratings)}"'
@@ -488,6 +495,7 @@ class IndexHTMLGenerator:
         difficulty_value: str,
         meals: list[str],
         cuisine: list[str],
+        status: list[str],
         categories: list[str],
         tags: list[str],
         contributors: list[str],
@@ -514,6 +522,7 @@ class IndexHTMLGenerator:
             ),
             self._detail_with_warning("meals", "Meals", meals, ("meals",), warnings_by_field),
             self._detail_with_warning("cuisine", "Cuisine", cuisine, ("cuisine",), warnings_by_field),
+            self._detail_with_warning("status", "Status", status, ("status",), warnings_by_field),
             self._detail_with_warning(
                 "categories",
                 "Categories",
@@ -617,6 +626,7 @@ class IndexHTMLGenerator:
         server_name_html = html.escape(self._server_name())
         meal_options = self._build_select_options_html(filter_values["meals"])
         cuisine_options = self._build_select_options_html(filter_values["cuisine"])
+        status_options = self._build_select_options_html(filter_values["status"])
         category_options = self._build_select_options_html(filter_values["categories"])
         tag_options = self._build_select_options_html(filter_values["tags"])
         contributor_options = self._build_select_options_html(filter_values["contributors"])
@@ -676,6 +686,14 @@ class IndexHTMLGenerator:
                                 <select id="filter-cuisine" aria-label="Filter by cuisine">
                                     <option value="">All cuisines</option>
                                     {cuisine_options}
+                                </select>
+                            </label>
+
+                            <label class="filter-control">
+                                {self._inline_svg(INFO_SVG)}
+                                <select id="filter-status" aria-label="Filter by status">
+                                    <option value="">All statuses</option>
+                                    {status_options}
                                 </select>
                             </label>
 
@@ -816,6 +834,7 @@ class IndexHTMLGenerator:
             "categories": set(),
             "tags": set(),
             "cuisine": set(),
+            "status": set(),
             "contributors": set(),
             "source_titles": set(),
         }
