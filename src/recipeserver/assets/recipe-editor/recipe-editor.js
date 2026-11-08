@@ -17,9 +17,11 @@
     meals: "Meals",
     categories: "Categories",
     cuisine: "Cuisine",
+    status: "Status",
     tags: "Tags",
     makes: "Makes",
     difficulty: "Difficulty",
+    archived: "Archived",
     source: "Source",
   };
 
@@ -328,11 +330,17 @@ Try this
       }
     }
 
+    const statusInput = form.elements.namedItem("status");
+    if (statusInput) statusInput.value = metadata.status == null ? "" : String(metadata.status);
+
     form.elements.namedItem("contributor").value = metadata.contributor ?? "";
 
     const createdOn = metadata.createdOn;
     form.elements.namedItem("createdOn").value =
       typeof createdOn === "string" ? createdOn.slice(0, 10) : "";
+
+    const archivedInput = form.elements.namedItem("archived");
+    if (archivedInput) archivedInput.checked = metadata.archived === true;
 
     const source = firstSource(metadata.source);
     for (const field of ["author", "title", "format", "url"]) {
@@ -362,11 +370,15 @@ Try this
       return number;
     };
 
+    const archivedInput = form.elements.namedItem("archived");
+
     return {
       tags: parseList("tags"),
       cuisine: parseList("cuisine"),
       categories: parseList("categories"),
       meals: parseList("meals"),
+      status: get("status") || null,
+      archived: archivedInput ? archivedInput.checked : false,
       makes: parseNumber("makes", true),
       difficulty: parseNumber("difficulty"),
       contributor: get("contributor") || null,

@@ -56,6 +56,8 @@ LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 NOTEBOOK_SVG = FILE_PATH.parent / "assets" / "notebook.svg"
 PENCIL_SVG = FILE_PATH.parent / "assets" / "pencil.svg"
 PLUS_SVG = FILE_PATH.parent / "assets" / "plus.svg"
+INFO_SVG = FILE_PATH.parent / "assets" / "info.svg"
+ARCHIVE_SVG = FILE_PATH.parent / "assets" / "archive.svg"
 
 
 @lru_cache(maxsize=None)
@@ -398,10 +400,19 @@ class MarkdownToHTMLConverter:
         return overview if overview.contents else None
 
     def _build_overview_primary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:
-        """Build the row for rating, yield, difficulty, and meal type."""
+        """Build the row for rating, archive state, yield, difficulty, and meal type."""
         primary = soup.new_tag("div", attrs={"class": "recipe-overview__primary"})
 
         self._append_overview_rating(primary, metadata, soup)
+        if metadata.get("archived") is True:
+            self._append_overview_icon_value(
+                primary,
+                soup,
+                icon_path=ARCHIVE_SVG,
+                class_name="recipe-overview__archived",
+                value="Archived",
+                formatter=lambda value: value,
+            )
         self._append_overview_icon_value(
             primary,
             soup,
@@ -459,16 +470,17 @@ class MarkdownToHTMLConverter:
         container.append(item)
 
     def _build_overview_secondary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:
-        """Build the row for cuisine, categories, and tags."""
+        """Build the row for cuisine, status, categories, and tags."""
         secondary = soup.new_tag("div", attrs={"class": "recipe-overview__secondary"})
 
         detail_icons = {
             "cuisine": PIN_SVG,
+            "status": INFO_SVG,
             "categories": POT_SVG,
             "tags": TAG_SVG,
         }
 
-        for key in ("cuisine", "categories", "tags"):
+        for key in ("cuisine", "status", "categories", "tags"):
             values = _as_list(metadata.get(key))
             if key == "categories" and not values:
                 values = _as_list(metadata.get("category"))

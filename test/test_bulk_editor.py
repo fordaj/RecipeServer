@@ -133,10 +133,11 @@ def test_bulk_mixed_and_save_live_inside_field_labels_hidden_by_default():
         for name in ("form.html", "files.html", "ai.html", "details.html", "sources.html", "ratings.html")
     )
     # Each metadata field label contains a hidden * MIXED span and a hidden Save button inside its input control.
-    assert markup.count('<span class="recipe-editor__mixed" hidden>* MIXED</span>') >= 12
-    assert markup.count('class="recipe-editor__bulk-field-save"') >= 12
+    assert markup.count('<span class="recipe-editor__mixed" hidden>* MIXED</span>') >= 14
+    assert markup.count('class="recipe-editor__bulk-field-save"') >= 14
     assert 'class="recipe-editor__field-control"' in markup
     assert 'data-field="categories"' in markup and 'data-field="source"' in markup and 'data-field="rating"' in markup
+    assert 'data-field="status"' in markup and 'data-field="archived"' in markup
     # Old standalone bulk panel is gone.
     assert "Save Individual Fields" not in script and "Save Individual Fields" not in markup
     assert "recipe-editor__bulk-field-actions" not in script and "recipe-editor__bulk-field-actions" not in markup

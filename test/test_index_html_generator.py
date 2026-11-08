@@ -557,3 +557,44 @@ def test_index_normalizes_updated_timestamp_to_utc(tmp_path: Path):
     recipe = BeautifulSoup(page, "html.parser").select_one("#recipe-list .recipe")
     assert recipe is not None
     assert recipe["data-edited"] == "2024-07-20T06:30:00+00:00"
+
+
+def test_index_includes_status_field_and_archived_toggle(tmp_path: Path):
+    active = tmp_path / "active" / "recipe.html"
+    active.parent.mkdir()
+    active.write_text("<h1>Active Recipe</h1>", encoding="UTF-8")
+    archived = tmp_path / "archived" / "recipe.html"
+    archived.parent.mkdir()
+    archived.write_text("<h1>Old Recipe</h1>", encoding="UTF-8")
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.add(Recipe({"status": "In Rotation", "cuisine": ["Thai"]}, active))
+    generator.add(Recipe({"status": "Try Me", "archived": True}, archived))
+
+    generator.convert()
+
+    soup = BeautifulSoup((tmp_path / "index.html").read_text(encoding="UTF-8"), "html.parser")
+    status_filter = soup.select_one("#filter-status")
+    assert status_filter is not None
+    assert status_filter.get("aria-label") == "Filter by status"
+    assert [option.get_text(strip=True) for option in status_filter.select("option")] == [
+        "All statuses",
+        "In Rotation",
+        "Try Me",
+    ]
+
+    show_archived = soup.select_one("#show-archived")
+    assert show_archived is not None
+    assert show_archived.get("checked") is None
+    assert soup.select_one('label.metadata-status-toggle svg') is not None
+    assert "Show Archived" in show_archived.find_parent("label").get_text(" ", strip=True)
+
+    items = {item["data-title"]: item for item in soup.select("#recipe-list .recipe")}
+    assert items["Active Recipe"]["data-status"] == '["In Rotation"]'
+    assert items["Active Recipe"]["data-archived"] == "false"
+    assert items["Old Recipe"]["data-archived"] == "true"
+    assert "lucide-info" in str(items["Active Recipe"].select_one(".recipe-detail--status"))
+    assert items["Active Recipe"].select_one(".recipe-detail--status").get_text(" ", strip=True) == "In Rotation"
+    archived_detail = items["Old Recipe"].select_one(".recipe-detail--archived")
+    assert archived_detail is not None
+    assert "Archived" in archived_detail.get_text(" ", strip=True)
+    assert "lucide-archive" in str(archived_detail)

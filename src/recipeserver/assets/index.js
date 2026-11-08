@@ -8,6 +8,7 @@ const initRecipeIndex = async () => {
   const filterControls = [
     ["meals", document.querySelector("#filter-meal")],
     ["cuisine", document.querySelector("#filter-cuisine")],
+    ["status", document.querySelector("#filter-status")],
     ["categories", document.querySelector("#filter-category")],
     ["tags", document.querySelector("#filter-tag")],
     ["contributors", document.querySelector("#filter-contributor")],
@@ -18,6 +19,7 @@ const initRecipeIndex = async () => {
   const clearFilters = document.querySelector("#clear-filters");
   const viewButtons = [...document.querySelectorAll("[data-view]")];
   const metadataStatus = document.querySelector("#metadata-status");
+  const showArchived = document.querySelector("#show-archived");
   const reviewFilter = document.querySelector("#review-filter");
   const reviewAll = document.querySelector("#filter-reviews-all");
   const reviewBoxes = [...document.querySelectorAll(".filter-reviews")];
@@ -257,13 +259,16 @@ const initRecipeIndex = async () => {
   };
 
   // ----- Filter, Sort, and Render ----- //
-  const getFilteredRecipes = (query) =>
+  const isArchivedRecipe = (recipe) => recipe.dataset.archived === "true";
+
+  const getFilteredRecipes = (query, includeArchived) =>
     recipes.filter(
       (recipe) =>
+        (includeArchived || !isArchivedRecipe(recipe)) &&
         recipe.dataset.search.toLowerCase().includes(query) &&
         filterControls.every(
           ([datasetKey, control]) =>
-            !control.value || getDatasetValues(recipe, datasetKey).includes(control.value),
+            !control || !control.value || getDatasetValues(recipe, datasetKey).includes(control.value),
         ),
     );
 
@@ -301,22 +306,27 @@ const initRecipeIndex = async () => {
   const update = () => {
     const query = search.value.trim().toLowerCase();
     const reviewers = getSelectedReviewers();
+    const includeArchived = Boolean(showArchived?.checked);
     applyReviewFilter(reviewers);
     updateReviewLabel(reviewers);
 
     const isFiltering =
       query !== "" ||
       reviewers !== null ||
-      filterControls.some(([, control]) => control.value !== "");
-    const visible = getFilteredRecipes(query);
+      filterControls.some(([, control]) => control?.value !== "");
+    const visible = getFilteredRecipes(query, includeArchived);
     sortVisibleRecipes(visible, sort.value);
     renderRecipeList(visible, isFiltering);
   };
 
   // ----- Event Wiring ----- //
-  [search, ...filterControls.map(([, control]) => control), sort].forEach((control) =>
+  [search, ...filterControls.map(([, control]) => control).filter(Boolean), sort].forEach((control) =>
     control.addEventListener(control === search ? "input" : "change", update),
   );
+
+  if (showArchived) {
+    showArchived.addEventListener("change", update);
+  }
 
   if (reviewAll) {
     reviewAll.addEventListener("change", () => {
@@ -345,7 +355,9 @@ const initRecipeIndex = async () => {
 
   clearFilters.addEventListener("click", () => {
     search.value = "";
-    filterControls.forEach(([, control]) => (control.value = ""));
+    filterControls.forEach(([, control]) => {
+      if (control) control.value = "";
+    });
     if (reviewAll) reviewAll.checked = true;
     reviewBoxes.forEach((box) => (box.checked = false));
     update();
