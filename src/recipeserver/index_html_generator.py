@@ -173,15 +173,11 @@ class IndexHTMLGenerator:
         source_format = str(source.get("format", "")).lower()
         if source_format not in TITLED_SOURCE_FORMATS:
             return ""
-        title = source.get("title") or (
-            source.get("company") if source_format == "website" else ""
-        )
+        title = source.get("title") or (source.get("company") if source_format == "website" else "")
         return str(title or "").strip()
 
     @staticmethod
-    def _warning_for(
-        warnings_by_field: dict[str, dict], *fields: str
-    ) -> dict | None:
+    def _warning_for(warnings_by_field: dict[str, dict], *fields: str) -> dict | None:
         for field in fields:
             warning = warnings_by_field.get(field)
             if warning is not None:
@@ -229,10 +225,7 @@ class IndexHTMLGenerator:
         if detail_kind in {"makes", "difficulty"}:
             content = html.escape(", ".join(values))
         else:
-            content = "".join(
-                f'<span class="recipe-chip">{html.escape(value)}</span>'
-                for value in values
-            )
+            content = "".join(f'<span class="recipe-chip">{html.escape(value)}</span>' for value in values)
 
         return (
             f'<span class="recipe-detail recipe-detail--{detail_kind}" '
@@ -242,9 +235,7 @@ class IndexHTMLGenerator:
         )
 
     @classmethod
-    def _metadata_detail_html(
-        cls, icon_path: Path, label: str, content: str
-    ) -> str:
+    def _metadata_detail_html(cls, icon_path: Path, label: str, content: str) -> str:
         if not content:
             return ""
 
@@ -266,9 +257,7 @@ class IndexHTMLGenerator:
     ) -> str:
         message = str(warning.get("message") or f"Missing {label}")
         escaped_message = html.escape(message, quote=True)
-        icon_html = (
-            cls._svg_icon(icon_path) if icon_path else cls._icon_for_detail(detail_kind)
-        )
+        icon_html = cls._svg_icon(icon_path) if icon_path else cls._icon_for_detail(detail_kind)
 
         return (
             f'<span class="recipe-detail recipe-detail--{detail_kind} '
@@ -308,9 +297,7 @@ class IndexHTMLGenerator:
         return cls._warning_detail_html(detail_kind, label, warning, icon_path)
 
     @classmethod
-    def _rating_html(
-        cls, average_rating: float | None, rating_count: int, warning: dict | None
-    ) -> str:
+    def _rating_html(cls, average_rating: float | None, rating_count: int, warning: dict | None) -> str:
         if average_rating is not None and rating_count:
             return (
                 f'<span class="recipe-rating" role="img" '
@@ -323,9 +310,7 @@ class IndexHTMLGenerator:
             )
 
         if warning is not None:
-            message = html.escape(
-                str(warning.get("message") or "Missing rating"), quote=True
-            )
+            message = html.escape(str(warning.get("message") or "Missing rating"), quote=True)
             return (
                 '<span class="recipe-detail recipe-detail--rating '
                 'recipe-detail--warning" hidden '
@@ -349,9 +334,7 @@ class IndexHTMLGenerator:
         if source_format == "website":
             url = str(source.get("url") or "").strip()
             parsed_url = urlsplit(url)
-            is_http_url = (
-                parsed_url.scheme.lower() in {"http", "https"} and parsed_url.netloc
-            )
+            is_http_url = parsed_url.scheme.lower() in {"http", "https"} and parsed_url.netloc
             if is_http_url:
                 content = (
                     f'<a href="{html.escape(url, quote=True)}" '
@@ -367,21 +350,15 @@ class IndexHTMLGenerator:
             return recipe.title
 
         if html_path.exists():
-            recipe_page = BeautifulSoup(
-                html_path.read_text(encoding="UTF-8"), "html.parser"
-            )
+            recipe_page = BeautifulSoup(html_path.read_text(encoding="UTF-8"), "html.parser")
             heading = recipe_page.find("h1")
             heading_title = heading.get_text(" ", strip=True) if heading else ""
             if heading_title:
                 return heading_title
 
-        return str(
-            metadata.get("title") or self.title_from_slug(html_path.parent.name)
-        )
+        return str(metadata.get("title") or self.title_from_slug(html_path.parent.name))
 
-    def _build_recipe_item(
-        self, recipe: Recipe, filter_values: dict[str, set[str]]
-    ) -> str:
+    def _build_recipe_item(self, recipe: Recipe, filter_values: dict[str, set[str]]) -> str:
         metadata = recipe.metadata
         html_path = recipe.html_file
         metadata_warnings = lint_recipe_metadata(metadata)
@@ -392,16 +369,8 @@ class IndexHTMLGenerator:
         markdown_path = relative_path.with_suffix(".md").as_posix()
 
         title = self._resolve_title(recipe, html_path, metadata)
-        hero_image = (
-            get_first_image_in_dir(html_path.parent)
-            if html_path.parent.is_dir()
-            else None
-        )
-        hero_url = (
-            "/" + hero_image.relative_to(self.cfg.site_directory).as_posix()
-            if hero_image
-            else ""
-        )
+        hero_image = get_first_image_in_dir(html_path.parent) if html_path.parent.is_dir() else None
+        hero_url = "/" + hero_image.relative_to(self.cfg.site_directory).as_posix() if hero_image else ""
 
         # ----- Collect filterable metadata values ----- #
         meals = self.collect_metadata_values(metadata, "meals")
@@ -409,16 +378,10 @@ class IndexHTMLGenerator:
         tags = self.collect_metadata_values(metadata, "tags")
         cuisine = self.collect_metadata_values(metadata, "cuisine")
         contributors = [
-            value.strip()
-            for value in self.collect_metadata_values(metadata, "contributor")
-            if value.strip()
+            value.strip() for value in self.collect_metadata_values(metadata, "contributor") if value.strip()
         ]
         sources = self._sources(metadata)
-        source_titles = [
-            source_title
-            for source in sources
-            if (source_title := self._source_title(source))
-        ]
+        source_titles = [source_title for source in sources if (source_title := self._source_title(source))]
 
         filter_values["meals"].update(meals)
         filter_values["categories"].update(categories)
@@ -428,9 +391,7 @@ class IndexHTMLGenerator:
         filter_values["source_titles"].update(source_titles)
 
         # ----- Compute sort and search attributes ----- #
-        search_text = " ".join(
-            [title, *meals, *categories, *tags, *cuisine, *contributors, *source_titles]
-        )
+        search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *contributors, *source_titles])
         reviewer_ratings = [
             {"name": self._reviewer_key(name) if name else "", "rating": score}
             for name, score in self._valid_ratings(metadata)
@@ -441,9 +402,7 @@ class IndexHTMLGenerator:
         makes = metadata.get("makes")
         difficulty = metadata.get("difficulty")
         makes_value = str(makes) if isinstance(makes, (int, float)) else ""
-        difficulty_value = (
-            str(difficulty) if isinstance(difficulty, (int, float)) else ""
-        )
+        difficulty_value = str(difficulty) if isinstance(difficulty, (int, float)) else ""
 
         contribution_date = self._contribution_date(metadata.get("createdOn"))
         updated_on = self._updated_date(metadata.get("updatedOn"))
@@ -546,12 +505,8 @@ class IndexHTMLGenerator:
                 ("difficulty",),
                 warnings_by_field,
             ),
-            self._detail_with_warning(
-                "meals", "Meals", meals, ("meals",), warnings_by_field
-            ),
-            self._detail_with_warning(
-                "cuisine", "Cuisine", cuisine, ("cuisine",), warnings_by_field
-            ),
+            self._detail_with_warning("meals", "Meals", meals, ("meals",), warnings_by_field),
+            self._detail_with_warning("cuisine", "Cuisine", cuisine, ("cuisine",), warnings_by_field),
             self._detail_with_warning(
                 "categories",
                 "Categories",
@@ -559,9 +514,7 @@ class IndexHTMLGenerator:
                 ("categories", "category"),
                 warnings_by_field,
             ),
-            self._detail_with_warning(
-                "tags", "Tags", tags, ("tags",), warnings_by_field
-            ),
+            self._detail_with_warning("tags", "Tags", tags, ("tags",), warnings_by_field),
             self._detail_with_warning(
                 "contributor",
                 "Contributor",
@@ -581,20 +534,12 @@ class IndexHTMLGenerator:
         ]
 
         # Titled sources render as individual details; warn only when none exist.
-        titled_sources = [
-            self._source_detail_html(source)
-            for source in sources
-            if self._source_title(source)
-        ]
+        titled_sources = [self._source_detail_html(source) for source in sources if self._source_title(source)]
         parts.extend(titled_sources)
         if not titled_sources:
             source_warning = self._warning_for(warnings_by_field, "source")
             if source_warning is not None:
-                parts.append(
-                    self._warning_detail_html(
-                        "source", "Source", source_warning, LINK_SVG
-                    )
-                )
+                parts.append(self._warning_detail_html("source", "Source", source_warning, LINK_SVG))
 
         return "".join(parts)
 
@@ -616,16 +561,12 @@ class IndexHTMLGenerator:
             reviewer_counts.items(),
             key=lambda item: (-item[1], reviewer_names[item[0]].casefold()),
         )
-        return [
-            (key, count, reviewer_names[key])
-            for key, count in ranked[:MAX_REVIEW_FILTER_OPTIONS]
-        ]
+        return [(key, count, reviewer_names[key]) for key, count in ranked[:MAX_REVIEW_FILTER_OPTIONS]]
 
     @staticmethod
     def _build_select_options_html(values: set[str]) -> str:
         return "\n".join(
-            f'<option value="{html.escape(value.lower(), quote=True)}">'
-            f"{html.escape(value)}</option>"
+            f'<option value="{html.escape(value.lower(), quote=True)}">' f"{html.escape(value)}</option>"
             for value in sorted(values, key=str.casefold)
         )
 
@@ -668,12 +609,8 @@ class IndexHTMLGenerator:
         cuisine_options = self._build_select_options_html(filter_values["cuisine"])
         category_options = self._build_select_options_html(filter_values["categories"])
         tag_options = self._build_select_options_html(filter_values["tags"])
-        contributor_options = self._build_select_options_html(
-            filter_values["contributors"]
-        )
-        source_title_options = self._build_select_options_html(
-            filter_values["source_titles"]
-        )
+        contributor_options = self._build_select_options_html(filter_values["contributors"])
+        source_title_options = self._build_select_options_html(filter_values["source_titles"])
 
         return dedent(f"""\
             <!DOCTYPE html>
@@ -865,9 +802,7 @@ class IndexHTMLGenerator:
         }
 
         reviewer_entries = self._aggregate_reviewers()
-        recipe_items = [
-            self._build_recipe_item(recipe, filter_values) for recipe in self.recipes
-        ]
+        recipe_items = [self._build_recipe_item(recipe, filter_values) for recipe in self.recipes]
 
         page_html = self._render_page(
             recipe_items_html="".join(recipe_items),
