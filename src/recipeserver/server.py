@@ -46,7 +46,18 @@ MarkdownSavedCallback = Callable[[Path], None]
 ConfigSavedCallback = Callable[[], None]
 RecipesDeletedCallback = Callable[[list[Path]], None]
 
+# ----- Request and server constants ----------------------------------------
+# These values define request-size limits and the local server's network
+# behavior. Keep them discoverable here rather than buried in handlers.
+
 BULK_MAX_PATHS = 100
+ARCHIVE_STREAM_CHUNK_BYTES = 64 * 1024
+
+SERVER_PORT = 8000
+SERVER_BIND_ADDRESS = "0.0.0.0"
+LOCALHOST = "localhost"
+PUBLIC_IP_PROBE_ADDRESS = "8.8.8.8"
+PUBLIC_IP_PROBE_PORT = 80
 
 
 class _RequestTooLarge(ValueError):
@@ -1189,7 +1200,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             headers_sent = True
 
             with archive_path.open("rb") as archive_file:
-                while chunk := archive_file.read(64 * 1024):
+                while chunk := archive_file.read(ARCHIVE_STREAM_CHUNK_BYTES):
                     self.wfile.write(chunk)
             logger.info(f"Downloaded archive: {kind} as {filename} ({size} bytes)")
         except BrokenPipeError:
@@ -1529,7 +1540,7 @@ class Server:
 
     def _port_in_use(self, port: int) -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            return sock.connect_ex(("localhost", port)) == 0
+            return sock.connect_ex((LOCALHOST, port)) == 0
 
     @property
     def is_running(self) -> bool:
@@ -1539,8 +1550,8 @@ class Server:
         if self.is_running:
             return
 
-        if self._port_in_use(8000):
-            logger.error("Port 8000 in use!")
+        if self._port_in_use(SERVER_PORT):
+            logger.error("Port {} in use!", SERVER_PORT)
             sys.exit(1)
 
         handler = partial(
@@ -1554,9 +1565,9 @@ class Server:
         )
 
         try:
-            http_server = ThreadingHTTPServer(("0.0.0.0", 8000), handler)
+            http_server = ThreadingHTTPServer((SERVER_BIND_ADDRESS, SERVER_PORT), handler)
         except OSError:
-            logger.exception("Failed to start server on port 8000")
+            logger.exception("Failed to start server on port {}", SERVER_PORT)
             raise
 
         self._http_server = http_server
@@ -1569,14 +1580,14 @@ class Server:
 
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
             try:
-                sock.connect(("8.8.8.8", 80))
+                sock.connect((PUBLIC_IP_PROBE_ADDRESS, PUBLIC_IP_PROBE_PORT))
                 ip_address = sock.getsockname()[0]
             except OSError:
                 ip_address = "unavailable"
 
-        logger.info("Server started on port 8000")
-        logger.info(f"Hostname: http://{socket.gethostname()}.local:8000")
-        logger.info("IP: http://{}:8000", ip_address)
+        logger.info("Server started on port {}", SERVER_PORT)
+        logger.info("Hostname: http://{}.local:{}", socket.gethostname(), SERVER_PORT)
+        logger.info("IP: http://{}:{}", ip_address, SERVER_PORT)
 
     def stop(self):
         if self._http_server is None:
