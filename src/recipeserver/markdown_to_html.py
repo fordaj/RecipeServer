@@ -84,6 +84,7 @@ COMMENTS_CSS = "/assets/comments.css"
 COMMENTS_JS = "/assets/comments.js"
 RATINGS_CSS = "/assets/ratings.css"
 RATINGS_JS = "/assets/ratings.js"
+RECIPE_FEEDBACK_JS = "/assets/recipe-feedback.js"
 TIME_JS = "/assets/time.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
@@ -918,6 +919,7 @@ class MarkdownToHTMLConverter:
             <script defer src="{RECIPE_JS}"></script>
             <script defer src="{RECIPE_SCALER_JS}"></script>
             <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
+            <script defer src="{RECIPE_FEEDBACK_JS}"></script>
             <script defer src="{COMMENTS_JS}"></script>
             <script defer src="{RATINGS_JS}"></script>
             <script defer src="{RECIPE_EDITOR_JS}"></script>

@@ -1,14 +1,37 @@
 class RecipeScaler {
+  // ----- Noun forms ----- //
+  // Single source of truth for irregular noun singular/plural pairs.
+  static IRREGULAR_NOUN_FORMS = [
+    ["loaf", "loaves"],
+    ["leaf", "leaves"],
+    ["knife", "knives"],
+    ["half", "halves"],
+    ["potato", "potatoes"],
+    ["tomato", "tomatoes"],
+    ["person", "people"],
+    ["child", "children"],
+    ["mouse", "mice"],
+    ["man", "men"],
+    ["woman", "women"],
+  ];
+
+  static IRREGULAR_SINGULAR_TO_PLURAL = Object.fromEntries(RecipeScaler.IRREGULAR_NOUN_FORMS);
+  static IRREGULAR_PLURAL_TO_SINGULAR = Object.fromEntries(
+    RecipeScaler.IRREGULAR_NOUN_FORMS.map(([singular, plural]) => [plural, singular]),
+  );
+
   constructor() {
     this.scaleSelect = document.getElementById("recipe-scale-select");
     this.customInput = document.getElementById("recipe-scale-custom");
     this.quantities = document.querySelectorAll(".quantity");
+    this.isReady = Boolean(this.scaleSelect && this.customInput);
 
-    if (!this.scaleSelect || !this.customInput) {
+    if (!this.isReady) {
       console.warn("RecipeScaler: scale controls not found");
       return;
     }
 
+    // ----- Wire controls ----- //
     this.scaleSelect.addEventListener("change", () => {
       const isCustom = this.scaleSelect.value === "custom";
 
@@ -31,12 +54,16 @@ class RecipeScaler {
       this.update();
     });
 
-    // Initial render
+    // ----- Initial render ----- //
     this.customInput.hidden = true;
-    this.update(false);
+    this.update();
   }
 
   async update() {
+    if (!this.isReady) {
+      return;
+    }
+
     const mathJax = window.MathJax;
 
     if (!mathJax?.startup?.promise) {
@@ -72,26 +99,7 @@ class RecipeScaler {
       let formatted = this.formatQuantity(scaled, unit);
 
       if (quantityEnd !== undefined) {
-        const end = parseFloat(quantityEnd);
-
-        if (Number.isFinite(end)) {
-          const scaledEnd = this.roundQuantity(end * scale, unit);
-
-          // Format the endpoint as a quantity, then remove its repeated unit.
-          const formattedEnd = this.formatQuantity(scaledEnd, unit);
-          const formattedUnit = this.formatUnit(unit, scaled);
-
-          const separator = formattedUnit && this.requiresSpaceBeforeUnit(formattedUnit) ? " " : "";
-          const unitSuffix = formattedUnit ? `${separator}${formattedUnit}` : "";
-
-          const endText =
-            unitSuffix && formattedEnd.endsWith(unitSuffix)
-              ? formattedEnd.slice(0, -unitSuffix.length)
-              : formattedEnd;
-
-          const startText = formatted.replace(unitSuffix, "").replace(/^\$(.*?)\$$/, "$1");
-          formatted = `$${startText}\\text{ - }${endText.replace(/^\$(.*?)\$$/, "$1")}$${unitSuffix ? separator + formattedUnit : ""}`;
-        }
+        formatted = this.formatQuantityRange(scaled, quantityEnd, scale, unit, formatted);
       }
 
       element.innerHTML = formatted;
@@ -112,18 +120,40 @@ class RecipeScaler {
     await mathJax.typesetPromise([...this.quantities]);
   }
 
-  roundQuantity(value, unit) {
-    // Measurements that commonly use fractional amounts.
-    if (["tsp", "tbsp", "cup"].includes(unit)) {
-      return value;
+  formatQuantityRange(scaledStart, quantityEndRaw, scale, unit, formattedStart) {
+    const quantityEnd = parseFloat(quantityEndRaw);
+    if (!Number.isFinite(quantityEnd)) {
+      return formattedStart;
     }
 
-    // Weight measurements.
-    if (["g", "gram", "grams", "kg", "mg"].includes(unit)) {
+    const scaledEnd = this.roundQuantity(quantityEnd * scale, unit);
+    const formattedEnd = this.formatQuantity(scaledEnd, unit);
+    const formattedUnit = this.formatUnit(unit, scaledStart);
+
+    const separator = formattedUnit && this.requiresSpaceBeforeUnit(formattedUnit) ? " " : "";
+    const unitSuffix = formattedUnit ? `${separator}${formattedUnit}` : "";
+    const endWithoutUnit =
+      unitSuffix && formattedEnd.endsWith(unitSuffix)
+        ? formattedEnd.slice(0, -unitSuffix.length)
+        : formattedEnd;
+
+    const startMath = this.unwrapMathText(formattedStart.replace(unitSuffix, ""));
+    const endMath = this.unwrapMathText(endWithoutUnit);
+    return `$${startMath}\\text{ - }${endMath}$${unitSuffix}`;
+  }
+
+  unwrapMathText(formattedText) {
+    const wrappedMath = /^\$(.*?)\$$/.exec(formattedText);
+    return wrappedMath ? wrappedMath[1] : formattedText;
+  }
+
+  roundQuantity(value, unit) {
+    const weightUnits = new Set(["g", "gram", "grams", "kg", "mg"]);
+    if (weightUnits.has(unit)) {
       return Math.round(value);
     }
 
-    // Eggs, sticks of butter, etc
+    // Fractional kitchen measures and count-like items keep their scaled value.
     return value;
   }
   requiresSpaceBeforeUnit(unit) {
@@ -266,97 +296,59 @@ class RecipeScaler {
 
   pluralize(unit, quantity) {
     const words = unit.trim().split(/\s+/);
-
     if (words.length === 0) {
       return unit;
     }
 
     const noun = words.pop();
-    const singular = this.singularize(noun);
+    const singular = this.singularizeWord(noun);
 
     if (quantity === 1) {
       return [...words, singular].join(" ");
     }
 
-    const irregular = {
-      loaf: "loaves",
-      leaf: "leaves",
-      knife: "knives",
-      half: "halves",
-      potato: "potatoes",
-      tomato: "tomatoes",
-      person: "people",
-      child: "children",
-      mouse: "mice",
-      man: "men",
-      woman: "women",
-    };
-
-    let plural;
-
-    if (irregular[singular]) {
-      plural = irregular[singular];
-    } else if (singular.endsWith("y") && !/[aeiou]y$/.test(singular)) {
-      plural = singular.slice(0, -1) + "ies";
-    } else if (
-      singular.endsWith("s") ||
-      singular.endsWith("sh") ||
-      singular.endsWith("ch") ||
-      singular.endsWith("x") ||
-      singular.endsWith("z")
-    ) {
-      plural = singular + "es";
-    } else {
-      plural = singular + "s";
-    }
-
-    return [...words, plural].join(" ");
+    return [...words, this.pluralizeWord(singular)].join(" ");
   }
 
   singularize(unit) {
     const words = unit.trim().split(/\s+/);
-
     if (words.length === 0) {
       return unit;
     }
 
     const noun = words.pop();
+    return [...words, this.singularizeWord(noun)].join(" ");
+  }
 
-    const irregular = {
-      loaves: "loaf",
-      leaves: "leaf",
-      knives: "knife",
-      halves: "half",
-      potatoes: "potato",
-      tomatoes: "tomato",
-      people: "person",
-      children: "child",
-      mice: "mouse",
-      men: "man",
-      women: "woman",
-    };
-
-    let singular;
-
-    if (irregular[noun]) {
-      singular = irregular[noun];
-    } else if (noun.endsWith("ies")) {
-      singular = noun.slice(0, -3) + "y";
-    } else if (
-      noun.endsWith("ses") ||
-      noun.endsWith("shes") ||
-      noun.endsWith("ches") ||
-      noun.endsWith("xes") ||
-      noun.endsWith("zes")
-    ) {
-      singular = noun.slice(0, -2);
-    } else if (noun.endsWith("s")) {
-      singular = noun.slice(0, -1);
-    } else {
-      singular = noun;
+  pluralizeWord(singular) {
+    const irregularPlural = RecipeScaler.IRREGULAR_SINGULAR_TO_PLURAL[singular];
+    if (irregularPlural) {
+      return irregularPlural;
     }
+    if (singular.endsWith("y") && !/[aeiou]y$/.test(singular)) {
+      return `${singular.slice(0, -1)}ies`;
+    }
+    if (/(?:s|sh|ch|x|z)$/.test(singular)) {
+      return `${singular}es`;
+    }
+    return `${singular}s`;
+  }
 
-    return [...words, singular].join(" ");
+  singularizeWord(noun) {
+    const irregularSingular = RecipeScaler.IRREGULAR_PLURAL_TO_SINGULAR[noun];
+    if (irregularSingular) {
+      return irregularSingular;
+    }
+    if (noun.endsWith("ies")) {
+      return `${noun.slice(0, -3)}y`;
+    }
+    if (/(?:ses|shes|ches|xes|zes)$/.test(noun)) {
+      return noun.slice(0, -2);
+    }
+    if (noun.endsWith("s")) {
+      return noun.slice(0, -1);
+    }
+    return noun;
   }
 }
 

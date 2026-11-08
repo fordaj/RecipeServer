@@ -2,7 +2,7 @@
   const root = document.querySelector("#recipe-comments");
   if (!root) return;
 
-  const recipePath = getMarkdownPath();
+  // ----- DOM references ----- //
   const form = root.querySelector("#recipe-comment-form");
   const addButton = root.querySelector(".recipe-comments__add");
   const cancelButton = root.querySelector("#cancel-comment");
@@ -11,28 +11,21 @@
   const textInput = root.querySelector("#comment-text");
   const status = root.querySelector("#comment-status");
   const list = root.querySelector("#comment-list");
+  const helpers = window.RecipeFeedback || {};
+  const recipePath = (helpers.getMarkdownPath || getMarkdownPathFallback)();
 
-  async function saveComments(comments) {
-    const response = await fetch("/api/metadata/comments", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        path: getMarkdownPath(),
-        value: comments,
-      }),
-    });
-
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok || result.success !== true) {
-      throw new Error(result.error || `Unable to save comments (HTTP ${response.status})`);
-    }
+  function getMarkdownPathFallback() {
+    const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
+    return page.replace(/\.html$/i, ".md");
   }
 
+  // ----- Data helpers ----- //
   function getTimestamp() {
     return new Date().toISOString();
+  }
+
+  function createCommentId() {
+    return helpers.createId ? helpers.createId() : `comment-${Date.now()}`;
   }
 
   function normalizeComments(comments) {
@@ -46,15 +39,99 @@
       }));
   }
 
-  function renderAllComments(comments) {
-    const sortedComments = [...comments].sort((a, b) => {
-      const timestampA = Date.parse(a.updated || a.created) || 0;
-      const timestampB = Date.parse(b.updated || b.created) || 0;
+  async function getComments() {
+    let comments;
+    if (helpers.fetchMetadata) {
+      comments = await helpers.fetchMetadata("comments", recipePath);
+    } else {
+      const params = new URLSearchParams({ path: recipePath });
+      const response = await fetch(`/api/metadata/comments?${params}`);
+      if (!response.ok) {
+        throw new Error(`Failed to load comments (${response.status})`);
+      }
+      const data = await response.json();
+      if (!Array.isArray(data.value)) {
+        throw new Error("Invalid comments response");
+      }
+      comments = data.value;
+    }
+    return normalizeComments(comments);
+  }
 
-      return timestampB - timestampA;
+  async function saveComments(comments) {
+    if (helpers.saveMetadata) {
+      return helpers.saveMetadata("comments", recipePath, comments);
+    }
+    const response = await fetch("/api/metadata/comments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: recipePath, value: comments }),
     });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.success !== true) {
+      throw new Error(result.error || `Unable to save comments (HTTP ${response.status})`);
+    }
+  }
 
-    list.replaceChildren(...sortedComments.map((comment) => createComment(comment)));
+  // ----- Rendering ----- //
+  function getInitials(name) {
+    return helpers.getInitials ? helpers.getInitials(name) : String(name || "").slice(0, 2).toUpperCase();
+  }
+
+  function createComment(comment) {
+    const article = document.createElement("article");
+    article.className = "recipe-comment";
+    article.dataset.commentId = comment.id;
+
+    const author = (comment.author || "Anonymous").trim() || "Anonymous";
+    const avatar = document.createElement("div");
+    avatar.className = "recipe-comment__avatar";
+    avatar.setAttribute("aria-hidden", "true");
+    avatar.textContent = getInitials(author);
+
+    const content = document.createElement("div");
+    content.className = "recipe-comment__content";
+
+    const meta = document.createElement("header");
+    meta.className = "recipe-comment__meta";
+    const authorElement = document.createElement("span");
+    authorElement.className = "recipe-comment__author";
+    authorElement.textContent = author;
+
+    const dateElement = helpers.createDateElement
+      ? helpers.createDateElement(comment.updated || comment.created)
+      : document.createElement("time");
+    if (!helpers.createDateElement) {
+      const timestamp = comment.updated || comment.created;
+      if (typeof timestamp === "string" && timestamp) {
+        dateElement.dateTime = timestamp;
+        dateElement.textContent = timestamp;
+      }
+    }
+    meta.append(authorElement, dateElement);
+
+    const text = document.createElement("p");
+    text.className = "recipe-comment__text";
+    text.textContent = comment.text;
+
+    const actions = document.createElement("div");
+    actions.className = "recipe-comment__actions";
+    for (const [action, label] of [["edit", "Edit"], ["delete", "Remove"]]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.action = action;
+      button.textContent = label;
+      actions.append(button);
+    }
+
+    content.append(meta, text, actions);
+    article.append(avatar, content);
+    return article;
+  }
+
+  function renderAllComments(comments) {
+    const sort = helpers.sortByUpdatedDesc || ((items) => [...items]);
+    list.replaceChildren(...sort(comments).map((comment) => createComment(comment)));
     root.classList.toggle("is-empty", comments.length === 0);
   }
 
@@ -64,38 +141,10 @@
     });
   }
 
-  function createCommentId() {
-    if (typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-
-    // UUID v4 fallback for browsers or contexts without randomUUID().
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
-      const random = (Math.random() * 16) | 0;
-      const value = character === "x" ? random : (random & 0x3) | 0x8;
-      return value.toString(16);
-    });
-  }
-
-  async function editComment(article) {
-    const commentId = article.dataset.commentId;
-    const comments = await getComments();
-
-    const index = comments.findIndex((comment) => comment.id === commentId);
-
-    if (index === -1) {
-      throw new Error("Comment no longer exists. Reload the page.");
-    }
-
-    const comment = comments[index];
-
-    if (!comment) {
-      throw new Error("Comment no longer exists. Reload the page.");
-    }
-
-    const content = article.querySelector(".recipe-comment__content");
-    const form = document.createElement("form");
-    form.className = "recipe-comment__edit";
+  // ----- Edit form ----- //
+  function buildEditForm(comment) {
+    const editForm = document.createElement("form");
+    editForm.className = "recipe-comment__edit";
 
     const author = document.createElement("input");
     author.className = "recipe-comment__author-input";
@@ -113,91 +162,87 @@
 
     const actions = document.createElement("div");
     actions.className = "recipe-comment__actions";
-
     const cancel = document.createElement("button");
     cancel.type = "button";
     cancel.textContent = "Cancel";
-
     const save = document.createElement("button");
     save.type = "submit";
     save.textContent = "Save";
-
     actions.append(cancel, save);
-    form.append(author, text, actions);
-    content.replaceChildren(form);
 
-    cancel.addEventListener("click", () => {
+    editForm.append(author, text, actions);
+    return { editForm, author, text, cancel };
+  }
+
+  function showEditError(article, editForm, errorMessage) {
+    let message = article.querySelector(".recipe-comment__status");
+    if (!message) {
+      message = document.createElement("p");
+      message.className = "recipe-comment__status";
+      message.setAttribute("role", "status");
+      editForm.append(message);
+    }
+    message.textContent = errorMessage;
+  }
+
+  async function editComment(article) {
+    // Fetch once for the edit operation: load current comments, find the target, then save.
+    const commentId = article.dataset.commentId;
+    const comments = await getComments();
+    const index = comments.findIndex((comment) => comment.id === commentId);
+    if (index === -1) {
+      throw new Error("Comment no longer exists. Reload the page.");
+    }
+
+    const comment = comments[index];
+    const content = article.querySelector(".recipe-comment__content");
+    const controls = buildEditForm(comment);
+    content.replaceChildren(controls.editForm);
+
+    controls.cancel.addEventListener("click", () => {
       article.replaceWith(createComment(comment));
     });
 
-    form.addEventListener("submit", async (event) => {
+    controls.editForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-
-      const newAuthor = author.value.trim();
-      const newText = text.value.trim();
-
+      const newAuthor = controls.author.value.trim();
+      const newText = controls.text.value.trim();
       if (!newAuthor || !newText) return;
 
       setCommentBusy(article, true);
-
       try {
-        // Read the latest data before updating the selected comment.
-        const latest = await getComments();
-
-        const latestIndex = latest.findIndex((item) => item.id === commentId);
-
-        if (latestIndex === -1) {
-          throw new Error("Comment no longer exists.");
-        }
-
-        latest[latestIndex] = {
-          ...latest[latestIndex],
+        comments[index] = {
+          ...comments[index],
           author: newAuthor,
           text: newText,
           updated: getTimestamp(),
         };
-
-        await saveComments(latest);
-        renderAllComments(latest);
+        await saveComments(comments);
+        renderAllComments(comments);
       } catch (error) {
         console.error("Unable to edit comment:", error);
         setCommentBusy(article, false);
-        let message = article.querySelector(".recipe-comment__status");
-
-        if (!message) {
-          message = document.createElement("p");
-          message.className = "recipe-comment__status";
-          message.setAttribute("role", "status");
-          form.append(message);
-        }
-
-        message.textContent = error.message;
+        showEditError(article, controls.editForm, error.message);
       }
     });
 
-    author.focus();
+    controls.author.focus();
   }
 
   async function deleteComment(article) {
     const commentId = article.dataset.commentId;
-
     if (!window.confirm("Delete this comment? This cannot be undone.")) {
       return;
     }
 
     setCommentBusy(article, true);
-
     try {
       const comments = await getComments();
-
       const index = comments.findIndex((comment) => comment.id === commentId);
-
       if (index === -1) {
         throw new Error("Comment no longer exists.");
       }
-
       comments.splice(index, 1);
-
       await saveComments(comments);
       renderAllComments(comments);
     } catch (error) {
@@ -207,7 +252,26 @@
     }
   }
 
-  // Event delegation also handles comments added after the page loads.
+  // ----- Form controls ----- //
+  function setFormOpen(open) {
+    form.hidden = !open;
+    addButton.setAttribute("aria-expanded", String(open));
+    status.textContent = "";
+    if (open) {
+      textInput.focus();
+    }
+  }
+
+  async function loadComments() {
+    try {
+      renderAllComments(await getComments());
+    } catch (error) {
+      console.error("Unable to load comments:", error);
+      status.textContent = "Unable to load comments.";
+    }
+  }
+
+  // ----- Event wiring ----- //
   list.addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-action]");
     if (!button || !list.contains(button)) return;
@@ -227,129 +291,6 @@
     }
   });
 
-  if (!recipePath) {
-    console.error("Missing data-recipe-path on #recipe-comments");
-    return;
-  }
-
-  function setFormOpen(open) {
-    form.hidden = !open;
-    addButton.setAttribute("aria-expanded", String(open));
-    status.textContent = "";
-
-    if (open) {
-      textInput.focus();
-    }
-  }
-
-  function getMarkdownPath() {
-    const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
-
-    return page.replace(/\.html$/i, ".md");
-  }
-
-  function createComment(comment) {
-    const article = document.createElement("article");
-    article.className = "recipe-comment";
-    article.dataset.commentId = comment.id;
-
-    const author = (comment.author || "Anonymous").trim() || "Anonymous";
-    const initials = author
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0].toUpperCase())
-      .join("");
-
-    const avatar = document.createElement("div");
-    avatar.className = "recipe-comment__avatar";
-    avatar.setAttribute("aria-hidden", "true");
-    avatar.textContent = initials;
-
-    const content = document.createElement("div");
-    content.className = "recipe-comment__content";
-
-    const meta = document.createElement("header");
-    meta.className = "recipe-comment__meta";
-
-    const authorElement = document.createElement("span");
-    authorElement.className = "recipe-comment__author";
-    authorElement.textContent = author;
-
-    const dateElement = document.createElement("time");
-    const timestamp = comment.updated || comment.created;
-
-    if (typeof timestamp === "string" && timestamp) {
-      dateElement.dateTime = timestamp;
-
-      const date = new Date(timestamp);
-
-      dateElement.textContent = Number.isNaN(date.getTime())
-        ? timestamp
-        : date.toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          });
-    }
-
-    meta.append(authorElement, dateElement);
-
-    const text = document.createElement("p");
-    text.className = "recipe-comment__text";
-    text.textContent = comment.text;
-
-    const actions = document.createElement("div");
-    actions.className = "recipe-comment__actions";
-
-    const editButton = document.createElement("button");
-    editButton.type = "button";
-    editButton.dataset.action = "edit";
-    editButton.textContent = "Edit";
-
-    const removeButton = document.createElement("button");
-    removeButton.type = "button";
-    removeButton.dataset.action = "delete";
-    removeButton.textContent = "Remove";
-
-    actions.append(editButton, removeButton);
-    content.append(meta, text, actions);
-    article.append(avatar, content);
-
-    return article;
-  }
-
-  async function getComments() {
-    const params = new URLSearchParams({
-      path: getMarkdownPath(),
-    });
-
-    const response = await fetch(`/api/metadata/comments?${params}`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to load comments (${response.status})`);
-    }
-
-    const data = await response.json();
-
-    if (!Array.isArray(data.value)) {
-      throw new Error("Invalid comments response");
-    }
-
-    return normalizeComments(data.value);
-  }
-
-  async function loadComments() {
-    try {
-      const comments = await getComments();
-      renderAllComments(comments);
-    } catch (error) {
-      console.error("Unable to load comments:", error);
-      status.textContent = "Unable to load comments.";
-    }
-  }
-
-  loadComments();
-
   addButton.addEventListener("click", () => {
     setFormOpen(true);
   });
@@ -358,9 +299,9 @@
     form.reset();
     setFormOpen(false);
   });
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-
     const author = authorInput.value.trim();
     const text = textInput.value.trim();
 
@@ -371,26 +312,18 @@
 
     saveButton.disabled = true;
     status.textContent = "Saving comment…";
-
     try {
       const comments = await getComments();
-
       const timestamp = getTimestamp();
-
-      const comment = {
+      comments.push({
         id: createCommentId(),
         author,
         created: timestamp,
         updated: timestamp,
         text,
-      };
-
-      const updatedComments = [...comments, comment];
-
-      await saveComments(updatedComments);
-
-      renderAllComments(updatedComments);
-
+      });
+      await saveComments(comments);
+      renderAllComments(comments);
       form.reset();
       setFormOpen(false);
     } catch (error) {
@@ -400,4 +333,6 @@
       saveButton.disabled = false;
     }
   });
+
+  loadComments();
 })();
