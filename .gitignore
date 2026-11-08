@@ -5,6 +5,9 @@
 node_modules/*
 test/**/*.html
 
+# Generated from assets/logo.svg at app load (see src/recipeserver/logo.py)
+src/recipeserver/assets/logo.png
+
 # ==========================================
 # Byte-compiled / optimized / DLL files
 # ==========================================

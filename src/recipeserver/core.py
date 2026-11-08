@@ -227,7 +227,7 @@ def main(_cfg: Configuration):
     server.start()
 
     shutdown_event = Event()
-    tray = Tray(server, on_quit=shutdown_event.set)
+    tray = Tray(server, on_quit=shutdown_event.set, food_color=cfg.food_color)
 
     try:
         if sys.platform == "darwin":  # Mac requires tray.run() to work at all and is KeyboardInterrupt-able
