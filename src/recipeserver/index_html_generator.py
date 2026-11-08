@@ -15,6 +15,13 @@ from .config import DEFAULT_RECIPE_SERVER_NAME, Configuration
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
+try:
+    from importlib.metadata import version as _package_version
+
+    VERSION = _package_version("recipeserver")
+except Exception:  # pragma: no cover - package metadata unavailable in tests
+    VERSION = "0.0.0"
+
 from .recipe_utils import (
     iter_valid_rating_entries,
     normalize_reviewer_name,
@@ -23,6 +30,8 @@ from .recipe_utils import (
 
 FILE_PATH = Path(__file__)
 ASSETS_DIR = FILE_PATH.parent / "assets"
+
+TIME_JS_PATH = "/assets/time.js"
 
 # ----- Asset paths and URLs ----- #
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
@@ -162,6 +171,61 @@ class IndexHTMLGenerator:
     @staticmethod
     def _updated_date(value: object) -> datetime | None:
         return parse_metadata_datetime(value)
+
+    @staticmethod
+    def _is_date_only(value: object) -> bool:
+        if isinstance(value, datetime):
+            return False
+        if isinstance(value, date):
+            return True
+        if isinstance(value, str):
+            import re
+
+            return re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()) is not None
+        return False
+
+    @staticmethod
+    def _display_date(value: datetime) -> str:
+        from datetime import timezone
+
+        text = f"{value:%b} {value.day}"
+        if datetime.now(timezone.utc).year != value.year:
+            text += f", {value.year}"
+        return text
+
+    def _latest_updated_on(self) -> tuple[datetime | None, object]:
+        latest: datetime | None = None
+        latest_raw: object = None
+        for recipe in self.recipes:
+            raw = recipe.metadata.get("updatedOn")
+            parsed = self._updated_date(raw)
+            if parsed is not None and (latest is None or parsed > latest):
+                latest = parsed
+                latest_raw = raw
+        return latest, latest_raw
+
+    def _version_footer_html(self) -> str:
+        latest, latest_raw = self._latest_updated_on()
+        icon = self._svg_icon(TAG_SVG)
+        label_parts = [f"v{VERSION}"]
+        if latest is not None:
+            if self._is_date_only(latest_raw):
+                time_attrs = f'datetime="{html.escape(latest.date().isoformat(), quote=True)}"'
+            else:
+                time_attrs = (
+                    f'datetime="{html.escape(latest.isoformat(), quote=True)}" '
+                    'data-local-time="true" data-time-prefix="Edited "'
+                )
+            label_parts.append(
+                f'<span class="recipe-meta__separator" aria-hidden="true">·</span>'
+                f'<time {time_attrs}>Edited {html.escape(self._display_date(latest))}</time>'
+            )
+        label = "".join(label_parts)
+        return (
+            f'<footer class="recipe-version" aria-label="App version">'
+            f'{icon}<span>{label}</span>'
+            f"</footer>"
+        )
 
     @staticmethod
     def _sources(metadata: dict) -> list[dict]:
@@ -672,88 +736,88 @@ class IndexHTMLGenerator:
                             >
                         </label>
 
-                        <div class="recipe-filters">
-                            <label class="filter-control">
-                                {self._inline_svg(UTENSILS_SVG)}
-                                <select id="filter-meal" aria-label="Filter by meal">
-                                    <option value="">All meals</option>
-                                    {meal_options}
-                                </select>
-                            </label>
-
-                            <label class="filter-control">
-                                {self._inline_svg(PIN_SVG)}
-                                <select id="filter-cuisine" aria-label="Filter by cuisine">
-                                    <option value="">All cuisines</option>
-                                    {cuisine_options}
-                                </select>
-                            </label>
-
-                            <label class="filter-control">
-                                {self._inline_svg(INFO_SVG)}
-                                <select id="filter-status" aria-label="Filter by status">
-                                    <option value="">All statuses</option>
-                                    {status_options}
-                                </select>
-                            </label>
-
-                            <label class="filter-control">
-                                {self._inline_svg(COOKING_POT_SVG)}
-                                <select id="filter-category" aria-label="Filter by category">
-                                    <option value="">All categories</option>
-                                    {category_options}
-                                </select>
-                            </label>
-
-                            <label class="filter-control">
-                                {self._inline_svg(TAG_SVG)}
-                                <select id="filter-tag" aria-label="Filter by tag">
-                                    <option value="">All tags</option>
-                                    {tag_options}
-                                </select>
-                            </label>
-
-                            <label class="filter-control">
-                                {self._inline_svg(QUILL_SVG)}
-                                <select id="filter-contributor" aria-label="Filter by contributor">
-                                    <option value="">All contributors</option>
-                                    {contributor_options}
-                                </select>
-                            </label>
-
-                            <label class="filter-control">
-                                {self._inline_svg(BOOK_SVG)}
-                                <select id="filter-source-title" aria-label="Filter by source title">
-                                    <option value="">All source titles</option>
-                                    {source_title_options}
-                                </select>
-                            </label>
-
-                            <label class="filter-control">
-                                {self._inline_svg(UP_DOWN_ARROW_SVG)}
-                                <select id="sort-recipes" aria-label="Sort recipes">
-                                    <option value="title:asc">Name: A–Z</option>
-                                    <option value="title:desc">Name: Z–A</option>
-                                    <option value="rating:desc">Highest rated</option>
-                                    <option value="rating:asc">Lowest rated</option>
-                                    <option value="makes:desc">Makes: most first</option>
-                                    <option value="makes:asc">Makes: fewest first</option>
-                                    <option value="difficulty:asc">Easiest first</option>
-                                    <option value="difficulty:desc">Hardest first</option>
-                                    <option value="date:desc">Contribution date: newest first</option>
-                                    <option value="date:asc">Contribution date: oldest first</option>
-                                    <option value="edited:desc">Last edit: newest first</option>
-                                    <option value="edited:asc">Last edit: oldest first</option>
-                                </select>
-                            </label>
-                        </div>
-
                         <details class="recipe-advanced">
                             <summary>
                                 <span>Advanced</span>
                             </summary>
 
                             <div class="recipe-advanced__content">
+                                <div class="recipe-filters">
+                                    <label class="filter-control">
+                                        {self._inline_svg(UP_DOWN_ARROW_SVG)}
+                                        <select id="sort-recipes" aria-label="Sort recipes">
+                                            <option value="title:asc">Name: A–Z</option>
+                                            <option value="title:desc">Name: Z–A</option>
+                                            <option value="rating:desc">Highest rated</option>
+                                            <option value="rating:asc">Lowest rated</option>
+                                            <option value="makes:desc">Makes: most first</option>
+                                            <option value="makes:asc">Makes: fewest first</option>
+                                            <option value="difficulty:asc">Easiest first</option>
+                                            <option value="difficulty:desc">Hardest first</option>
+                                            <option value="date:desc">Contribution date: newest first</option>
+                                            <option value="date:asc">Contribution date: oldest first</option>
+                                            <option value="edited:desc">Last edit: newest first</option>
+                                            <option value="edited:asc">Last edit: oldest first</option>
+                                        </select>
+                                    </label>
+
+                                    <label class="filter-control">
+                                        {self._inline_svg(UTENSILS_SVG)}
+                                        <select id="filter-meal" aria-label="Filter by meal">
+                                            <option value="">All meals</option>
+                                            {meal_options}
+                                        </select>
+                                    </label>
+
+                                    <label class="filter-control">
+                                        {self._inline_svg(PIN_SVG)}
+                                        <select id="filter-cuisine" aria-label="Filter by cuisine">
+                                            <option value="">All cuisines</option>
+                                            {cuisine_options}
+                                        </select>
+                                    </label>
+
+                                    <label class="filter-control">
+                                        {self._inline_svg(INFO_SVG)}
+                                        <select id="filter-status" aria-label="Filter by status">
+                                            <option value="">All statuses</option>
+                                            {status_options}
+                                        </select>
+                                    </label>
+
+                                    <label class="filter-control">
+                                        {self._inline_svg(COOKING_POT_SVG)}
+                                        <select id="filter-category" aria-label="Filter by category">
+                                            <option value="">All categories</option>
+                                            {category_options}
+                                        </select>
+                                    </label>
+
+                                    <label class="filter-control">
+                                        {self._inline_svg(TAG_SVG)}
+                                        <select id="filter-tag" aria-label="Filter by tag">
+                                            <option value="">All tags</option>
+                                            {tag_options}
+                                        </select>
+                                    </label>
+
+                                    <label class="filter-control">
+                                        {self._inline_svg(QUILL_SVG)}
+                                        <select id="filter-contributor" aria-label="Filter by contributor">
+                                            <option value="">All contributors</option>
+                                            {contributor_options}
+                                        </select>
+                                    </label>
+
+                                    <label class="filter-control">
+                                        {self._inline_svg(BOOK_SVG)}
+                                        <select id="filter-source-title" aria-label="Filter by source title">
+                                            <option value="">All source titles</option>
+                                            {source_title_options}
+                                        </select>
+                                    </label>
+                                </div>
+
                                 <details class="filter-control review-filter" id="review-filter">
                                     <summary>
                                         {self._inline_svg(USER_SVG)}
@@ -818,8 +882,11 @@ class IndexHTMLGenerator:
                     <ul id="recipe-list" class="list-view">
                         {recipe_items_html}
                     </ul>
+
+                    {self._version_footer_html()}
                 </main>
 
+                <script defer src="{TIME_JS_PATH}"></script>
                 <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
             </body>
             </html>

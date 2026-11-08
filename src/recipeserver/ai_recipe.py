@@ -137,8 +137,7 @@ def ai_status(config: object | None) -> dict[str, Any]:
         "image_available": False,
     }
     logger.debug(
-        "Checking local model status: configured=%s, image_configured=%s, endpoint=%s, "
-        "model=%s, image_model=%s",
+        "Checking local model status: configured=%s, image_configured=%s, endpoint=%s, " "model=%s, image_model=%s",
         resolved.is_configured,
         resolved.is_image_configured,
         resolved.endpoint or "(none)",
@@ -427,12 +426,43 @@ def _extract_payload_fallback_content(payload: dict[str, Any]) -> tuple[str, str
     return _content_text(message.get("content")), _extract_reasoning_text(message)
 
 
+THINKING_BLOCK_PATTERN = re.compile(
+    r"<think\b[^>]*>.*?</think\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+
+THINKING_START_PATTERN = re.compile(
+    r"<think\b[^>]*>.*$",
+    re.IGNORECASE | re.DOTALL,
+)
+
+THINKING_END_PATTERN = re.compile(
+    r"</think\s*>",
+    re.IGNORECASE,
+)
+
+
+def _strip_thinking_content(content: str) -> str:
+    """Remove embedded model reasoning from response content."""
+    content = THINKING_BLOCK_PATTERN.sub("", content)
+
+    # Handle an unmatched closing tag by discarding preceding reasoning.
+    closing_match = THINKING_END_PATTERN.search(content)
+    if closing_match:
+        content = content[closing_match.end() :]
+
+    # Discard an incomplete trailing thinking block.
+    content = THINKING_START_PATTERN.sub("", content)
+
+    return content.strip()
+
+
 def _extract_chat_content(payload: object) -> tuple[str, dict[str, Any]]:
     """Extract answer text plus diagnostics from a chat completion payload.
 
-    Thinking models may return a large ``reasoning_content``/``reasoning``
-    field with an empty ``content`` when they run out of tokens; the
-    reasoning text is diagnostics only and is never used as the answer.
+    Thinking models may return reasoning in separate ``reasoning_content``/
+    ``reasoning`` fields or embed it directly in ``content``. Reasoning is
+    diagnostics only and is never used as the answer.
     """
     diagnostics: dict[str, Any] = {
         "finish_reason": None,
@@ -454,6 +484,13 @@ def _extract_chat_content(payload: object) -> tuple[str, dict[str, Any]]:
             fallback_content, fallback_reasoning = _extract_payload_fallback_content(payload)
             content = fallback_content or content
             reasoning = reasoning or fallback_reasoning
+
+    original_content = content
+    content = _strip_thinking_content(content)
+
+    if content != original_content:
+        diagnostics["embedded_reasoning_stripped"] = True
+        logger.debug("Stripped embedded thinking content from model response")
 
     diagnostics["content_chars"] = len(content)
     diagnostics["reasoning_chars"] = len(reasoning)
