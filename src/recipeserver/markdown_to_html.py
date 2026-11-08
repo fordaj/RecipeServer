@@ -91,22 +91,11 @@ TIME_JS = "/assets/time.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 
-MATHJAX = """
-<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [["$", "$"]]
-    },
-    options: {
-      enableMenu: false,
-      enableEnrichment: false,
-      enableExplorer: false,
-      enableExplorerHelp: false
-    }
-  };
-</script>
-
-<script defer src="/assets/mathjax/tex-chtml.js"></script>
+KATEX = """
+<link rel="stylesheet" href="/assets/katex/dist/katex.min.css">
+<script defer src="/assets/katex/dist/katex.min.js"></script>
+<script defer src="/assets/katex/dist/contrib/auto-render.min.js"></script>
+<script defer src="/assets/katex-init.js"></script>
 """
 
 HOME_PAGE_ICON_HTML = f"""
@@ -931,7 +920,7 @@ class MarkdownToHTMLConverter:
             <link rel="stylesheet" href="{COMMENTS_CSS}">
             <link rel="stylesheet" href="{RATINGS_CSS}">
             {self.get_doc_specific_overrides()}
-            {MATHJAX}
+            {KATEX}
         </head>
         <body>
             <script id="recipe-metadata" type="application/json">{self.metadata_json}</script>
