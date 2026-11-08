@@ -125,28 +125,21 @@ def test_bulk_delete_removes_files_and_notifies(bulk_server):
 
 
 def test_bulk_mixed_and_save_live_inside_field_labels_hidden_by_default():
-    script = (
-        Path(__file__).parents[1]
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "recipe-editor.js"
-    ).read_text(encoding="UTF-8")
-    css = (
-        Path(__file__).parents[1]
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "recipe-editor.css"
-    ).read_text(encoding="UTF-8")
+    base = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "recipe-editor"
+    script = (base / "recipe-editor.js").read_text(encoding="UTF-8")
+    css = (base / "recipe-editor.css").read_text(encoding="UTF-8")
+    markup = "".join(
+        (base / name).read_text(encoding="UTF-8")
+        for name in ("form.html", "files.html", "ai.html", "details.html", "sources.html", "ratings.html")
+    )
     # Each metadata field label contains a hidden * MIXED span and a hidden Save button inside its input control.
-    assert script.count('<span class="recipe-editor__mixed" hidden>* MIXED</span>') >= 12
-    assert script.count('class="recipe-editor__bulk-field-save"') >= 12
-    assert 'class="recipe-editor__field-control"' in script
-    assert 'data-field="categories"' in script and 'data-field="source"' in script and 'data-field="rating"' in script
+    assert markup.count('<span class="recipe-editor__mixed" hidden>* MIXED</span>') >= 12
+    assert markup.count('class="recipe-editor__bulk-field-save"') >= 12
+    assert 'class="recipe-editor__field-control"' in markup
+    assert 'data-field="categories"' in markup and 'data-field="source"' in markup and 'data-field="rating"' in markup
     # Old standalone bulk panel is gone.
-    assert "Save Individual Fields" not in script
-    assert "recipe-editor__bulk-field-actions" not in script
+    assert "Save Individual Fields" not in script and "Save Individual Fields" not in markup
+    assert "recipe-editor__bulk-field-actions" not in script and "recipe-editor__bulk-field-actions" not in markup
     # Mixed/save are toggled (unhidden) rather than created/removed.
     assert "badge.hidden = false" in script
     assert "button.hidden = !visible" in script

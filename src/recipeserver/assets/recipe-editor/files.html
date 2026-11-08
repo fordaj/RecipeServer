@@ -1,0 +1,36 @@
+<details class="recipe-editor__details">
+  <summary>Files</summary>
+
+  <fieldset class="recipe-editor__section">
+    <div class="recipe-editor__location" hidden>
+      <label>
+        Folder
+        <select class="recipe-editor__folder-mode" aria-label="Folder location">
+          <option value="title">Use recipe title (recommended)</option>
+          <option value="existing">Existing folder</option>
+          <option value="new">New folder</option>
+        </select>
+      </label>
+      <label class="recipe-editor__existing-folder">
+        Choose folder
+        <select class="recipe-editor__folder-select"></select>
+      </label>
+      <label class="recipe-editor__folder-path" hidden>
+        New folder path
+        <input type="text" class="recipe-editor__new-folder" placeholder="Desserts/Chocolate" />
+      </label>
+    </div>
+
+    <label for="recipe-editor-images">Recipe images</label>
+    <input
+      id="recipe-editor-images"
+      type="file"
+      multiple
+      accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif,.svg,.avif"
+    />
+    <p class="recipe-editor__images-help">
+      Images are saved beside the recipe. Up to 20 files and 25 MB per save.
+    </p>
+    <p class="recipe-editor__images-selected" aria-live="polite"></p>
+  </fieldset>
+</details>
