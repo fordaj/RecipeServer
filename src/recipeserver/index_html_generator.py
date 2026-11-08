@@ -49,6 +49,7 @@ AI_SVG = ASSETS_DIR / "ai.svg"
 LINK_SVG = ASSETS_DIR / "link.svg"
 WARNING_SVG = ASSETS_DIR / "warning.svg"
 PLUS_SVG = ASSETS_DIR / "plus.svg"
+ARCHIVE_SVG = ASSETS_DIR / "archive.svg"
 
 # Detail kinds that render with a mapped asset icon.
 _DETAIL_ICON_URLS = {
@@ -58,6 +59,7 @@ _DETAIL_ICON_URLS = {
     "categories": "/assets/cooking-pot.svg",
     "tags": "/assets/tag.svg",
     "cuisine": "/assets/pin.svg",
+    "archived": "/assets/archive.svg",
 }
 
 # Maximum number of reviewers shown in the review filter.
@@ -403,6 +405,7 @@ class IndexHTMLGenerator:
         difficulty = metadata.get("difficulty")
         makes_value = str(makes) if isinstance(makes, (int, float)) else ""
         difficulty_value = str(difficulty) if isinstance(difficulty, (int, float)) else ""
+        archived = metadata.get("archived") is True
 
         contribution_date = self._contribution_date(metadata.get("createdOn"))
         updated_on = self._updated_date(metadata.get("updatedOn"))
@@ -444,6 +447,7 @@ class IndexHTMLGenerator:
             contributors=contributors,
             contribution_date=contribution_date,
             sources=sources,
+            archived=archived,
             warnings_by_field=warnings_by_field,
         )
 
@@ -462,6 +466,7 @@ class IndexHTMLGenerator:
             f' data-rating="{rating_attribute}"'
             f' data-makes="{makes_value}"'
             f' data-difficulty="{difficulty_value}"'
+            f' data-archived="{"true" if archived else "false"}"'
             f' data-edited="{updated_on_value}"'
             f' data-date="{date_value}">'
             '<article class="recipe-card">'
@@ -488,8 +493,10 @@ class IndexHTMLGenerator:
         contributors: list[str],
         contribution_date: date | None,
         sources: list[dict],
-        warnings_by_field: dict[str, dict],
+        archived: bool = False,
+        warnings_by_field: dict[str, dict] | None = None,
     ) -> str:
+        warnings_by_field = warnings_by_field or {}
         parts: list[str] = [
             self._detail_with_warning(
                 "makes",
@@ -532,6 +539,9 @@ class IndexHTMLGenerator:
                 icon_path=CALENDAR_SVG,
             ),
         ]
+
+        if archived:
+            parts.append(self._detail_html("archived", "Archived", ["Archived"]))
 
         # Titled sources render as individual details; warn only when none exist.
         titled_sources = [self._source_detail_html(source) for source in sources if self._source_title(source)]
@@ -749,6 +759,15 @@ class IndexHTMLGenerator:
                                         aria-controls="recipe-list"
                                     >
                                     <span>Metadata Status</span>
+                                </label>
+
+                                <label class="metadata-status-toggle show-archived-toggle">
+                                    <input
+                                        id="show-archived"
+                                        type="checkbox"
+                                        aria-controls="recipe-list"
+                                    >
+                                    <span>Show Archived</span>
                                 </label>
 
                                 <label class="metadata-status-toggle bulk-selection-toggle">

@@ -20,6 +20,7 @@
     tags: "Tags",
     makes: "Makes",
     difficulty: "Difficulty",
+    archived: "Archived",
     source: "Source",
   };
 
@@ -329,6 +330,7 @@ Try this
     }
 
     form.elements.namedItem("contributor").value = metadata.contributor ?? "";
+    form.elements.namedItem("archived").checked = metadata.archived === true;
 
     const createdOn = metadata.createdOn;
     form.elements.namedItem("createdOn").value =
@@ -371,6 +373,7 @@ Try this
       difficulty: parseNumber("difficulty"),
       contributor: get("contributor") || null,
       createdOn: get("createdOn") || null,
+      archived: Boolean(form.elements.namedItem("archived")?.checked),
       source: readSource(form),
     };
   }

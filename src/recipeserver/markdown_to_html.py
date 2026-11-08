@@ -56,6 +56,7 @@ LINK_SVG = FILE_PATH.parent / "assets" / "link.svg"
 NOTEBOOK_SVG = FILE_PATH.parent / "assets" / "notebook.svg"
 PENCIL_SVG = FILE_PATH.parent / "assets" / "pencil.svg"
 PLUS_SVG = FILE_PATH.parent / "assets" / "plus.svg"
+ARCHIVE_SVG = FILE_PATH.parent / "assets" / "archive.svg"
 
 
 @lru_cache(maxsize=None)
@@ -426,6 +427,15 @@ class MarkdownToHTMLConverter:
             value=_as_list(metadata.get("meals")),
             formatter=lambda values: ", ".join(str(value) for value in values),
         )
+        if metadata.get("archived") is True:
+            self._append_overview_icon_value(
+                primary,
+                soup,
+                icon_path=ARCHIVE_SVG,
+                class_name="recipe-overview__archived",
+                value="Archived",
+                formatter=lambda value: str(value),
+            )
 
         return primary
 

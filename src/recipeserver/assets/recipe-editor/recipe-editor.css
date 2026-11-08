@@ -554,6 +554,20 @@
   min-width: 0;
 }
 
+.recipe-editor__checkbox {
+  grid-column: 1 / -1;
+}
+
+.recipe-editor__checkbox .recipe-editor__field-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recipe-editor__checkbox input[type="checkbox"] {
+  width: auto;
+}
+
 /* ---------- Markdown editor ---------- */
 
 .recipe-editor__markdown-details .recipe-editor__markdown-label {
