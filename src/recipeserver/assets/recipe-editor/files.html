@@ -21,17 +21,19 @@
       </label>
     </div>
 
-    <label for="recipe-editor-images">Recipe images</label>
-    <input
-      id="recipe-editor-images"
-      type="file"
-      multiple
-      accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif,.svg,.avif"
-    />
-    <p class="recipe-editor__images-help">
-      Images are saved beside the recipe. Up to 20 files and 25 MB per save.
-      You can also paste an image from your clipboard here.
-    </p>
-    <p class="recipe-editor__images-selected" aria-live="polite"></p>
+    <div class="recipe-editor__images">
+      <label for="recipe-editor-images">Recipe images</label>
+      <input
+        id="recipe-editor-images"
+        type="file"
+        multiple
+        accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif,.svg,.avif"
+      />
+      <p class="recipe-editor__images-help">
+        Drag &amp; drop images here, paste them from your clipboard, or click to choose files.
+        Images are saved beside the recipe. Up to 20 files and 25 MB per save.
+      </p>
+      <p class="recipe-editor__images-selected" aria-live="polite"></p>
+    </div>
   </fieldset>
 </details>

@@ -322,12 +322,36 @@
   display: none;
 }
 
+/*
+ * Images dropzone: the lighter gray background with a dashed outline
+ * signals that files can be dragged and dropped, pasted, or chosen
+ * by clicking anywhere in the box.
+ */
 .recipe-editor__images {
   display: grid;
   gap: 0.35rem;
   padding: 0.75rem;
-  border: 1px solid var(--border-color);
+  border: 2px dashed var(--muted-color);
   border-radius: 8px;
+  background: var(--hover-bg);
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.recipe-editor__images:hover {
+  border-color: var(--food-color);
+}
+
+.recipe-editor__images:focus-within {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-editor__images.is-dragging {
+  border-color: var(--food-color);
+  background: color-mix(in srgb, var(--food-color) 12%, var(--hover-bg));
 }
 
 .recipe-editor__images > label {

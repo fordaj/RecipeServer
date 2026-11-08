@@ -438,6 +438,7 @@ Try this
       folderPathLabel: dialog.querySelector(".recipe-editor__folder-path"),
       newFolder: dialog.querySelector(".recipe-editor__new-folder"),
       imageInput: dialog.querySelector("#recipe-editor-images"),
+      imageDropzone: dialog.querySelector(".recipe-editor__images"),
       selectedImages: dialog.querySelector(".recipe-editor__images-selected"),
       aiSection: dialog.querySelector(".recipe-editor__ai"),
       aiDetails: dialog.querySelector(".recipe-editor__ai-details"),
@@ -1009,6 +1010,7 @@ Try this
     refs.location.hidden = !state.isCreating;
     refs.imageInput.value = "";
     refs.selectedImages.textContent = "";
+    refs.imageDropzone?.classList.remove("is-dragging");
   }
 
   async function openEditor(refs, state, ui, ai, madeThis, bulk, mode) {
@@ -1171,6 +1173,15 @@ Try this
       refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
     });
 
+    function appendImages(newFiles) {
+      if (!newFiles.length || typeof DataTransfer === "undefined") return false;
+      const transfer = new DataTransfer();
+      [...refs.imageInput.files, ...newFiles].forEach((file) => transfer.items.add(file));
+      refs.imageInput.files = transfer.files;
+      refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
+      return true;
+    }
+
     // Paste an image from the clipboard into the image picker.
     const handleImagePaste = (event) => {
       if (state.busy || refs.imageInput.disabled) return;
@@ -1181,15 +1192,39 @@ Try this
         .map((item) => item.getAsFile())
         .filter(Boolean);
       if (!pasted.length) return;
-      if (typeof DataTransfer === "undefined") return;
       event.preventDefault();
-      const transfer = new DataTransfer();
-      [...refs.imageInput.files, ...pasted].forEach((file) => transfer.items.add(file));
-      refs.imageInput.files = transfer.files;
-      refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
+      appendImages(pasted);
     };
     refs.dialog.addEventListener("paste", handleImagePaste);
     refs.imageInput.addEventListener("paste", handleImagePaste);
+
+    // Drag and drop images into the dropzone; clicking the box also opens
+    // the file picker (clicking the native input or its label is left alone
+    // so the browser does not open the picker twice).
+    refs.imageDropzone?.addEventListener("dragover", (event) => {
+      if (state.busy || refs.imageInput.disabled) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      refs.imageDropzone.classList.add("is-dragging");
+    });
+    refs.imageDropzone?.addEventListener("dragleave", (event) => {
+      if (event.currentTarget.contains(event.relatedTarget)) return;
+      refs.imageDropzone.classList.remove("is-dragging");
+    });
+    refs.imageDropzone?.addEventListener("drop", (event) => {
+      if (state.busy || refs.imageInput.disabled) return;
+      event.preventDefault();
+      refs.imageDropzone.classList.remove("is-dragging");
+      const files = [...(event.dataTransfer?.files ?? [])].filter((file) =>
+        file.type.startsWith("image/"),
+      );
+      if (files.length) appendImages(files);
+    });
+    refs.imageDropzone?.addEventListener("click", (event) => {
+      if (state.busy || refs.imageInput.disabled) return;
+      if (event.target === refs.imageInput || event.target.closest("label")) return;
+      refs.imageInput.click();
+    });
 
     refs.cancelButton.addEventListener("click", ui.closeEditor);
     refs.closeButton.addEventListener("click", ui.closeEditor);
