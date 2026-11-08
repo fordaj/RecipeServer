@@ -385,6 +385,76 @@
   display: none;
 }
 
+/* Same filled style as the main Save button (.recipe-editor__save), so the
+   "Find an image for me" button matches its colors, hover, and focus states. */
+.recipe-editor__find-image {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: start;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--food-color);
+  border-radius: 6px;
+  background: var(--food-color);
+  color: var(--page-bg);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.recipe-editor__find-image img {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.recipe-editor__find-image:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+.recipe-editor__find-image:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-editor__find-image:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.recipe-editor__images-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 240px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  object-fit: contain;
+  background: var(--card-bg);
+}
+
+.recipe-editor__images-preview[hidden] {
+  display: none;
+}
+
+.recipe-editor__images-caption,
+.recipe-editor__find-image-status {
+  margin: 0;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.recipe-editor__find-image-status {
+  min-height: 1.1rem;
+  color: var(--muted-color);
+}
+
+.recipe-editor__find-image-status:empty {
+  display: none;
+}
+
 /* ---------- AI recipe source ---------- */
 
 .recipe-editor__ai[hidden] {

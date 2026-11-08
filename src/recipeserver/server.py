@@ -488,6 +488,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/bulk-delete/": self._handle_bulk_delete,
             "/api/config": self._handle_config_update,
             "/api/ai-recipe": self._handle_ai_recipe,
+            "/api/find-image": self._handle_find_image,
+            "/api/find-image/": self._handle_find_image,
             "/api/recipe": self._handle_recipe_create,
             "/api/recipe-editor": self._handle_recipe_editor_post,
             "/api/markdown": self._handle_markdown_post,
@@ -767,6 +769,48 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         else:
             logger.info(f"AI recipe generation succeeded ({len(result.get('content', ''))} characters of Markdown)")
             send_event("result", result=result)
+
+    def _handle_find_image(self) -> None:
+        try:
+            payload = self._read_json_payload()
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        title = payload.get("title", payload.get("recipe_title"))
+        if not isinstance(title, str) or not title.strip():
+            self._send_json(400, {"error": "Enter a recipe title before searching for an image"})
+            return
+
+        try:
+            result = ai_recipe.find_image_for_recipe(self.config, title.strip())
+        except ai_recipe.ModelUnavailable as exc:
+            logger.warning(f"Find One for Me unavailable: {exc}")
+            self._send_json(503, {"error": str(exc)})
+        except ai_recipe.ImageSearchError as exc:
+            logger.warning(f"Find One for Me found no suitable image: {exc}")
+            self._send_json(404, {"error": str(exc)})
+        except ai_recipe.ImageDownloadError as exc:
+            logger.warning(f"Find One for Me download failed: {exc}")
+            self._send_json(502, {"error": str(exc)})
+        except (ai_recipe.ModelRequestError, ai_recipe.SourceFetchError) as exc:
+            logger.warning(f"Find One for Me failed: {exc}")
+            self._send_json(502, {"error": str(exc)})
+        except ValueError as exc:
+            logger.warning(f"Find One for Me invalid input: {exc}")
+            self._send_json(400, {"error": str(exc)})
+        except Exception:
+            logger.exception("Failed to find an image for a recipe")
+            self._send_json(500, {"error": "Unable to find an image"})
+        else:
+            logger.info(
+                f"Found an image for {title.strip()!r}: {result.get('filename')} "
+                f"({result.get('byte_count')} bytes, source={result.get('source_url') or '(none)'})"
+            )
+            self._send_json(200, result)
 
     def _generate_ai_recipe(self, request: dict, progress_callback=None):
         if request["input_type"] == "image" and request["image"] is not None:

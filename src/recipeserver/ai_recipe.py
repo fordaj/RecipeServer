@@ -1,17 +1,23 @@
-"""Optional local-model integration for creating recipes from text, URLs, or images."""
+"""Optional local-model integration for creating recipes from text, URLs, or images.
+
+Also provides "Find One for Me": server-side web search for candidate
+images plus all-purpose-model selection of a single suitable image.
+"""
 
 from __future__ import annotations
 
 import base64
 import json
 import mimetypes
+import random
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit
+from urllib.parse import quote_plus, unquote, urlsplit
 from urllib.request import Request, urlopen
 
 import frontmatter
@@ -23,10 +29,25 @@ from ._logger import logger
 MODEL_TIMEOUT_SECONDS = 120
 AVAILABILITY_TIMEOUT_SECONDS = 3
 URL_TIMEOUT_SECONDS = 20
+SEARCH_TIMEOUT_SECONDS = 20
+DOWNLOAD_TIMEOUT_SECONDS = 30
 MAX_URL_BYTES = 2 * 1024 * 1024
 MAX_MODEL_RESPONSE_BYTES = 10 * 1024 * 1024
 MAX_PROMPT_INPUT_CHARS = 60_000
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_DOWNLOAD_IMAGE_BYTES = 10 * 1024 * 1024
+# Direct-download formats that map cleanly to a file extension.
+CONTENT_TYPE_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tif",
+    "image/avif": ".avif",
+    "image/svg+xml": ".svg",
+}
+DOWNLOADABLE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif", ".svg", ".avif"}
 # Thinking/reasoning models (e.g. qwen3) spend part of this budget on
 # reasoning before producing the answer, so it needs headroom beyond the
 # length of the recipe itself.
@@ -67,6 +88,26 @@ class SourceFetchError(RuntimeError):
     """Recipe source content could not be fetched."""
 
 
+class ImageSearchError(RuntimeError):
+    """Web image search or model selection produced no usable image."""
+
+
+class ImageDownloadError(RuntimeError):
+    """A selected image could not be downloaded or validated."""
+
+
+FIND_ONE_FOR_ME_PROMPT_PATH = Path(__file__).resolve().parent / "FindOneForMePrompt.md"
+
+
+def load_find_one_for_me_prompt() -> str:
+    """Load the Find One for Me prompt fresh from its external file."""
+    try:
+        return FIND_ONE_FOR_ME_PROMPT_PATH.read_text(encoding="UTF-8").strip()
+    except OSError:
+        logger.exception(f"Failed to read Find One for Me prompt: {FIND_ONE_FOR_ME_PROMPT_PATH}")
+        return ""
+
+
 @dataclass(frozen=True)
 class AIConfigView:
     """Typed snapshot of AI-related configuration values."""
@@ -76,6 +117,7 @@ class AIConfigView:
     image_analysis_model: str
     new_recipe_prompt: str
     new_recipe_from_image_prompt: str
+    find_one_for_me_prompt: str = ""
 
     @property
     def is_configured(self) -> bool:
@@ -84,6 +126,10 @@ class AIConfigView:
     @property
     def is_image_configured(self) -> bool:
         return bool(self.endpoint and self.new_recipe_from_image_prompt)
+
+    @property
+    def is_find_image_configured(self) -> bool:
+        return bool(self.endpoint and (self.find_one_for_me_prompt or load_find_one_for_me_prompt()))
 
 
 def _read_config_text(config: object | None, name: str) -> str:
@@ -105,6 +151,11 @@ def resolve_ai_config(config: object | None) -> AIConfigView:
         image_analysis_model=_read_config_text(config, "image_analysis_model"),
         new_recipe_prompt=_read_config_text(config, "new_recipe_prompt"),
         new_recipe_from_image_prompt=_read_config_text(config, "new_recipe_from_image_prompt"),
+        # Configured prompt if present; otherwise fall back to the external
+        # FindOneForMePrompt.md file so callers that only carry the endpoint
+        # and model still work (and never embed the prompt here).
+        find_one_for_me_prompt=_read_config_text(config, "find_one_for_me_prompt")
+        or load_find_one_for_me_prompt(),
     )
 
 
@@ -125,6 +176,10 @@ def is_image_configured(config: object | None) -> bool:
     return resolve_ai_config(config).is_image_configured
 
 
+def is_find_image_configured(config: object | None) -> bool:
+    return resolve_ai_config(config).is_find_image_configured
+
+
 def ai_status(config: object | None) -> dict[str, Any]:
     resolved = resolve_ai_config(config)
     status: dict[str, Any] = {
@@ -135,15 +190,19 @@ def ai_status(config: object | None) -> dict[str, Any]:
         "image_model": resolved.image_analysis_model,
         "image_configured": resolved.is_image_configured,
         "image_available": False,
+        "find_image_configured": resolved.is_find_image_configured,
+        "find_image_available": False,
     }
     logger.debug(
         f"Checking local model status: configured={resolved.is_configured}, "
-        f"image_configured={resolved.is_image_configured}, endpoint={resolved.endpoint or '(none)'}, "
+        f"image_configured={resolved.is_image_configured}, "
+        f"find_image_configured={resolved.is_find_image_configured}, "
+        f"endpoint={resolved.endpoint or '(none)'}, "
         f"model={resolved.all_purpose_model_name or '(auto)'}, "
         f"image_model={resolved.image_analysis_model or '(auto)'}"
     )
 
-    if not resolved.is_configured and not resolved.is_image_configured:
+    if not resolved.is_configured and not resolved.is_image_configured and not resolved.is_find_image_configured:
         logger.info("AI recipe creation is not configured")
         return status
 
@@ -153,6 +212,7 @@ def ai_status(config: object | None) -> dict[str, Any]:
     )
     status["available"] = available
     status["image_available"] = bool(available and resolved.is_image_configured)
+    status["find_image_available"] = bool(available and resolved.is_find_image_configured)
     return status
 
 
@@ -842,3 +902,315 @@ def generate_recipe(
     )
     _apply_default_source(metadata, input_type, all_purpose_model_name, input_value, title)
     return {"content": content, "metadata": metadata}
+
+
+# ---------------------------------------------------------------------------
+# "Find One for Me" - web image search + all-purpose model selection
+# ---------------------------------------------------------------------------
+# The local model cannot browse the internet on its own, so the server does
+# the actual web search and hands the model real candidate results. The model
+# may only return one of those URLs, which prevents fabricated image URLs.
+
+
+def substitute_recipe_title(prompt: str, recipe_title: str) -> str:
+    """Replace the ``{{recipe_title}}`` placeholder in the prompt file."""
+    title = (recipe_title or "").strip()
+    return prompt.replace("{{recipe_title}}", title).replace("{recipe_title}", title)
+
+
+def _is_valid_image_url(url: str) -> bool:
+    if not url or not isinstance(url, str):
+        return False
+    parsed = urlsplit(url.strip())
+    return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
+
+
+def _clean_url(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _valid_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep only candidates with a real image URL; drop fabricated/malformed rows."""
+    valid: list[dict[str, Any]] = []
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        image_url = _clean_url(candidate.get("image_url"))
+        if not _is_valid_image_url(image_url):
+            continue
+        valid.append(
+            {
+                "image_url": image_url,
+                "source_url": _clean_url(candidate.get("source_url")) or None,
+                "description": _clean_url(candidate.get("description")) or None,
+                "attribution": _clean_url(candidate.get("attribution")) or None,
+            }
+        )
+    return valid
+
+
+def _fetch_json_url(url: str) -> Any:
+    request = Request(url, headers={"Accept": "application/json", "User-Agent": USER_AGENT}, method="GET")
+    logger.info(f"Searching for candidate images: {url}")
+    try:
+        with urlopen(request, timeout=SEARCH_TIMEOUT_SECONDS) as response:
+            body = _read_response(response, MAX_MODEL_RESPONSE_BYTES)
+    except (HTTPError, URLError, OSError) as exc:
+        raise ImageSearchError(f"Image search failed: {exc}") from exc
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError as exc:
+        raise ImageSearchError("Image search returned invalid JSON") from exc
+
+
+def _openverse_candidates(query: str, limit: int) -> list[dict[str, Any]]:
+    # Openverse needs no API key for low-volume use and returns direct
+    # image URLs together with the landing page (source) and creator.
+    search_url = (
+        f"https://api.openverse.org/v1/images/?q={quote_plus(query)}"
+        f"&page_size={limit}&license_type=all"
+    )
+    payload = _fetch_json_url(search_url)
+    if not isinstance(payload, dict):
+        return []
+    results = payload.get("results")
+    if not isinstance(results, list):
+        return []
+    candidates = []
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        candidates.append(
+            {
+                "image_url": _clean_url(result.get("url")),
+                "source_url": _clean_url(result.get("foreign_landing_url")),
+                "description": _clean_url(result.get("title")),
+                "attribution": _clean_url(result.get("creator")),
+            }
+        )
+    return candidates
+
+
+def _wikimedia_candidates(query: str, limit: int) -> list[dict[str, Any]]:
+    search_url = (
+        "https://commons.wikimedia.org/w/api.php?action=query&format=json"
+        f"&generator=search&gsrsearch=filetype:bitmap%20{quote_plus(query)}"
+        f"&gsrnamespace=6&gsrlimit={limit}&prop=imageinfo&iiprop=url|extmetadata"
+    )
+    payload = _fetch_json_url(search_url)
+    if not isinstance(payload, dict):
+        return []
+    pages = (payload.get("query") or {}).get("pages")
+    if not isinstance(pages, dict):
+        return []
+    candidates = []
+    for page in pages.values():
+        if not isinstance(page, dict):
+            continue
+        info_list = page.get("imageinfo")
+        if not isinstance(info_list, list) or not info_list:
+            continue
+        info = info_list[0] if isinstance(info_list[0], dict) else {}
+        metadata = info.get("extmetadata") if isinstance(info.get("extmetadata"), dict) else {}
+
+        def meta_value(key: str) -> str:
+            entry = metadata.get(key) if isinstance(metadata.get(key), dict) else {}
+            value = entry.get("value")
+            return value.strip() if isinstance(value, str) else ""
+
+        candidates.append(
+            {
+                "image_url": _clean_url(info.get("thumburl") or info.get("url")),
+                "source_url": _clean_url(info.get("descriptionurl")),
+                "description": meta_value("ImageDescription") or _clean_url(page.get("title")),
+                "attribution": meta_value("Artist") or meta_value("Credit"),
+            }
+        )
+    return candidates
+
+
+def search_image_candidates(query: str, limit: int = 8) -> list[dict[str, Any]]:
+    """Search the web for candidate images for ``query``.
+
+    Tries Openverse first, then Wikimedia Commons. Only entries backed by a
+    real ``http(s)`` image URL are returned; the model never invents them.
+    Mock this function in tests rather than hitting the network.
+    """
+    cleaned_query = (query or "").strip()
+    if not cleaned_query:
+        raise ImageSearchError("Enter a recipe title before searching for an image")
+    query_limit = max(1, min(int(limit), 20))
+    errors: list[str] = []
+    for search in (_openverse_candidates, _wikimedia_candidates):
+        try:
+            candidates = _valid_candidates(search(cleaned_query, query_limit))
+        except ImageSearchError as exc:
+            errors.append(str(exc))
+            logger.warning(f"Image search provider failed: {exc}")
+            continue
+        if candidates:
+            logger.info(f"Found {len(candidates)} candidate images for {cleaned_query!r}")
+            return candidates
+    if errors:
+        raise ImageSearchError(f"No suitable image found for {cleaned_query!r}: {'; '.join(errors)}")
+    raise ImageSearchError(f"No suitable image found for {cleaned_query!r}")
+
+
+def parse_find_one_for_me_output(output: str) -> dict[str, Any] | None:
+    """Parse the model's answer; ``None`` when it reports no suitable image."""
+    text = (output or "").strip()
+    generic_fence = re.match(r"^\s*```[a-zA-Z0-9_-]*\s*\n(?P<body>.*)\n```\s*$", text, re.DOTALL)
+    fence = _CODE_FENCE_RE.match(text)
+    if fence:
+        text = fence.group("body").strip()
+    elif generic_fence:
+        text = generic_fence.group("body").strip()
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ImageSearchError("The model did not return a valid image selection") from exc
+    if not isinstance(parsed, dict):
+        raise ImageSearchError("The model did not return a valid image selection")
+    image_url = _clean_url(parsed.get("image_url"))
+    if not image_url:
+        return None
+    if not _is_valid_image_url(image_url):
+        raise ImageSearchError("The model returned an invalid image URL")
+    return {
+        "image_url": image_url,
+        "source_url": _clean_url(parsed.get("source_url")) or None,
+        "description": _clean_url(parsed.get("description")) or None,
+        "attribution": _clean_url(parsed.get("attribution")) or None,
+    }
+
+
+def _filename_for_download(image_url: str, content_type: str) -> tuple[str, str]:
+    parsed = urlsplit(image_url)
+    suffix = Path(unquote(parsed.path)).suffix.lower()
+    mime_type = (content_type or "").split(";")[0].strip().lower()
+    if suffix not in DOWNLOADABLE_EXTENSIONS:
+        suffix = CONTENT_TYPE_EXTENSIONS.get(mime_type, ".jpg")
+    guessed = mimetypes.guess_type(f"image{suffix}")[0] or mime_type or "image/jpeg"
+    base = Path(unquote(parsed.path)).stem
+    base = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip("-._") or "found-image"
+    return f"{base}{suffix}", guessed
+
+
+def download_image(image_url: str) -> dict[str, Any]:
+    """Download and validate a selected image, returning a data-URI payload."""
+    if not _is_valid_image_url(image_url):
+        raise ImageDownloadError("The selected image URL is not valid")
+    request = Request(image_url.strip(), headers={"User-Agent": USER_AGENT, "Accept": "image/*"}, method="GET")
+    logger.info(f"Downloading selected image: {image_url}")
+    try:
+        with urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+            content_type = ""
+            try:
+                content_type = response.headers.get_content_type()
+            except AttributeError:
+                content_type = response.headers.get("Content-Type", "") or ""
+            body = response.read(MAX_DOWNLOAD_IMAGE_BYTES + 1)
+    except (HTTPError, URLError, OSError) as exc:
+        raise ImageDownloadError(f"Failed to download the selected image: {exc}") from exc
+
+    if not body:
+        raise ImageDownloadError("The selected image is empty")
+    if len(body) > MAX_DOWNLOAD_IMAGE_BYTES:
+        raise ImageDownloadError("The selected image is too large to download")
+
+    filename, mime_type = _filename_for_download(image_url.strip(), content_type)
+    try:
+        with Image.open(BytesIO(body)) as image:
+            image.verify()
+    except (OSError, UnidentifiedImageError) as exc:
+        if not filename.lower().endswith(".svg"):
+            raise ImageDownloadError("The selected image could not be validated") from exc
+        if b"<svg" not in body[:2000].lower():
+            raise ImageDownloadError("The selected image could not be validated") from exc
+
+    data_uri = f"data:{mime_type};base64,{base64.b64encode(body).decode('ascii')}"
+    return {
+        "filename": filename,
+        "content_type": mime_type,
+        "data_uri": data_uri,
+        "byte_count": len(body),
+    }
+
+
+def find_image_for_recipe(
+    config: object,
+    recipe_title: str,
+    progress_callback: Callable[[str], None] | None = None,
+) -> dict[str, Any]:
+    """Find one suitable image for a recipe title.
+
+    Searches the web for real candidates, lets the configured all-purpose
+    model randomly choose among them, then downloads the winner so the UI
+    stores it locally instead of hotlinking. Every call performs a fresh
+    search, so repeated calls can return different images.
+    """
+    title = (recipe_title or "").strip()
+    if not title:
+        raise ImageSearchError("Enter a recipe title before searching for an image")
+
+    resolved = resolve_ai_config(config)
+    if not resolved.endpoint:
+        raise ModelUnavailable("The local model is not configured")
+    prompt_template = resolved.find_one_for_me_prompt
+    if not prompt_template:
+        raise ModelUnavailable("The Find One for Me prompt is not configured")
+
+    model_name = _require_model_name(
+        resolved.endpoint,
+        resolved.all_purpose_model_name,
+        "Could not determine a model name. Configure all_purpose_model_name in recipe-server-cfg.toml.",
+    )
+
+    _report_progress(progress_callback, "Searching the web for candidate images...")
+    candidates = search_image_candidates(title)
+    if not candidates:
+        raise ImageSearchError(f"No suitable image found for {title!r}")
+
+    # Shuffle so the model does not always favour the first candidate, and
+    # so each click performs a fresh, randomised selection.
+    shuffled = list(candidates)
+    random.shuffle(shuffled)
+
+    prompt = substitute_recipe_title(prompt_template, title)
+    candidate_lines = json.dumps(shuffled, indent=2, ensure_ascii=False)
+    user_message = (
+        f"Recipe title: {title}\n\n"
+        "Search results (real candidate images returned by a web search; "
+        "choose exactly one of these image_url values, randomly among the "
+        f"suitable ones):\n{candidate_lines}\n\n"
+        "Return the JSON object described in your instructions for your chosen candidate. "
+        "Do not return any URL that is not listed above."
+    )
+
+    logger.info(f"Selecting a candidate image for {title!r} with '{model_name}' ({len(shuffled)} candidates)")
+    _report_progress(progress_callback, f"Asking {model_name} to choose an image...")
+    output = _chat(resolved.endpoint, model_name, prompt, user_message, stage="image selection")
+    selection = parse_find_one_for_me_output(output)
+    if selection is None:
+        raise ImageSearchError(f"No suitable image found for {title!r}")
+
+    # Only accept URLs that actually came from the web search.
+    chosen = next((c for c in shuffled if c["image_url"] == selection["image_url"]), None)
+    if chosen is None:
+        raise ImageSearchError("The model returned an image that was not in the search results")
+
+    _report_progress(progress_callback, "Downloading the selected image...")
+    downloaded = download_image(chosen["image_url"])
+    if not downloaded.get("data_uri"):
+        raise ImageDownloadError("The selected image could not be downloaded")
+
+    return {
+        "image_url": chosen["image_url"],
+        "source_url": chosen.get("source_url") or selection.get("source_url"),
+        "description": chosen.get("description") or selection.get("description"),
+        "attribution": chosen.get("attribution") or selection.get("attribution"),
+        "filename": downloaded["filename"],
+        "content_type": downloaded["content_type"],
+        "data_uri": downloaded["data_uri"],
+        "byte_count": downloaded["byte_count"],
+    }
