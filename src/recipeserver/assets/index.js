@@ -30,6 +30,7 @@ const initRecipeIndex = async () => {
   const bulkDelete = document.querySelector("#bulk-delete");
   const clearSelections = document.querySelector("#clear-selections");
   const bulkCount = document.querySelector("#bulk-selection-count");
+  const selectAll = document.querySelector("#select-all");
   const selectBoxes = [...document.querySelectorAll(".recipe-select__checkbox")];
 
   let selectionAnchor = null;
@@ -48,38 +49,28 @@ const initRecipeIndex = async () => {
     const targetBox = targetRecipe.querySelector(".recipe-select__checkbox");
     if (!targetBox) return;
 
-    if (event.shiftKey && selectionAnchor) {
+    // Range selection needs both keys (Ctrl/Cmd + Shift) like File
+    // Explorer's additive range. Shift alone used to produce a native text
+    // highlight, so it now falls through to a plain toggle below.
+    const isRangeClick = event.shiftKey && (event.ctrlKey || event.metaKey);
+    if (isRangeClick && selectionAnchor) {
       const anchorIndex = visible.indexOf(selectionAnchor);
       if (anchorIndex >= 0) {
         const start = Math.min(anchorIndex, targetIndex);
         const end = Math.max(anchorIndex, targetIndex);
-        if (!(event.ctrlKey || event.metaKey)) {
-          selectBoxes.forEach((box) => {
-            box.checked = false;
-          });
-        }
         visible.slice(start, end + 1).forEach((recipe) => {
           const box = recipe.querySelector(".recipe-select__checkbox");
           if (box) box.checked = true;
         });
-      } else {
-        selectBoxes.forEach((box) => {
-          box.checked = false;
-        });
-        targetBox.checked = true;
-        selectionAnchor = targetRecipe;
+        updateBulkControls();
+        return;
       }
-    } else if (event.ctrlKey || event.metaKey) {
-      targetBox.checked = !targetBox.checked;
-      selectionAnchor = targetRecipe;
-    } else {
-      selectBoxes.forEach((box) => {
-        box.checked = false;
-      });
-      targetBox.checked = true;
-      selectionAnchor = targetRecipe;
     }
 
+    // Plain click (and Ctrl/Cmd alone) toggles this card without clearing
+    // others, so multiple recipes can be selected on mouse and touch.
+    targetBox.checked = !targetBox.checked;
+    selectionAnchor = targetRecipe;
     updateBulkControls();
   };
 
@@ -90,6 +81,14 @@ const initRecipeIndex = async () => {
     if (bulkDelete) bulkDelete.disabled = selected.length === 0;
     for (const box of selectBoxes) {
       box.closest(".recipe")?.classList.toggle("is-selected", box.checked);
+    }
+    if (selectAll) {
+      const visible = visibleRecipes();
+      const selectedVisible = visible.filter(
+        (recipe) => recipe.querySelector(".recipe-select__checkbox")?.checked,
+      ).length;
+      selectAll.checked = visible.length > 0 && selectedVisible === visible.length;
+      selectAll.indeterminate = selectedVisible > 0 && selectedVisible < visible.length;
     }
   };
 
@@ -319,6 +318,7 @@ const initRecipeIndex = async () => {
     const visible = getFilteredRecipes(query);
     sortVisibleRecipes(visible, sort.value);
     renderRecipeList(visible, isFiltering);
+    updateBulkControls();
   };
 
   // ----- Event Wiring ----- //
@@ -384,6 +384,13 @@ const initRecipeIndex = async () => {
   if (selectionMode) {
     selectionMode.addEventListener("change", () => setSelectionMode(selectionMode.checked));
   }
+  // Prevent Shift+click from creating a native text selection. The
+  // selection-mode CSS also disables user-select, but preventing the
+  // mousedown default stops the browser forming the highlight at all.
+  list.addEventListener("mousedown", (event) => {
+    if (!selectionMode?.checked) return;
+    if (event.shiftKey) event.preventDefault();
+  });
   selectBoxes.forEach((box) => {
     box.addEventListener("click", (event) => {
       if (!selectionMode?.checked) return;
@@ -403,6 +410,21 @@ const initRecipeIndex = async () => {
     const recipe = link.closest(".recipe");
     if (recipe) applyMultiSelect(recipe, event);
   });
+  if (selectAll) {
+    selectAll.addEventListener("change", () => {
+      // Checking selects all in view; unchecking deselects all in view
+      // (which is all recipes when nothing is filtered).
+      visibleRecipes().forEach((recipe) => {
+        const box = recipe.querySelector(".recipe-select__checkbox");
+        if (box) box.checked = selectAll.checked;
+      });
+      if (selectAll.checked) {
+        const visible = visibleRecipes();
+        if (visible.length) selectionAnchor = visible[visible.length - 1];
+      }
+      updateBulkControls();
+    });
+  }
   if (clearSelections) {
     clearSelections.addEventListener("click", () => {
       selectBoxes.forEach((box) => (box.checked = false));

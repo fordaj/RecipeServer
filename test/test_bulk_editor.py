@@ -170,6 +170,11 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert soup.select_one("#bulk-controls") is not None
     assert soup.select_one("#bulk-edit").get_text(strip=True) == "Bulk Edit"
     assert soup.select_one("#clear-selections").get_text(strip=True) == "Clear Selections"
+    # Select All lives in the bulk controls with the other bulk actions.
+    select_all = soup.select_one("#select-all")
+    assert select_all is not None and select_all["type"] == "checkbox"
+    assert select_all.find_parent("div", class_="bulk-controls") is not None
+    assert "Select All" in select_all.find_parent("label").get_text(strip=True)
     # Order left-to-right: Clear Selections, Delete Selected, Bulk Edit.
     button_ids = [b["id"] for b in soup.select("#bulk-controls button")]
     assert button_ids == ["clear-selections", "bulk-delete", "bulk-edit"]
@@ -178,15 +183,29 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     ).read_text(encoding="UTF-8")
     assert ".bulk-controls #bulk-edit" in index_css and "background: var(--food-color)" in index_css
     assert ".bulk-controls #bulk-delete" in index_css and "background: var(--danger-color)" in index_css
+    # Selection mode must not show a native text highlight.
+    assert ".select-all-control" in index_css
+    assert "#recipe-list.selection-mode .recipe-card" in index_css and "user-select: none" in index_css
     index_js = (
         Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js"
     ).read_text(encoding="UTF-8")
-    # File Explorer-style Ctrl/Shift multi-select.
+    # Plain click toggles (no separate Ctrl behavior) and Ctrl+Shift
+    # (or Cmd+Shift) adds a File Explorer-style range from the anchor.
     assert "selectionAnchor" in index_js
-    assert "event.ctrlKey || event.metaKey" in index_js
+    assert "event.shiftKey && (event.ctrlKey || event.metaKey)" in index_js
     assert "event.shiftKey" in index_js
     assert "applyMultiSelect" in index_js
     assert "visible.slice(start, end + 1)" in index_js
+    # Range adds without clearing, plain click toggles without clearing.
+    range_block = index_js.split("const isRangeClick")[1].split("updateBulkControls();")[0]
+    assert "selectBoxes.forEach" not in range_block
+    assert "targetBox.checked = !targetBox.checked" in index_js
+    assert "selectBoxes.forEach" not in index_js.split("const applyMultiSelect")[1].split("updateBulkControls();")[0]
+    # Shift+click must not form a native text selection.
+    assert 'list.addEventListener("mousedown"' in index_js and "event.shiftKey" in index_js
+    # Select All selects/deselects recipes in view and stays synced.
+    assert 'document.querySelector("#select-all")' in index_js
+    assert "selectAll.indeterminate" in index_js and "visibleRecipes()" in index_js
     box = soup.select_one(".recipe-select__checkbox")
     assert box is not None and box["data-path"] == "soup/recipe.md"
     assert soup.select_one("#recipe-list .recipe")["data-path"] == "soup/recipe.md"
