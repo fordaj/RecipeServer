@@ -174,7 +174,7 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
         Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js"
     ).read_text(encoding="UTF-8")
     assert 'list.classList.toggle("card-view", view === "cards")' in index_script
-    assert 'filters.forEach(([, control]) => (control.value = ""))' in index_script
+    assert 'filterControls.forEach(([, control]) => (control.value = ""))' in index_script
     assert 'id="clear-filters" type="button" hidden' in page
     assert 'data-title="Cinnamon &quot;Rolls&quot;"' in page
     assert 'data-date="2024-06-15"' in page
