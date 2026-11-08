@@ -441,7 +441,6 @@ a {
 .recipe-advanced {
   margin-top: 0.85rem;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--border-color);
 }
 
 .recipe-advanced > summary {
