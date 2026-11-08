@@ -17,6 +17,7 @@
     meals: "Meals",
     categories: "Categories",
     cuisine: "Cuisine",
+    status: "Status",
     tags: "Tags",
     makes: "Makes",
     difficulty: "Difficulty",
@@ -329,6 +330,8 @@ Try this
       }
     }
 
+    const statusValue = Array.isArray(metadata.status) ? metadata.status[0] : metadata.status;
+    form.elements.namedItem("status").value = statusValue ?? "";
     form.elements.namedItem("contributor").value = metadata.contributor ?? "";
     form.elements.namedItem("archived").checked = metadata.archived === true;
 
@@ -372,6 +375,7 @@ Try this
       makes: parseNumber("makes", true),
       difficulty: parseNumber("difficulty"),
       contributor: get("contributor") || null,
+      status: get("status") || null,
       createdOn: get("createdOn") || null,
       archived: Boolean(form.elements.namedItem("archived")?.checked),
       source: readSource(form),

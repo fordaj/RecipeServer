@@ -57,6 +57,7 @@ NOTEBOOK_SVG = FILE_PATH.parent / "assets" / "notebook.svg"
 PENCIL_SVG = FILE_PATH.parent / "assets" / "pencil.svg"
 PLUS_SVG = FILE_PATH.parent / "assets" / "plus.svg"
 ARCHIVE_SVG = FILE_PATH.parent / "assets" / "archive.svg"
+INFO_SVG = FILE_PATH.parent / "assets" / "info.svg"
 
 
 @lru_cache(maxsize=None)
@@ -464,17 +465,20 @@ class MarkdownToHTMLConverter:
         container.append(item)
 
     def _build_overview_secondary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:
-        """Build the row for cuisine, categories, and tags."""
+        """Build the row for status, cuisine, categories, and tags."""
         secondary = soup.new_tag("div", attrs={"class": "recipe-overview__secondary"})
 
         detail_icons = {
+            "status": INFO_SVG,
             "cuisine": PIN_SVG,
             "categories": POT_SVG,
             "tags": TAG_SVG,
         }
 
-        for key in ("cuisine", "categories", "tags"):
+        for key in ("status", "cuisine", "categories", "tags"):
             values = _as_list(metadata.get(key))
+            if key == "status":
+                values = values[:1]
             if key == "categories" and not values:
                 values = _as_list(metadata.get("category"))
             if not values:

@@ -364,11 +364,12 @@ input[type="checkbox"]:focus-visible {
   font-weight: 400;
 }
 
-/* Meals, difficulty, cuisine, categories, tags, and archived */
+/* Meals, difficulty, cuisine, status, categories, tags, and archived */
 
 .recipe-overview__meals,
 .recipe-overview__difficulty,
 .recipe-overview__cuisine,
+.recipe-overview__status,
 .recipe-overview__categories,
 .recipe-overview__tags,
 .recipe-overview__archived {
@@ -381,6 +382,7 @@ input[type="checkbox"]:focus-visible {
 .recipe-overview__meals > svg,
 .recipe-overview__difficulty > svg,
 .recipe-overview__cuisine > svg,
+.recipe-overview__status > svg,
 .recipe-overview__categories > svg,
 .recipe-overview__tags > svg,
 .recipe-overview__archived > svg {

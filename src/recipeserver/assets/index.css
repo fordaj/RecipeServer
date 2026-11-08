@@ -716,6 +716,7 @@ a {
 }
 
 .recipe-detail--cuisine,
+.recipe-detail--status,
 .recipe-detail--categories,
 .recipe-detail--tags {
   flex-basis: 100%;
@@ -857,6 +858,7 @@ a {
 }
 
 #recipe-list.list-view .recipe-detail--cuisine,
+#recipe-list.list-view .recipe-detail--status,
 #recipe-list.list-view .recipe-detail--categories,
 #recipe-list.list-view .recipe-detail--tags {
   flex-basis: auto;
