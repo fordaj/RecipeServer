@@ -49,6 +49,8 @@ AI_SVG = ASSETS_DIR / "ai.svg"
 LINK_SVG = ASSETS_DIR / "link.svg"
 WARNING_SVG = ASSETS_DIR / "warning.svg"
 PLUS_SVG = ASSETS_DIR / "plus.svg"
+INFO_SVG = ASSETS_DIR / "info.svg"
+ARCHIVE_SVG = ASSETS_DIR / "archive.svg"
 
 # Detail kinds that render with a mapped asset icon.
 _DETAIL_ICON_URLS = {
@@ -58,6 +60,8 @@ _DETAIL_ICON_URLS = {
     "categories": "/assets/cooking-pot.svg",
     "tags": "/assets/tag.svg",
     "cuisine": "/assets/pin.svg",
+    "status": "/assets/info.svg",
+    "archived": "/assets/archive.svg",
 }
 
 # Maximum number of reviewers shown in the review filter.
@@ -377,21 +381,24 @@ class IndexHTMLGenerator:
         categories = self.collect_metadata_values(metadata, "categories", "category")
         tags = self.collect_metadata_values(metadata, "tags")
         cuisine = self.collect_metadata_values(metadata, "cuisine")
+        status_values = self.collect_metadata_values(metadata, "status")
         contributors = [
             value.strip() for value in self.collect_metadata_values(metadata, "contributor") if value.strip()
         ]
         sources = self._sources(metadata)
         source_titles = [source_title for source in sources if (source_title := self._source_title(source))]
+        archived = metadata.get("archived") is True
 
         filter_values["meals"].update(meals)
         filter_values["categories"].update(categories)
         filter_values["tags"].update(tags)
         filter_values["cuisine"].update(cuisine)
+        filter_values["status"].update(status_values)
         filter_values["contributors"].update(contributors)
         filter_values["source_titles"].update(source_titles)
 
         # ----- Compute sort and search attributes ----- #
-        search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *contributors, *source_titles])
+        search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *status_values, *contributors, *source_titles])
         reviewer_ratings = [
             {"name": self._reviewer_key(name) if name else "", "rating": score}
             for name, score in self._valid_ratings(metadata)
@@ -439,6 +446,8 @@ class IndexHTMLGenerator:
             difficulty_value=difficulty_value,
             meals=meals,
             cuisine=cuisine,
+            status_values=status_values,
+            archived=archived,
             categories=categories,
             tags=tags,
             contributors=contributors,
@@ -456,6 +465,7 @@ class IndexHTMLGenerator:
             f' data-categories="{self.serialize_for_html_attribute(categories)}"'
             f' data-tags="{self.serialize_for_html_attribute(tags)}"'
             f' data-cuisine="{self.serialize_for_html_attribute(cuisine)}"'
+            f' data-status="{self.serialize_for_html_attribute(status_values)}"'
             f' data-contributors="{self.serialize_for_html_attribute(contributors)}"'
             f' data-source-titles="{self.serialize_for_html_attribute(source_titles)}"'
             f' data-ratings="{self.serialize_for_html_attribute(reviewer_ratings)}"'
@@ -463,7 +473,8 @@ class IndexHTMLGenerator:
             f' data-makes="{makes_value}"'
             f' data-difficulty="{difficulty_value}"'
             f' data-edited="{updated_on_value}"'
-            f' data-date="{date_value}">'
+            f' data-date="{date_value}"'
+            f' data-archived="{str(archived).lower()}">'
             '<article class="recipe-card">'
             f"{select_html}"
             f"{image_html}"
@@ -483,6 +494,8 @@ class IndexHTMLGenerator:
         difficulty_value: str,
         meals: list[str],
         cuisine: list[str],
+        status_values: list[str],
+        archived: bool,
         categories: list[str],
         tags: list[str],
         contributors: list[str],
@@ -490,48 +503,55 @@ class IndexHTMLGenerator:
         sources: list[dict],
         warnings_by_field: dict[str, dict],
     ) -> str:
-        parts: list[str] = [
-            self._detail_with_warning(
-                "makes",
-                "Makes",
-                [f"x{makes_value}"] if makes_value else [],
-                ("makes",),
-                warnings_by_field,
-            ),
-            self._detail_with_warning(
-                "difficulty",
-                "Difficulty",
-                [f"{difficulty_value}/10"] if difficulty_value else [],
-                ("difficulty",),
-                warnings_by_field,
-            ),
-            self._detail_with_warning("meals", "Meals", meals, ("meals",), warnings_by_field),
-            self._detail_with_warning("cuisine", "Cuisine", cuisine, ("cuisine",), warnings_by_field),
-            self._detail_with_warning(
-                "categories",
-                "Categories",
-                categories,
-                ("categories", "category"),
-                warnings_by_field,
-            ),
-            self._detail_with_warning("tags", "Tags", tags, ("tags",), warnings_by_field),
-            self._detail_with_warning(
-                "contributor",
-                "Contributor",
-                contributors,
-                ("contributor",),
-                warnings_by_field,
-                icon_path=QUILL_SVG,
-            ),
-            self._detail_with_warning(
-                "contribution-date",
-                "Contribution date",
-                [str(contribution_date.year)] if contribution_date else [],
-                ("createdOn", "contribution_date"),
-                warnings_by_field,
-                icon_path=CALENDAR_SVG,
-            ),
-        ]
+        parts: list[str] = []
+        if archived:
+            parts.append(self._archived_detail_html())
+
+        parts.extend(
+            [
+                self._detail_with_warning(
+                    "makes",
+                    "Makes",
+                    [f"x{makes_value}"] if makes_value else [],
+                    ("makes",),
+                    warnings_by_field,
+                ),
+                self._detail_with_warning(
+                    "difficulty",
+                    "Difficulty",
+                    [f"{difficulty_value}/10"] if difficulty_value else [],
+                    ("difficulty",),
+                    warnings_by_field,
+                ),
+                self._detail_with_warning("meals", "Meals", meals, ("meals",), warnings_by_field),
+                self._detail_with_warning("cuisine", "Cuisine", cuisine, ("cuisine",), warnings_by_field),
+                self._detail_html("status", "Status", status_values),
+                self._detail_with_warning(
+                    "categories",
+                    "Categories",
+                    categories,
+                    ("categories", "category"),
+                    warnings_by_field,
+                ),
+                self._detail_with_warning("tags", "Tags", tags, ("tags",), warnings_by_field),
+                self._detail_with_warning(
+                    "contributor",
+                    "Contributor",
+                    contributors,
+                    ("contributor",),
+                    warnings_by_field,
+                    icon_path=QUILL_SVG,
+                ),
+                self._detail_with_warning(
+                    "contribution-date",
+                    "Contribution date",
+                    [str(contribution_date.year)] if contribution_date else [],
+                    ("createdOn", "contribution_date"),
+                    warnings_by_field,
+                    icon_path=CALENDAR_SVG,
+                ),
+            ]
+        )
 
         # Titled sources render as individual details; warn only when none exist.
         titled_sources = [self._source_detail_html(source) for source in sources if self._source_title(source)]
@@ -542,6 +562,18 @@ class IndexHTMLGenerator:
                 parts.append(self._warning_detail_html("source", "Source", source_warning, LINK_SVG))
 
         return "".join(parts)
+
+    @classmethod
+    def _archived_detail_html(cls) -> str:
+        message = "Archived"
+        return (
+            '<span class="recipe-detail recipe-detail--archived" '
+            f'title="{message}" role="img" aria-label="{message}">'
+            f'{cls._svg_icon(ARCHIVE_SVG)}'
+            '<span class="recipe-detail__value">'
+            '<span class="recipe-chip">Archived</span>'
+            "</span></span>"
+        )
 
     # ----- Aggregation and page rendering ----- #
 
@@ -607,6 +639,7 @@ class IndexHTMLGenerator:
         server_name_html = html.escape(self._server_name())
         meal_options = self._build_select_options_html(filter_values["meals"])
         cuisine_options = self._build_select_options_html(filter_values["cuisine"])
+        status_options = self._build_select_options_html(filter_values["status"])
         category_options = self._build_select_options_html(filter_values["categories"])
         tag_options = self._build_select_options_html(filter_values["tags"])
         contributor_options = self._build_select_options_html(filter_values["contributors"])
@@ -666,6 +699,14 @@ class IndexHTMLGenerator:
                                 <select id="filter-cuisine" aria-label="Filter by cuisine">
                                     <option value="">All cuisines</option>
                                     {cuisine_options}
+                                </select>
+                            </label>
+
+                            <label class="filter-control">
+                                {self._inline_svg(INFO_SVG)}
+                                <select id="filter-status" aria-label="Filter by status">
+                                    <option value="">All statuses</option>
+                                    {status_options}
                                 </select>
                             </label>
 
@@ -744,6 +785,16 @@ class IndexHTMLGenerator:
 
                                 <label class="metadata-status-toggle">
                                     <input
+                                        id="show-archived"
+                                        type="checkbox"
+                                        aria-controls="recipe-list"
+                                    >
+                                    {self._inline_svg(ARCHIVE_SVG)}
+                                    <span>Show Archived</span>
+                                </label>
+
+                                <label class="metadata-status-toggle">
+                                    <input
                                         id="metadata-status"
                                         type="checkbox"
                                         aria-controls="recipe-list"
@@ -797,6 +848,7 @@ class IndexHTMLGenerator:
             "categories": set(),
             "tags": set(),
             "cuisine": set(),
+            "status": set(),
             "contributors": set(),
             "source_titles": set(),
         }

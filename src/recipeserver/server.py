@@ -73,6 +73,8 @@ EDITOR_METADATA_FIELDS = {
     "cuisine": "string_list",
     "categories": "string_list",
     "meals": "string_list",
+    "status": "string",
+    "archived": "boolean",
     "makes": "integer",
     "difficulty": "number",
     "contributor": "string",
@@ -187,6 +189,12 @@ def _validate_number_field(field: str, value: object) -> int | float:
     return value
 
 
+def _validate_boolean_field(field: str, value: object) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"'{field}' must be true or false")
+    return value
+
+
 def _validate_source_field(field: str, value: object) -> dict | None:
     if isinstance(value, list):
         value = next((item for item in value if isinstance(item, dict)), None)
@@ -208,6 +216,7 @@ def _validate_editor_field(field: str, expected_type: str, value: object) -> obj
         "string": _validate_string_field,
         "integer": _validate_integer_field,
         "number": _validate_number_field,
+        "boolean": _validate_boolean_field,
     }
     if expected_type in validators:
         return validators[expected_type](field, value)
@@ -224,7 +233,7 @@ def _validate_editor_metadata(metadata: object) -> dict:
     for field, expected_type in EDITOR_METADATA_FIELDS.items():
         value = metadata.get(field)
         if value is None:
-            validated[field] = None
+            validated[field] = False if expected_type == "boolean" else None
         else:
             validated[field] = _validate_editor_field(field, expected_type, value)
 

@@ -494,6 +494,16 @@
   font-size: 1rem;
 }
 
+.recipe-editor__metadata input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  min-width: 1rem;
+  padding: 0;
+  border-radius: 3px;
+  accent-color: var(--food-color);
+  cursor: pointer;
+}
+
 .recipe-editor__metadata select {
   appearance: none;
   -webkit-appearance: none;
@@ -552,6 +562,33 @@
 
   grid-column: 1 / -1;
   min-width: 0;
+}
+
+.recipe-editor__metadata .recipe-editor__checkbox-field {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.recipe-editor__checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+}
+
+.recipe-editor__checkbox-action {
+  display: inline-flex;
+  align-items: center;
+}
+
+.recipe-editor__bulk-field-save--checkbox {
+  position: static;
+  transform: none;
+  right: auto;
+  top: auto;
 }
 
 /* ---------- Markdown editor ---------- */

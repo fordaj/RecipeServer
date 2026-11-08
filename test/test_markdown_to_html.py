@@ -529,7 +529,7 @@ Servings
     ]
 
 
-def test_recipe_meta_grouping_without_dl_and_without_meta(tmp_path: Path):
+def def test_recipe_meta_grouping_without_dl_and_without_meta(tmp_path: Path):
     # No .recipe-meta at all: conversion succeeds and adds no groups.
     _, html_file = convert_recipe(
         tmp_path,
@@ -544,3 +544,35 @@ Body.
     )
     soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
     assert soup.select(".recipe-meta__group") == []
+
+
+def test_recipe_overview_shows_status_and_archived():
+    converter = MarkdownToHTMLConverter(SimpleNamespace())
+    overview = converter._build_recipe_overview(
+        {
+            "cuisine": ["Thai"],
+            "status": "In Rotation",
+            "categories": ["Soup"],
+            "tags": ["Spicy"],
+            "archived": True,
+        },
+        BeautifulSoup("", "html.parser"),
+    )
+
+    assert overview is not None
+    archived = overview.select_one(".recipe-overview__archived")
+    assert archived is not None
+    assert archived.get_text(" ", strip=True) == "Archived"
+    assert "lucide-archive" in str(archived)
+
+    secondary = overview.select_one(".recipe-overview__secondary")
+    assert secondary is not None
+    groups = secondary.find_all("span", recursive=False)
+    assert [group["class"][0] for group in groups] == [
+        "recipe-overview__cuisine",
+        "recipe-overview__status",
+        "recipe-overview__categories",
+        "recipe-overview__tags",
+    ]
+    assert "lucide-info" in str(groups[1])
+    assert groups[1].get_text(" ", strip=True) == "In Rotation"

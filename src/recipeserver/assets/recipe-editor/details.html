@@ -88,6 +88,23 @@
     </label>
 
     <label>
+      Status
+      <span class="recipe-editor__mixed" hidden>* MIXED</span>
+      <span class="recipe-editor__field-control">
+        <input name="status" type="text" placeholder="In Rotation" />
+        <button
+          type="button"
+          class="recipe-editor__bulk-field-save"
+          data-field="status"
+          aria-label="Save status to all selected recipes"
+          hidden
+        >
+          Save
+        </button>
+      </span>
+    </label>
+
+    <label>
       Tags
       <span class="recipe-editor__mixed" hidden>* MIXED</span>
       <span class="recipe-editor__field-control">
@@ -139,5 +156,24 @@
         </span>
       </label>
     </div>
+
+    <label class="recipe-editor__checkbox-field">
+      <span class="recipe-editor__checkbox-label">
+        <input name="archived" type="checkbox" />
+        Archived
+        <span class="recipe-editor__mixed" hidden>* MIXED</span>
+      </span>
+      <span class="recipe-editor__checkbox-action">
+        <button
+          type="button"
+          class="recipe-editor__bulk-field-save recipe-editor__bulk-field-save--checkbox"
+          data-field="archived"
+          aria-label="Save archived to all selected recipes"
+          hidden
+        >
+          Save
+        </button>
+      </span>
+    </label>
   </fieldset>
 </details>
