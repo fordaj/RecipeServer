@@ -266,7 +266,8 @@ a {
 
 .recipe-toolbar input:focus-visible,
 .recipe-toolbar select:focus-visible,
-.view-switcher button:focus-visible {
+.view-switcher button:focus-visible,
+.card-zoom__slider:focus-visible {
   outline: 2px solid var(--food-color);
   border-color: var(--food-color);
 }
@@ -601,6 +602,32 @@ a {
   color: var(--card-bg);
 }
 
+.results-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.card-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted-color);
+}
+
+.card-zoom__label {
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.card-zoom__slider {
+  width: min(9rem, 28vw);
+  accent-color: var(--food-color);
+  cursor: pointer;
+}
+
 #clear-filters {
   padding: 0.4rem 0.7rem;
   border: 1px solid var(--border-color);
@@ -628,12 +655,31 @@ a {
 /* ---------- Recipe cards and list ---------- */
 
 #recipe-list {
+  --card-min-width: 280px;
+  /* Proportional to --card-min-width so the Size slider also scales
+     list-view thumbnails (and therefore list-row height) without a
+     separate stored preference: 280px -> 4rem (the historic default). */
+  --list-thumb-size: calc(var(--card-min-width) * 0.2286);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.8rem;
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+/*
+ * Card view columns are zoom-driven: --card-min-width is set from the
+ * "Size" slider (persisted in localStorage). auto-fill keeps the
+ * layout responsive on desktop and mobile, and min(..., 100%) prevents
+ * a large card width from overflowing a narrow viewport.
+ * In list view the same variable scales --list-thumb-size instead.
+ */
+#recipe-list.card-view {
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(var(--card-min-width, 280px), 100%), 1fr)
+  );
 }
 
 #recipe-list > li {
@@ -882,7 +928,7 @@ a {
 
 #recipe-list.list-view .recipe-card {
   display: grid;
-  grid-template-columns: 4rem minmax(0, 1fr);
+  grid-template-columns: var(--list-thumb-size, 4rem) minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-items: start;
   gap: 0.15rem 0.8rem;
@@ -893,8 +939,8 @@ a {
   display: block;
   grid-column: 1;
   grid-row: 1 / -1;
-  width: 4rem;
-  height: 4rem;
+  width: var(--list-thumb-size, 4rem);
+  height: var(--list-thumb-size, 4rem);
   margin: 0;
   aspect-ratio: auto;
 }
@@ -965,6 +1011,20 @@ a {
     border-right: 0;
     box-shadow: none;
   }
+
+  .results-controls {
+    width: 100%;
+  }
+
+  .card-zoom {
+    flex: 1 1 auto;
+    justify-content: space-between;
+  }
+
+  .card-zoom__slider {
+    flex: 1 1 auto;
+    width: auto;
+  }
 }
 
 @media (min-width: 500px) {
@@ -974,10 +1034,6 @@ a {
 
   .recipe-filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  #recipe-list.card-view {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -999,19 +1055,9 @@ a {
   }
 }
 
-@media (min-width: 1000px) {
-  #recipe-list.card-view {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
 @media (min-width: 1250px) {
   .recipe-filters {
     grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
-
-  #recipe-list.card-view {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

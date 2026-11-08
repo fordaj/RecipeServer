@@ -25,6 +25,7 @@ const initRecipeIndex = async () => {
   const reviewLabel = document.querySelector("#review-filter-label");
   const selectionMode = document.querySelector("#bulk-selection-mode");
   const showArchived = document.querySelector("#show-archived");
+  const cardZoom = document.querySelector("#card-zoom");
   const bulkControls = document.querySelector("#bulk-controls");
   const bulkEdit = document.querySelector("#bulk-edit");
   const bulkDelete = document.querySelector("#bulk-delete");
@@ -257,6 +258,70 @@ const initRecipeIndex = async () => {
     }
   };
 
+  // ----- Card Zoom ----- //
+  // Size stores the minimum card width (px) used by the card-view
+  // grid. Smaller cards show more recipes per row; larger cards show
+  // fewer. The same value also scales list-view thumbnails (via
+  // --list-thumb-size in index.css), so list-row height follows the
+  // Image size indirectly. Persisted in localStorage so the
+  // preference survives reloads and applies in both views.
+  const CARD_ZOOM_STORAGE_KEY = "recipe-card-min-width";
+  const CARD_ZOOM_MIN = 180;
+  const CARD_ZOOM_MAX = 440;
+  const CARD_ZOOM_DEFAULT = 280;
+
+  const clampCardZoom = (value) => {
+    if (!Number.isFinite(value)) return CARD_ZOOM_DEFAULT;
+    return Math.min(CARD_ZOOM_MAX, Math.max(CARD_ZOOM_MIN, value));
+  };
+
+  const loadCardZoom = () => {
+    try {
+      const stored = Number(localStorage.getItem(CARD_ZOOM_STORAGE_KEY));
+      if (Number.isFinite(stored) && stored >= CARD_ZOOM_MIN && stored <= CARD_ZOOM_MAX) {
+        return stored;
+      }
+    } catch {
+      // localStorage may be unavailable (e.g. private browsing).
+    }
+    return CARD_ZOOM_DEFAULT;
+  };
+
+  const applyCardZoom = (value) => {
+    const zoom = clampCardZoom(value);
+    list.style.setProperty("--card-min-width", `${zoom}px`);
+    if (cardZoom) cardZoom.value = String(zoom);
+    return zoom;
+  };
+
+  const saveCardZoom = (value) => {
+    try {
+      localStorage.setItem(CARD_ZOOM_STORAGE_KEY, String(clampCardZoom(value)));
+    } catch {
+      // Ignore storage errors; the in-page layout still updates.
+    }
+  };
+
+  // The List/Cards view choice is persisted alongside the zoom value.
+  const RECIPE_VIEW_STORAGE_KEY = "recipe-view";
+
+  const loadRecipeView = () => {
+    try {
+      return localStorage.getItem(RECIPE_VIEW_STORAGE_KEY) === "cards" ? "cards" : "list";
+    } catch {
+      // localStorage may be unavailable (e.g. private browsing).
+      return "list";
+    }
+  };
+
+  const saveRecipeView = (view) => {
+    try {
+      localStorage.setItem(RECIPE_VIEW_STORAGE_KEY, view === "cards" ? "cards" : "list");
+    } catch {
+      // Ignore storage errors; the in-page layout still updates.
+    }
+  };
+
   // ----- Filter, Sort, and Render ----- //
   const isArchivedVisible = (recipe) =>
     !showArchived || showArchived.checked || recipe.dataset.archived !== "true";
@@ -372,14 +437,25 @@ const initRecipeIndex = async () => {
     applyReviewFilter(getSelectedReviewers());
   });
 
+  const setView = (view) => {
+    const isCards = view === "cards";
+    list.classList.toggle("list-view", !isCards);
+    list.classList.toggle("card-view", isCards);
+    viewButtons.forEach((item) =>
+      item.setAttribute("aria-pressed", item.dataset.view === view),
+    );
+    saveRecipeView(isCards ? "cards" : "list");
+  };
+
   viewButtons.forEach((button) =>
-    button.addEventListener("click", () => {
-      const view = button.dataset.view;
-      list.classList.toggle("list-view", view === "list");
-      list.classList.toggle("card-view", view === "cards");
-      viewButtons.forEach((item) => item.setAttribute("aria-pressed", item === button));
-    }),
+    button.addEventListener("click", () => setView(button.dataset.view)),
   );
+
+  if (cardZoom) {
+    cardZoom.addEventListener("input", () => {
+      saveCardZoom(applyCardZoom(Number(cardZoom.value)));
+    });
+  }
 
   if (selectionMode) {
     selectionMode.addEventListener("change", () => setSelectionMode(selectionMode.checked));
@@ -469,6 +545,8 @@ const initRecipeIndex = async () => {
   }
 
   // ----- Initialization ----- //
+  applyCardZoom(loadCardZoom());
+  setView(loadRecipeView());
   setSelectionMode(Boolean(selectionMode?.checked));
   update();
 };
