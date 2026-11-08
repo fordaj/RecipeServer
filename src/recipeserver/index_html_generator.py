@@ -895,9 +895,27 @@ class IndexHTMLGenerator:
                             <button id="bulk-edit" class="bulk-edit" type="button" disabled>Bulk Edit</button>
                         </div>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
-                        <div class="view-switcher" role="group" aria-label="Recipe view">
-                            <button type="button" data-view="list" aria-pressed="true">List</button>
-                            <button type="button" data-view="cards" aria-pressed="false">Cards</button>
+                        <div class="results-controls">
+                            <div class="card-zoom" id="card-zoom-control" title="Smaller shows more">
+                                <label class="card-zoom__label" for="card-zoom">Size</label>
+                                <input
+                                    class="card-zoom__slider"
+                                    id="card-zoom"
+                                    type="range"
+                                    min="180"
+                                    max="440"
+                                    step="20"
+                                    value="280"
+                                    aria-label="Size"
+                                    aria-describedby="card-zoom-hint"
+                                    title="Smaller shows more"
+                                >
+                                <span class="visually-hidden card-zoom__hint" id="card-zoom-hint">Smaller shows more</span>
+                            </div>
+                            <div class="view-switcher" role="group" aria-label="Recipe view">
+                                <button type="button" data-view="list" aria-pressed="true">List</button>
+                                <button type="button" data-view="cards" aria-pressed="false">Cards</button>
+                            </div>
                         </div>
                     </div>
 

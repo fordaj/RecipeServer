@@ -173,7 +173,8 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     index_script = (
         Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js"
     ).read_text(encoding="UTF-8")
-    assert 'list.classList.toggle("card-view", view === "cards")' in index_script
+    assert 'list.classList.toggle("card-view", isCards)' in index_script
+    assert "setView(loadRecipeView())" in index_script
     assert 'filterControls.forEach(([, control]) => (control.value = ""))' in index_script
     assert 'id="clear-filters" type="button" hidden' in page
     assert 'data-title="Cinnamon &quot;Rolls&quot;"' in page
@@ -557,3 +558,94 @@ def test_index_normalizes_updated_timestamp_to_utc(tmp_path: Path):
     recipe = BeautifulSoup(page, "html.parser").select_one("#recipe-list .recipe")
     assert recipe is not None
     assert recipe["data-edited"] == "2024-07-20T06:30:00+00:00"
+
+
+def test_index_includes_card_zoom_slider_control(tmp_path: Path):
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.convert()
+
+    page = (tmp_path / "index.html").read_text(encoding="UTF-8")
+    soup = BeautifulSoup(page, "html.parser")
+    control = soup.select_one("#card-zoom-control")
+    assert control is not None
+    # Size applies to both List and Cards views, so it is always visible.
+    assert not control.has_attr("hidden")
+    assert control["title"] == "Smaller shows more"
+    label = control.select_one(".card-zoom__label")
+    assert label is not None
+    assert label.get_text(strip=True) == "Size"
+    assert "Card size" not in control.get_text()
+    hint = control.select_one("#card-zoom-hint")
+    assert hint is not None
+    assert hint.get_text(strip=True) == "Smaller shows more"
+    assert "visually-hidden" in hint["class"]
+    slider = soup.select_one("#card-zoom")
+    assert slider is not None
+    assert slider["type"] == "range"
+    assert slider["min"] == "180"
+    assert slider["max"] == "440"
+    assert slider["step"] == "20"
+    assert slider["value"] == "280"
+    assert slider["aria-label"] == "Size"
+    assert slider["title"] == "Smaller shows more"
+    assert slider["aria-describedby"] == "card-zoom-hint"
+    assert soup.select_one(".results-controls .view-switcher") is not None
+    assert soup.select_one(".results-controls .card-zoom") is not None
+
+    css = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "index.css"
+    ).read_text(encoding="UTF-8")
+    assert "--card-min-width" in css
+    assert "--list-thumb-size" in css
+    assert "#recipe-list.card-view" in css
+    assert "auto-fill" in css
+    assert ".card-zoom {" in css
+    # The zoom field is unboxed: no background or outline.
+    assert ".card-zoom[hidden]" not in css
+    zoom_rule = css.split(".card-zoom {", 1)[1].split("}", 1)[0]
+    assert "background" not in zoom_rule
+    assert "border" not in zoom_rule
+    assert ".card-zoom__hint {" not in css
+    assert ".results-controls" in css
+    # List view: image size (and therefore row height) follows the slider.
+    list_card_rule = css.split("#recipe-list.list-view .recipe-card {", 1)[1].split("}", 1)[0]
+    assert "var(--list-thumb-size" in list_card_rule
+    list_image_rule = css.split("#recipe-list.list-view .recipe-card__image {", 1)[1].split("}", 1)[0]
+    assert "var(--list-thumb-size" in list_image_rule
+    # Fixed card column breakpoints are replaced by the zoom-driven grid.
+    assert "repeat(2, minmax(0, 1fr));\n  }\n}\n\n@media (min-width: 750px)" not in css.replace("  ", "")
+    assert '#recipe-list.card-view {\n    grid-template-columns: repeat(2' not in css
+    assert '#recipe-list.card-view {\n    grid-template-columns: repeat(3' not in css
+    assert '#recipe-list.card-view {\n    grid-template-columns: repeat(4' not in css
+
+    script = (
+        Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js"
+    ).read_text(encoding="UTF-8")
+    assert "recipe-card-min-width" in script
+    assert "recipe-view" in script
+    assert "loadRecipeView" in script
+    assert "saveRecipeView" in script
+    assert "localStorage" in script
+    assert "cardZoomControl" not in script
+    assert "cardZoomControl.hidden" not in script
+
+
+def test_card_zoom_css_remains_responsive(tmp_path: Path):
+    css = (
+        Path(__file__).parents[1]
+        / "src"
+        / "recipeserver"
+        / "assets"
+        / "index.css"
+    ).read_text(encoding="UTF-8")
+    # The grid must not overflow narrow viewports at large card widths.
+    assert "min(var(--card-min-width, 280px), 100%)" in css
+    # List thumbnails scale proportionally: 280px card width -> 4rem thumb.
+    assert "calc(var(--card-min-width) * 0.2286)" in css
+    # Mobile layout keeps the zoom control usable.
+    assert "@media (max-width: 499px)" in css
+    assert ".card-zoom__slider" in css
