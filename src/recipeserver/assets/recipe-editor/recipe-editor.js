@@ -7,6 +7,7 @@
   const RECIPE_FOLDERS_API = "/api/recipe-folders";
   const AI_STATUS_API = "/api/ai-status";
   const AI_RECIPE_API = "/api/ai-recipe";
+  const FIND_IMAGE_API = "/api/find-image";
   const MAKES_METADATA_API = "/api/metadata/makes";
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
   const EDITOR_ASSETS_BASE = "/assets/recipe-editor";
@@ -440,6 +441,10 @@ Try this
       imageInput: dialog.querySelector("#recipe-editor-images"),
       imageDropzone: dialog.querySelector(".recipe-editor__images"),
       selectedImages: dialog.querySelector(".recipe-editor__images-selected"),
+      imagePreview: dialog.querySelector(".recipe-editor__images-preview"),
+      imageCaption: dialog.querySelector(".recipe-editor__images-caption"),
+      findImageButton: dialog.querySelector("#recipe-editor-find-image"),
+      findImageStatus: dialog.querySelector(".recipe-editor__find-image-status"),
       aiSection: dialog.querySelector(".recipe-editor__ai"),
       aiDetails: dialog.querySelector(".recipe-editor__ai-details"),
       aiStatus: dialog.querySelector(".recipe-editor__ai-status"),
@@ -483,6 +488,8 @@ Try this
       aiAvailable: false,
       aiImageAvailable: false,
       aiAbortController: null,
+      findImageAvailable: false,
+      findImageBusy: false,
     };
   }
 
@@ -550,6 +557,9 @@ Try this
       refs.aiImageControls.forEach((control) => {
         control.disabled = value || !state.aiImageAvailable;
       });
+      if (refs.findImageButton) {
+        refs.findImageButton.disabled = value || state.findImageBusy || !state.findImageAvailable;
+      }
     }
 
     return { setStatus, updateFolderControls, lockBackgroundScroll, unlockBackgroundScroll, closeEditor, setBusy };
@@ -647,7 +657,89 @@ Try this
       }
     }
 
-    return { setAiProgress, setAiState, generateFromAi };
+    function setFindImageState(available) {
+      state.findImageAvailable = Boolean(available);
+      if (refs.findImageButton) {
+        refs.findImageButton.disabled = state.busy || state.findImageBusy || !state.findImageAvailable;
+      }
+      if (!available && refs.findImageStatus) refs.findImageStatus.textContent = "";
+    }
+
+    function extractRecipeTitle() {
+      // The recipe title is the first "# " heading in the Markdown.
+      for (const line of refs.textarea.value.split("\n")) {
+        const match = line.match(/^\s{0,3}#\s+(.+?)\s*#*\s*$/);
+        if (match && match[1].trim()) return match[1].trim();
+      }
+      return "";
+    }
+
+    async function requestFindImage(title) {
+      return fetchJson(new URL(FIND_IMAGE_API, window.location.origin), {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+    }
+
+    function dataUriToFile(dataUri, filename, contentType) {
+      const separator = dataUri.indexOf(",");
+      if (separator === -1) throw new Error("The AI returned an invalid image.");
+      const header = dataUri.slice(0, separator);
+      const base64 = dataUri.slice(separator + 1);
+      const type = contentType || header.match(/^data:([^;]+)/)?.[1] || "image/jpeg";
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+      return new File([new Blob([bytes], { type })], filename || "found-image.jpg", { type });
+    }
+
+    async function findImageForMe() {
+      // Every click performs a fresh search; concurrent clicks are blocked
+      // and the existing image is only replaced after a success.
+      if (state.findImageBusy || !state.findImageAvailable) return;
+      const title = extractRecipeTitle();
+      if (!title || title === "New Recipe") {
+        refs.findImageStatus.textContent = "Enter a recipe title before searching for an image.";
+        return;
+      }
+      state.findImageBusy = true;
+      refs.findImageButton.disabled = true;
+      refs.findImageStatus.textContent = `Searching for an image for "${title}"...`;
+      try {
+        const result = await requestFindImage(title);
+        if (!result || !result.data_uri || !result.filename) {
+          throw new Error("The AI did not return a usable image.");
+        }
+        const file = dataUriToFile(result.data_uri, result.filename, result.content_type);
+        if (typeof DataTransfer === "undefined") {
+          throw new Error("Your browser does not allow setting the image automatically.");
+        }
+        // Success only: now it is safe to replace the selected image.
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        refs.imageInput.files = transfer.files;
+        refs.selectedImages.textContent = file.name;
+        if (refs.imagePreview) {
+          refs.imagePreview.src = result.data_uri;
+          refs.imagePreview.alt = result.description || title;
+          refs.imagePreview.hidden = false;
+        }
+        const attribution = result.attribution ? `Source: ${result.attribution}. ` : "";
+        const source = result.source_url ? `Source: ${result.source_url}. ` : "";
+        if (refs.imageCaption) refs.imageCaption.textContent = `${attribution}${source}`.trim();
+        refs.findImageStatus.textContent = `Found an image: ${file.name}. Click again for a different image.`;
+      } catch (error) {
+        // Existing pasted/selected image and preview stay untouched.
+        refs.findImageStatus.textContent = `No image found: ${error.message}`;
+      } finally {
+        state.findImageBusy = false;
+        refs.findImageButton.disabled = state.busy || !state.findImageAvailable;
+      }
+    }
+
+    return { setAiProgress, setAiState, setFindImageState, generateFromAi, findImageForMe };
   }
 
   // ----- "Made this" helpers ----- //
@@ -896,11 +988,21 @@ Try this
     state.aiAvailable = false;
     state.aiImageAvailable = false;
     state.aiAbortController = null;
+    state.findImageAvailable = false;
+    state.findImageBusy = false;
     refs.aiStatus.textContent = "";
     refs.aiText.value = "";
     refs.aiUrl.value = "";
     refs.aiImage.value = "";
     refs.aiCancelButton.hidden = true;
+    if (refs.findImageButton) refs.findImageButton.disabled = true;
+    if (refs.findImageStatus) refs.findImageStatus.textContent = "";
+    if (refs.imagePreview) {
+      refs.imagePreview.hidden = true;
+      refs.imagePreview.removeAttribute("src");
+      refs.imagePreview.alt = "";
+    }
+    if (refs.imageCaption) refs.imageCaption.textContent = "";
   }
 
   async function openBulkEditor(refs, state, ui, bulk, paths) {
@@ -969,12 +1071,18 @@ Try this
         status.image_configured === undefined ? Boolean(status.configured) : Boolean(status.image_configured),
         status.image_available === undefined ? Boolean(status.available) : Boolean(status.image_available),
       );
+      ai.setFindImageState(
+        status.find_image_available === undefined
+          ? Boolean(status.available)
+          : Boolean(status.find_image_available),
+      );
     } catch {
       ai.setAiState(false, false);
+      ai.setFindImageState(false);
     }
   }
 
-  async function loadEditMode(refs, state, madeThis) {
+  async function loadEditMode(refs, state, madeThis, ai) {
     state.markdownPath = getMarkdownPath();
     const result = await requestEditor(state.markdownPath);
     state.originalContent = result.content;
@@ -985,6 +1093,16 @@ Try this
     refs.deleteButton.hidden = false;
     refs.madeThisButton.hidden = false;
     refs.madeThisCount.hidden = false;
+    try {
+      const status = await requestAiStatus();
+      ai.setFindImageState(
+        status.find_image_available === undefined
+          ? Boolean(status.available)
+          : Boolean(status.find_image_available),
+      );
+    } catch {
+      ai.setFindImageState(false);
+    }
   }
 
   function prepareEditorOpen(refs, state, madeThis, bulk, mode) {
@@ -1021,7 +1139,7 @@ Try this
     ui.setBusy(true);
     try {
       if (state.isCreating) await loadCreateMode(refs, ui, ai);
-      else await loadEditMode(refs, state, madeThis);
+      else await loadEditMode(refs, state, madeThis, ai);
       ui.setStatus("");
     } catch (error) {
       ui.setStatus(error.message);
@@ -1171,6 +1289,16 @@ Try this
     refs.folderMode.addEventListener("change", ui.updateFolderControls);
     refs.imageInput.addEventListener("change", () => {
       refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
+      const firstFile = refs.imageInput.files?.[0];
+      if (refs.imagePreview && firstFile && firstFile.type.startsWith("image/")) {
+        refs.imagePreview.src = URL.createObjectURL(firstFile);
+        refs.imagePreview.alt = firstFile.name;
+        refs.imagePreview.hidden = false;
+      } else if (refs.imagePreview && !firstFile) {
+        refs.imagePreview.hidden = true;
+        refs.imagePreview.removeAttribute("src");
+        if (refs.imageCaption) refs.imageCaption.textContent = "";
+      }
     });
 
     function appendImages(newFiles) {
@@ -1223,6 +1351,8 @@ Try this
     refs.imageDropzone?.addEventListener("click", (event) => {
       if (state.busy || refs.imageInput.disabled) return;
       if (event.target === refs.imageInput || event.target.closest("label")) return;
+      // The "Find an image" button must not also open the file picker.
+      if (event.target.closest("button")) return;
       refs.imageInput.click();
     });
 
@@ -1240,6 +1370,10 @@ Try this
     refs.aiTextButton.addEventListener("click", () => ai.generateFromAi("text"));
     refs.aiUrlButton.addEventListener("click", () => ai.generateFromAi("url"));
     refs.aiImageButton.addEventListener("click", () => ai.generateFromAi("image"));
+    if (refs.findImageButton) {
+      refs.findImageButton.disabled = true;
+      refs.findImageButton.addEventListener("click", () => ai.findImageForMe());
+    }
     refs.aiCancelButton.addEventListener("click", () => {
       if (state.aiAbortController) state.aiAbortController.abort();
     });

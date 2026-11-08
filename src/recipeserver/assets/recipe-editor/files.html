@@ -29,11 +29,24 @@
         multiple
         accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif,.svg,.avif"
       />
+      <button
+        id="recipe-editor-find-image"
+        class="recipe-editor__find-image"
+        type="button"
+        aria-label="Find an image for me"
+        title="Find an image for me"
+      >
+        <img src="/assets/ai.svg" alt="" aria-hidden="true" width="18" height="18" />
+        <span>Find an image for me</span>
+      </button>
+      <img class="recipe-editor__images-preview" alt="" hidden />
+      <p class="recipe-editor__images-caption" aria-live="polite"></p>
       <p class="recipe-editor__images-help">
         Drag &amp; drop images here, paste them from your clipboard, or click to choose files.
         Images are saved beside the recipe. Up to 20 files and 25 MB per save.
       </p>
       <p class="recipe-editor__images-selected" aria-live="polite"></p>
+      <p class="recipe-editor__find-image-status" role="status"></p>
     </div>
   </fieldset>
 </details>
