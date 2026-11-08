@@ -3,17 +3,19 @@ from pathlib import Path
 import pystray
 from PIL import Image, ImageDraw
 
+from .config import DEFAULT_FOOD_COLOR
+from .logo import LOGO_PNG, generate_logo_png
 from .server import Server
 from ._logger import logger
 
 FILE_PATH = Path(__file__)
-LOGO_PNG = FILE_PATH.parent / "assets" / "logo.png"
 
 
 class Tray:
-    def __init__(self, server: Server, on_quit):
+    def __init__(self, server: Server, on_quit, food_color: str | None = None):
         self.server = server
         self.on_quit = on_quit
+        self.food_color = food_color or DEFAULT_FOOD_COLOR
         self.icon = pystray.Icon(
             "RecipeServer",
             self._create_image(),
@@ -46,6 +48,9 @@ class Tray:
         )
 
     def _create_image(self) -> Image.Image:
+        # Regenerate logo.png on app load from logo.svg using the
+        # configured food color, then load it for the tray icon.
+        generate_logo_png(self.food_color, LOGO_PNG)
         with Image.open(LOGO_PNG) as image:
             return image.convert("RGBA")
 

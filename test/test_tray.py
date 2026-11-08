@@ -4,6 +4,7 @@ import pytest
 from PIL import Image, UnidentifiedImageError
 
 from recipeserver import core as core_module
+from recipeserver import logo as logo_module
 from recipeserver import tray as tray_module
 
 
@@ -56,13 +57,24 @@ def tray_factory(monkeypatch):
             created_icons.append(self)
 
     monkeypatch.setattr(tray_module.pystray, "Icon", RecordingIcon)
+    # Avoid the native cairosvg/cairo dependency in tests: writing a small
+    # valid PNG is enough to exercise the tray's icon-loading path.
+    generated_colors: list[str] = []
 
-    def create(running: bool = False):
+    def fake_generate_logo_png(food_color, output_path):
+        generated_colors.append(food_color)
+        Image.new("RGBA", (48, 48), (255, 0, 0, 255)).save(output_path)
+        return output_path
+
+    monkeypatch.setattr(tray_module, "generate_logo_png", fake_generate_logo_png)
+
+    def create(running: bool = False, food_color: str | None = None):
         server = FakeServer(running)
         quit_calls: list[bool] = []
-        tray = tray_module.Tray(server, on_quit=lambda: quit_calls.append(True))
+        tray = tray_module.Tray(server, on_quit=lambda: quit_calls.append(True), food_color=food_color)
         return tray, server, created_icons[-1], quit_calls
 
+    create.generated_colors = generated_colors
     return create
 
 
@@ -88,8 +100,8 @@ def test_tray_uses_the_bundled_logo_image(tray_factory):
     assert icon.title == "RecipeServer"
 
 
-def test_tray_fails_when_the_logo_is_missing(monkeypatch, tmp_path):
-    monkeypatch.setattr(tray_module, "LOGO_PNG", tmp_path / "missing-logo.png")
+def test_tray_fails_when_the_logo_svg_is_missing(monkeypatch, tmp_path):
+    monkeypatch.setattr(logo_module, "LOGO_SVG", tmp_path / "missing-logo.svg")
     monkeypatch.setattr(
         tray_module.pystray,
         "Icon",
@@ -102,11 +114,27 @@ def test_tray_fails_when_the_logo_is_missing(monkeypatch, tmp_path):
 
 def test_tray_fails_when_the_logo_cannot_be_read(monkeypatch, tmp_path):
     logo = tmp_path / "logo.png"
-    logo.write_bytes(b"this is not a PNG")
     monkeypatch.setattr(tray_module, "LOGO_PNG", logo)
+    monkeypatch.setattr(
+        tray_module,
+        "generate_logo_png",
+        lambda food_color, output_path: output_path.write_bytes(b"this is not a PNG"),
+    )
 
     with pytest.raises(UnidentifiedImageError):
         tray_module.Tray(FakeServer(), on_quit=lambda: None)
+
+
+def test_tray_regenerates_the_logo_with_the_food_color(tray_factory):
+    tray_factory(food_color="#123456")
+
+    assert tray_factory.generated_colors == ["#123456"]
+
+
+def test_tray_defaults_to_the_default_food_color(tray_factory):
+    tray_factory()
+
+    assert tray_factory.generated_colors == ["#8d5542"]
 
 
 def test_tray_run_starts_the_icon(tray_factory):
@@ -227,8 +255,10 @@ def test_tray_menu_quit_calls_the_shutdown_callback(tray_factory):
     assert quit_calls == [True]
 
 
-def test_tray_menu_is_built_from_the_module_logo():
+def test_tray_menu_is_built_from_the_module_logo(tray_factory):
     """The tray image must come from the bundled asset, not a placeholder."""
+    tray_factory()
+
     path = Path(tray_module.LOGO_PNG)
 
     assert path == Path(tray_module.__file__).parent / "assets" / "logo.png"
@@ -264,9 +294,10 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
             events.append("server-stop")
 
     class FakeTray:
-        def __init__(self, server, on_quit):
+        def __init__(self, server, on_quit, food_color=None):
             self.server = server
             self.on_quit = on_quit
+            self.food_color = food_color
             events.append("tray-init")
 
         def run(self):
@@ -285,7 +316,9 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
     monkeypatch.setattr(core_module, "Tray", FakeTray)
     monkeypatch.setattr(core_module.sys, "platform", platform)
 
-    core_module.main(object())
+    from types import SimpleNamespace
+
+    core_module.main(SimpleNamespace(food_color="#8d5542"))
 
     return events
 
