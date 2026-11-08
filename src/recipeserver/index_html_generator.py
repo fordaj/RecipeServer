@@ -21,8 +21,8 @@ FILE_PATH = Path(__file__)
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
-RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor.css"
-RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor.js"
+RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor/recipe-editor.css"
+RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor/recipe-editor.js"
 CONFIG_EDITOR_CSS_PATH = "/assets/config-editor.css"
 CONFIG_EDITOR_JS_PATH = "/assets/config-editor.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
@@ -44,7 +44,8 @@ PLUS_SVG = FILE_PATH.parent / "assets" / "plus.svg"
 
 def _versioned_asset_url(url: str) -> str:
     """Append a content hash so browsers pick up changed assets."""
-    asset_path = FILE_PATH.parent / "assets" / Path(url).name
+    relative = url.removeprefix("/assets/")
+    asset_path = FILE_PATH.parent / "assets" / relative
     digest = hashlib.sha1(asset_path.read_bytes()).hexdigest()[:10]
     return f"{url}?v={digest}"
 

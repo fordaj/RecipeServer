@@ -1,0 +1,40 @@
+<form class="recipe-editor" method="dialog">
+  <header class="recipe-editor__header">
+    <h2>Edit Recipe</h2>
+    <span class="recipe-editor__makes-count" hidden>
+      <span class="recipe-editor__makes-icon" aria-hidden="true" focusable="false"></span
+      ><span class="recipe-editor__makes-value">x0</span>
+    </span>
+    <button type="button" class="recipe-editor__made-this" hidden>I made this!</button>
+    <button type="button" class="recipe-editor__close" aria-label="Close editor">&times;</button>
+  </header>
+
+  <!--SECTION:files-->
+  <!--SECTION:ai-->
+  <!--SECTION:details-->
+  <!--SECTION:sources-->
+  <!--SECTION:ratings-->
+
+  <p class="recipe-editor__bulk-list" hidden></p>
+
+  <details class="recipe-editor__details recipe-editor__markdown-details">
+    <summary>Markdown</summary>
+
+    <label class="recipe-editor__markdown-label" for="recipe-editor-source">Markdown</label>
+
+    <textarea
+      id="recipe-editor-source"
+      class="recipe-editor__source"
+      aria-label="Markdown source"
+      spellcheck="false"
+      required
+    ></textarea>
+  </details>
+
+  <p class="recipe-editor__status" role="status"></p>
+  <footer class="recipe-editor__footer">
+    <button type="button" class="recipe-editor__cancel">Cancel</button>
+    <button type="button" class="recipe-editor__delete" hidden>Delete</button>
+    <button type="submit" class="recipe-editor__save">Save</button>
+  </footer>
+</form>

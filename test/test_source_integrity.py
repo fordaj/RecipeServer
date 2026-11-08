@@ -466,7 +466,7 @@ def test_regen_builds_site_without_modifying_the_source_tree(tmp_path: Path, mon
 
     recipe_html = (site / "dinner" / "recipe.html").read_text(encoding="utf-8")
     assert "Braised Greens" in recipe_html
-    assert 'src="/assets/recipe-editor.js"' in recipe_html
+    assert 'src="/assets/recipe-editor/recipe-editor.js"' in recipe_html
 
 
 def test_regen_skips_a_recipe_that_fails_to_convert(tmp_path: Path, monkeypatch):
