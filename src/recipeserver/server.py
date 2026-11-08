@@ -76,6 +76,7 @@ EDITOR_METADATA_FIELDS = {
     "makes": "integer",
     "difficulty": "number",
     "contributor": "string",
+    "status": "string",
     "createdOn": "string",
     "updatedOn": "string",
     "archived": "boolean",
@@ -101,6 +102,13 @@ def _editor_metadata(metadata: dict) -> dict:
     if values["categories"] is None and metadata.get("category") is not None:
         legacy = metadata["category"]
         values["categories"] = [legacy] if isinstance(legacy, str) else legacy
+
+    # Status is a single string; older recipes may store a list.
+    status = values.get("status")
+    if isinstance(status, list):
+        values["status"] = next((item for item in status if isinstance(item, str) and item.strip()), None)
+    elif status is not None and not isinstance(status, str):
+        values["status"] = None
 
     # The editor edits one source at a time; older recipes may store a list.
     values["source"] = _normalize_source_value(values["source"])
@@ -937,6 +945,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             elif field_name == "archived":
                 if value is not None:
                     value = _validate_boolean_field(field_name, value)
+            elif field_name == "status":
+                if value is not None:
+                    value = _validate_string_field(field_name, value)
 
             file_path = self._resolve_markdown_path(recipe_path)
         except _RequestTooLarge:

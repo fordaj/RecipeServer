@@ -570,6 +570,15 @@ def _normalize_metadata(metadata: object) -> dict[str, Any]:
         if isinstance(value, str):
             normalized[field] = [item.strip() for item in value.split(",") if item.strip()]
 
+    # Status is a single string value; collapse any list to its first item.
+    status = normalized.get("status")
+    if isinstance(status, list):
+        normalized["status"] = next((item.strip() for item in status if isinstance(item, str) and item.strip()), None)
+    elif status is not None and not isinstance(status, str):
+        normalized["status"] = None
+    elif isinstance(status, str):
+        normalized["status"] = status.strip() or None
+
     source = normalized.get("source")
     if isinstance(source, list):
         source = next((item for item in source if isinstance(item, dict)), None)
