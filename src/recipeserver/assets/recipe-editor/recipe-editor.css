@@ -564,8 +564,17 @@
   gap: 0.5rem;
 }
 
+/* Use the browser's default checkbox size instead of the text-input sizing above. */
 .recipe-editor__checkbox input[type="checkbox"] {
+  appearance: auto;
+  -webkit-appearance: auto;
   width: auto;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: inherit;
 }
 
 /* ---------- Markdown editor ---------- */

@@ -317,7 +317,8 @@ input[type="checkbox"]:focus-visible {
 }
 
 .recipe-overview__primary,
-.recipe-overview__secondary {
+.recipe-overview__secondary,
+.recipe-overview__tertiary {
   display: flex;
   align-items: baseline;
   justify-content: center;
@@ -335,10 +336,15 @@ input[type="checkbox"]:focus-visible {
   margin-top: 0.25rem;
 }
 
+.recipe-overview__tertiary {
+  margin-top: 0.25rem;
+}
+
 /* Separators between metadata fields */
 
 .recipe-overview__primary > span + span::before,
-.recipe-overview__secondary > span + span::before {
+.recipe-overview__secondary > span + span::before,
+.recipe-overview__tertiary > span + span::before {
   content: "·";
   margin-right: 0.65rem;
   color: var(--border-color);
@@ -358,13 +364,14 @@ input[type="checkbox"]:focus-visible {
   font-weight: 400;
 }
 
-/* Meals, difficulty, cuisine, categories, and tags */
+/* Meals, difficulty, cuisine, categories, tags, and archived */
 
 .recipe-overview__meals,
 .recipe-overview__difficulty,
 .recipe-overview__cuisine,
 .recipe-overview__categories,
-.recipe-overview__tags {
+.recipe-overview__tags,
+.recipe-overview__archived {
   display: inline;
 }
 
@@ -375,7 +382,8 @@ input[type="checkbox"]:focus-visible {
 .recipe-overview__difficulty > svg,
 .recipe-overview__cuisine > svg,
 .recipe-overview__categories > svg,
-.recipe-overview__tags > svg {
+.recipe-overview__tags > svg,
+.recipe-overview__archived > svg {
   margin-right: 0.35rem;
 }
 
@@ -414,12 +422,14 @@ input[type="checkbox"]:focus-visible {
   }
 
   .recipe-overview__primary,
-  .recipe-overview__secondary {
+  .recipe-overview__secondary,
+  .recipe-overview__tertiary {
     column-gap: 0.45rem;
   }
 
   .recipe-overview__primary > span + span::before,
-  .recipe-overview__secondary > span + span::before {
+  .recipe-overview__secondary > span + span::before,
+  .recipe-overview__tertiary > span + span::before {
     margin-right: 0.45rem;
   }
 } /* ---------- Recipe metadata rows ---------- */

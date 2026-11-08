@@ -132,14 +132,39 @@ def test_editor_save_persists_archived(archived_server):
 
 def test_recipe_page_overview_shows_archived_only_when_true():
     converter = MarkdownToHTMLConverter(SimpleNamespace())
-    archived = converter._build_recipe_overview({"archived": True}, BeautifulSoup("", "html.parser"))
+    archived = converter._build_recipe_overview(
+        {"archived": True, "meals": ["Dinner"], "cuisine": ["Thai"]},
+        BeautifulSoup("", "html.parser"),
+    )
     assert archived is not None
     assert archived.select_one(".recipe-overview__archived") is not None
     assert "Archived" in archived.select_one(".recipe-overview__archived").get_text()
     assert "archive" in str(archived.select_one(".recipe-overview__archived")).lower()
 
+    # Archived lives in its own third row, after the primary and secondary rows.
+    tertiary = archived.select_one(".recipe-overview__tertiary")
+    assert tertiary is not None
+    assert tertiary.select_one(".recipe-overview__archived") is not None
+    assert archived.select_one(".recipe-overview__primary .recipe-overview__archived") is None
+    assert archived.select_one(".recipe-overview__secondary .recipe-overview__archived") is None
+    rows = [child.get("class", [""])[0] for child in archived.find_all("div", recursive=False)]
+    assert rows == ["recipe-overview__primary", "recipe-overview__secondary", "recipe-overview__tertiary"]
+
     active = converter._build_recipe_overview({"archived": False}, BeautifulSoup("", "html.parser"))
     assert active is None or active.select_one(".recipe-overview__archived") is None
+
+
+def test_archived_overview_icon_has_spacing_and_checkbox_uses_default_size():
+    assets = Path(__file__).parents[1] / "src" / "recipeserver" / "assets"
+    style = (assets / "style.css").read_text(encoding="UTF-8")
+    assert ".recipe-overview__archived > svg" in style
+    assert ".recipe-overview__tertiary" in style
+
+    editor_css = (assets / "recipe-editor" / "recipe-editor.css").read_text(encoding="UTF-8")
+    checkbox_rule = editor_css.split('.recipe-editor__checkbox input[type="checkbox"]')[1].split("}")[0]
+    assert "appearance: auto" in checkbox_rule
+    assert "width: auto" in checkbox_rule
+    assert "height: auto" in checkbox_rule
 
 
 def test_recipe_editor_has_archived_checkbox():

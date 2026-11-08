@@ -396,6 +396,10 @@ class MarkdownToHTMLConverter:
         if secondary.contents:
             overview.append(secondary)
 
+        tertiary = self._build_overview_tertiary_row(metadata, soup)
+        if tertiary.contents:
+            overview.append(tertiary)
+
         return overview if overview.contents else None
 
     def _build_overview_primary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:
@@ -427,15 +431,6 @@ class MarkdownToHTMLConverter:
             value=_as_list(metadata.get("meals")),
             formatter=lambda values: ", ".join(str(value) for value in values),
         )
-        if metadata.get("archived") is True:
-            self._append_overview_icon_value(
-                primary,
-                soup,
-                icon_path=ARCHIVE_SVG,
-                class_name="recipe-overview__archived",
-                value="Archived",
-                formatter=lambda value: str(value),
-            )
 
         return primary
 
@@ -498,6 +493,22 @@ class MarkdownToHTMLConverter:
             secondary.append(group)
 
         return secondary
+
+    def _build_overview_tertiary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:
+        """Build the third overview row, reserved for the archived badge."""
+        tertiary = soup.new_tag("div", attrs={"class": "recipe-overview__tertiary"})
+
+        if metadata.get("archived") is True:
+            self._append_overview_icon_value(
+                tertiary,
+                soup,
+                icon_path=ARCHIVE_SVG,
+                class_name="recipe-overview__archived",
+                value="Archived",
+                formatter=lambda value: str(value),
+            )
+
+        return tertiary
 
     @staticmethod
     def _first_scalar(value: object) -> object:
