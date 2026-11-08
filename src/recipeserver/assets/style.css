@@ -179,6 +179,23 @@ body > a:hover {
 
 /* ---------- Recipe content ---------- */
 
+.recipe img {
+  max-width: 100%;
+  height: auto;
+  box-sizing: border-box;
+}
+
+.recipe > p img,
+.recipe > ul img,
+.recipe > ol img,
+.recipe > figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 12px;
+}
+
 .recipe > p,
 .recipe > ul,
 .recipe > ol,

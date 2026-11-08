@@ -99,6 +99,7 @@
   color: var(--page-bg);
   font: inherit;
   font-size: 0.9rem;
+  line-height: 1.4;
   /* No heavier weight here: only Lato Regular (400) is loaded, so a
      bolder weight would be browser-synthesized and render unevenly per
      glyph. The filled Save button likewise uses the regular weight. */
@@ -512,6 +513,16 @@
   min-width: 0;
   -webkit-appearance: none;
   appearance: none;
+  line-height: 1.4;
+}
+
+@media (min-width: 601px) {
+  /* Vertically center the date control (and its calendar indicator) within
+     the label on desktop; it already looks good on mobile. */
+  .recipe-editor__metadata input[type="date"] {
+    align-self: center;
+    line-height: 1.2;
+  }
 }
 
 .recipe-editor__metadata select:focus,
@@ -650,6 +661,15 @@
 .recipe-editor__footer {
   flex: 0 0 auto;
   justify-content: flex-end;
+  /* Always pinned to the bottom of the dialog, even when the
+     collapsed sections leave empty space above. */
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--card-bg);
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
 }
 
 .recipe-editor__footer button {
@@ -659,6 +679,10 @@
   border-radius: 6px;
   background: var(--card-bg);
   color: var(--food-color);
+
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
 
   cursor: pointer;
 }

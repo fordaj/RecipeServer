@@ -1171,6 +1171,26 @@ Try this
       refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
     });
 
+    // Paste an image from the clipboard into the image picker.
+    const handleImagePaste = (event) => {
+      if (state.busy || refs.imageInput.disabled) return;
+      const items = event.clipboardData?.items;
+      if (!items) return;
+      const pasted = [...items]
+        .filter((item) => item.type.startsWith("image/"))
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+      if (!pasted.length) return;
+      if (typeof DataTransfer === "undefined") return;
+      event.preventDefault();
+      const transfer = new DataTransfer();
+      [...refs.imageInput.files, ...pasted].forEach((file) => transfer.items.add(file));
+      refs.imageInput.files = transfer.files;
+      refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
+    };
+    refs.dialog.addEventListener("paste", handleImagePaste);
+    refs.imageInput.addEventListener("paste", handleImagePaste);
+
     refs.cancelButton.addEventListener("click", ui.closeEditor);
     refs.closeButton.addEventListener("click", ui.closeEditor);
     madeThisButton.addEventListener("click", recordMadeThis);
