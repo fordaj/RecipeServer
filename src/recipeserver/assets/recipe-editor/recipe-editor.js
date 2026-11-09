@@ -444,6 +444,7 @@ Try this
       imagePreview: dialog.querySelector(".recipe-editor__images-preview"),
       imageCaption: dialog.querySelector(".recipe-editor__images-caption"),
       findImageButton: dialog.querySelector("#recipe-editor-find-image"),
+      findImageQuery: dialog.querySelector("#recipe-editor-find-image-query"),
       findImageStatus: dialog.querySelector(".recipe-editor__find-image-status"),
       aiSection: dialog.querySelector(".recipe-editor__ai"),
       aiDetails: dialog.querySelector(".recipe-editor__ai-details"),
@@ -560,6 +561,9 @@ Try this
       if (refs.findImageButton) {
         refs.findImageButton.disabled = value || state.findImageBusy || !state.findImageAvailable;
       }
+      if (refs.findImageQuery) {
+        refs.findImageQuery.disabled = value || state.findImageBusy || !state.findImageAvailable;
+      }
     }
 
     return { setStatus, updateFolderControls, lockBackgroundScroll, unlockBackgroundScroll, closeEditor, setBusy };
@@ -659,27 +663,18 @@ Try this
 
     function setFindImageState(available) {
       state.findImageAvailable = Boolean(available);
-      if (refs.findImageButton) {
-        refs.findImageButton.disabled = state.busy || state.findImageBusy || !state.findImageAvailable;
-      }
+      const locked = state.busy || state.findImageBusy || !state.findImageAvailable;
+      if (refs.findImageButton) refs.findImageButton.disabled = locked;
+      if (refs.findImageQuery) refs.findImageQuery.disabled = locked;
       if (!available && refs.findImageStatus) refs.findImageStatus.textContent = "";
     }
 
-    function extractRecipeTitle() {
-      // The recipe title is the first "# " heading in the Markdown.
-      for (const line of refs.textarea.value.split("\n")) {
-        const match = line.match(/^\s{0,3}#\s+(.+?)\s*#*\s*$/);
-        if (match && match[1].trim()) return match[1].trim();
-      }
-      return "";
-    }
-
-    async function requestFindImage(title) {
+    async function requestFindImage(query) {
       return fetchJson(new URL(FIND_IMAGE_API, window.location.origin), {
         method: "POST",
         cache: "no-store",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ query }),
       });
     }
 
@@ -699,16 +694,18 @@ Try this
       // Every click performs a fresh search; concurrent clicks are blocked
       // and the existing image is only replaced after a success.
       if (state.findImageBusy || !state.findImageAvailable) return;
-      const title = extractRecipeTitle();
-      if (!title || title === "New Recipe") {
-        refs.findImageStatus.textContent = "Enter a recipe title before searching for an image.";
+      const query = refs.findImageQuery?.value.trim() || "";
+      if (!query) {
+        refs.findImageStatus.textContent = "Type a search query before searching for an image.";
+        refs.findImageQuery?.focus();
         return;
       }
       state.findImageBusy = true;
       refs.findImageButton.disabled = true;
-      refs.findImageStatus.textContent = `Searching for an image for "${title}"...`;
+      if (refs.findImageQuery) refs.findImageQuery.disabled = true;
+      refs.findImageStatus.textContent = `Searching for an image for "${query}"...`;
       try {
-        const result = await requestFindImage(title);
+        const result = await requestFindImage(query);
         if (!result || !result.data_uri || !result.filename) {
           throw new Error("The AI did not return a usable image.");
         }
@@ -723,7 +720,7 @@ Try this
         refs.selectedImages.textContent = file.name;
         if (refs.imagePreview) {
           refs.imagePreview.src = result.data_uri;
-          refs.imagePreview.alt = result.description || title;
+          refs.imagePreview.alt = result.description || query;
           refs.imagePreview.hidden = false;
         }
         const attribution = result.attribution ? `Source: ${result.attribution}. ` : "";
@@ -735,7 +732,9 @@ Try this
         refs.findImageStatus.textContent = `No image found: ${error.message}`;
       } finally {
         state.findImageBusy = false;
-        refs.findImageButton.disabled = state.busy || !state.findImageAvailable;
+        const locked = state.busy || !state.findImageAvailable;
+        refs.findImageButton.disabled = locked;
+        if (refs.findImageQuery) refs.findImageQuery.disabled = locked;
       }
     }
 
@@ -996,6 +995,10 @@ Try this
     refs.aiImage.value = "";
     refs.aiCancelButton.hidden = true;
     if (refs.findImageButton) refs.findImageButton.disabled = true;
+    if (refs.findImageQuery) {
+      refs.findImageQuery.value = "";
+      refs.findImageQuery.disabled = true;
+    }
     if (refs.findImageStatus) refs.findImageStatus.textContent = "";
     if (refs.imagePreview) {
       refs.imagePreview.hidden = true;
@@ -1372,7 +1375,22 @@ Try this
     refs.aiImageButton.addEventListener("click", () => ai.generateFromAi("image"));
     if (refs.findImageButton) {
       refs.findImageButton.disabled = true;
-      refs.findImageButton.addEventListener("click", () => ai.findImageForMe());
+      refs.findImageButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        ai.findImageForMe();
+      });
+    }
+    if (refs.findImageQuery) {
+      refs.findImageQuery.disabled = true;
+      // The query input lives in the dialog form, where Enter would submit
+      // the recipe. Searching for an image is the useful Enter action here.
+      refs.findImageQuery.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        event.stopPropagation();
+        ai.findImageForMe();
+      });
+      refs.findImageQuery.addEventListener("click", (event) => event.stopPropagation());
     }
     refs.aiCancelButton.addEventListener("click", () => {
       if (state.aiAbortController) state.aiAbortController.abort();

@@ -780,13 +780,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(400, {"error": str(exc)})
             return
 
-        title = payload.get("title", payload.get("recipe_title"))
-        if not isinstance(title, str) or not title.strip():
-            self._send_json(400, {"error": "Enter a recipe title before searching for an image"})
+        query = payload.get("query", payload.get("search_query", payload.get("title", payload.get("recipe_title"))))
+        if not isinstance(query, str) or not query.strip():
+            self._send_json(400, {"error": "Type a search query before searching for an image"})
             return
 
         try:
-            result = ai_recipe.find_image_for_recipe(self.config, title.strip())
+            result = ai_recipe.find_image_for_recipe(self.config, query.strip())
         except ai_recipe.ModelUnavailable as exc:
             logger.warning(f"Find One for Me unavailable: {exc}")
             self._send_json(503, {"error": str(exc)})
@@ -807,7 +807,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(500, {"error": "Unable to find an image"})
         else:
             logger.info(
-                f"Found an image for {title.strip()!r}: {result.get('filename')} "
+                f"Found an image for query {query.strip()!r}: {result.get('filename')} "
                 f"({result.get('byte_count')} bytes, source={result.get('source_url') or '(none)'})"
             )
             self._send_json(200, result)

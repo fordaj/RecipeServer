@@ -912,10 +912,20 @@ def generate_recipe(
 # may only return one of those URLs, which prevents fabricated image URLs.
 
 
+def substitute_search_query(prompt: str, search_query: str) -> str:
+    """Replace the prompt's search-query placeholder with the user's query.
+
+    Both the current ``{{search_query}}`` placeholder and the earlier
+    ``{{recipe_title}}`` spelling (older prompt files) are substituted.
+    """
+    query = (search_query or "").strip()
+    result = prompt.replace("{{search_query}}", query).replace("{search_query}", query)
+    return result.replace("{{recipe_title}}", query).replace("{recipe_title}", query)
+
+
+# Compatibility alias for callers that still spell it in terms of the title.
 def substitute_recipe_title(prompt: str, recipe_title: str) -> str:
-    """Replace the ``{{recipe_title}}`` placeholder in the prompt file."""
-    title = (recipe_title or "").strip()
-    return prompt.replace("{{recipe_title}}", title).replace("{recipe_title}", title)
+    return substitute_search_query(prompt, recipe_title)
 
 
 def _is_valid_image_url(url: str) -> bool:
@@ -1038,7 +1048,7 @@ def search_image_candidates(query: str, limit: int = 8) -> list[dict[str, Any]]:
     """
     cleaned_query = (query or "").strip()
     if not cleaned_query:
-        raise ImageSearchError("Enter a recipe title before searching for an image")
+        raise ImageSearchError("Type a search query before searching for an image")
     query_limit = max(1, min(int(limit), 20))
     errors: list[str] = []
     for search in (_openverse_candidates, _wikimedia_candidates):
@@ -1139,19 +1149,19 @@ def download_image(image_url: str) -> dict[str, Any]:
 
 def find_image_for_recipe(
     config: object,
-    recipe_title: str,
+    search_query: str,
     progress_callback: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
-    """Find one suitable image for a recipe title.
+    """Find one suitable image for a user-typed search query.
 
-    Searches the web for real candidates, lets the configured all-purpose
-    model randomly choose among them, then downloads the winner so the UI
-    stores it locally instead of hotlinking. Every call performs a fresh
-    search, so repeated calls can return different images.
+    Searches the web for real candidates for the query, lets the configured
+    all-purpose model randomly choose among them, then downloads the winner
+    so the UI stores it locally instead of hotlinking. Every call performs a
+    fresh search, so repeated calls can return different images.
     """
-    title = (recipe_title or "").strip()
-    if not title:
-        raise ImageSearchError("Enter a recipe title before searching for an image")
+    query = (search_query or "").strip()
+    if not query:
+        raise ImageSearchError("Type a search query before searching for an image")
 
     resolved = resolve_ai_config(config)
     if not resolved.endpoint:
@@ -1167,19 +1177,19 @@ def find_image_for_recipe(
     )
 
     _report_progress(progress_callback, "Searching the web for candidate images...")
-    candidates = search_image_candidates(title)
+    candidates = search_image_candidates(query)
     if not candidates:
-        raise ImageSearchError(f"No suitable image found for {title!r}")
+        raise ImageSearchError(f"No suitable image found for {query!r}")
 
     # Shuffle so the model does not always favour the first candidate, and
     # so each click performs a fresh, randomised selection.
     shuffled = list(candidates)
     random.shuffle(shuffled)
 
-    prompt = substitute_recipe_title(prompt_template, title)
+    prompt = substitute_search_query(prompt_template, query)
     candidate_lines = json.dumps(shuffled, indent=2, ensure_ascii=False)
     user_message = (
-        f"Recipe title: {title}\n\n"
+        f"Search query: {query}\n\n"
         "Search results (real candidate images returned by a web search; "
         "choose exactly one of these image_url values, randomly among the "
         f"suitable ones):\n{candidate_lines}\n\n"
@@ -1187,12 +1197,12 @@ def find_image_for_recipe(
         "Do not return any URL that is not listed above."
     )
 
-    logger.info(f"Selecting a candidate image for {title!r} with '{model_name}' ({len(shuffled)} candidates)")
+    logger.info(f"Selecting a candidate image for {query!r} with '{model_name}' ({len(shuffled)} candidates)")
     _report_progress(progress_callback, f"Asking {model_name} to choose an image...")
     output = _chat(resolved.endpoint, model_name, prompt, user_message, stage="image selection")
     selection = parse_find_one_for_me_output(output)
     if selection is None:
-        raise ImageSearchError(f"No suitable image found for {title!r}")
+        raise ImageSearchError(f"No suitable image found for {query!r}")
 
     # Only accept URLs that actually came from the web search.
     chosen = next((c for c in shuffled if c["image_url"] == selection["image_url"]), None)
