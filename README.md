@@ -246,7 +246,7 @@ uv run pytest test/test_tray.py
 uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_and_decimal_score
 ```
 
-Format Python files with Black (line-length 150) via formattington:
+Format Python files with Black (line-length 150) and Bash files with shfmt via formattington:
 
 ```bash
 ./format.sh
@@ -271,7 +271,7 @@ src/recipeserver/
 └── assets/                 # CSS, JavaScript, icons, and vendored KaTeX
 test/                       # pytest suite
 serve.sh / serve.bat        # launch helpers
-format.sh                   # Python formatting via formattington
+format.sh                   # Python (Black) and Bash (shfmt) formatting via formattington
 ```
 
 ### Architecture and invariants
