@@ -1,20 +1,11 @@
-from contextlib import contextmanager
-from functools import partial
-from http.server import ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-import json
-from threading import Thread
-from typing import Iterator
-from urllib.error import HTTPError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 import frontmatter
-from PIL import Image
 
 from recipeserver.core import Core
-from recipeserver.server import RecipeRequestHandler
+from test.helpers import request_json, running_recipe_server, write_png
 
 EDITOR_METADATA = {
     "tags": ["quick"],
@@ -34,57 +25,11 @@ def snapshot_tree(root: Path) -> dict[str, bytes]:
     return {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
 
 
-def write_png(path: Path, color: tuple[int, int, int] = (180, 40, 40)) -> None:
-    Image.new("RGB", (8, 8), color).save(path)
-
-
-def request_json(url: str, payload: dict | None = None) -> tuple[int, dict]:
-    if payload is None:
-        request = Request(url, method="GET")
-    else:
-        request = Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-
-    try:
-        with urlopen(request) as response:
-            return response.status, json.loads(response.read())
-    except HTTPError as error:
-        return error.code, json.loads(error.read())
-
-
-@contextmanager
-def running_server(
-    source_directory: Path,
-    on_markdown_saved=None,
-) -> Iterator[tuple[str, list[Path]]]:
-    saved_paths: list[Path] = []
-    handler = partial(
-        RecipeRequestHandler,
-        directory=str(source_directory),
-        source_directory=source_directory,
-        on_markdown_saved=on_markdown_saved if on_markdown_saved is not None else saved_paths.append,
-    )
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = Thread(target=server.serve_forever)
-    thread.start()
-
-    try:
-        yield f"http://127.0.0.1:{server.server_port}", saved_paths
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
-
-
 def test_health_endpoint_reports_ok(tmp_path: Path):
     source = tmp_path / "recipes"
     source.mkdir()
 
-    with running_server(source) as (base_url, _):
+    with running_recipe_server(source) as (base_url, _, _):
         status, body = request_json(f"{base_url}/health")
         trailing_slash_status, trailing_slash_body = request_json(f"{base_url}/health/")
 
@@ -131,7 +76,7 @@ Original body with `1 cup` sugar.
     (recipe_directory / "notes.txt").write_text("keep these notes", encoding="utf-8")
     before = snapshot_tree(source)
 
-    with running_server(source) as (base_url, saved_paths):
+    with running_recipe_server(source) as (base_url, saved_paths, _):
         status, editor = request_json(f"{base_url}/api/recipe-editor?{urlencode({'path': 'dinner/recipe.md'})}")
         assert status == 200
         assert editor["metadata"]["categories"] == ["Baking"]
@@ -194,7 +139,7 @@ updatedOn: 2024-07-20
         encoding="utf-8",
     )
 
-    with running_server(source) as (base_url, _):
+    with running_recipe_server(source) as (base_url, _, _):
         status, metadata = request_json(f"{base_url}/api/metadata/createdOn?{urlencode({'path': 'recipe.md'})}")
         assert status == 200
         assert metadata == {"value": "2024-06-15"}
@@ -213,7 +158,7 @@ def test_editor_get_returns_json_error_for_malformed_front_matter(tmp_path: Path
         encoding="utf-8",
     )
 
-    with running_server(source) as (base_url, _):
+    with running_recipe_server(source) as (base_url, _, _):
         status, body = request_json(f"{base_url}/api/recipe-editor?{urlencode({'path': 'recipe.md'})}")
 
     assert status == 500
@@ -244,7 +189,7 @@ source:
         encoding="utf-8",
     )
 
-    with running_server(source) as (base_url, saved_paths):
+    with running_recipe_server(source) as (base_url, saved_paths, _):
         status, _ = request_json(
             f"{base_url}/api/recipe-editor",
             {
@@ -314,7 +259,7 @@ Body with `1 cup` water.
     )
     before = snapshot_tree(source)
 
-    with running_server(source) as (base_url, saved_paths):
+    with running_recipe_server(source) as (base_url, saved_paths, _):
         status, legacy = request_json(f"{base_url}/api/metadata/category?{urlencode({'path': 'recipe.md'})}")
         assert status == 200
         assert legacy == {"value": ["Baking"]}
@@ -382,7 +327,7 @@ def test_api_rejects_paths_outside_the_source_directory_without_touching_files(t
         "escape.md",
     ]
 
-    with running_server(source) as (base_url, saved_paths):
+    with running_recipe_server(source) as (base_url, saved_paths, _):
         for path in bad_paths:
             status, _ = request_json(f"{base_url}/api/markdown?{urlencode({'path': path})}")
             assert status == 400, path
@@ -512,7 +457,7 @@ def test_editor_save_regenerates_the_recipe_page_and_index(tmp_path: Path, monke
     assert "Old Title" in (site / "dinner" / "recipe.html").read_text(encoding="utf-8")
     assert "Old Title" in (site / "index.html").read_text(encoding="utf-8")
 
-    with running_server(source, on_markdown_saved=core.on_markdown_save) as (base_url, _):
+    with running_recipe_server(source, on_markdown_saved=core.on_markdown_save) as (base_url, _, _):
         status, body = request_json(
             f"{base_url}/api/recipe-editor",
             {
