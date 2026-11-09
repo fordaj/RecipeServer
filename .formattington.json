@@ -1,0 +1,38 @@
+{
+  "commands": [
+    ["shfmt"],
+    ["black"],
+    ["prettier"],
+    [
+      "prettier",
+      "--parser",
+      "html",
+      "src/recipeserver/assets/ai.svg",
+      "src/recipeserver/assets/archive.svg",
+      "src/recipeserver/assets/book.svg",
+      "src/recipeserver/assets/calendar.svg",
+      "src/recipeserver/assets/chef-hat.svg",
+      "src/recipeserver/assets/chevron-down.svg",
+      "src/recipeserver/assets/cooking-pot.svg",
+      "src/recipeserver/assets/copy.svg",
+      "src/recipeserver/assets/gauge.svg",
+      "src/recipeserver/assets/home.svg",
+      "src/recipeserver/assets/info.svg",
+      "src/recipeserver/assets/link.svg",
+      "src/recipeserver/assets/logo.svg",
+      "src/recipeserver/assets/menu.svg",
+      "src/recipeserver/assets/notebook.svg",
+      "src/recipeserver/assets/pencil.svg",
+      "src/recipeserver/assets/pin.svg",
+      "src/recipeserver/assets/plus.svg",
+      "src/recipeserver/assets/quill.svg",
+      "src/recipeserver/assets/tag.svg",
+      "src/recipeserver/assets/up-down-arrow.svg",
+      "src/recipeserver/assets/user.svg",
+      "src/recipeserver/assets/user-round.svg",
+      "src/recipeserver/assets/utensils.svg",
+      "src/recipeserver/assets/warning.svg"
+    ],
+    ["taplo"]
+  ]
+}
