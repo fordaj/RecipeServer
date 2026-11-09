@@ -5,70 +5,11 @@ happy paths and save/delete-after-regeneration-failure behavior deserve
 explicit coverage.
 """
 
-from contextlib import contextmanager
-from functools import partial
-from http.server import ThreadingHTTPServer
 from pathlib import Path
-from threading import Thread
-from typing import Iterator
-import json
-from urllib.error import HTTPError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import urlopen
 
-from recipeserver.server import RecipeRequestHandler
-
-
-def request_json(url: str, payload: dict | None = None, method: str | None = None) -> tuple[int, dict]:
-    if payload is None:
-        request = Request(url, method=method or "GET")
-    else:
-        request = Request(
-            url,
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method=method or "POST",
-        )
-
-    try:
-        with urlopen(request) as response:
-            return response.status, json.loads(response.read())
-    except HTTPError as error:
-        body = error.read()
-        try:
-            parsed = json.loads(body) if body else {}
-        except json.JSONDecodeError:
-            parsed = {"error": body.decode("utf-8", errors="replace")}
-        return error.code, parsed
-
-
-@contextmanager
-def running_server(
-    source_directory: Path,
-    *,
-    on_markdown_saved=None,
-    on_recipes_deleted=None,
-) -> Iterator[tuple[str, list[Path], list[list[Path]]]]:
-    saved_paths: list[Path] = []
-    deleted_batches: list[list[Path]] = []
-
-    handler = partial(
-        RecipeRequestHandler,
-        directory=str(source_directory),
-        source_directory=source_directory,
-        on_markdown_saved=on_markdown_saved if on_markdown_saved is not None else saved_paths.append,
-        on_recipes_deleted=on_recipes_deleted if on_recipes_deleted is not None else deleted_batches.append,
-    )
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
-    thread = Thread(target=server.serve_forever)
-    thread.start()
-
-    try:
-        yield f"http://127.0.0.1:{server.server_port}", saved_paths, deleted_batches
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join()
+from test.helpers import request_json, running_recipe_server
 
 
 def test_markdown_get_returns_raw_content_and_404(tmp_path: Path):
@@ -78,7 +19,7 @@ def test_markdown_get_returns_raw_content_and_404(tmp_path: Path):
     content = "---\nmeals:\n  - Dinner\n---\n# Soup\n\nBody.\n"
     recipe.write_text(content, encoding="utf-8", newline="\n")
 
-    with running_server(source) as (base_url, _, _):
+    with running_recipe_server(source) as (base_url, _, _):
         with urlopen(f"{base_url}/api/markdown?{urlencode({'path': 'recipe.md'})}") as response:
             assert response.status == 200
             assert response.headers.get_content_type() == "text/markdown"
@@ -95,7 +36,7 @@ def test_markdown_post_saves_content_and_reports_regeneration_failure(tmp_path: 
     recipe = source / "recipe.md"
     recipe.write_text("# Old\n", encoding="utf-8")
 
-    with running_server(source) as (base_url, saved_paths, _):
+    with running_recipe_server(source) as (base_url, saved_paths, _):
         status, body = request_json(
             f"{base_url}/api/markdown",
             {"path": "recipe.md", "content": "# New\n\nUpdated body.\n"},
@@ -116,7 +57,7 @@ def test_markdown_post_saves_content_and_reports_regeneration_failure(tmp_path: 
     def fail_regen(_path):
         raise RuntimeError("regen failed")
 
-    with running_server(source2, on_markdown_saved=fail_regen) as (base_url, _, _):
+    with running_recipe_server(source2, on_markdown_saved=fail_regen) as (base_url, _, _):
         status, body = request_json(
             f"{base_url}/api/markdown",
             {"path": "recipe.md", "content": "# Saved Anyway\n"},
@@ -134,7 +75,7 @@ def test_recipe_delete_removes_file_cleans_empty_dir_and_reports_regen_failure(t
     recipe = nested / "recipe.md"
     recipe.write_text("# Soup\n", encoding="utf-8")
 
-    with running_server(source) as (base_url, _, deleted_batches):
+    with running_recipe_server(source) as (base_url, _, deleted_batches):
         status, body = request_json(
             f"{base_url}/api/recipe?{urlencode({'path': 'Dinner/Soup/recipe.md'})}",
             method="DELETE",
@@ -152,7 +93,7 @@ def test_recipe_delete_removes_file_cleans_empty_dir_and_reports_regen_failure(t
     # Missing file and invalid path are reported explicitly.
     source2 = tmp_path / "recipes2"
     source2.mkdir()
-    with running_server(source2) as (base_url, _, _):
+    with running_recipe_server(source2) as (base_url, _, _):
         status, body = request_json(
             f"{base_url}/api/recipe?{urlencode({'path': 'missing.md'})}",
             method="DELETE",
@@ -176,7 +117,7 @@ def test_recipe_delete_removes_file_cleans_empty_dir_and_reports_regen_failure(t
     def fail_delete(_paths):
         raise RuntimeError("index failed")
 
-    with running_server(source3, on_recipes_deleted=fail_delete) as (base_url, _, _):
+    with running_recipe_server(source3, on_recipes_deleted=fail_delete) as (base_url, _, _):
         status, body = request_json(
             f"{base_url}/api/recipe?{urlencode({'path': 'Solo/recipe.md'})}",
             method="DELETE",
@@ -191,7 +132,7 @@ def test_unknown_api_endpoint_returns_404(tmp_path: Path):
     source = tmp_path / "recipes"
     source.mkdir()
 
-    with running_server(source) as (base_url, _, _):
+    with running_recipe_server(source) as (base_url, _, _):
         status, body = request_json(f"{base_url}/api/not-a-real-endpoint")
         assert status == 404
 
