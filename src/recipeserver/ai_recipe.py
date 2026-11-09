@@ -108,23 +108,6 @@ def resolve_ai_config(config: object | None) -> AIConfigView:
     )
 
 
-# Compatibility aliases: retained because these helpers were previously module-level.
-def _all_purpose_model_name(config: object | None) -> str:
-    return _resolve_all_purpose_model_name(config)
-
-
-def _image_analysis_model_name(config: object | None) -> str:
-    return _read_config_text(config, "image_analysis_model")
-
-
-def is_configured(config: object | None) -> bool:
-    return resolve_ai_config(config).is_configured
-
-
-def is_image_configured(config: object | None) -> bool:
-    return resolve_ai_config(config).is_image_configured
-
-
 def ai_status(config: object | None) -> dict[str, Any]:
     resolved = resolve_ai_config(config)
     status: dict[str, Any] = {
@@ -339,10 +322,7 @@ def _build_user_message(input_type: str, input_value: str) -> tuple[str, str]:
     else:
         raise ValueError("inputType must be 'url', 'text', or 'image'")
 
-    if len(prompt_text) > MAX_PROMPT_INPUT_CHARS:
-        prompt_text = prompt_text[:MAX_PROMPT_INPUT_CHARS] + "\n\n[The source was truncated because it was very long.]"
-
-    return prompt_text, title
+    return _truncate_prompt_text(prompt_text), title
 
 
 def image_data_uri(image_filename: str, image_bytes: bytes) -> str:
