@@ -148,9 +148,7 @@ def ai_status(config: object | None) -> dict[str, Any]:
         return status
 
     available = is_available(resolved.endpoint)
-    logger.info(
-        f"Local model status: configured={resolved.is_configured}, available={available}, endpoint={resolved.endpoint}"
-    )
+    logger.info(f"Local model status: configured={resolved.is_configured}, available={available}, endpoint={resolved.endpoint}")
     status["available"] = available
     status["image_available"] = bool(available and resolved.is_image_configured)
     return status
@@ -268,9 +266,7 @@ def is_available(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -
     except HTTPError as exc:
         # Some compatible servers do not expose /models but still accept chat requests.
         if exc.code in {404, 405}:
-            logger.debug(
-                f"{endpoint} does not expose a model list (HTTP {exc.code}); " "assuming chat requests are supported"
-            )
+            logger.debug(f"{endpoint} does not expose a model list (HTTP {exc.code}); " "assuming chat requests are supported")
             return True
         logger.warning(f"Model endpoint {endpoint} returned HTTP {exc.code}")
         return False
@@ -514,10 +510,7 @@ def _chat(
         "stream": False,
     }
     user_chars = len(user_message) if isinstance(user_message, str) else len(json.dumps(user_message))
-    logger.info(
-        f"Sending {stage} request to {chat_url} (model={model_name}, "
-        f"system_prompt_chars={len(prompt)}, user_chars={user_chars})"
-    )
+    logger.info(f"Sending {stage} request to {chat_url} (model={model_name}, " f"system_prompt_chars={len(prompt)}, user_chars={user_chars})")
     request = Request(
         chat_url,
         data=json.dumps(payload).encode("utf-8"),
@@ -617,10 +610,7 @@ def _normalize_metadata(metadata: object) -> dict[str, Any]:
     if not isinstance(source, dict):
         source = None
     if source is not None:
-        normalized["source"] = {
-            field: (source.get(field).strip() or None if isinstance(source.get(field), str) else None)
-            for field in SOURCE_FIELDS
-        }
+        normalized["source"] = {field: (source.get(field).strip() or None if isinstance(source.get(field), str) else None) for field in SOURCE_FIELDS}
 
         source_format = normalized["source"].get("format")
         if isinstance(source_format, str):
@@ -707,10 +697,7 @@ def _prepare_image_draft_input(
         {"type": "text", "text": "Recipe image:"},
         {"type": "image_url", "image_url": {"url": data_uri}},
     ]
-    logger.info(
-        f"Transcribing recipe image with local model '{image_model_name}' "
-        f"({len(image_bytes or b'')} bytes, {image_filename})"
-    )
+    logger.info(f"Transcribing recipe image with local model '{image_model_name}' " f"({len(image_bytes or b'')} bytes, {image_filename})")
     transcription = _chat(
         resolved.endpoint,
         image_model_name,
@@ -718,9 +705,7 @@ def _prepare_image_draft_input(
         image_user_content,
         stage="image transcription",
     )
-    logger.info(
-        f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}"
-    )
+    logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}")
     _report_progress(
         progress_callback,
         f"Image transcribed. Sending the extracted text to {all_purpose_model_name}...",
@@ -836,9 +821,6 @@ def generate_recipe(
     _report_progress(progress_callback, "AI response received. Preparing the recipe draft...")
 
     content, metadata = parse_model_output(output)
-    logger.info(
-        f"Model returned {len(output)} characters; parsed {len(content)} characters of Markdown "
-        f"and metadata fields {sorted(metadata)}"
-    )
+    logger.info(f"Model returned {len(output)} characters; parsed {len(content)} characters of Markdown " f"and metadata fields {sorted(metadata)}")
     _apply_default_source(metadata, input_type, all_purpose_model_name, input_value, title)
     return {"content": content, "metadata": metadata}

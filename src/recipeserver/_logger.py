@@ -31,9 +31,7 @@ logger.level("TRACE", color="<cyan>")
 TINY_CONSOLE_FORMAT = "<bold><black>[{level}]</black></> <level>{message}</level>\n"
 COMPACT_CONSOLE_FORMAT = "<blue>{file}:{line}</blue> " + TINY_CONSOLE_FORMAT
 FULL_CONSOLE_FORMAT = (
-    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> "
-    f"<magenta>{hostname}</magenta> "
-    "<blue>{file}:{line} [{thread.name}]</blue> "
+    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> " f"<magenta>{hostname}</magenta> " "<blue>{file}:{line} [{thread.name}]</blue> "
 ) + TINY_CONSOLE_FORMAT
 
 

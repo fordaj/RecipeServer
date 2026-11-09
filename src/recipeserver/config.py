@@ -11,7 +11,6 @@ from urllib.parse import urlsplit
 
 from ._logger import logger
 
-
 MODEL_ENDPOINT_KEY = "model_endpoint"
 MODEL_NAME_KEY = "model_name"  # Legacy key, read-only compatibility for the all-purpose model.
 ALL_PURPOSE_MODEL_NAME_KEY = "all_purpose_model_name"
@@ -51,10 +50,7 @@ def _normalize_model_endpoint(value: str, *, strict: bool = True) -> str:
         return endpoint
     parts = urlsplit(endpoint)
     if parts.scheme not in ("http", "https") or not parts.netloc:
-        raise ValueError(
-            "Local model endpoint must be a valid http:// or https:// endpoint "
-            "(or left blank to disable AI recipe creation)."
-        )
+        raise ValueError("Local model endpoint must be a valid http:// or https:// endpoint " "(or left blank to disable AI recipe creation).")
     return endpoint
 
 
@@ -65,9 +61,7 @@ def _normalize_food_color(value: str) -> str:
     """Normalize a hex color to lowercase ``#rrggbb`` form."""
     color = value.strip()
     if not _HEX_COLOR_PATTERN.match(color):
-        raise ValueError(
-            "Food color must be a hex string such as #8d5542 (or #842)."
-        )
+        raise ValueError("Food color must be a hex string such as #8d5542 (or #842).")
     digits = color[1:].lower()
     if len(digits) == 3:
         digits = "".join(char * 2 for char in digits)
@@ -181,10 +175,7 @@ def _validate_config_value(key: str, value: str) -> str:
         try:
             return _normalize_model_endpoint(value)
         except ValueError:
-            raise ValueError(
-                f"{label} must be a valid http:// or https:// endpoint "
-                "(or left blank to disable AI recipe creation)."
-            ) from None
+            raise ValueError(f"{label} must be a valid http:// or https:// endpoint " "(or left blank to disable AI recipe creation).") from None
 
     if key == SERVER_PORT_KEY:
         if not value.strip():
@@ -192,9 +183,7 @@ def _validate_config_value(key: str, value: str) -> str:
         try:
             return str(_normalize_server_port(value))
         except ValueError:
-            raise ValueError(
-                f"{label} must be a whole number between 1 and 65535."
-            ) from None
+            raise ValueError(f"{label} must be a whole number between 1 and 65535.") from None
 
     if key == FOOD_COLOR_KEY:
         if not value.strip():
@@ -202,16 +191,12 @@ def _validate_config_value(key: str, value: str) -> str:
         try:
             return _normalize_food_color(value)
         except ValueError:
-            raise ValueError(
-                f"{label} must be a hex string such as #8d5542."
-            ) from None
+            raise ValueError(f"{label} must be a hex string such as #8d5542.") from None
 
     if key in (ALL_PURPOSE_MODEL_NAME_KEY, IMAGE_ANALYSIS_MODEL_KEY):
         name = value.strip()
         if len(name) > _MAX_MODEL_NAME_LENGTH:
-            raise ValueError(
-                f"{label} must be at most {_MAX_MODEL_NAME_LENGTH} characters."
-            )
+            raise ValueError(f"{label} must be at most {_MAX_MODEL_NAME_LENGTH} characters.")
         return name
 
     raise ValueError(f"Unknown configuration key: {key}")
@@ -304,9 +289,7 @@ class Configuration:
 
     @property
     def image_ai_configured(self) -> bool:
-        return bool(
-            self.model_endpoint.strip() and self.new_recipe_from_image_prompt.strip()
-        )
+        return bool(self.model_endpoint.strip() and self.new_recipe_from_image_prompt.strip())
 
     def get_source_dir_from_user(self) -> Path:
         root = Tk()
@@ -351,9 +334,7 @@ class Configuration:
 
         legacy_file = data_dir / LEGACY_CONFIG_FILENAME
         if legacy_file.exists():
-            logger.info(
-                f"Migrating legacy configuration {legacy_file} to {toml_file}"
-            )
+            logger.info(f"Migrating legacy configuration {legacy_file} to {toml_file}")
             return legacy_file
 
         return toml_file
@@ -473,19 +454,14 @@ class Configuration:
     def _prompt_user(prompt: str) -> str:
         try:
             return input(prompt).strip()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError, KeyboardInterrupt:
             return ""
 
     def get_model_settings_from_user(self) -> None:
         """Optionally ask for an OpenAI-compatible local model endpoint."""
-        print(
-            "Optionally configure a local AI model so recipes can be created "
-            "from text, a URL, or an image."
-        )
+        print("Optionally configure a local AI model so recipes can be created " "from text, a URL, or an image.")
 
-        endpoint = self._prompt_user(
-            "Local model endpoint (for example http://localhost:11434/v1). Press Enter to skip: "
-        )
+        endpoint = self._prompt_user("Local model endpoint (for example http://localhost:11434/v1). Press Enter to skip: ")
         if not endpoint:
             logger.info("No local model configured; AI recipe creation is disabled")
             self.model_endpoint = ""
@@ -494,12 +470,8 @@ class Configuration:
             return
 
         self.model_endpoint = _normalize_model_endpoint(endpoint, strict=False)
-        self.all_purpose_model_name = self._prompt_user(
-            "All-purpose model name (press Enter to auto-detect from the endpoint): "
-        )
-        self.image_analysis_model = self._prompt_user(
-            "Image analysis model name (press Enter to auto-detect from the endpoint): "
-        )
+        self.all_purpose_model_name = self._prompt_user("All-purpose model name (press Enter to auto-detect from the endpoint): ")
+        self.image_analysis_model = self._prompt_user("Image analysis model name (press Enter to auto-detect from the endpoint): ")
         logger.info(
             f"Configured local model endpoint: {self.model_endpoint} "
             f"(all-purpose model: {self.all_purpose_model_name or 'auto-detect'}, "
@@ -621,9 +593,7 @@ class Configuration:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")
             # The legacy singular model_name key remains readable but is
             # normalized to all_purpose_model_name on save.
-            self.all_purpose_model_name = (
-                settings.get(ALL_PURPOSE_MODEL_NAME_KEY) or settings.get(MODEL_NAME_KEY, "")
-            )
+            self.all_purpose_model_name = settings.get(ALL_PURPOSE_MODEL_NAME_KEY) or settings.get(MODEL_NAME_KEY, "")
             self.image_analysis_model = settings.get(IMAGE_ANALYSIS_MODEL_KEY, "")
             logger.info(
                 f"Using configured local model endpoint: {self.model_endpoint or '(none)'} "

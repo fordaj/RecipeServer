@@ -215,9 +215,7 @@ def _validate_source_field(field: str, value: object) -> dict | None:
         raise ValueError(f"'{field}' must be an object or null")
 
     allowed_fields = {"author", "title", "format", "url"}
-    return {
-        key: (value.get(key).strip() or None if isinstance(value.get(key), str) else None) for key in allowed_fields
-    }
+    return {key: (value.get(key).strip() or None if isinstance(value.get(key), str) else None) for key in allowed_fields}
 
 
 def _validate_editor_field(field: str, expected_type: str, value: object) -> object:
@@ -755,9 +753,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self.wfile.flush()
 
         try:
-            result = self._generate_ai_recipe(
-                request, progress_callback=lambda msg: send_event("progress", message=msg)
-            )
+            result = self._generate_ai_recipe(request, progress_callback=lambda msg: send_event("progress", message=msg))
         except (ai_recipe.ModelUnavailable, ai_recipe.ModelRequestError, ai_recipe.SourceFetchError, ValueError) as exc:
             logger.warning(f"AI recipe generation failed: {exc}")
             send_event("error", message=str(exc))
@@ -813,9 +809,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         self._create_recipe(folder_path, folder, create_folder, content, metadata, images)
 
-    def _create_recipe(
-        self, folder_path: Path, folder: str, create_folder: bool, content: str, metadata: dict, images
-    ) -> None:
+    def _create_recipe(self, folder_path: Path, folder: str, create_folder: bool, content: str, metadata: dict, images) -> None:
         try:
             folder_path = self._prepare_recipe_folder(folder_path, folder, create_folder, content, metadata)
             if folder_path is None:
@@ -841,9 +835,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             logger.exception("Recipe created, but HTML regeneration failed")
             self._send_json(500, {"error": "Recipe created, but HTML regeneration failed"})
 
-    def _prepare_recipe_folder(
-        self, folder_path: Path, folder: str, create_folder: bool, content: str, metadata: dict
-    ) -> Path | None:
+    def _prepare_recipe_folder(self, folder_path: Path, folder: str, create_folder: bool, content: str, metadata: dict) -> Path | None:
         if not create_folder:
             if not folder_path.is_dir():
                 self._send_json(404, {"error": "Recipe folder not found"})
@@ -866,9 +858,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     @staticmethod
     def _metadata_for_new_recipe(metadata: dict) -> dict:
         recipe_metadata = {key: value for key, value in metadata.items() if value is not None}
-        recipe_metadata["updatedOn"] = (
-            datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-        )
+        recipe_metadata["updatedOn"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         return recipe_metadata
 
     def _handle_recipe_editor_post(self) -> None:
@@ -902,9 +892,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
             _apply_editor_metadata(recipe_post.metadata, metadata)
             recipe_post.metadata.pop("category", None)
-            recipe_post.metadata["updatedOn"] = (
-                datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-            )
+            recipe_post.metadata["updatedOn"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
             recipe_post.content = content
 
             self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=False)
@@ -1098,13 +1086,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 recipe_post.metadata.pop("category", None)
             if rating_override is not None:
                 name, score = rating_override
-                recipe_post.metadata["ratings"] = _apply_rating_override(
-                    recipe_post.metadata.get("ratings"), name, score
-                )
+                recipe_post.metadata["ratings"] = _apply_rating_override(recipe_post.metadata.get("ratings"), name, score)
             if metadata or rating_override is not None:
-                recipe_post.metadata["updatedOn"] = (
-                    datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-                )
+                recipe_post.metadata["updatedOn"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
             file_path.write_text(frontmatter.dumps(recipe_post), encoding="utf-8", newline="")
             saved.append(file_path)
@@ -1285,9 +1269,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         return payload
 
     def _parse_multipart_message(self, body: bytes, content_type: str) -> Message:
-        message = BytesParser(policy=default).parsebytes(
-            b"Content-Type: " + content_type.encode("ascii") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body
-        )
+        message = BytesParser(policy=default).parsebytes(b"Content-Type: " + content_type.encode("ascii") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body)
         if not message.is_multipart():
             raise ValueError("Invalid multipart request")
         return message
@@ -1457,8 +1439,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 if attr_name.startswith("on"):
                     raise ValueError(f"SVG contains unsupported active content: {filename}")
                 if attr_name in {"href", "style"} and (
-                    ("url(" in value.lower() and "url(#" not in value.lower())
-                    or (attribute.lower().endswith("href") and not value.startswith("#"))
+                    ("url(" in value.lower() and "url(#" not in value.lower()) or (attribute.lower().endswith("href") and not value.startswith("#"))
                 ):
                     raise ValueError(f"SVG contains unsupported external content: {filename}")
 
@@ -1507,9 +1488,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def _resolve_recipe_directory(self, requested_path: str) -> Path:
         if "\\" in requested_path or "\x00" in requested_path:
             raise ValueError("Invalid folder path")
-        if requested_path and (
-            requested_path.startswith("/") or any(part in {"", ".", ".."} for part in requested_path.split("/"))
-        ):
+        if requested_path and (requested_path.startswith("/") or any(part in {"", ".", ".."} for part in requested_path.split("/"))):
             raise ValueError("Folder path must stay inside the source directory")
 
         relative_path = Path(requested_path) if requested_path else Path()
