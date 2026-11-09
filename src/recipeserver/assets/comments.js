@@ -75,7 +75,11 @@
 
   // ----- Rendering ----- //
   function getInitials(name) {
-    return helpers.getInitials ? helpers.getInitials(name) : String(name || "").slice(0, 2).toUpperCase();
+    return helpers.getInitials
+      ? helpers.getInitials(name)
+      : String(name || "")
+          .slice(0, 2)
+          .toUpperCase();
   }
 
   function createComment(comment) {
@@ -116,7 +120,10 @@
 
     const actions = document.createElement("div");
     actions.className = "recipe-comment__actions";
-    for (const [action, label] of [["edit", "Edit"], ["delete", "Remove"]]) {
+    for (const [action, label] of [
+      ["edit", "Edit"],
+      ["delete", "Remove"],
+    ]) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.action = action;

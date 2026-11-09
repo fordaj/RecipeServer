@@ -4,13 +4,13 @@
 
 Local recipe-site generator and HTTP server. It reads a tree of `recipe.md` files, renders each to HTML, builds a searchable `index.html`, and serves the site with in-browser editing of metadata, ratings, and comments. Edits are written back to each recipe's YAML front matter and Markdown body.
 
-There is no CI and no Python linter/typechecker configuration. Python formatting is via Black (line-length 150 in `pyproject.toml` `[tool.black]`) through `./format.sh`, which runs `uv run formattington python src test`. The only other formatter config is `.prettierrc`, which applies to JS/CSS/HTML.
+There is no CI and no Python linter/typechecker configuration. Formatting is via formattington through `./format.sh`, which runs `uv run formattington all --config .formattington.json` (concurrently by default). `.formattington.json` declares Black (`.py`, line-length 150 in `pyproject.toml` `[tool.black]`), shfmt (bash), Prettier (css, js, html, `.md`, `.yml`, `.json`), taplo (`.toml`), and Prettier `prettier --parser html` for the SVG icons in `src/recipeserver/assets/` (Prettier discovery does not include `.svg`). Formatter configs are `.prettierrc` (Prettier), `[tool.black]` (Black), and formattington defaults for shfmt/taplo. Vendored KaTeX under `src/recipeserver/assets/katex/` is excluded via `.prettierignore`. `prettier` is PATH-only (`npm install -g prettier`) and `taplo` is expected on PATH (or bundled); if a tool is missing formattington exits `127` for that command.
 
 ## Commands
 
 - Sync deps: `uv sync` (Python 3.14 required; `uv` owns `.venv`).
 - Run: `./serve.sh` (same as `uv run python -m recipeserver`).
-- Format: `./format.sh` (same as `uv run formattington python src test`; pass `--check` for a dry-run check).
+- Format: `./format.sh` (runs `uv run formattington all --config .formattington.json` — Black for Python, shfmt for Bash, Prettier for CSS/JS/HTML/Markdown/YAML, taplo for TOML, and `prettier --parser html` for SVG icons; pass `--check` for a dry-run check).
 - Run all tests: `uv run pytest`.
 - Focused tests: `uv run pytest test/test_index_html_generator.py test/test_ratings.py`
   - Single test: `uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_and_decimal_score`

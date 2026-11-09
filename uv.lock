@@ -231,7 +231,7 @@ wheels = [
 [[package]]
 name = "formattington"
 version = "0.1.0"
-source = { git = "https://github.com/fordaj/formattington.git#c2f7c7b8a4b199d68213031a7dc1185b07c04c4f" }
+source = { git = "https://github.com/fordaj/formattington.git#bc23b3a6a370d63285ce83f1fe8c76799a7addf9" }
 
 [[package]]
 name = "inflate64"

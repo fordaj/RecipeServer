@@ -441,9 +441,7 @@ const initRecipeIndex = async () => {
     const isCards = view === "cards";
     list.classList.toggle("list-view", !isCards);
     list.classList.toggle("card-view", isCards);
-    viewButtons.forEach((item) =>
-      item.setAttribute("aria-pressed", item.dataset.view === view),
-    );
+    viewButtons.forEach((item) => item.setAttribute("aria-pressed", item.dataset.view === view));
     saveRecipeView(isCards ? "cards" : "list");
   };
 
