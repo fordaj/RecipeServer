@@ -16,7 +16,6 @@ from PIL import Image
 from recipeserver.core import Core
 from recipeserver.server import RecipeRequestHandler
 
-
 EDITOR_METADATA = {
     "tags": ["quick"],
     "cuisine": ["Thai"],
@@ -32,11 +31,7 @@ EDITOR_METADATA = {
 
 
 def snapshot_tree(root: Path) -> dict[str, bytes]:
-    return {
-        path.relative_to(root).as_posix(): path.read_bytes()
-        for path in root.rglob("*")
-        if path.is_file()
-    }
+    return {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
 
 
 def write_png(path: Path, color: tuple[int, int, int] = (180, 40, 40)) -> None:
@@ -137,9 +132,7 @@ Original body with `1 cup` sugar.
     before = snapshot_tree(source)
 
     with running_server(source) as (base_url, saved_paths):
-        status, editor = request_json(
-            f"{base_url}/api/recipe-editor?{urlencode({'path': 'dinner/recipe.md'})}"
-        )
+        status, editor = request_json(f"{base_url}/api/recipe-editor?{urlencode({'path': 'dinner/recipe.md'})}")
         assert status == 200
         assert editor["metadata"]["categories"] == ["Baking"]
         assert editor["content"].strip() == "# Original Title\n\nOriginal body with `1 cup` sugar."
@@ -202,15 +195,11 @@ updatedOn: 2024-07-20
     )
 
     with running_server(source) as (base_url, _):
-        status, metadata = request_json(
-            f"{base_url}/api/metadata/createdOn?{urlencode({'path': 'recipe.md'})}"
-        )
+        status, metadata = request_json(f"{base_url}/api/metadata/createdOn?{urlencode({'path': 'recipe.md'})}")
         assert status == 200
         assert metadata == {"value": "2024-06-15"}
 
-        status, editor = request_json(
-            f"{base_url}/api/recipe-editor?{urlencode({'path': 'recipe.md'})}"
-        )
+        status, editor = request_json(f"{base_url}/api/recipe-editor?{urlencode({'path': 'recipe.md'})}")
         assert status == 200
         assert editor["metadata"]["createdOn"] == "2024-06-15"
         assert editor["metadata"]["updatedOn"] == "2024-07-20"
@@ -225,9 +214,7 @@ def test_editor_get_returns_json_error_for_malformed_front_matter(tmp_path: Path
     )
 
     with running_server(source) as (base_url, _):
-        status, body = request_json(
-            f"{base_url}/api/recipe-editor?{urlencode({'path': 'recipe.md'})}"
-        )
+        status, body = request_json(f"{base_url}/api/recipe-editor?{urlencode({'path': 'recipe.md'})}")
 
     assert status == 500
     assert body == {"error": "Unable to parse YAML front matter"}
@@ -328,9 +315,7 @@ Body with `1 cup` water.
     before = snapshot_tree(source)
 
     with running_server(source) as (base_url, saved_paths):
-        status, legacy = request_json(
-            f"{base_url}/api/metadata/category?{urlencode({'path': 'recipe.md'})}"
-        )
+        status, legacy = request_json(f"{base_url}/api/metadata/category?{urlencode({'path': 'recipe.md'})}")
         assert status == 200
         assert legacy == {"value": ["Baking"]}
 
@@ -371,6 +356,7 @@ def test_api_rejects_paths_outside_the_source_directory_without_touching_files(t
 
     # Handle platform-specific issue with symbolic links on Windows
     import sys
+
     try:
         (source / "escape.md").symlink_to(outside)
         symlink_created = True
@@ -382,10 +368,10 @@ def test_api_rejects_paths_outside_the_source_directory_without_touching_files(t
         else:
             raise
 
-    # Only run the rest of the test if symlink was created successfully 
+    # Only run the rest of the test if symlink was created successfully
     if not symlink_created:
         return
-        
+
     bad_paths = [
         "",
         "../outside.md",

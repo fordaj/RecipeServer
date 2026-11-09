@@ -19,7 +19,6 @@ from recipeserver.ai_recipe import (
 )
 from recipeserver.server import RecipeRequestHandler
 
-
 MODEL_OUTPUT = """```markdown
 ---
 meals:
@@ -121,11 +120,7 @@ class FakeModelAPIHandler(BaseHTTPRequestHandler):
                 {
                     "choices": [
                         {
-                            "message": {
-                                "content": [
-                                    {"type": "text", "text": MODEL_OUTPUT}
-                                ]
-                            },
+                            "message": {"content": [{"type": "text", "text": MODEL_OUTPUT}]},
                             "finish_reason": "stop",
                         }
                     ]
@@ -169,23 +164,25 @@ def request_ai_events(url: str, payload: dict) -> tuple[int, list[dict]]:
         return response.status, events
 
 
-def request_ai_image_events(
-    url: str, image_bytes: bytes, filename: str = "recipe.png"
-) -> tuple[int, list[dict]]:
+def request_ai_image_events(url: str, image_bytes: bytes, filename: str = "recipe.png") -> tuple[int, list[dict]]:
     import uuid
 
     boundary = f"----RecipeServerTest{uuid.uuid4().hex}"
     body = (
-        f"--{boundary}\r\n"
-        'Content-Disposition: form-data; name="inputType"\r\n\r\n'
-        "image\r\n"
-        f"--{boundary}\r\n"
-        'Content-Disposition: form-data; name="stream"\r\n\r\n'
-        "true\r\n"
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="image"; filename="{filename}"\r\n'
-        "Content-Type: image/png\r\n\r\n"
-    ).encode() + image_bytes + f"\r\n--{boundary}--\r\n".encode()
+        (
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="inputType"\r\n\r\n'
+            "image\r\n"
+            f"--{boundary}\r\n"
+            'Content-Disposition: form-data; name="stream"\r\n\r\n'
+            "true\r\n"
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="image"; filename="{filename}"\r\n'
+            "Content-Type: image/png\r\n\r\n"
+        ).encode()
+        + image_bytes
+        + f"\r\n--{boundary}--\r\n".encode()
+    )
     request = Request(
         url,
         data=body,
@@ -351,9 +348,7 @@ def test_ai_generation_from_image_transcribes_then_drafts(tmp_path):
         )
 
         with running_recipe_server(source, config) as base_url:
-            status, events = request_ai_image_events(
-                f"{base_url}/api/ai-recipe", image_bytes
-            )
+            status, events = request_ai_image_events(f"{base_url}/api/ai-recipe", image_bytes)
 
     result_event = events[-1]
     progress = [event["message"] for event in events if event["type"] == "progress"]
@@ -584,9 +579,7 @@ def test_parse_model_output_strips_code_fences_and_front_matter():
 
 
 def test_parse_model_output_normalizes_source_format_for_the_editor():
-    content, metadata = parse_model_output(
-        "---\nsource:\n  format: website\n  title: Example Recipe\n---\n# Example\n"
-    )
+    content, metadata = parse_model_output("---\nsource:\n  format: website\n  title: Example Recipe\n---\n# Example\n")
 
     assert content.strip() == "# Example"
     assert metadata["source"] == {
