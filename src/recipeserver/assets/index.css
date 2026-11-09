@@ -82,6 +82,7 @@ a {
   font-family: var(--font-heading);
   font-size: clamp(2.75rem, 7vw, 4.25rem);
   font-weight: 400;
+  font-optical-sizing: auto;
   line-height: 1.1;
 }
 
@@ -766,6 +767,7 @@ a {
   font-family: var(--font-heading);
   font-size: 1.35rem;
   font-weight: 400;
+  font-optical-sizing: auto;
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
