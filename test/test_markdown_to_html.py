@@ -31,9 +31,7 @@ def convert_recipe(
     html_file = site / "recipe" / "recipe.html"
     html_file.parent.mkdir(parents=True)
 
-    converter = MarkdownToHTMLConverter(
-        SimpleNamespace(source_directory=source, site_directory=site)
-    )
+    converter = MarkdownToHTMLConverter(SimpleNamespace(source_directory=source, site_directory=site))
     converter.convert(recipe, html_file)
 
     return converter, html_file
@@ -94,9 +92,7 @@ Mix everything.
 
     html_file = site / "thai-curry" / "recipe.html"
     html_file.parent.mkdir(parents=True)
-    converter = MarkdownToHTMLConverter(
-        SimpleNamespace(source_directory=source, site_directory=site)
-    )
+    converter = MarkdownToHTMLConverter(SimpleNamespace(source_directory=source, site_directory=site))
     converter.convert(recipe, html_file)
 
     raw_html = html_file.read_text(encoding="utf-8")
@@ -213,18 +209,10 @@ meals:
     assert comments is not None and "is-empty" in comments["class"]
 
     assets = Path(__file__).parents[1] / "src" / "recipeserver" / "assets"
-    assert ".recipe-ratings.is-empty .recipe-ratings__heading" in (assets / "ratings.css").read_text(
-        encoding="utf-8"
-    )
-    assert ".recipe-comments.is-empty .recipe-comments__heading" in (assets / "comments.css").read_text(
-        encoding="utf-8"
-    )
-    assert 'root.classList.toggle("is-empty", ratings.length === 0)' in (assets / "ratings.js").read_text(
-        encoding="utf-8"
-    )
-    assert 'root.classList.toggle("is-empty", comments.length === 0)' in (
-        assets / "comments.js"
-    ).read_text(encoding="utf-8")
+    assert ".recipe-ratings.is-empty .recipe-ratings__heading" in (assets / "ratings.css").read_text(encoding="utf-8")
+    assert ".recipe-comments.is-empty .recipe-comments__heading" in (assets / "comments.css").read_text(encoding="utf-8")
+    assert 'root.classList.toggle("is-empty", ratings.length === 0)' in (assets / "ratings.js").read_text(encoding="utf-8")
+    assert 'root.classList.toggle("is-empty", comments.length === 0)' in (assets / "comments.js").read_text(encoding="utf-8")
 
 
 def test_conversion_does_not_mark_populated_sections_empty(tmp_path: Path):
@@ -393,9 +381,7 @@ Body.
 
 
 def test_title_extraction_ignores_fenced_code_blocks():
-    title = MarkdownToHTMLConverter._get_title_from_markdown_content(
-        ["```markdown", "# Not the title", "```", "", "# Actual Title ###"]
-    )
+    title = MarkdownToHTMLConverter._get_title_from_markdown_content(["```markdown", "# Not the title", "```", "", "# Actual Title ###"])
 
     assert title == "Actual Title"
 
@@ -479,13 +465,7 @@ Servings
     assert dl is not None
     assert dl.find_all(["dt", "dd"], recursive=False) == []
 
-    css = (
-        Path(__file__).parent.parent
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "style.css"
-    ).read_text(encoding="utf-8")
+    css = (Path(__file__).parent.parent / "src" / "recipeserver" / "assets" / "style.css").read_text(encoding="utf-8")
     assert ".recipe-meta__group {" in css
     assert "display: inline-block" in css
     assert ".recipe-meta__group dt" in css
@@ -520,10 +500,7 @@ Servings
 
     soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
     groups = soup.select(".recipe-meta .recipe-meta__group")
-    assert [
-        [child.get_text(strip=True) for child in group.find_all(["dt", "dd"], recursive=False)]
-        for group in groups
-    ] == [
+    assert [[child.get_text(strip=True) for child in group.find_all(["dt", "dd"], recursive=False)] for group in groups] == [
         ["Prep Time", "Cook Time", "30 minutes"],
         ["Servings", "6 brownies", "4 squares"],
     ]

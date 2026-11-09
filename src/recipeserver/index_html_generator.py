@@ -15,6 +15,7 @@ from .config import DEFAULT_FOOD_COLOR, DEFAULT_RECIPE_SERVER_NAME, Configuratio
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
+
 try:
     from importlib.metadata import version as _package_version
 
@@ -212,20 +213,13 @@ class IndexHTMLGenerator:
             if self._is_date_only(latest_raw):
                 time_attrs = f'datetime="{html.escape(latest.date().isoformat(), quote=True)}"'
             else:
-                time_attrs = (
-                    f'datetime="{html.escape(latest.isoformat(), quote=True)}" '
-                    'data-local-time="true" data-time-prefix="Edited "'
-                )
+                time_attrs = f'datetime="{html.escape(latest.isoformat(), quote=True)}" ' 'data-local-time="true" data-time-prefix="Edited "'
             label_parts.append(
                 f'<span class="recipe-meta__separator" aria-hidden="true">·</span>'
-                f'<time {time_attrs}>Edited {html.escape(self._display_date(latest))}</time>'
+                f"<time {time_attrs}>Edited {html.escape(self._display_date(latest))}</time>"
             )
         label = "".join(label_parts)
-        return (
-            f'<footer class="recipe-version" aria-label="App version">'
-            f'{icon}<span>{label}</span>'
-            f"</footer>"
-        )
+        return f'<footer class="recipe-version" aria-label="App version">' f"{icon}<span>{label}</span>" f"</footer>"
 
     @staticmethod
     def _sources(metadata: dict) -> list[dict]:
@@ -404,10 +398,7 @@ class IndexHTMLGenerator:
             parsed_url = urlsplit(url)
             is_http_url = parsed_url.scheme.lower() in {"http", "https"} and parsed_url.netloc
             if is_http_url:
-                content = (
-                    f'<a href="{html.escape(url, quote=True)}" '
-                    f'target="_blank" rel="noopener noreferrer">{content}</a>'
-                )
+                content = f'<a href="{html.escape(url, quote=True)}" ' f'target="_blank" rel="noopener noreferrer">{content}</a>'
 
         return cls._metadata_detail_html(cls._source_icon(source_format), "Source", content)
 
@@ -447,9 +438,7 @@ class IndexHTMLGenerator:
         cuisine = self.collect_metadata_values(metadata, "cuisine")
         # Status is a single string value; only the first value is used.
         status = self.collect_metadata_values(metadata, "status")[:1]
-        contributors = [
-            value.strip() for value in self.collect_metadata_values(metadata, "contributor") if value.strip()
-        ]
+        contributors = [value.strip() for value in self.collect_metadata_values(metadata, "contributor") if value.strip()]
         sources = self._sources(metadata)
         source_titles = [source_title for source in sources if (source_title := self._source_title(source))]
 
@@ -463,10 +452,7 @@ class IndexHTMLGenerator:
 
         # ----- Compute sort and search attributes ----- #
         search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *status, *contributors, *source_titles])
-        reviewer_ratings = [
-            {"name": self._reviewer_key(name) if name else "", "rating": score}
-            for name, score in self._valid_ratings(metadata)
-        ]
+        reviewer_ratings = [{"name": self._reviewer_key(name) if name else "", "rating": score} for name, score in self._valid_ratings(metadata)]
         average_rating, rating_count = self._average_rating(metadata)
         rating_attribute = f"{average_rating:.6g}" if average_rating is not None else ""
 

@@ -30,9 +30,7 @@ def config_server(tmp_path, monkeypatch):
 
     config_file = tmp_path / CONFIG_FILENAME
     config_file.write_text(
-        f"source_directory = {json.dumps(str(source))}\n"
-        f"{MODEL_ENDPOINT_KEY} = \"\"\n"
-        f'{RECIPE_SERVER_NAME_KEY} = "Test Kitchen"\n',
+        f"source_directory = {json.dumps(str(source))}\n" f'{MODEL_ENDPOINT_KEY} = ""\n' f'{RECIPE_SERVER_NAME_KEY} = "Test Kitchen"\n',
         encoding="UTF-8",
     )
 
@@ -116,9 +114,7 @@ def test_post_config_saves_and_triggers_regen(config_server):
     assert data["changed"] == [RECIPE_SERVER_NAME_KEY]
     assert data["values"][RECIPE_SERVER_NAME_KEY] == "My Kitchen"
     assert config.recipe_server_name == "My Kitchen"
-    assert tomllib.loads(config_file.read_text(encoding="UTF-8"))[
-        RECIPE_SERVER_NAME_KEY
-    ] == "My Kitchen"
+    assert tomllib.loads(config_file.read_text(encoding="UTF-8"))[RECIPE_SERVER_NAME_KEY] == "My Kitchen"
     assert regen_calls == [True]
 
 
@@ -131,9 +127,7 @@ def test_post_config_rejects_invalid_values(config_server):
     assert "existing directory" in data["error"]
     assert regen_calls == []
 
-    status, data = _post(
-        base, "/api/config", {"values": {MODEL_ENDPOINT_KEY: "ftp://host/v1"}}
-    )
+    status, data = _post(base, "/api/config", {"values": {MODEL_ENDPOINT_KEY: "ftp://host/v1"}})
     assert status == 400
     assert "valid http" in data["error"]
 
@@ -145,9 +139,7 @@ def test_post_config_rejects_invalid_values(config_server):
 def test_post_config_blank_server_name_falls_back_to_default(config_server):
     base, config, _, _ = config_server
 
-    status, data = _post(
-        base, "/api/config", {"values": {RECIPE_SERVER_NAME_KEY: "   "}}
-    )
+    status, data = _post(base, "/api/config", {"values": {RECIPE_SERVER_NAME_KEY: "   "}})
 
     assert status == 200
     assert data["values"][RECIPE_SERVER_NAME_KEY] == "My Recipe Server"

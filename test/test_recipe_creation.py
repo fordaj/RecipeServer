@@ -17,20 +17,12 @@ def multipart_body(fields, files):
     boundary = "recipe-server-test"
     parts = []
     for name, value in fields.items():
-        parts.append(
-            (
-                f"--{boundary}\r\n"
-                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
-                f"{value}\r\n"
-            ).encode("utf-8")
-        )
+        parts.append((f"--{boundary}\r\n" f'Content-Disposition: form-data; name="{name}"\r\n\r\n' f"{value}\r\n").encode("utf-8"))
     for name, filename, content in files:
         parts.append(
             f"--{boundary}\r\n"
             f'Content-Disposition: form-data; name="{name}"; filename="{filename}"\r\n'
-            "Content-Type: image/png\r\n\r\n".encode("ascii")
-            + content
-            + b"\r\n"
+            "Content-Type: image/png\r\n\r\n".encode("ascii") + content + b"\r\n"
         )
     parts.append(f"--{boundary}--\r\n".encode("ascii"))
     return boundary, b"".join(parts)
@@ -119,9 +111,7 @@ def test_recipe_creation_lists_folders_creates_recipes_and_rejects_conflicts(tmp
             created = json.loads(response.read())
         breakfast_recipe = source / "Breakfast" / "recipe.md"
         assert created == {"success": True, "path": "Breakfast/recipe.md"}
-        assert frontmatter.loads(breakfast_recipe.read_text(encoding="utf-8")).content.startswith(
-            "# New Recipe"
-        )
+        assert frontmatter.loads(breakfast_recipe.read_text(encoding="utf-8")).content.startswith("# New Recipe")
 
         with post_recipe("", True) as response:
             created = json.loads(response.read())

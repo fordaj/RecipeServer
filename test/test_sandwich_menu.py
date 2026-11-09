@@ -93,18 +93,12 @@ def test_sandwich_menu_html_uses_menu_icon_and_both_downloads():
     assert 'd="M4 19h16"' in html
 
     items = menu.select(".sandwich-menu__item")
-    archive_items = [
-        (item["data-archive"], item.get_text(strip=True))
-        for item in items
-        if item.has_attr("data-archive")
-    ]
+    archive_items = [(item["data-archive"], item.get_text(strip=True)) for item in items if item.has_attr("data-archive")]
     assert archive_items == [
         ("source", "Download Source Archive"),
         ("site", "Download Site Archive"),
     ]
-    config_items = [
-        item for item in items if item.get("data-config") == "open"
-    ]
+    config_items = [item for item in items if item.get("data-config") == "open"]
     assert [item.get_text(strip=True) for item in config_items] == ["Configuration"]
 
 

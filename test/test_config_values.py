@@ -36,9 +36,7 @@ def test_recipe_page_without_image_uses_configured_food_color(tmp_path: Path):
 
     config = Configuration()
     config.food_color = "#123456"
-    converter = MarkdownToHTMLConverter(
-        SimpleNamespace(source_directory=source, site_directory=site, food_color=config.food_color)
-    )
+    converter = MarkdownToHTMLConverter(SimpleNamespace(source_directory=source, site_directory=site, food_color=config.food_color))
     converter.convert(recipe, html_file)
 
     raw_html = html_file.read_text(encoding="utf-8")
@@ -51,9 +49,7 @@ def test_index_page_uses_configured_food_color(tmp_path: Path):
     recipe_path.parent.mkdir()
     recipe_path.write_text("<main><h1>Rice</h1></main>", encoding="UTF-8")
 
-    generator = IndexHTMLGenerator(
-        SimpleNamespace(site_directory=tmp_path, food_color="#123456")
-    )
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path, food_color="#123456"))
     generator.add(Recipe({"title": "Rice", "ratings": [{"rating": 8}]}, recipe_path))
     generator.convert()
 
