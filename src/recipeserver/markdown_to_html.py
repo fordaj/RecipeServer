@@ -2,9 +2,8 @@ from pathlib import Path
 from datetime import date, datetime, time, timezone
 from html import escape
 from functools import lru_cache
-from .pallette import Pallette
 from .config import Configuration
-from .image_handler import ImageToColorConverter, get_first_image_in_dir
+from .image_handler import DEFAULT_TITLE, ImageToColorConverter, get_first_image_in_dir
 import json, markdown, re, frontmatter
 from textwrap import dedent
 from bs4 import BeautifulSoup, Tag
@@ -168,7 +167,7 @@ class MarkdownToHTMLConverter:
         self.cfg = cfg
         self.metadata: dict[str, object] = {}
         self.metadata_json: str = ""
-        self.heading_color: str = getattr(cfg, "food_color", None) or Pallette.DEFAULT_TITLE
+        self.heading_color: str = getattr(cfg, "food_color", None) or DEFAULT_TITLE
         self.title: str = ""
 
     def get_doc_specific_overrides(self) -> str:
@@ -867,7 +866,7 @@ class MarkdownToHTMLConverter:
         Falls back to the configured food color when there is no usable
         hero image.
         """
-        fallback = getattr(self.cfg, "food_color", None) or Pallette.DEFAULT_TITLE
+        fallback = getattr(self.cfg, "food_color", None) or DEFAULT_TITLE
         image = get_first_image_in_dir(recipe_directory)
         if not image:
             return fallback

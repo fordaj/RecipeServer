@@ -1,8 +1,9 @@
 from PIL import Image
 import colorsys
 from collections import Counter
-from .pallette import Pallette
 from pathlib import Path
+
+DEFAULT_TITLE = "#4169E1"
 
 RGB = tuple[int, int, int]
 
@@ -30,7 +31,7 @@ def get_first_image_in_dir(directory: Path) -> Path | None:
 
 class ImageToColorConverter:
     def __init__(self):
-        self.hex: str = Pallette.DEFAULT_TITLE
+        self.hex: str = DEFAULT_TITLE
         self.rgb = self.get_RGB(self.hex)
 
     @staticmethod
