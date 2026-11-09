@@ -1,22 +1,40 @@
 /* ---------- Recipe scaler ---------- */
 
 .recipe-scaler {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 1em;
 
   color: var(--food-color);
   font-size: 32px;
   line-height: 1;
   white-space: nowrap;
-  vertical-align: baseline;
+
+  /* Reserve layout space on first paint, then reveal once the
+     scaler has run. `visibility` (not `display`) keeps the text
+     from reflowing the header while scripts/KaTeX are loading,
+     which prevents the scaler from jumping around on page load. */
+  visibility: hidden;
+}
+
+.recipe-scaler.is-ready {
+  visibility: visible;
 }
 
 #recipe-scale-select,
 #recipe-scale-custom {
   box-sizing: border-box;
-  width: 3.5ch;
-  min-width: 3.5ch;
+
+  /* `field-sizing: content` lets the control grow/shrink with its
+     text in supporting browsers (Chrome 123+, Firefox 132+,
+     Safari 26+); recipe-scaler.js sizes it for older browsers. */
+  field-sizing: content;
+  width: auto;
+  min-width: 0;
+  max-width: 8ch;
 
   color: inherit;
   font: inherit;
@@ -71,6 +89,16 @@
 .scale-symbol {
   flex: 0 0 auto;
   font: inherit;
+  margin-left: 0.1em;
+}
+
+/* Quantities start empty (server emits them with no text) and are
+   filled by KaTeX. An inline-block with a minimum height reserves
+   the line box so text swapping from KaTeX does not shift the
+   scaler or the lines below it. */
+.quantity {
+  display: inline-block;
+  min-height: 1em;
 }
 
 @media (min-width: 768px) {

@@ -21,6 +21,7 @@ class RecipeScaler {
   );
 
   constructor() {
+    this.scalerElement = document.querySelector(".recipe-scaler");
     this.scaleSelect = document.getElementById("recipe-scale-select");
     this.customInput = document.getElementById("recipe-scale-custom");
     this.quantities = document.querySelectorAll(".quantity");
@@ -28,6 +29,7 @@ class RecipeScaler {
 
     if (!this.isReady) {
       console.warn("RecipeScaler: scale controls not found");
+      this.revealScaler();
       return;
     }
 
@@ -43,6 +45,7 @@ class RecipeScaler {
         this.customInput.select();
       }
 
+      this.autoSizeControls();
       this.update();
     });
 
@@ -51,12 +54,81 @@ class RecipeScaler {
     });
 
     this.customInput.addEventListener("input", () => {
+      this.autoSizeControls();
       this.update();
+    });
+
+    window.addEventListener("resize", () => {
+      this.autoSizeControls();
     });
 
     // ----- Initial render ----- //
     this.customInput.hidden = true;
+    this.autoSizeControls();
     this.update();
+    this.revealScaler();
+
+    // Never keep the scaler hidden if something above threw before
+    // the reveal (e.g. KaTeX failed to load).
+    this.revealTimer = window.setTimeout(() => {
+      this.revealScaler();
+    }, 3000);
+  }
+
+  revealScaler() {
+    if (!this.scalerElement) {
+      return;
+    }
+
+    this.scalerElement.classList.add("is-ready");
+    if (this.revealTimer) {
+      window.clearTimeout(this.revealTimer);
+      this.revealTimer = null;
+    }
+  }
+
+  // ----- Dynamic control sizing ----- //
+  // `field-sizing: content` handles this in modern browsers; this
+  // fallback sizes the controls to their text so a 1-digit value
+  // does not sit in a 3.5ch gap and a 3-4 digit value is not clipped.
+  autoSizeControls() {
+    if (!this.isReady) {
+      return;
+    }
+
+    const supportsFieldSizing = typeof CSS !== "undefined" && CSS.supports("field-sizing: content");
+
+    if (supportsFieldSizing) {
+      this.scaleSelect.style.width = "";
+      this.customInput.style.width = "";
+      return;
+    }
+
+    this.scaleSelect.style.width = `${this.measureTextWidth(this.scaleSelect, this.selectedOptionText(this.scaleSelect))}px`;
+    this.customInput.style.width = `${this.measureTextWidth(this.customInput, this.customInput.value || "1")}px`;
+  }
+
+  selectedOptionText(select) {
+    const option = select.options[select.selectedIndex];
+    return option ? option.textContent : select.value;
+  }
+
+  measureTextWidth(control, text) {
+    try {
+      const style = getComputedStyle(control);
+      const font = style.font || `${style.fontSize} ${style.fontFamily}`;
+      const canvas = this.measureCanvas ?? (this.measureCanvas = document.createElement("canvas"));
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.font = font;
+        const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+        return context.measureText(text).width + padding;
+      }
+    } catch {
+      // Fall through to the character-count fallback below.
+    }
+
+    return Math.max(text.length, 1);
   }
 
   update() {
@@ -101,10 +173,12 @@ class RecipeScaler {
     if (typeof window.katex?.render !== "function") {
       console.warn("RecipeScaler: KaTeX hasn't loaded. Check script order.");
       element.textContent = `${latex}${suffix}`;
+      element.classList.add("is-rendered");
       return;
     }
 
     katex.render(latex, element, { throwOnError: false });
+    element.classList.add("is-rendered");
 
     if (suffix) {
       element.append(document.createTextNode(suffix));
