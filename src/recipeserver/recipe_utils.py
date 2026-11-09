@@ -8,6 +8,7 @@ adding abstraction that hides meaning.
 from __future__ import annotations
 
 import math
+import re
 import unicodedata
 from collections.abc import Iterable
 from datetime import date, datetime, time, timezone
@@ -74,3 +75,27 @@ def iter_valid_rating_entries(ratings: object) -> Iterable[tuple[str, int | floa
 def normalize_reviewer_name(name: str) -> str:
     """Normalize a reviewer name for case-insensitive comparison."""
     return unicodedata.normalize("NFKC", name.strip()).casefold()
+
+
+def is_date_only(value: object) -> bool:
+    """Return True when a metadata value represents a calendar date only."""
+    if isinstance(value, datetime):
+        return False
+    if isinstance(value, date):
+        return True
+    if isinstance(value, str):
+        return re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()) is not None
+    return False
+
+
+def display_date(value: datetime) -> str:
+    """Format a UTC datetime for server-rendered fallback text."""
+    text = f"{value:%b} {value.day}"
+    if datetime.now(timezone.utc).year != value.year:
+        text += f", {value.year}"
+    return text
+
+
+def slug_to_title(slug: str) -> str:
+    """Fallback title from a recipe directory slug."""
+    return slug.replace("-", " ").replace("_", " ").title()
