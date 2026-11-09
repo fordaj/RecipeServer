@@ -208,8 +208,7 @@ class PullToRefresh {
       return;
     }
 
-    const shouldRefresh =
-      this.active && this.indicator.classList.contains("ptr-ready");
+    const shouldRefresh = this.active && this.indicator.classList.contains("ptr-ready");
 
     this.tracking = false;
 

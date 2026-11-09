@@ -23,11 +23,11 @@ The app runs as a desktop process with a system tray icon. There is no database 
 
 ## Supported platforms
 
-| Platform | Status | Notes |
-| --- | --- | --- |
-| macOS | Supported | The tray runs on the main thread. |
-| Windows | Supported | Includes `serve.bat`; the tray runs detached. |
-| Linux | Untested | Requires Tk and an X11-compatible `pystray` backend. Wayland is not guaranteed to work. |
+| Platform | Status    | Notes                                                                                   |
+| -------- | --------- | --------------------------------------------------------------------------------------- |
+| macOS    | Supported | The tray runs on the main thread.                                                       |
+| Windows  | Supported | Includes `serve.bat`; the tray runs detached.                                           |
+| Linux    | Untested  | Requires Tk and an X11-compatible `pystray` backend. Wayland is not guaranteed to work. |
 
 The app is a local desktop application, not a headless web service. A graphical session is required for the tray and the first-run folder picker.
 
@@ -201,11 +201,11 @@ A full editor save updates `updatedOn`. Rating and comment changes do not, so ac
 
 RecipeServer uses the operating system's application-data directory:
 
-| Platform | Data directory |
-| --- | --- |
-| macOS | `~/Library/Application Support/recipe-server` |
-| Windows | `%LOCALAPPDATA%\recipe-server` |
-| Linux | `~/.local/share/recipe-server` |
+| Platform | Data directory                                |
+| -------- | --------------------------------------------- |
+| macOS    | `~/Library/Application Support/recipe-server` |
+| Windows  | `%LOCALAPPDATA%\recipe-server`                |
+| Linux    | `~/.local/share/recipe-server`                |
 
 Inside that directory:
 
@@ -246,7 +246,7 @@ uv run pytest test/test_tray.py
 uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_and_decimal_score
 ```
 
-Format Python files with Black (line-length 150) via formattington:
+Format Python (Black, line-length 150), Bash (shfmt), CSS/JS/HTML/Markdown/YAML (Prettier), TOML (taplo), and SVG (Prettier `--parser html`) via formattington (`uv run formattington all --config .formattington.json`, concurrently by default). Formatters are declared in `.formattington.json`; vendored KaTeX is excluded via `.prettierignore`. Requires `prettier` on PATH (`npm install -g prettier`) and `taplo` on PATH:
 
 ```bash
 ./format.sh
@@ -271,7 +271,7 @@ src/recipeserver/
 └── assets/                 # CSS, JavaScript, icons, and vendored KaTeX
 test/                       # pytest suite
 serve.sh / serve.bat        # launch helpers
-format.sh                   # Python formatting via formattington
+format.sh                   # Python (Black) and Bash (shfmt) formatting via formattington
 ```
 
 ### Architecture and invariants
