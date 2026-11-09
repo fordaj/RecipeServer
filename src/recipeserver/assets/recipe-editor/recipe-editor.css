@@ -387,11 +387,51 @@
 
 /* Same filled style as the main Save button (.recipe-editor__save), so the
    "Find an image for me" button matches its colors, hover, and focus states. */
+.recipe-editor__find-image-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.recipe-editor__find-image-field {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.recipe-editor__find-image-query {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font: inherit;
+}
+
+.recipe-editor__find-image-query:focus-visible {
+  outline: 2px solid var(--food-color);
+  border-color: var(--food-color);
+}
+
+.recipe-editor__find-image-query:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .recipe-editor__find-image {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  align-self: start;
+  align-self: end;
   padding: 0.65rem 1rem;
   border: 1px solid var(--food-color);
   border-radius: 6px;

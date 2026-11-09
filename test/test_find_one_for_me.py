@@ -103,16 +103,18 @@ def fake_download(image_url: str) -> dict:
 
 def test_prompt_file_loads_externally_and_substitutes():
     prompt_path = RECIPE_SERVER_DIR / "FindOneForMePrompt.md"
-    assert "{{recipe_title}}" in prompt_path.read_text(encoding="UTF-8")
+    assert "{{search_query}}" in prompt_path.read_text(encoding="UTF-8")
     prompt = ai_recipe.load_find_one_for_me_prompt()
     assert "Find One for Me" in prompt
 
-    assert substitute_recipe_title(prompt, "Grandma's Brownies") is not None
-    assert "Grandma's Brownies" in substitute_recipe_title(prompt, "Grandma's Brownies")
-    assert "{{recipe_title}}" not in substitute_recipe_title(prompt, "Grandma's Brownies")
-    # Single-brace variant is also replaced; empty title stays empty.
-    assert substitute_recipe_title("For {recipe_title}", "Soup") == "For Soup"
-    assert substitute_recipe_title("For {{recipe_title}}", "  ") == "For "
+    assert ai_recipe.substitute_search_query(prompt, "chocolate brownies") is not None
+    assert "chocolate brownies" in ai_recipe.substitute_search_query(prompt, "chocolate brownies")
+    assert "{{search_query}}" not in ai_recipe.substitute_search_query(prompt, "chocolate brownies")
+    # The legacy {{recipe_title}} placeholder is still substituted, and the
+    # compatible alias keeps working for older prompt files.
+    assert substitute_recipe_title("For {{recipe_title}}", "Soup") == "For Soup"
+    assert substitute_recipe_title("For {{search_query}}", "Soup") == "For Soup"
+    assert substitute_recipe_title("For {search_query}", "Soup") == "For Soup"
 
 
 def test_config_resolves_find_image_prompt_from_disk_when_absent():
@@ -462,26 +464,26 @@ def test_find_image_api_success_and_repeat_clicks(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_recipe, "download_image", fake_download)
 
     with running_recipe_server(source, config) as base_url:
-        status, body = request_json(f"{base_url}/api/find-image", {"title": "Brownies"})
+        status, body = request_json(f"{base_url}/api/find-image", {"query": "Brownies"})
         assert status == 200
         assert body["image_url"].endswith("brownies.jpg")
         assert body["data_uri"] == PNG_DATA_URI
 
         # A second click performs a fresh search and may return a new image.
-        status, body = request_json(f"{base_url}/api/find-image", {"title": "Brownies"})
+        status, body = request_json(f"{base_url}/api/find-image", {"query": "Brownies"})
         assert status == 200
         assert body["image_url"].endswith("cake.png")
 
 
-def test_find_image_api_empty_title_and_not_found(tmp_path, monkeypatch):
+def test_find_image_api_empty_query_and_not_found(tmp_path, monkeypatch):
     source = tmp_path / "recipes"
     source.mkdir()
     config = make_config()
 
     with running_recipe_server(source, config) as base_url:
-        status, body = request_json(f"{base_url}/api/find-image", {"title": "   "})
+        status, body = request_json(f"{base_url}/api/find-image", {"query": "   "})
         assert status == 400
-        assert "title" in body["error"]
+        assert "search query" in body["error"]
 
     monkeypatch.setattr(
         ai_recipe,
@@ -492,7 +494,7 @@ def test_find_image_api_empty_title_and_not_found(tmp_path, monkeypatch):
     monkeypatch.setattr(ai_recipe, "download_image", fake_download)
 
     with running_recipe_server(source, config) as base_url:
-        status, body = request_json(f"{base_url}/api/find-image", {"title": "Nothing"})
+        status, body = request_json(f"{base_url}/api/find-image", {"query": "Nothing"})
         assert status == 404
         assert "No suitable image" in body["error"]
 
@@ -515,9 +517,41 @@ def test_find_image_api_download_failure(tmp_path, monkeypatch):
 
     monkeypatch.setattr(ai_recipe, "download_image", bad_download)
     with running_recipe_server(source, config) as base_url:
-        status, body = request_json(f"{base_url}/api/find-image", {"title": "Brownies"})
+        status, body = request_json(f"{base_url}/api/find-image", {"query": "Brownies"})
         assert status == 502
         assert "Failed to download" in body["error"]
+
+
+def test_find_image_api_searches_the_typed_query_not_a_title(tmp_path, monkeypatch):
+    """The typed query is what reaches search/model, not a Markdown heading."""
+    source = tmp_path / "recipes"
+    source.mkdir()
+    config = make_config(find_one_for_me_prompt="Search for {{search_query}}.")
+    seen_queries: list[str] = []
+
+    def fake_search(query, limit=8):
+        seen_queries.append(query)
+        return list(CANDIDATES[:1])
+
+    monkeypatch.setattr(ai_recipe, "search_image_candidates", fake_search)
+
+    def record_chat(endpoint, model_name, prompt, user_message, stage=""):
+        seen_queries.append(prompt)
+        return json.dumps(
+            {"image_url": CANDIDATES[0]["image_url"], "source_url": None, "description": None, "attribution": None}
+        )
+
+    monkeypatch.setattr(ai_recipe, "_chat", record_chat)
+    monkeypatch.setattr(ai_recipe, "download_image", fake_download)
+
+    with running_recipe_server(source, config) as base_url:
+        status, body = request_json(
+            f"{base_url}/api/find-image", {"query": "grandma's chocolate brownies"}
+        )
+        assert status == 200
+
+    assert seen_queries[0] == "grandma's chocolate brownies"
+    assert "grandma's chocolate brownies" in seen_queries[1]
 
 
 def test_find_image_api_disabled_without_endpoint(tmp_path):
@@ -525,7 +559,7 @@ def test_find_image_api_disabled_without_endpoint(tmp_path):
     source.mkdir()
     config = make_config(model_endpoint="", find_one_for_me_prompt="")
     with running_recipe_server(source, config) as base_url:
-        status, body = request_json(f"{base_url}/api/find-image", {"title": "Brownies"})
+        status, body = request_json(f"{base_url}/api/find-image", {"query": "Brownies"})
         assert status == 503
         assert "not configured" in body["error"]
 
@@ -541,14 +575,21 @@ def test_ui_has_find_image_button_with_ai_icon_alongside_image_input():
     script = (BASE / "recipe-editor.js").read_text(encoding="UTF-8")
 
     # The existing image input is still there, and the new button sits
-    # alongside it inside the same images panel.
+    # alongside a user-typed search query in the same images panel.
     assert 'id="recipe-editor-images"' in markup
     assert 'id="recipe-editor-find-image"' in markup
+    assert 'id="recipe-editor-find-image-query"' in markup
     assert 'class="recipe-editor__find-image"' in markup
     assert 'aria-label="Find an image for me"' in markup
     assert 'title="Find an image for me"' in markup
     assert "/assets/ai.svg" in markup
     assert 'class="recipe-editor__images-preview"' in markup
+    # The find-image controls live outside the dropzone so clicks on the
+    # query/buttons can't fall through and open the file picker.
+    images_section = markup.split('class="recipe-editor__images"')[1].split("</div>")[0]
+    assert 'id="recipe-editor-images"' in images_section
+    assert 'id="recipe-editor-find-image"' not in images_section
+    assert 'id="recipe-editor-find-image-query"' not in images_section
 
     # Save-button styling: filled food-color background, same hover color,
     # and an accessible focus state.
@@ -560,13 +601,19 @@ def test_ui_has_find_image_button_with_ai_icon_alongside_image_input():
     assert "var(--food-color-hover)" in css
     assert ".recipe-editor__find-image:focus-visible" in css
 
-    # Frontend behaviour: busy guard, loading status, empty-title handling,
+    # Frontend behaviour: busy guard, loading status, empty-query handling,
     # fresh POST per click, and preservation of the existing image on error.
+    # The search text is typed by the user, never parsed from Markdown.
+    assert "extractRecipeTitle" not in script
+    assert "findImageQuery" in script
+    assert "Type a search query before searching" in script
     assert "findImageBusy" in script
     assert "Searching for an image" in script
-    assert "Enter a recipe title before searching" in script
     assert 'method: "POST"' in script
     assert "FIND_IMAGE_API" in script
+    assert "JSON.stringify({ query })" in script
+    # Enter in the query box searches instead of submitting the dialog form.
+    assert 'findImageQuery.addEventListener("keydown"' in script
     # Input is only replaced after a successful response, never on error.
     assert "refs.imageInput.files = transfer.files" in script
     error_block = script.split("No image found")[0].split("catch (error)")[-1]

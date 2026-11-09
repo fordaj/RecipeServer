@@ -4,19 +4,19 @@ You are selecting a suitable photograph to accompany a recipe in a personal fami
 
 ## Input
 
-You will receive the recipe title:
+You will receive the user's search query:
 
-`{{recipe_title}}`
+`{{search_query}}`
 
 ## Objective
 
-Find one randomly selected, high-quality photograph that accurately represents the recipe.
+Find one randomly selected, high-quality photograph that accurately represents the search query.
 
-Use the recipe title as the primary search query. You may refine the search query when doing so would improve the relevance of the results.
+Use the search query as the primary search query. You may refine the search query when doing so would improve the relevance of the results.
 
 ## Search and selection requirements
 
-1. Search the web for photographs relevant to the recipe title.
+1. Search the web for photographs relevant to the search query.
 2. Consider multiple search results rather than automatically selecting the first result.
 3. Randomly select one suitable result from the relevant candidates. Avoid consistently favoring the first search result.
 4. Prefer:
