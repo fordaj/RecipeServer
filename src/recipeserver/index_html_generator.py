@@ -24,9 +24,12 @@ except Exception:  # pragma: no cover - package metadata unavailable in tests
     VERSION = "0.0.0"
 
 from .recipe_utils import (
+    display_date,
+    is_date_only,
     iter_valid_rating_entries,
     normalize_reviewer_name,
     parse_metadata_datetime,
+    slug_to_title,
 )
 
 FILE_PATH = Path(__file__)
@@ -81,21 +84,13 @@ MAX_REVIEW_FILTER_OPTIONS = 30
 TITLED_SOURCE_FORMATS = {"website", "book"}
 
 
+@lru_cache(maxsize=None)
 def _versioned_asset_url(url: str) -> str:
     """Append a content hash so browsers pick up changed assets."""
     relative = url.removeprefix("/assets/")
     asset_path = ASSETS_DIR / relative
     digest = hashlib.sha1(asset_path.read_bytes()).hexdigest()[:10]
     return f"{url}?v={digest}"
-
-
-DEFINITIONS_CSS_URL = _versioned_asset_url(DEFINITIONS_CSS_PATH)
-INDEX_CSS_URL = _versioned_asset_url(INDEX_CSS_PATH)
-INDEX_JS_URL = _versioned_asset_url(INDEX_JS_PATH)
-RECIPE_EDITOR_CSS_URL = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
-RECIPE_EDITOR_JS_URL = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
-CONFIG_EDITOR_CSS_URL = _versioned_asset_url(CONFIG_EDITOR_CSS_PATH)
-CONFIG_EDITOR_JS_URL = _versioned_asset_url(CONFIG_EDITOR_JS_PATH)
 
 
 class Recipe:
@@ -118,10 +113,6 @@ class IndexHTMLGenerator:
         self.recipes.append(recipe)
 
     # ----- Metadata helpers ----- #
-
-    @staticmethod
-    def title_from_slug(slug: str) -> str:
-        return slug.replace("-", " ").title()
 
     @staticmethod
     def collect_metadata_values(metadata: dict, *keys: str) -> list[str]:
@@ -152,10 +143,6 @@ class IndexHTMLGenerator:
         return html.escape(json.dumps(value), quote=True)
 
     @staticmethod
-    def _reviewer_key(name: str) -> str:
-        return normalize_reviewer_name(name)
-
-    @staticmethod
     def _valid_ratings(metadata: dict) -> list[tuple[str, int | float]]:
         return list(iter_valid_rating_entries(metadata.get("ratings", [])))
 
@@ -164,42 +151,12 @@ class IndexHTMLGenerator:
         scores = [score for _, score in cls._valid_ratings(metadata)]
         return (mean(scores), len(scores)) if scores else (None, 0)
 
-    @staticmethod
-    def _contribution_date(value: object) -> date | None:
-        parsed = parse_metadata_datetime(value)
-        return parsed.date() if parsed else None
-
-    @staticmethod
-    def _updated_date(value: object) -> datetime | None:
-        return parse_metadata_datetime(value)
-
-    @staticmethod
-    def _is_date_only(value: object) -> bool:
-        if isinstance(value, datetime):
-            return False
-        if isinstance(value, date):
-            return True
-        if isinstance(value, str):
-            import re
-
-            return re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()) is not None
-        return False
-
-    @staticmethod
-    def _display_date(value: datetime) -> str:
-        from datetime import timezone
-
-        text = f"{value:%b} {value.day}"
-        if datetime.now(timezone.utc).year != value.year:
-            text += f", {value.year}"
-        return text
-
     def _latest_updated_on(self) -> tuple[datetime | None, object]:
         latest: datetime | None = None
         latest_raw: object = None
         for recipe in self.recipes:
             raw = recipe.metadata.get("updatedOn")
-            parsed = self._updated_date(raw)
+            parsed = parse_metadata_datetime(raw)
             if parsed is not None and (latest is None or parsed > latest):
                 latest = parsed
                 latest_raw = raw
@@ -210,13 +167,13 @@ class IndexHTMLGenerator:
         icon = self._svg_icon(TAG_SVG)
         label_parts = [f"v{VERSION}"]
         if latest is not None:
-            if self._is_date_only(latest_raw):
+            if is_date_only(latest_raw):
                 time_attrs = f'datetime="{html.escape(latest.date().isoformat(), quote=True)}"'
             else:
                 time_attrs = f'datetime="{html.escape(latest.isoformat(), quote=True)}" ' 'data-local-time="true" data-time-prefix="Edited "'
             label_parts.append(
                 f'<span class="recipe-meta__separator" aria-hidden="true">·</span>'
-                f"<time {time_attrs}>Edited {html.escape(self._display_date(latest))}</time>"
+                f"<time {time_attrs}>Edited {html.escape(display_date(latest))}</time>"
             )
         label = "".join(label_parts)
         return f'<footer class="recipe-version" aria-label="App version">' f"{icon}<span>{label}</span>" f"</footer>"
@@ -415,7 +372,7 @@ class IndexHTMLGenerator:
             if heading_title:
                 return heading_title
 
-        return str(metadata.get("title") or self.title_from_slug(html_path.parent.name))
+        return str(metadata.get("title") or slug_to_title(html_path.parent.name))
 
     def _build_recipe_item(self, recipe: Recipe, filter_values: dict[str, set[str]]) -> str:
         metadata = recipe.metadata
@@ -452,7 +409,7 @@ class IndexHTMLGenerator:
 
         # ----- Compute sort and search attributes ----- #
         search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *status, *contributors, *source_titles])
-        reviewer_ratings = [{"name": self._reviewer_key(name) if name else "", "rating": score} for name, score in self._valid_ratings(metadata)]
+        reviewer_ratings = [{"name": normalize_reviewer_name(name) if name else "", "rating": score} for name, score in self._valid_ratings(metadata)]
         average_rating, rating_count = self._average_rating(metadata)
         rating_attribute = f"{average_rating:.6g}" if average_rating is not None else ""
 
@@ -462,8 +419,9 @@ class IndexHTMLGenerator:
         difficulty_value = str(difficulty) if isinstance(difficulty, (int, float)) else ""
         archived = metadata.get("archived") is True
 
-        contribution_date = self._contribution_date(metadata.get("createdOn"))
-        updated_on = self._updated_date(metadata.get("updatedOn"))
+        parsed_contribution = parse_metadata_datetime(metadata.get("createdOn"))
+        contribution_date = parsed_contribution.date() if parsed_contribution else None
+        updated_on = parse_metadata_datetime(metadata.get("updatedOn"))
         date_value = contribution_date.isoformat() if contribution_date else ""
         updated_on_value = updated_on.isoformat() if updated_on else ""
 
@@ -622,7 +580,7 @@ class IndexHTMLGenerator:
             for name, _ in self._valid_ratings(recipe.metadata):
                 if not name:
                     continue
-                key = self._reviewer_key(name)
+                key = normalize_reviewer_name(name)
                 reviewer_counts[key] = reviewer_counts.get(key, 0) + 1
                 reviewer_names.setdefault(key, name)
 
@@ -699,6 +657,13 @@ class IndexHTMLGenerator:
         contributor_options = self._build_select_options_html(filter_values["contributors"])
         source_title_options = self._build_select_options_html(filter_values["source_titles"])
 
+        definitions_css_url = _versioned_asset_url(DEFINITIONS_CSS_PATH)
+        index_css_url = _versioned_asset_url(INDEX_CSS_PATH)
+        index_js_url = _versioned_asset_url(INDEX_JS_PATH)
+        recipe_editor_css_url = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
+        recipe_editor_js_url = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
+        config_editor_css_url = _versioned_asset_url(CONFIG_EDITOR_CSS_PATH)
+        config_editor_js_url = _versioned_asset_url(CONFIG_EDITOR_JS_PATH)
         return dedent(f"""\
             <!DOCTYPE html>
             <html lang="en">
@@ -707,16 +672,16 @@ class IndexHTMLGenerator:
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <title>{server_name_html}</title>
                 <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
-                <link rel="stylesheet" href="{DEFINITIONS_CSS_URL}">
+                <link rel="stylesheet" href="{definitions_css_url}">
                 {food_color_style}
                 <link rel="stylesheet" href="{MENU_CSS_URL}">
-                <link rel="stylesheet" href="{INDEX_CSS_URL}">
-                <link rel="stylesheet" href="{RECIPE_EDITOR_CSS_URL}">
-                <link rel="stylesheet" href="{CONFIG_EDITOR_CSS_URL}">
+                <link rel="stylesheet" href="{index_css_url}">
+                <link rel="stylesheet" href="{recipe_editor_css_url}">
+                <link rel="stylesheet" href="{config_editor_css_url}">
                 <script src="{MENU_JS_URL}" defer></script>
-                <script src="{INDEX_JS_URL}" defer></script>
-                <script src="{RECIPE_EDITOR_JS_URL}" defer></script>
-                <script src="{CONFIG_EDITOR_JS_URL}" defer></script>
+                <script src="{index_js_url}" defer></script>
+                <script src="{recipe_editor_js_url}" defer></script>
+                <script src="{config_editor_js_url}" defer></script>
             </head>
             <body>
                 <main class="recipes">
