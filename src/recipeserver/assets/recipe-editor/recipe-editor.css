@@ -385,6 +385,56 @@
   display: none;
 }
 
+.recipe-editor__images-selected-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.recipe-editor__images-selected-row[hidden] {
+  display: none;
+}
+
+.recipe-editor__images-selected-row .recipe-editor__images-selected {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.recipe-editor__copy-image-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0.3rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.recipe-editor__copy-image-name img {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.recipe-editor__copy-image-name:hover:not(:disabled) {
+  background: var(--hover-bg);
+  border-color: var(--food-color);
+}
+
+.recipe-editor__copy-image-name:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-editor__copy-image-name:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Same filled style as the main Save button (.recipe-editor__save), so the
    "Find an image for me" button matches its colors, hover, and focus states. */
 .recipe-editor__find-image-row {

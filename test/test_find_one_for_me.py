@@ -591,6 +591,12 @@ def test_ui_has_find_image_button_with_ai_icon_alongside_image_input():
     assert 'id="recipe-editor-find-image"' not in images_section
     assert 'id="recipe-editor-find-image-query"' not in images_section
 
+    # The copy-image-name button uses copy.svg and sits next to the name.
+    assert 'id="recipe-editor-copy-image-name"' in markup
+    assert 'src="/assets/copy.svg"' in markup
+    assert 'aria-label="Copy image name"' in markup
+    assert "recipe-editor__images-selected-row" in markup
+
     # Save-button styling: filled food-color background, same hover color,
     # and an accessible focus state.
     assert ".recipe-editor__find-image" in css
@@ -622,6 +628,13 @@ def test_ui_has_find_image_button_with_ai_icon_alongside_image_input():
     assert "imagePreview" in script
     # Clicking the button must not trigger the dropzone's file picker.
     assert 'event.target.closest("button")' in script
+    # Copy-to-clipboard uses the clipboard API with the selected filename
+    # and surfaces the result as a tooltip/status.
+    assert "navigator.clipboard" in script
+    assert "clipboard.writeText" in script
+    assert "navigator.clipboard?.writeText" in script
+    assert "copyImageNameButton" in script
+    assert "Copied image name" in script
 
 
 def test_ui_button_is_wired_and_enabled_from_ai_status():
