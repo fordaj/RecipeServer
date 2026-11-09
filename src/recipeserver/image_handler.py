@@ -5,8 +5,6 @@ from pathlib import Path
 
 DEFAULT_TITLE = "#4169E1"
 
-RGB = tuple[int, int, int]
-
 IMAGE_EXTENSIONS = {
     ".jpg",
     ".jpeg",
@@ -30,30 +28,6 @@ def get_first_image_in_dir(directory: Path) -> Path | None:
 
 
 class ImageToColorConverter:
-    def __init__(self):
-        self.hex: str = DEFAULT_TITLE
-        self.rgb = self.get_RGB(self.hex)
-
-    @staticmethod
-    def get_RGB(hex: str) -> RGB:
-        hex = hex.lstrip("#")
-
-        if len(hex) != 6:
-            raise ValueError(f"Invalid RGB hex color: {hex!r}")
-
-        return (
-            int(hex[0:2], 16),
-            int(hex[2:4], 16),
-            int(hex[4:6], 16),
-        )
-
-    @staticmethod
-    def get_hex(rgb: RGB) -> str:
-        if len(rgb) != 3 or any(not 0 <= value <= 255 for value in rgb):
-            raise ValueError(f"Invalid RGB value: {rgb!r}")
-
-        return "#{:02X}{:02X}{:02X}".format(*rgb)
-
     @staticmethod
     def get_hex_color_from_image(image: Path) -> str:
         with Image.open(image) as opened:
