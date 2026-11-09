@@ -1,0 +1,21 @@
+name: Pull Request Caller
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch: # Manually invoke action
+
+jobs:
+  Pull_Request:
+    if: github.event.pull_request.draft == false
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows, macos]
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}-${{ matrix.os }}
+      cancel-in-progress: true
+    uses: ./.github/workflows/pull_request.yml
+    with:
+      os: ${{ matrix.os }}
+      working_directory: "$HOME/.runners/RecipeServer/PR-${{ github.event.pull_request.number || github.run_id }}"

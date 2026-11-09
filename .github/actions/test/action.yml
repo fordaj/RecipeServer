@@ -1,0 +1,17 @@
+name: Test
+description: Run the Python test suite.
+
+inputs:
+  working_directory:
+    required: true
+    description: Working directory
+
+runs:
+  using: composite
+  steps:
+    - name: Test
+      shell: bash
+      run: |
+        cd "${{ inputs.working_directory }}"
+        source scripts/env.sh
+        uv run pytest

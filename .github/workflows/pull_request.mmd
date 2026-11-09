@@ -1,0 +1,31 @@
+---
+title: Pull Request Workflow
+---
+
+flowchart TD
+
+    MacOS:Checkout["Checkout"]
+    MacOS:Host["Host"]
+    MacOS:Format["Format"]
+    MacOS:Test["Test"]
+    MacOS:CleanUp["Clean Up"]
+    subgraph MacOS
+        direction TD
+        MacOS:Checkout-->MacOS:Host
+        MacOS:Host-->MacOS:Format
+        MacOS:Format-->MacOS:Test
+        MacOS:Test-->MacOS:CleanUp
+    end
+
+    Windows:Checkout["Checkout"]
+    Windows:Host["Host"]
+    Windows:Format["Format"]
+    Windows:Test["Test"]
+    Windows:CleanUp["Clean Up"]
+    subgraph Windows
+        direction TD
+        Windows:Checkout-->Windows:Host
+        Windows:Host-->Windows:Format
+        Windows:Format-->Windows:Test
+        Windows:Test-->Windows:CleanUp
+    end

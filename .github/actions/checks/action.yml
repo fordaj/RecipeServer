@@ -1,0 +1,22 @@
+name: Checks
+description: Repository checks (format + tests).
+
+inputs:
+  working_directory:
+    required: true
+    description: Working directory
+
+runs:
+  using: composite
+  steps:
+    - name: Format
+      shell: bash
+      run: |
+        cd "${{ inputs.working_directory }}"
+        source scripts/env.sh
+        ./format.sh --check
+
+    - name: Test
+      uses: fordaj/RecipeServer/.github/actions/test@main
+      with:
+        working_directory: "${{ inputs.working_directory }}"
