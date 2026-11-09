@@ -1,5 +1,6 @@
 import sys
 import json
+from copy import deepcopy
 import re
 import tomllib
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ NEW_RECIPE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipePrompt.md"
 NEW_RECIPE_FROM_IMAGE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipeFromImagePrompt.md"
 _MAX_MODEL_NAME_LENGTH = 256
 _LEGACY_SETTING_KEYS = {MODEL_NAME_KEY, SERVER_NAME_KEY}
+_LEGACY_KEY_MAPPING = {MODEL_NAME_KEY: ALL_PURPOSE_MODEL_NAME_KEY, SERVER_NAME_KEY: RECIPE_SERVER_NAME_KEY}
 
 
 def _known_toml_keys() -> set[str]:
@@ -384,8 +386,6 @@ class Configuration:
                 raise ValueError(f"Configuration value '{key}' must be text.")
             normalized[key] = _validate_config_value(key, value)
 
-        from copy import deepcopy
-
         before = deepcopy(self.get_config_values())
         for key, value in normalized.items():
             if key == SOURCE_DIRECTORY_KEY:
@@ -554,7 +554,10 @@ class Configuration:
         return resolved_source_directory
 
     def _apply_loaded_settings(self, settings: dict[str, str]) -> None:
-        server_name_value = settings.get(RECIPE_SERVER_NAME_KEY) or settings.get(SERVER_NAME_KEY, "")
+        for legacy_key, canonical_key in _LEGACY_KEY_MAPPING.items():
+            if not settings.get(canonical_key) and settings.get(legacy_key):
+                settings[canonical_key] = settings[legacy_key]
+        server_name_value = settings.get(RECIPE_SERVER_NAME_KEY, "")
         if server_name_value:
             self.recipe_server_name = server_name_value
         logger.debug(f"Configured recipe server name: {self.recipe_server_name!r}")
@@ -593,7 +596,7 @@ class Configuration:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")
             # The legacy singular model_name key remains readable but is
             # normalized to all_purpose_model_name on save.
-            self.all_purpose_model_name = settings.get(ALL_PURPOSE_MODEL_NAME_KEY) or settings.get(MODEL_NAME_KEY, "")
+            self.all_purpose_model_name = settings.get(ALL_PURPOSE_MODEL_NAME_KEY, "")
             self.image_analysis_model = settings.get(IMAGE_ANALYSIS_MODEL_KEY, "")
             logger.info(
                 f"Using configured local model endpoint: {self.model_endpoint or '(none)'} "
