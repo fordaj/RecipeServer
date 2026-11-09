@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # env.sh — source the RecipeServer env cascade, select the
-# host-appropriate versioner and logamuffin binaries, and provide
-# log() (the logamuffin helper, so scripts call log <level> <message>
-# instead of calling logamuffin directly).
+# host-appropriate versioner, logamuffin and runner-spawner binaries,
+# and provide log() (the logamuffin helper, so scripts call
+# log <level> <message> instead of calling logamuffin directly).
 #
 # Sourced usage (bash):
 #   source scripts/env.sh   # or: . scripts/env.sh
@@ -23,8 +23,19 @@
 # and resolves $LOGAMUFFIN_BIN the same way from
 # tools/logamuffin/v*/$PLATFORM/logamuffin[.exe]
 # (tools/logamuffin/update.bash keeps exactly one v*/ dir), falling
-# back to `logamuffin` on PATH. A caller-provided non-empty
-# VERSIONER_BIN/LOGAMUFFIN_BIN wins and is not overwritten.
+# back to `logamuffin` on PATH. $RUNNER_SPAWNER_BIN is resolved the
+# same way from tools/runner-spawner/v*/$PLATFORM/runner-spawner[.exe]
+# (tools/runner-spawner/update.bash keeps exactly one v*/ dir), falling
+# back to `runner-spawner` on PATH. A caller-provided non-empty
+# VERSIONER_BIN/LOGAMUFFIN_BIN/RUNNER_SPAWNER_BIN wins and is not overwritten.
+#
+# NOTE: the bundled tool repo is RUNNER_SPAWNER_TOOL_REPO, not
+# RUNNER_SPAWNER_REPO. The runner-spawner binary consumes
+# RUNNER_SPAWNER_REPO for the *target* repository it manages (see
+# .runner-spawner.json / config precedence), so exporting the tool slug
+# under that name would corrupt `runner-spawner create` URLs after
+# `source scripts/env.sh`. tools/runner-spawner/update.bash reads the
+# _TOOL_REPO name (with a hardcoded fordaj/runner-spawner default).
 #
 # Exports:
 #   RECIPE_SERVER_PLATFORM  host platform (e.g. macos-x86_64)
@@ -35,6 +46,9 @@
 #   LOGAMUFFIN_BIN          absolute path to logamuffin ("" if not found)
 #   LOGAMUFFIN_BIN_NAME     logamuffin or logamuffin.exe
 #   LOGAMUFFIN_REPO, LOGAMUFFIN_BUNDLE_DIR (repo-relative)
+#   RUNNER_SPAWNER_BIN      absolute path to runner-spawner ("" if not found)
+#   RUNNER_SPAWNER_BIN_NAME runner-spawner or runner-spawner.exe
+#   RUNNER_SPAWNER_TOOL_REPO, RUNNER_SPAWNER_BUNDLE_DIR (repo-relative)
 #
 # Functions (when sourced; also printed for eval when executed):
 #   log LEVEL [MESSAGE ...]
@@ -90,9 +104,11 @@ else
 	if [[ "$_host_os" == "windows" ]]; then
 		VERSIONER_BIN_NAME="versioner.exe"
 		LOGAMUFFIN_BIN_NAME="logamuffin.exe"
+		RUNNER_SPAWNER_BIN_NAME="runner-spawner.exe"
 	else
 		VERSIONER_BIN_NAME="versioner"
 		LOGAMUFFIN_BIN_NAME="logamuffin"
+		RUNNER_SPAWNER_BIN_NAME="runner-spawner"
 	fi
 fi
 set +a
@@ -102,10 +118,12 @@ VERSIONER_BIN_NAME="${VERSIONER_BIN_NAME:-versioner}"
 VERSIONER_BUNDLE_DIR="${VERSIONER_BUNDLE_DIR:-tools/versioner}"
 LOGAMUFFIN_BIN_NAME="${LOGAMUFFIN_BIN_NAME:-logamuffin}"
 LOGAMUFFIN_BUNDLE_DIR="${LOGAMUFFIN_BUNDLE_DIR:-tools/logamuffin}"
+RUNNER_SPAWNER_BIN_NAME="${RUNNER_SPAWNER_BIN_NAME:-runner-spawner}"
+RUNNER_SPAWNER_BUNDLE_DIR="${RUNNER_SPAWNER_BUNDLE_DIR:-tools/runner-spawner}"
 
 # Resolve the newest bundled binary (single v*/ dir per update.bash invariant).
-# A caller-provided non-empty VERSIONER_BIN/LOGAMUFFIN_BIN wins (this
-# mirrors release.bash's `if [[ -z ... ]]; then . env.sh; fi` guard).
+# A caller-provided non-empty VERSIONER_BIN/LOGAMUFFIN_BIN/RUNNER_SPAWNER_BIN
+# wins (this mirrors release.bash's `if [[ -z ... ]]; then . env.sh; fi` guard).
 if [[ -z "${VERSIONER_BIN:-}" ]]; then
 	VERSIONER_BIN=""
 	_bundle_root="$_repo_root/$VERSIONER_BUNDLE_DIR"
@@ -149,9 +167,32 @@ if [[ -z "${LOGAMUFFIN_BIN:-}" ]]; then
 	fi
 fi
 
+# Resolve the newest bundled runner-spawner (single v*/ dir per update.bash).
+if [[ -z "${RUNNER_SPAWNER_BIN:-}" ]]; then
+	RUNNER_SPAWNER_BIN=""
+	_bundle_root="$_repo_root/$RUNNER_SPAWNER_BUNDLE_DIR"
+	for _version_dir in "$_bundle_root"/v*/; do
+		if [[ ! -d "$_version_dir" ]]; then
+			continue
+		fi
+		_cand="$_version_dir$RECIPE_SERVER_PLATFORM/$RUNNER_SPAWNER_BIN_NAME"
+		if [[ -f "$_cand" ]]; then
+			RUNNER_SPAWNER_BIN="$_cand"
+		fi
+	done
+	if [[ -z "$RUNNER_SPAWNER_BIN" || ! -x "$RUNNER_SPAWNER_BIN" ]]; then
+		if command -v runner-spawner >/dev/null 2>&1; then
+			RUNNER_SPAWNER_BIN=$(command -v runner-spawner)
+		else
+			RUNNER_SPAWNER_BIN=""
+		fi
+	fi
+fi
+
 export RECIPE_SERVER_PLATFORM VERSIONER_BIN VERSIONER_BIN_NAME
 export VERSIONER_REPO VERSIONER_TAG_PATTERN VERSIONER_CONFIG_FILE VERSIONER_BUNDLE_DIR
 export LOGAMUFFIN_BIN LOGAMUFFIN_BIN_NAME LOGAMUFFIN_REPO LOGAMUFFIN_BUNDLE_DIR
+export RUNNER_SPAWNER_BIN RUNNER_SPAWNER_BIN_NAME RUNNER_SPAWNER_TOOL_REPO RUNNER_SPAWNER_BUNDLE_DIR
 
 unset _env_sh_path _env_sh_dir _repo_root _host_os_raw _host_arch_raw
 unset _host_os _host_arch _detected_platform _bundle_root _version_dir _cand
@@ -277,5 +318,9 @@ if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]:-}" == "$0" ]]; then
 	printf 'export LOGAMUFFIN_BIN_NAME=%q\n' "$LOGAMUFFIN_BIN_NAME"
 	printf 'export LOGAMUFFIN_REPO=%q\n' "${LOGAMUFFIN_REPO:-}"
 	printf 'export LOGAMUFFIN_BUNDLE_DIR=%q\n' "${LOGAMUFFIN_BUNDLE_DIR:-}"
+	printf 'export RUNNER_SPAWNER_BIN=%q\n' "$RUNNER_SPAWNER_BIN"
+	printf 'export RUNNER_SPAWNER_BIN_NAME=%q\n' "$RUNNER_SPAWNER_BIN_NAME"
+	printf 'export RUNNER_SPAWNER_TOOL_REPO=%q\n' "${RUNNER_SPAWNER_TOOL_REPO:-}"
+	printf 'export RUNNER_SPAWNER_BUNDLE_DIR=%q\n' "${RUNNER_SPAWNER_BUNDLE_DIR:-}"
 	declare -f _logamuffin_bin log
 fi

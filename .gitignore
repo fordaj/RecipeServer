@@ -4,6 +4,8 @@
 *.py.log
 node_modules/*
 test/**/*.html
+# Self-hosted GitHub Actions runners (runner-spawner); see .runner-spawner.json
+.runners/
 
 # ==========================================
 # Byte-compiled / optimized / DLL files
