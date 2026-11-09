@@ -35,7 +35,18 @@
         Drag &amp; drop images here, paste them from your clipboard, or click to choose files.
         Images are saved beside the recipe. Up to 20 files and 25 MB per save.
       </p>
-      <p class="recipe-editor__images-selected" aria-live="polite"></p>
+      <div class="recipe-editor__images-selected-row" hidden>
+        <p class="recipe-editor__images-selected" aria-live="polite"></p>
+        <button
+          id="recipe-editor-copy-image-name"
+          class="recipe-editor__copy-image-name"
+          type="button"
+          aria-label="Copy image name"
+          title="Copy image name to clipboard"
+        >
+          <img src="/assets/copy.svg" alt="" aria-hidden="true" width="18" height="18" />
+        </button>
+      </div>
     </div>
 
     <!-- Deliberately outside the .recipe-editor__images dropzone: clicks

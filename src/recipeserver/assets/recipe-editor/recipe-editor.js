@@ -443,6 +443,8 @@ Try this
       selectedImages: dialog.querySelector(".recipe-editor__images-selected"),
       imagePreview: dialog.querySelector(".recipe-editor__images-preview"),
       imageCaption: dialog.querySelector(".recipe-editor__images-caption"),
+      imagesSelectedRow: dialog.querySelector(".recipe-editor__images-selected-row"),
+      copyImageNameButton: dialog.querySelector("#recipe-editor-copy-image-name"),
       findImageButton: dialog.querySelector("#recipe-editor-find-image"),
       findImageQuery: dialog.querySelector("#recipe-editor-find-image-query"),
       findImageStatus: dialog.querySelector(".recipe-editor__find-image-status"),
@@ -564,6 +566,9 @@ Try this
       if (refs.findImageQuery) {
         refs.findImageQuery.disabled = value || state.findImageBusy || !state.findImageAvailable;
       }
+      if (refs.copyImageNameButton) {
+        refs.copyImageNameButton.disabled = value || state.findImageBusy || !refs.imageInput.files?.length;
+      }
     }
 
     return { setStatus, updateFolderControls, lockBackgroundScroll, unlockBackgroundScroll, closeEditor, setBusy };
@@ -669,6 +674,43 @@ Try this
       if (!available && refs.findImageStatus) refs.findImageStatus.textContent = "";
     }
 
+    function updateCopyImageNameButton() {
+      const firstFile = refs.imageInput.files?.[0];
+      const name = firstFile?.name || "";
+      const available = Boolean(name);
+      if (refs.copyImageNameButton) {
+        refs.copyImageNameButton.hidden = !available;
+        refs.copyImageNameButton.disabled = state.busy || state.findImageBusy || !available;
+        if (available) refs.copyImageNameButton.title = `Copy "${name}"`;
+      }
+      if (refs.imagesSelectedRow) refs.imagesSelectedRow.hidden = !available;
+    }
+
+    async function copyImageName() {
+      const name = refs.imageInput.files?.[0]?.name || "";
+      if (!name) return;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(name);
+        } else {
+          // Fallback for contexts without the async Clipboard API.
+          const fallback = document.createElement("textarea");
+          fallback.value = name;
+          fallback.style.position = "fixed";
+          fallback.style.opacity = "0";
+          document.body.append(fallback);
+          fallback.select();
+          const copied = document.execCommand("copy");
+          fallback.remove();
+          if (!copied) throw new Error("Clipboard is unavailable");
+        }
+        if (refs.copyImageNameButton) refs.copyImageNameButton.title = `Copied "${name}"`;
+        refs.findImageStatus.textContent = `Copied image name: ${name}`;
+      } catch (error) {
+        refs.findImageStatus.textContent = `Could not copy image name: ${error.message}`;
+      }
+    }
+
     async function requestFindImage(query) {
       return fetchJson(new URL(FIND_IMAGE_API, window.location.origin), {
         method: "POST",
@@ -718,6 +760,7 @@ Try this
         transfer.items.add(file);
         refs.imageInput.files = transfer.files;
         refs.selectedImages.textContent = file.name;
+        updateCopyImageNameButton();
         if (refs.imagePreview) {
           refs.imagePreview.src = result.data_uri;
           refs.imagePreview.alt = result.description || query;
@@ -738,7 +781,15 @@ Try this
       }
     }
 
-    return { setAiProgress, setAiState, setFindImageState, generateFromAi, findImageForMe };
+    return {
+      setAiProgress,
+      setAiState,
+      setFindImageState,
+      generateFromAi,
+      findImageForMe,
+      updateCopyImageNameButton,
+      copyImageName,
+    };
   }
 
   // ----- "Made this" helpers ----- //
@@ -1131,6 +1182,8 @@ Try this
     refs.location.hidden = !state.isCreating;
     refs.imageInput.value = "";
     refs.selectedImages.textContent = "";
+    if (refs.imagesSelectedRow) refs.imagesSelectedRow.hidden = true;
+    if (refs.copyImageNameButton) refs.copyImageNameButton.hidden = true;
     refs.imageDropzone?.classList.remove("is-dragging");
   }
 
@@ -1292,6 +1345,7 @@ Try this
     refs.folderMode.addEventListener("change", ui.updateFolderControls);
     refs.imageInput.addEventListener("change", () => {
       refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
+      ai.updateCopyImageNameButton();
       const firstFile = refs.imageInput.files?.[0];
       if (refs.imagePreview && firstFile && firstFile.type.startsWith("image/")) {
         refs.imagePreview.src = URL.createObjectURL(firstFile);
@@ -1310,6 +1364,7 @@ Try this
       [...refs.imageInput.files, ...newFiles].forEach((file) => transfer.items.add(file));
       refs.imageInput.files = transfer.files;
       refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
+      ai.updateCopyImageNameButton();
       return true;
     }
 
@@ -1378,6 +1433,13 @@ Try this
       refs.findImageButton.addEventListener("click", (event) => {
         event.stopPropagation();
         ai.findImageForMe();
+      });
+    }
+    if (refs.copyImageNameButton) {
+      refs.copyImageNameButton.hidden = true;
+      refs.copyImageNameButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        ai.copyImageName();
       });
     }
     if (refs.findImageQuery) {
