@@ -2,7 +2,7 @@ from pathlib import Path
 from .image_handler import IMAGE_EXTENSIONS
 from .markdown_to_html import MarkdownToHTMLConverter
 from .index_html_generator import IndexHTMLGenerator, Recipe
-from ._logger import logger, setup_logger, LogLevel
+from ._logger import logger, LogLevel
 from .config import Configuration
 from .server import Server
 from .tray import Tray
@@ -11,7 +11,6 @@ from threading import Lock, Event
 from shutil import rmtree, copytree, copy2
 import time, sys, os, argparse
 
-FILE_PATH = Path(__file__)
 DEFAULT_WORKERS = 8
 MAX_WORKERS = 16
 
@@ -27,9 +26,6 @@ def get_worker_count() -> int:
 
 
 NUM_WORKERS = get_worker_count()
-
-
-cfg: Configuration
 
 
 class Core:
@@ -190,29 +186,13 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(_cfg: Configuration):
-    cfg = _cfg
-
+def main(cfg: Configuration):
     # Read the prompt requirements fresh on every app run so edits take effect.
     load_prompt = getattr(cfg, "load_new_recipe_prompt", None)
     if callable(load_prompt):
         load_prompt()
 
-    # observer = FileObserver()
     core = Core(cfg)
-
-    # def on_file_changed(path: Path):
-    #     print(path)
-    #     # observer.stop()
-
-    #     core.regen()
-
-    #     # time.sleep(2)
-
-    #     # observer.start()
-
-    # observer.setup([cfg.working_directory], on_file_changed=on_file_changed)
-    # observer.start()
     core.regen()
 
     server_kwargs = {"on_markdown_saved": core.on_markdown_save, "on_config_saved": core.on_config_save}

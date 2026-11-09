@@ -1,4 +1,6 @@
-from .core import setup_logger, main, Configuration, parse_args
+from ._logger import setup_logger
+from .config import Configuration
+from .core import main, parse_args
 
 if __name__ == "__main__":
     args = parse_args()
