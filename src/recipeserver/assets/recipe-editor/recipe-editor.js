@@ -1105,8 +1105,8 @@ Try this
         ui.setBusy(true);
         ui.setStatus("Deleting recipes…");
         await requestBulkDelete(state.bulkPaths);
-        ui.setStatus("Recipes deleted! Reloading…");
-        window.location.reload();
+        ui.setStatus("Recipes deleted! Redirecting to the index…");
+        window.location.href = "/index.html";
       } catch (error) {
         ui.setStatus(error.message);
         ui.setBusy(false);
@@ -1118,8 +1118,8 @@ Try this
       ui.setBusy(true);
       ui.setStatus("Deleting recipe…");
       await deleteRecipe(state.markdownPath);
-      ui.setStatus("Recipe deleted! Reloading…");
-      window.location.reload();
+      ui.setStatus("Recipe deleted! Redirecting to the index…");
+      window.location.href = "/index.html";
     } catch (error) {
       ui.setStatus(error.message);
       ui.setBusy(false);

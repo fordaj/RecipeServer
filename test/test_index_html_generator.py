@@ -602,3 +602,32 @@ def test_card_zoom_css_remains_responsive(tmp_path: Path):
     # Mobile layout keeps the zoom control usable.
     assert "@media (max-width: 499px)" in css
     assert ".card-zoom__slider" in css
+
+
+def test_misc_improvements_issue_81():
+    css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
+    script = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "recipe-editor" / "recipe-editor.js").read_text(encoding="UTF-8")
+
+    # List view: thumbnails get all corners rounded; card view keeps only the
+    # top corners rounded (the base .recipe-card__image rule).
+    list_image_rule = css.split("#recipe-list.list-view .recipe-card__image {", 1)[1].split("}", 1)[0]
+    assert "border-radius: 8px" in list_image_rule
+    card_image_rule = css.split("\n.recipe-card__image {", 1)[1].split("}", 1)[0]
+    assert "border-top-left-radius: 11px" in card_image_rule
+    assert "border-top-right-radius: 11px" in card_image_rule
+    assert "border-bottom" not in card_image_rule
+
+    # Mobile: the index keeps a horizontal gutter instead of running edge to
+    # edge, and the toolbar is no longer forced edge to edge.
+    mobile = css.split("@media (max-width: 499px)", 1)[1].split("@media (min-width: 500px)", 1)[0]
+    assert "width: min(100% - 2rem, 1500px)" in mobile
+    assert "border-radius: 0" not in mobile
+    assert "border-left: 0" not in mobile
+    assert "border-right: 0" not in mobile
+
+    # Deleting a recipe (single or bulk, via the editor) redirects to the
+    # index, since the deleted recipe's page no longer exists.
+    delete_flow = script.split("async function handleDelete", 1)[1].split("function createSessionActions", 1)[0]
+    assert 'window.location.href = "/index.html"' in delete_flow
+    assert "Recipe deleted! Redirecting to the index" in delete_flow
+    assert "Recipes deleted! Redirecting to the index" in delete_flow

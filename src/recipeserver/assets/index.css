@@ -943,6 +943,9 @@ a {
   height: var(--list-thumb-size, 4rem);
   margin: 0;
   aspect-ratio: auto;
+  /* List thumbnails are free-standing, so round all corners (matching the
+     list row's 8px radius); card view keeps only the top corners rounded. */
+  border-radius: 8px;
 }
 
 #recipe-list.list-view .recipe-card__heading {
@@ -994,22 +997,19 @@ a {
 
 @media (max-width: 499px) {
   .recipes {
-    width: 100%;
+    /* Keep a 1rem gutter on each side instead of running edge to edge. */
+    width: min(100% - 2rem, 1500px);
     padding-bottom: 3rem;
   }
 
   .recipes-header {
-    padding: 10svh 1rem 0;
+    padding-top: 10svh;
   }
 
   .recipe-toolbar {
     width: 100%;
     margin: 7svh 0 2rem;
     padding: 1rem;
-    border-radius: 0;
-    border-left: 0;
-    border-right: 0;
-    box-shadow: none;
   }
 
   .results-controls {
