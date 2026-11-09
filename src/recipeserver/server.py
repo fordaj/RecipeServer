@@ -14,7 +14,6 @@ import re
 import socket
 import sys
 import tempfile
-import unicodedata
 import uuid
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -37,10 +36,7 @@ from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import Configuration
 from .image_handler import IMAGE_EXTENSIONS
-from .recipe_utils import is_finite_rating_score, json_default, normalize_reviewer_name
-
-# Keep the historical module-level name for compatibility.
-_json_default = json_default
+from .recipe_utils import json_default, normalize_reviewer_name
 
 MarkdownSavedCallback = Callable[[Path], None]
 ConfigSavedCallback = Callable[[], None]
@@ -63,6 +59,11 @@ PUBLIC_IP_PROBE_PORT = 80
 
 class _RequestTooLarge(ValueError):
     """Raised when a request body exceeds the accepted size."""
+
+
+def _now_utc_iso() -> str:
+    """Current UTC time as a millisecond ISO string ending in ``Z``."""
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +313,7 @@ def _apply_rating_override(ratings: object, name: str, score: int | float) -> li
     updated: list[dict] = []
     replaced = False
     normalized = normalize_reviewer_name(name)
-    now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    now = _now_utc_iso()
 
     for item in current:
         if not isinstance(item, dict):
@@ -447,16 +448,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def _dispatch_get_api(self, path: str, parsed) -> bool:
+        path = path.rstrip("/") or "/"
         simple_handlers = {
             "/health": self._handle_health,
-            "/health/": self._handle_health,
             "/api/ai-status": self._handle_ai_status,
-            "/api/ai-status/": self._handle_ai_status,
             "/api/config": self._handle_config_get,
-            "/api/config/": self._handle_config_get,
             "/api/recipe-folders": self._handle_recipe_folders_get,
             "/api/bulk-editor": lambda: self._handle_bulk_editor_get(parsed),
-            "/api/bulk-editor/": lambda: self._handle_bulk_editor_get(parsed),
         }
 
         if path in simple_handlers:
@@ -479,11 +477,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self.send_error(404, "Unknown API endpoint")
 
     def _dispatch_post_api(self, path: str) -> bool:
+        path = path.rstrip("/") or "/"
         exact_handlers = {
             "/api/bulk-editor": self._handle_bulk_editor_post,
-            "/api/bulk-editor/": self._handle_bulk_editor_post,
             "/api/bulk-delete": self._handle_bulk_delete,
-            "/api/bulk-delete/": self._handle_bulk_delete,
             "/api/config": self._handle_config_update,
             "/api/ai-recipe": self._handle_ai_recipe,
             "/api/recipe": self._handle_recipe_create,
@@ -748,7 +745,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self.close_connection = True
 
         def send_event(event_type: str, **values) -> None:
-            body = json.dumps({"type": event_type, **values}, default=_json_default).encode("utf-8")
+            body = json.dumps({"type": event_type, **values}, default=json_default).encode("utf-8")
             self.wfile.write(body + b"\n")
             self.wfile.flush()
 
@@ -858,7 +855,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     @staticmethod
     def _metadata_for_new_recipe(metadata: dict) -> dict:
         recipe_metadata = {key: value for key, value in metadata.items() if value is not None}
-        recipe_metadata["updatedOn"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        recipe_metadata["updatedOn"] = _now_utc_iso()
         return recipe_metadata
 
     def _handle_recipe_editor_post(self) -> None:
@@ -892,7 +889,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
             _apply_editor_metadata(recipe_post.metadata, metadata)
             recipe_post.metadata.pop("category", None)
-            recipe_post.metadata["updatedOn"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            recipe_post.metadata["updatedOn"] = _now_utc_iso()
             recipe_post.content = content
 
             self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=False)
@@ -1088,7 +1085,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 name, score = rating_override
                 recipe_post.metadata["ratings"] = _apply_rating_override(recipe_post.metadata.get("ratings"), name, score)
             if metadata or rating_override is not None:
-                recipe_post.metadata["updatedOn"] = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                recipe_post.metadata["updatedOn"] = _now_utc_iso()
 
             file_path.write_text(frontmatter.dumps(recipe_post), encoding="utf-8", newline="")
             saved.append(file_path)
@@ -1529,7 +1526,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     # ----- response helpers ------------------------------------------------
 
     def _send_json(self, status: int, data: dict):
-        body = json.dumps(data, default=_json_default).encode("utf-8")
+        body = json.dumps(data, default=json_default).encode("utf-8")
         self._send_bytes(status, body, "application/json; charset=utf-8")
 
     def _send_bytes(self, status: int, body: bytes, content_type: str):
