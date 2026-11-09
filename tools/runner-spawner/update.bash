@@ -254,13 +254,21 @@ log INFO "downloaded ${#archives[@]} .7z archives"
 
 if [[ -f "$TMP_DIR/checksums.txt" ]]; then
     log INFO "verifying checksums..."
-    if command -v shasum >/dev/null 2>&1; then
-        (cd "$TMP_DIR" && shasum -a 256 -c checksums.txt) || die "checksum verification failed for $TAG"
-    elif command -v sha256sum >/dev/null 2>&1; then
-        (cd "$TMP_DIR" && sha256sum -c checksums.txt) || die "checksum verification failed for $TAG"
-    else
-        die "checksums.txt present but neither shasum nor sha256sum found"
-    fi
+    # Some releases ship a checksums.txt containing entries for multiple
+    # versions; verify only the archives we actually downloaded.
+    (
+        cd "$TMP_DIR"
+        awk 'NF>=2 {f=$2; sub(/^\*/,"",f); if (system("[ -f \""f"\" ]")==0) print}' checksums.txt >checksums.present.txt
+        [[ -s checksums.present.txt ]] || { echo "no checksum entries matched downloaded archives" >&2; exit 1; }
+        if command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 -c checksums.present.txt
+        elif command -v sha256sum >/dev/null 2>&1; then
+            sha256sum -c checksums.present.txt
+        else
+            echo "checksums.txt present but neither shasum nor sha256sum found" >&2
+            exit 1
+        fi
+    ) || die "checksum verification failed for $TAG"
     log INFO "checksums verified"
 else
     log WARNING "no checksums.txt in $TAG release; skipping verification"
