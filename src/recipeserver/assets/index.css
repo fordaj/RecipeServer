@@ -676,10 +676,7 @@ a {
  * In list view the same variable scales --list-thumb-size instead.
  */
 #recipe-list.card-view {
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(min(var(--card-min-width, 280px), 100%), 1fr)
-  );
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--card-min-width, 280px), 100%), 1fr));
 }
 
 #recipe-list > li {

@@ -22,7 +22,10 @@
 
   // ----- Data helpers ----- //
   function normalizedName(name) {
-    return String(name || "").trim().normalize("NFKC").toLowerCase();
+    return String(name || "")
+      .trim()
+      .normalize("NFKC")
+      .toLowerCase();
   }
 
   function createRatingId() {
@@ -84,7 +87,11 @@
 
   // ----- Rendering ----- //
   function getInitials(name) {
-    return helpers.getInitials ? helpers.getInitials(name) : String(name || "").slice(0, 2).toUpperCase();
+    return helpers.getInitials
+      ? helpers.getInitials(name)
+      : String(name || "")
+          .slice(0, 2)
+          .toUpperCase();
   }
 
   function createDate(timestamp) {
@@ -140,7 +147,8 @@
       primary.prepend(summary);
     }
 
-    const average = ratings.reduce((total, item) => total + Number(item.rating), 0) / ratings.length;
+    const average =
+      ratings.reduce((total, item) => total + Number(item.rating), 0) / ratings.length;
     summary.textContent = `★ ${average.toFixed(1)}/10`;
   }
 
@@ -173,7 +181,10 @@
 
     const actions = document.createElement("div");
     actions.className = "recipe-rating__actions";
-    for (const [action, label] of [["edit", "Edit"], ["delete", "Remove"]]) {
+    for (const [action, label] of [
+      ["edit", "Edit"],
+      ["delete", "Remove"],
+    ]) {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.action = action;
@@ -238,7 +249,9 @@
     const score = document.createElement("output");
     score.className = "recipe-rating__score";
     updateScorePreview(editScoreInput, score, meter);
-    editScoreInput.addEventListener("input", () => updateScorePreview(editScoreInput, score, meter));
+    editScoreInput.addEventListener("input", () =>
+      updateScorePreview(editScoreInput, score, meter),
+    );
     scoreLine.append(editScoreInput, meter, score);
 
     const actions = document.createElement("div");
@@ -259,7 +272,14 @@
     return { editForm, nameInput, scoreInput: editScoreInput, cancel, message };
   }
 
-  function submitEditRating({ editForm, article, rating, nameInput, scoreInput: editScoreInput, message }) {
+  function submitEditRating({
+    editForm,
+    article,
+    rating,
+    nameInput,
+    scoreInput: editScoreInput,
+    message,
+  }) {
     editForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const name = nameInput.value.trim();
@@ -277,7 +297,11 @@
         if (index === -1) {
           throw new Error("Rating no longer exists. Reload the page.");
         }
-        if (latest.some((item) => item.id !== rating.id && normalizedName(item.name) === normalizedName(name))) {
+        if (
+          latest.some(
+            (item) => item.id !== rating.id && normalizedName(item.name) === normalizedName(name),
+          )
+        ) {
           throw new Error("A rating from this name already exists.");
         }
 

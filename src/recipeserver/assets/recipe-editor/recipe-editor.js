@@ -351,7 +351,10 @@ Try this
     const parseList = (field) => {
       const value = get(field);
       if (!value) return null;
-      return value.split(",").map((item) => item.trim()).filter(Boolean);
+      return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
     };
 
     const parseNumber = (field, integer = false) => {
@@ -401,9 +404,10 @@ Try this
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) return "";
 
-      const svg = new DOMParser()
-        .parseFromString(await response.text(), "image/svg+xml")
-        .documentElement;
+      const svg = new DOMParser().parseFromString(
+        await response.text(),
+        "image/svg+xml",
+      ).documentElement;
       svg.setAttribute("aria-hidden", "true");
       svg.setAttribute("focusable", "false");
       return new XMLSerializer().serializeToString(svg);
@@ -552,7 +556,14 @@ Try this
       });
     }
 
-    return { setStatus, updateFolderControls, lockBackgroundScroll, unlockBackgroundScroll, closeEditor, setBusy };
+    return {
+      setStatus,
+      updateFolderControls,
+      lockBackgroundScroll,
+      unlockBackgroundScroll,
+      closeEditor,
+      setBusy,
+    };
   }
 
   // ----- AI helpers ----- //
@@ -562,7 +573,12 @@ Try this
       refs.aiStatus.textContent = message;
     }
 
-    function setAiState(configured, available, imageConfigured = available, imageAvailable = imageConfigured) {
+    function setAiState(
+      configured,
+      available,
+      imageConfigured = available,
+      imageAvailable = imageConfigured,
+    ) {
       const { aiDetails } = refs;
       const { isCreating } = state;
       state.aiAvailable = configured && available;
@@ -729,7 +745,14 @@ Try this
     return { updateMadeThisCount, recordMadeThis };
   }
 
-  function handleMadeThisError(error, makes, savedToFile, syncMadeThisCount, celebrateMadeThis, ui) {
+  function handleMadeThisError(
+    error,
+    makes,
+    savedToFile,
+    syncMadeThisCount,
+    celebrateMadeThis,
+    ui,
+  ) {
     const message = error.message || "Unable to save your make.";
     const savedButNotRefreshed = /saved, but/i.test(message);
 
@@ -779,8 +802,12 @@ Try this
   function resetBulkFieldChrome(refs) {
     // MIXED spans and per-field Save buttons live inside their labels,
     // hidden by default; bulk mode reveals them.
-    refs.mixedBadges.forEach((badge) => { badge.hidden = true; });
-    refs.bulkFieldSaves.forEach((button) => { button.hidden = true; });
+    refs.mixedBadges.forEach((badge) => {
+      badge.hidden = true;
+    });
+    refs.bulkFieldSaves.forEach((button) => {
+      button.hidden = true;
+    });
     refs.dialog.classList.remove("is-bulk");
     refs.dialog.querySelectorAll("label.is-mixed").forEach((element) => {
       element.classList.remove("is-mixed");
@@ -788,9 +815,14 @@ Try this
   }
 
   function setBulkFieldChrome(refs, visible) {
-    refs.bulkFieldSaves.forEach((button) => { button.hidden = !visible; });
+    refs.bulkFieldSaves.forEach((button) => {
+      button.hidden = !visible;
+    });
     refs.dialog.classList.toggle("is-bulk", visible);
-    if (!visible) refs.mixedBadges.forEach((badge) => { badge.hidden = true; });
+    if (!visible)
+      refs.mixedBadges.forEach((badge) => {
+        badge.hidden = true;
+      });
   }
 
   function showMixed(refs, inputName) {
@@ -803,18 +835,23 @@ Try this
 
   function markMixedSourceFields(refs, state) {
     for (const subfield of ["author", "title", "format", "url"]) {
-      const first = JSON.stringify(firstSource(state.bulkRecipes[0].metadata.source)[subfield] ?? null);
+      const first = JSON.stringify(
+        firstSource(state.bulkRecipes[0].metadata.source)[subfield] ?? null,
+      );
       const mixed =
         state.bulkRecipes.length > 1 &&
         state.bulkRecipes.some(
-          (recipe) => JSON.stringify(firstSource(recipe.metadata.source)[subfield] ?? null) !== first,
+          (recipe) =>
+            JSON.stringify(firstSource(recipe.metadata.source)[subfield] ?? null) !== first,
         );
       if (mixed) showMixed(refs, `source.${subfield}`);
     }
   }
 
   function markMixedFields(refs, state) {
-    refs.mixedBadges.forEach((badge) => { badge.hidden = true; });
+    refs.mixedBadges.forEach((badge) => {
+      badge.hidden = true;
+    });
     refs.dialog.querySelectorAll("label.is-mixed").forEach((element) => {
       element.classList.remove("is-mixed");
     });
@@ -966,8 +1003,12 @@ Try this
       ai.setAiState(
         Boolean(status.configured),
         Boolean(status.available),
-        status.image_configured === undefined ? Boolean(status.configured) : Boolean(status.image_configured),
-        status.image_available === undefined ? Boolean(status.available) : Boolean(status.image_available),
+        status.image_configured === undefined
+          ? Boolean(status.configured)
+          : Boolean(status.image_configured),
+        status.image_available === undefined
+          ? Boolean(status.available)
+          : Boolean(status.image_available),
       );
     } catch {
       ai.setAiState(false, false);
@@ -1050,7 +1091,10 @@ Try this
     let rating = null;
     if (ratingName || ratingScore) {
       rating = bulk.readBulkRating();
-      if (!rating) { ui.setBusy(false); return false; }
+      if (!rating) {
+        ui.setBusy(false);
+        return false;
+      }
     }
     await requestBulkSave(state.bulkPaths, { metadata, ...(rating ? { rating } : {}) });
     return true;
@@ -1059,7 +1103,8 @@ Try this
   async function submitEditorSave(refs, state, ui, bulk, metadata, content, images) {
     if (state.isBulk) return submitBulkSave(refs, state, ui, bulk, metadata);
     if (state.isCreating) {
-      let folder = refs.folderMode.value === "new" ? refs.newFolder.value.trim() : refs.folderSelect.value;
+      let folder =
+        refs.folderMode.value === "new" ? refs.newFolder.value.trim() : refs.folderSelect.value;
       if (refs.folderMode.value === "new" && !folder) {
         ui.setStatus("Enter a folder path.");
         return false;
@@ -1076,7 +1121,12 @@ Try this
     event.preventDefault();
     if (state.busy) return;
     let metadata;
-    try { metadata = readMetadata(refs.form); } catch (error) { ui.setStatus(error.message); return; }
+    try {
+      metadata = readMetadata(refs.form);
+    } catch (error) {
+      ui.setStatus(error.message);
+      return;
+    }
     const content = refs.textarea.value;
     const metadataContent = JSON.stringify(metadata);
     const images = [...refs.imageInput.files];
@@ -1085,7 +1135,9 @@ Try this
       return;
     }
     ui.setBusy(true);
-    ui.setStatus(state.isCreating ? "Creating recipe…" : state.isBulk ? "Saving recipes…" : "Saving recipe…");
+    ui.setStatus(
+      state.isCreating ? "Creating recipe…" : state.isBulk ? "Saving recipes…" : "Saving recipe…",
+    );
     try {
       const completed = await submitEditorSave(refs, state, ui, bulk, metadata, content, images);
       if (!completed) return;
@@ -1100,7 +1152,8 @@ Try this
   async function handleDelete(refs, state, ui) {
     if (state.busy) return;
     if (state.isBulk) {
-      if (!confirm(`Delete ${state.bulkPaths.length} selected recipes? This cannot be undone.`)) return;
+      if (!confirm(`Delete ${state.bulkPaths.length} selected recipes? This cannot be undone.`))
+        return;
       try {
         ui.setBusy(true);
         ui.setStatus("Deleting recipes…");
@@ -1113,7 +1166,8 @@ Try this
       }
       return;
     }
-    if (!confirm("Are you sure you want to delete this recipe? This action cannot be undone.")) return;
+    if (!confirm("Are you sure you want to delete this recipe? This action cannot be undone."))
+      return;
     try {
       ui.setBusy(true);
       ui.setStatus("Deleting recipe…");
@@ -1165,12 +1219,16 @@ Try this
     const { madeThisButton, markdownDetails, textarea } = refs;
     const { recordMadeThis } = madeThis;
 
-    if (state.editButton) state.editButton.addEventListener("click", () => session.openEditor("edit"));
-    if (state.createButton) state.createButton.addEventListener("click", () => session.openEditor("create"));
+    if (state.editButton)
+      state.editButton.addEventListener("click", () => session.openEditor("edit"));
+    if (state.createButton)
+      state.createButton.addEventListener("click", () => session.openEditor("create"));
 
     refs.folderMode.addEventListener("change", ui.updateFolderControls);
     refs.imageInput.addEventListener("change", () => {
-      refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
+      refs.selectedImages.textContent = [...refs.imageInput.files]
+        .map((image) => image.name)
+        .join(", ");
     });
 
     function appendImages(newFiles) {
@@ -1178,7 +1236,9 @@ Try this
       const transfer = new DataTransfer();
       [...refs.imageInput.files, ...newFiles].forEach((file) => transfer.items.add(file));
       refs.imageInput.files = transfer.files;
-      refs.selectedImages.textContent = [...refs.imageInput.files].map((image) => image.name).join(", ");
+      refs.selectedImages.textContent = [...refs.imageInput.files]
+        .map((image) => image.name)
+        .join(", ");
       return true;
     }
 
