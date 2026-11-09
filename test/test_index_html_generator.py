@@ -145,7 +145,7 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert 'aria-label="Difficulty: 4/10"' in page
     assert "recipe-detail__label" not in page
     assert "Breakfast" in page
-    assert "recipe-chip\">Breakfast</span>" in page
+    assert 'recipe-chip">Breakfast</span>' in page
     assert "American" in page
     assert "Cinnamon" in page
     assert 'id="filter-cuisine"' in page
@@ -169,10 +169,8 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert '<link rel="stylesheet" href="/assets/recipe-editor/recipe-editor.css?v=' in page
     assert '<script src="/assets/recipe-editor/recipe-editor.js?v=' in page
     assert 'id="create-recipe"' in page
-    assert "stroke=\"currentColor\"" in page
-    index_script = (
-        Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js"
-    ).read_text(encoding="UTF-8")
+    assert 'stroke="currentColor"' in page
+    index_script = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js").read_text(encoding="UTF-8")
     assert 'list.classList.toggle("card-view", isCards)' in index_script
     assert "setView(loadRecipeView())" in index_script
     assert 'filterControls.forEach(([, control]) => (control.value = ""))' in index_script
@@ -217,10 +215,7 @@ def test_index_review_filter_is_populated_and_sorted_by_review_count(tmp_path: P
 
     options = soup.select("#review-filter .filter-reviews")
     assert [option["value"] for option in options] == ["avery", "blair", "casey", "dana"]
-    assert [
-        option.parent.select_one(".review-filter__count").get_text(strip=True)
-        for option in options
-    ] == ["3", "2", "1", "1"]
+    assert [option.parent.select_one(".review-filter__count").get_text(strip=True) for option in options] == ["3", "2", "1", "1"]
     assert [option.parent.select_one("span").get_text(strip=True) for option in options] == [
         "Avery",
         "Blair",
@@ -243,12 +238,7 @@ def test_index_review_filter_keeps_only_the_top_30_reviewers(tmp_path: Path):
     generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
     generator.add(
         Recipe(
-            {
-                "ratings": [
-                    {"name": f"Reviewer {index:02d}", "rating": 5}
-                    for index in range(1, 32)
-                ]
-            },
+            {"ratings": [{"name": f"Reviewer {index:02d}", "rating": 5} for index in range(1, 32)]},
             recipe_path,
         )
     )
@@ -447,14 +437,7 @@ def test_recipe_editor_only_shows_ai_section_when_creating():
 
 
 def test_recipe_editor_css_keeps_files_and_ai_sections_single_column():
-    css = (
-        Path(__file__).parents[1]
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "recipe-editor"
-        / "recipe-editor.css"
-    ).read_text(encoding="UTF-8")
+    css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "recipe-editor" / "recipe-editor.css").read_text(encoding="UTF-8")
 
     assert ".recipe-editor__ai-details[hidden]" in css
     assert "grid-template-columns: minmax(0, 1fr)" in css
@@ -464,13 +447,7 @@ def test_recipe_editor_css_keeps_files_and_ai_sections_single_column():
 
 
 def test_definitions_css_centralizes_theme_values():
-    css = (
-        Path(__file__).parents[1]
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "definitions.css"
-    ).read_text(encoding="UTF-8")
+    css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "definitions.css").read_text(encoding="UTF-8")
 
     for token in (
         "--food-color",
@@ -486,21 +463,13 @@ def test_definitions_css_centralizes_theme_values():
         assert token in css
 
     for asset in ("style.css", "index.css", "recipe-editor/recipe-editor.css", "comments.css", "ratings.css"):
-        component = (
-            Path(__file__).parents[1]
-            / "src"
-            / "recipeserver"
-            / "assets"
-            / asset
-        ).read_text(encoding="UTF-8")
+        component = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / asset).read_text(encoding="UTF-8")
         assert "@font-face" not in component
         assert ":root {" not in component
 
 
 def test_index_uses_configured_recipe_server_name(tmp_path: Path):
-    generator = IndexHTMLGenerator(
-        SimpleNamespace(site_directory=tmp_path, recipe_server_name="Custom <Name>")
-    )
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path, recipe_server_name="Custom <Name>"))
     generator.convert()
 
     page = (tmp_path / "index.html").read_text(encoding="UTF-8")
@@ -524,9 +493,7 @@ def test_index_defaults_recipe_server_name(tmp_path: Path):
 
 
 def test_review_filter_shares_filter_control_select_styling():
-    css = (
-        Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css"
-    ).read_text(encoding="UTF-8")
+    css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
 
     assert ".recipe-toolbar .filter-control select,\n.review-filter summary" in css
     assert ".recipe-advanced > summary" in css
@@ -592,13 +559,7 @@ def test_index_includes_card_zoom_slider_control(tmp_path: Path):
     assert soup.select_one(".results-controls .view-switcher") is not None
     assert soup.select_one(".results-controls .card-zoom") is not None
 
-    css = (
-        Path(__file__).parents[1]
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "index.css"
-    ).read_text(encoding="UTF-8")
+    css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
     assert "--card-min-width" in css
     assert "--list-thumb-size" in css
     assert "#recipe-list.card-view" in css
@@ -618,13 +579,11 @@ def test_index_includes_card_zoom_slider_control(tmp_path: Path):
     assert "var(--list-thumb-size" in list_image_rule
     # Fixed card column breakpoints are replaced by the zoom-driven grid.
     assert "repeat(2, minmax(0, 1fr));\n  }\n}\n\n@media (min-width: 750px)" not in css.replace("  ", "")
-    assert '#recipe-list.card-view {\n    grid-template-columns: repeat(2' not in css
-    assert '#recipe-list.card-view {\n    grid-template-columns: repeat(3' not in css
-    assert '#recipe-list.card-view {\n    grid-template-columns: repeat(4' not in css
+    assert "#recipe-list.card-view {\n    grid-template-columns: repeat(2" not in css
+    assert "#recipe-list.card-view {\n    grid-template-columns: repeat(3" not in css
+    assert "#recipe-list.card-view {\n    grid-template-columns: repeat(4" not in css
 
-    script = (
-        Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js"
-    ).read_text(encoding="UTF-8")
+    script = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js").read_text(encoding="UTF-8")
     assert "recipe-card-min-width" in script
     assert "recipe-view" in script
     assert "loadRecipeView" in script
@@ -635,13 +594,7 @@ def test_index_includes_card_zoom_slider_control(tmp_path: Path):
 
 
 def test_card_zoom_css_remains_responsive(tmp_path: Path):
-    css = (
-        Path(__file__).parents[1]
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "index.css"
-    ).read_text(encoding="UTF-8")
+    css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
     # The grid must not overflow narrow viewports at large card widths.
     assert "min(var(--card-min-width, 280px), 100%)" in css
     # List thumbnails scale proportionally: 280px card width -> 4rem thumb.

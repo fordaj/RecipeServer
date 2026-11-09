@@ -125,7 +125,7 @@ class Core:
                     html = (self.cfg.site_directory / relative).with_suffix(".html")
                 html.unlink(missing_ok=True)
             self._update_index()
-            logger.info(f'Removed {len(paths)} recipe(s) from index')
+            logger.info(f"Removed {len(paths)} recipe(s) from index")
 
     def on_config_save(self):
         """Rebuild the whole site after a configuration change."""
@@ -152,10 +152,7 @@ class Core:
 
         if markdown_files:
             with ThreadPoolExecutor(max_workers=min(NUM_WORKERS, len(markdown_files))) as executor:
-                futures = {
-                    executor.submit(self.convert_recipe, markdown): markdown
-                    for markdown in markdown_files
-                }
+                futures = {executor.submit(self.convert_recipe, markdown): markdown for markdown in markdown_files}
 
                 for future in as_completed(futures):
                     markdown = futures[future]
@@ -163,9 +160,7 @@ class Core:
                         html, converter = future.result()
                     except Exception:
                         # One broken recipe should not prevent the rest of the site from building.
-                        logger.exception(
-                            f'Failed to convert recipe "{markdown}", skipping it'
-                        )
+                        logger.exception(f'Failed to convert recipe "{markdown}", skipping it')
                         continue
 
                     self._recipes[markdown.resolve()] = Recipe(

@@ -69,8 +69,8 @@ def test_configuration_reads_legacy_model_name_key(tmp_path, monkeypatch):
         "\n".join(
             [
                 f"source_directory = {json.dumps(str(source))}",
-                f"{MODEL_ENDPOINT_KEY} = \"http://127.0.0.1:1234/v1\"",
-                f"{MODEL_NAME_KEY} = \"legacy-model\"",
+                f'{MODEL_ENDPOINT_KEY} = "http://127.0.0.1:1234/v1"',
+                f'{MODEL_NAME_KEY} = "legacy-model"',
             ]
         ),
         encoding="UTF-8",
@@ -134,7 +134,7 @@ def test_configuration_defaults_recipe_server_name(tmp_path, monkeypatch):
         "\n".join(
             [
                 f"source_directory = {json.dumps(str(source))}",
-                f"{MODEL_ENDPOINT_KEY} = \"\"",
+                f'{MODEL_ENDPOINT_KEY} = ""',
             ]
         ),
         encoding="UTF-8",
@@ -261,7 +261,7 @@ def test_apply_config_values_validates_and_reports_changed_keys(tmp_path, monkey
     source.mkdir()
     config_file = tmp_path / CONFIG_FILENAME
     config_file.write_text(
-        f"source_directory = {json.dumps(str(source))}\n{MODEL_ENDPOINT_KEY} = \"\"\n",
+        f'source_directory = {json.dumps(str(source))}\n{MODEL_ENDPOINT_KEY} = ""\n',
         encoding="UTF-8",
     )
 
@@ -293,9 +293,7 @@ def test_apply_config_values_validates_and_reports_changed_keys(tmp_path, monkey
     assert saved[RECIPE_SERVER_NAME_KEY] == "My New Kitchen"
     assert saved[MODEL_ENDPOINT_KEY] == "http://127.0.0.1:1234/v1"
 
-    assert config.apply_config_values(
-        {RECIPE_SERVER_NAME_KEY: "My New Kitchen"}
-    ) == []
+    assert config.apply_config_values({RECIPE_SERVER_NAME_KEY: "My New Kitchen"}) == []
 
 
 def test_apply_config_values_rejects_invalid_values(tmp_path, monkeypatch):
@@ -303,7 +301,7 @@ def test_apply_config_values_rejects_invalid_values(tmp_path, monkeypatch):
     source.mkdir()
     config_file = tmp_path / CONFIG_FILENAME
     config_file.write_text(
-        f"source_directory = {json.dumps(str(source))}\n{MODEL_ENDPOINT_KEY} = \"\"\n",
+        f'source_directory = {json.dumps(str(source))}\n{MODEL_ENDPOINT_KEY} = ""\n',
         encoding="UTF-8",
     )
 
@@ -340,7 +338,7 @@ def _load_config(tmp_path, monkeypatch, extra_lines=""):
     source.mkdir(exist_ok=True)
     config_file = tmp_path / CONFIG_FILENAME
     config_file.write_text(
-        f"source_directory = {json.dumps(str(source))}\n{MODEL_ENDPOINT_KEY} = \"\"\n{extra_lines}",
+        f'source_directory = {json.dumps(str(source))}\n{MODEL_ENDPOINT_KEY} = ""\n{extra_lines}',
         encoding="UTF-8",
     )
 
@@ -397,9 +395,7 @@ def test_configuration_falls_back_to_defaults_for_invalid_saved_values(tmp_path,
 def test_apply_config_values_normalizes_port_and_food_color(tmp_path, monkeypatch):
     config, config_file = _load_config(tmp_path, monkeypatch)
 
-    changed = config.apply_config_values(
-        {SERVER_PORT_KEY: " 9000 ", FOOD_COLOR_KEY: "#ABC"}
-    )
+    changed = config.apply_config_values({SERVER_PORT_KEY: " 9000 ", FOOD_COLOR_KEY: "#ABC"})
 
     assert changed == [SERVER_PORT_KEY, FOOD_COLOR_KEY]
     assert config.server_port == 9000

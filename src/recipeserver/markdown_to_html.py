@@ -887,11 +887,7 @@ class MarkdownToHTMLConverter:
 
     @staticmethod
     def _has_valid_ratings(metadata: dict[str, object]) -> bool:
-        return any(
-            is_finite_rating_score(rating.get("rating"))
-            for rating in _as_list(metadata.get("ratings"))
-            if isinstance(rating, dict)
-        )
+        return any(is_finite_rating_score(rating.get("rating")) for rating in _as_list(metadata.get("ratings")) if isinstance(rating, dict))
 
     @staticmethod
     def _has_comments(metadata: dict[str, object]) -> bool:

@@ -4,12 +4,13 @@
 
 Local recipe-site generator and HTTP server. It reads a tree of `recipe.md` files, renders each to HTML, builds a searchable `index.html`, and serves the site with in-browser editing of metadata, ratings, and comments. Edits are written back to each recipe's YAML front matter and Markdown body.
 
-There is no CI and no Python linter/typechecker/formatter configuration. The only formatter config is `.prettierrc`, which applies to JS/CSS/HTML.
+There is no CI and no Python linter/typechecker configuration. Python formatting is via Black (line-length 150 in `pyproject.toml` `[tool.black]`) through `./format.sh`, which runs `uv run formattington python src test`. The only other formatter config is `.prettierrc`, which applies to JS/CSS/HTML.
 
 ## Commands
 
 - Sync deps: `uv sync` (Python 3.14 required; `uv` owns `.venv`).
 - Run: `./serve.sh` (same as `uv run python -m recipeserver`).
+- Format: `./format.sh` (same as `uv run formattington python src test`; pass `--check` for a dry-run check).
 - Run all tests: `uv run pytest`.
 - Focused tests: `uv run pytest test/test_index_html_generator.py test/test_ratings.py`
   - Single test: `uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_and_decimal_score`

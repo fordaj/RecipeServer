@@ -67,37 +67,29 @@ def test_makes_metadata_endpoint_increments_and_preserves_edit_time(tmp_path: Pa
     source.mkdir()
     recipe = source / "recipe.md"
     recipe.write_text(
-        "---\nupdatedOn: \"2024-06-20T12:30:00Z\"\ncustomField: keep me\n---\n# Soup\n",
+        '---\nupdatedOn: "2024-06-20T12:30:00Z"\ncustomField: keep me\n---\n# Soup\n',
         encoding="utf-8",
     )
     server, thread, saved_paths = start_server(source)
     base_url = f"http://127.0.0.1:{server.server_port}"
     try:
         # A recipe without a makes field reads as "not found" (client treats it as 0).
-        status, body = request_json(
-            f"{base_url}/api/metadata/makes?{urlencode({'path': 'recipe.md'})}"
-        )
+        status, body = request_json(f"{base_url}/api/metadata/makes?{urlencode({'path': 'recipe.md'})}")
         assert status == 404
 
-        status, body = request_json(
-            f"{base_url}/api/metadata/makes", {"path": "recipe.md", "value": 3}
-        )
+        status, body = request_json(f"{base_url}/api/metadata/makes", {"path": "recipe.md", "value": 3})
         assert status == 200
         assert body == {"success": True, "field": "makes"}
         assert saved_paths == [recipe]
 
-        status, body = request_json(
-            f"{base_url}/api/metadata/makes?{urlencode({'path': 'recipe.md'})}"
-        )
+        status, body = request_json(f"{base_url}/api/metadata/makes?{urlencode({'path': 'recipe.md'})}")
         assert status == 200
         assert body == {"value": 3}
 
         # Invalid values are rejected without touching the file.
         before = recipe.read_bytes()
         for invalid in (-1, 1.5, True, "3", [3]):
-            status, _ = request_json(
-                f"{base_url}/api/metadata/makes", {"path": "recipe.md", "value": invalid}
-            )
+            status, _ = request_json(f"{base_url}/api/metadata/makes", {"path": "recipe.md", "value": invalid})
             assert status == 400, invalid
         assert recipe.read_bytes() == before
         assert saved_paths == [recipe]
@@ -123,9 +115,7 @@ def test_makes_metadata_endpoint_reports_saved_but_regeneration_failed(tmp_path:
     server, thread, _ = start_server(source, on_markdown_saved=fail_regen)
     base_url = f"http://127.0.0.1:{server.server_port}"
     try:
-        status, body = request_json(
-            f"{base_url}/api/metadata/makes", {"path": "recipe.md", "value": 1}
-        )
+        status, body = request_json(f"{base_url}/api/metadata/makes", {"path": "recipe.md", "value": 1})
     finally:
         stop_server(server, thread)
 
@@ -144,14 +134,7 @@ def _asset(name: str) -> str:
 
 
 def _editor_template(name: str) -> str:
-    path = (
-        Path(__file__).parents[1]
-        / "src"
-        / "recipeserver"
-        / "assets"
-        / "recipe-editor"
-        / name
-    )
+    path = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "recipe-editor" / name
     return path.read_text(encoding="UTF-8")
 
 
@@ -171,7 +154,7 @@ def test_recipe_editor_made_this_button_is_in_header_and_hidden_when_creating():
     assert "madeThisButton.hidden = true" in script
     assert "madeThisCount.hidden = false" in script
     assert "madeThisCount.hidden = true" in script
-    assert "madeThisButton.addEventListener(\"click\", recordMadeThis)" in script
+    assert 'madeThisButton.addEventListener("click", recordMadeThis)' in script
     # Disabled while the editor is busy, like the other actions.
     assert "madeThisButton.disabled = value" in script
 

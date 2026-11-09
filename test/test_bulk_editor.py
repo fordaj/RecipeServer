@@ -29,7 +29,10 @@ def _write_recipe(path: Path, metadata: str):
 @pytest.fixture()
 def bulk_server(tmp_path):
     source = tmp_path / "source"
-    _write_recipe(source / "Alpha" / "recipe.md", "contributor: Avery\ncategories:\n  - Old\nmeals:\n  - Dinner\nratings:\n  - name: Kim\n    rating: 5\n    id: r1\n    created: '2026-01-01T00:00:00Z'\n    updated: '2026-01-01T00:00:00Z'\n")
+    _write_recipe(
+        source / "Alpha" / "recipe.md",
+        "contributor: Avery\ncategories:\n  - Old\nmeals:\n  - Dinner\nratings:\n  - name: Kim\n    rating: 5\n    id: r1\n    created: '2026-01-01T00:00:00Z'\n    updated: '2026-01-01T00:00:00Z'\n",
+    )
     _write_recipe(source / "Beta" / "recipe.md", "contributor: Blair\ncategories:\n  - Other\nmeals:\n  - Lunch\n")
     saved, deleted = [], []
     handler = partial(
@@ -81,7 +84,10 @@ def test_bulk_editor_get_returns_metadata_and_ratings(bulk_server):
 
 def test_bulk_edit_single_field_does_not_touch_others(bulk_server):
     base, source, saved, _ = bulk_server
-    with _post(f"{base}/api/bulk-editor", {"paths": ["Alpha/recipe.md", "Beta/recipe.md"], "metadata": {"categories": ["Slow Cooker"]}, "fields": ["categories"]}) as response:
+    with _post(
+        f"{base}/api/bulk-editor",
+        {"paths": ["Alpha/recipe.md", "Beta/recipe.md"], "metadata": {"categories": ["Slow Cooker"]}, "fields": ["categories"]},
+    ) as response:
         assert json.loads(response.read())["count"] == 2
     alpha = frontmatter.loads((source / "Alpha" / "recipe.md").read_text()).metadata
     beta = frontmatter.loads((source / "Beta" / "recipe.md").read_text()).metadata
@@ -103,7 +109,10 @@ def test_bulk_edit_rating_merges_by_name(bulk_server):
 def test_bulk_edit_prechecks_and_validates(bulk_server):
     base, source, _, _ = bulk_server
     with pytest.raises(HTTPError) as error:
-        _post(f"{base}/api/bulk-editor", {"paths": ["Alpha/recipe.md", "Missing/recipe.md"], "metadata": {"categories": ["X"]}, "fields": ["categories"]})
+        _post(
+            f"{base}/api/bulk-editor",
+            {"paths": ["Alpha/recipe.md", "Missing/recipe.md"], "metadata": {"categories": ["X"]}, "fields": ["categories"]},
+        )
     assert error.value.code == 404
     # Nothing written for Alpha either.
     assert frontmatter.loads((source / "Alpha" / "recipe.md").read_text()).metadata["categories"] == ["Old"]
@@ -129,8 +138,7 @@ def test_bulk_mixed_and_save_live_inside_field_labels_hidden_by_default():
     script = (base / "recipe-editor.js").read_text(encoding="UTF-8")
     css = (base / "recipe-editor.css").read_text(encoding="UTF-8")
     markup = "".join(
-        (base / name).read_text(encoding="UTF-8")
-        for name in ("form.html", "files.html", "ai.html", "details.html", "sources.html", "ratings.html")
+        (base / name).read_text(encoding="UTF-8") for name in ("form.html", "files.html", "ai.html", "details.html", "sources.html", "ratings.html")
     )
     # Each metadata field label contains a hidden * MIXED span and a hidden Save button inside its input control.
     assert markup.count('<span class="recipe-editor__mixed" hidden>* MIXED</span>') >= 12
@@ -143,7 +151,7 @@ def test_bulk_mixed_and_save_live_inside_field_labels_hidden_by_default():
     # Mixed/save are toggled (unhidden) rather than created/removed.
     assert "badge.hidden = false" in script
     assert "button.hidden = !visible" in script
-    assert 'dialog.classList.toggle(\'is-bulk\', visible)' in script or 'dialog.classList.toggle("is-bulk"' in script
+    assert "dialog.classList.toggle('is-bulk', visible)" in script or 'dialog.classList.toggle("is-bulk"' in script
     assert "setupBulkFieldButtons()" in script
     assert ".recipe-editor__mixed[hidden]" in css
     assert ".recipe-editor__bulk-field-save[hidden]" in css
@@ -178,17 +186,13 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     # Order left-to-right: Clear Selections, Delete Selected, Bulk Edit.
     button_ids = [b["id"] for b in soup.select("#bulk-controls button")]
     assert button_ids == ["clear-selections", "bulk-delete", "bulk-edit"]
-    index_css = (
-        Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css"
-    ).read_text(encoding="UTF-8")
+    index_css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
     assert ".bulk-controls #bulk-edit" in index_css and "background: var(--food-color)" in index_css
     assert ".bulk-controls #bulk-delete" in index_css and "background: var(--danger-color)" in index_css
     # Selection mode must not show a native text highlight.
     assert ".select-all-control" in index_css
     assert "#recipe-list.selection-mode .recipe-card" in index_css and "user-select: none" in index_css
-    index_js = (
-        Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js"
-    ).read_text(encoding="UTF-8")
+    index_js = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js").read_text(encoding="UTF-8")
     # Plain click toggles (no separate Ctrl behavior) and Ctrl+Shift
     # (or Cmd+Shift) adds a File Explorer-style range from the anchor.
     assert "selectionAnchor" in index_js
