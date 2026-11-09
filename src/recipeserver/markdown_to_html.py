@@ -10,10 +10,13 @@ from bs4 import BeautifulSoup, Tag
 from fractions import Fraction
 from ._logger import logger
 from .recipe_utils import (
+    display_date,
+    is_date_only,
     is_finite_rating_score,
     iter_valid_rating_entries,
     json_default,
     parse_metadata_datetime,
+    slug_to_title,
 )
 from coloraide import Color
 from importlib.metadata import version
@@ -121,34 +124,6 @@ def dark_mode_color(hex_color):
     result = result.convert("srgb").fit()
 
     return result.to_string(hex=True)
-
-
-# Shared serializer for YAML/date values in embedded recipe metadata.
-_json_default = json_default
-
-
-def _parse_datetime(value: object) -> datetime | None:
-    """Parse metadata timestamps as timezone-aware UTC datetimes."""
-    return parse_metadata_datetime(value)
-
-
-def _is_date_only(value: object) -> bool:
-    """Return True when a metadata value represents a calendar date only."""
-    if isinstance(value, datetime):
-        return False
-    if isinstance(value, date):
-        return True
-    if isinstance(value, str):
-        return re.fullmatch(r"\d{4}-\d{2}-\d{2}", value.strip()) is not None
-    return False
-
-
-def _display_date(value: datetime) -> str:
-    """Format a UTC datetime for the server-rendered fallback text."""
-    text = f"{value:%b} {value.day}"
-    if datetime.now(timezone.utc).year != value.year:
-        text += f", {value.year}"
-    return text
 
 
 def _as_list(value: object) -> list:
@@ -537,7 +512,7 @@ class MarkdownToHTMLConverter:
             return None
 
         created_on_value = metadata.get("createdOn")
-        created_on = _parse_datetime(created_on_value)
+        created_on = parse_metadata_datetime(created_on_value)
 
         item = soup.new_tag(
             "div",
@@ -557,7 +532,7 @@ class MarkdownToHTMLConverter:
             separator.string = "·"
             label.append(separator)
 
-            if _is_date_only(created_on_value):
+            if is_date_only(created_on_value):
                 time_attrs = {"datetime": created_on.date().isoformat()}
             else:
                 time_attrs = {
@@ -566,7 +541,7 @@ class MarkdownToHTMLConverter:
                 }
 
             time_element = soup.new_tag("time", attrs=time_attrs)
-            time_element.string = _display_date(created_on)
+            time_element.string = display_date(created_on)
             label.append(time_element)
 
         item.append(label)
@@ -677,7 +652,7 @@ class MarkdownToHTMLConverter:
         label = soup.new_tag("span")
 
         updated_on_value = metadata.get("updatedOn")
-        updated_on = _parse_datetime(updated_on_value)
+        updated_on = parse_metadata_datetime(updated_on_value)
         label.append(f"v{VERSION}")
 
         if updated_on:
@@ -688,7 +663,7 @@ class MarkdownToHTMLConverter:
             separator.string = "·"
             label.append(separator)
 
-            if _is_date_only(updated_on_value):
+            if is_date_only(updated_on_value):
                 time_attrs = {"datetime": updated_on.date().isoformat()}
             else:
                 time_attrs = {
@@ -698,7 +673,7 @@ class MarkdownToHTMLConverter:
                 }
 
             time_element = soup.new_tag("time", attrs=time_attrs)
-            time_element.string = f"Edited {_display_date(updated_on)}"
+            time_element.string = f"Edited {display_date(updated_on)}"
             label.append(time_element)
 
         version_element.append(label)
@@ -803,10 +778,6 @@ class MarkdownToHTMLConverter:
             </section>
         """).strip()
 
-    @staticmethod
-    def _deslugify(slug: str) -> str:
-        return slug.replace("-", " ").replace("_", " ").title()
-
     def convert(self, markdown_file: Path, html_file: Path):
         logger.file(f"Converting {markdown_file.relative_to(self.cfg.source_directory)}")
 
@@ -823,7 +794,7 @@ class MarkdownToHTMLConverter:
         source_title = (
             self._get_title_from_markdown_content(post.content.splitlines())
             or str(post.metadata.get("title") or "").strip()
-            or self._deslugify(markdown_file.parent.name)
+            or slug_to_title(markdown_file.parent.name)
         )
         self.title = source_title
 
@@ -882,7 +853,7 @@ class MarkdownToHTMLConverter:
     def _serialize_metadata_json(metadata: dict[str, object]) -> str:
         """Serialize metadata for embedding in a script tag."""
         # Sanitize "<" so embedded JSON cannot break out of the script element.
-        return json.dumps(metadata, default=_json_default).replace("<", "\\u003c")
+        return json.dumps(metadata, default=json_default).replace("<", "\\u003c")
 
     @staticmethod
     def _has_valid_ratings(metadata: dict[str, object]) -> bool:
