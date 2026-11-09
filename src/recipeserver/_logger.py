@@ -1,7 +1,5 @@
-# python_common/logger.py
-
 from loguru import logger
-import socket, sys, os, atexit, shutil
+import socket, sys, os, shutil
 from enum import IntEnum
 
 hostname = socket.gethostname()
@@ -42,7 +40,6 @@ def console_format(record):
     if width < 120:
         return TINY_CONSOLE_FORMAT
 
-    # Switch to compact output on narrow terminals.
     if width < 180:
         return COMPACT_CONSOLE_FORMAT
 
@@ -80,16 +77,8 @@ def setup_logger(log_level="INFO"):
         enqueue=True,
     )
 
-    # def zip_logs():
-    #     logger.complete()
-    #     logger.remove()
-    #     from python_common.log_zipper import LogZipper
-    #     LogZipper().run()
-
-    # atexit.register(zip_logs)
-
     logger.trace("Logger setup complete")
     _is_configured = True
 
 
-__all__ = ["logger", "setup_logger"]
+__all__ = ["LogLevel", "logger", "setup_logger"]
