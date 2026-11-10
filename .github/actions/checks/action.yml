@@ -1,5 +1,5 @@
 name: Checks
-description: Repository checks (format + tests).
+description: Repository checks.
 
 inputs:
   working_directory:
@@ -10,15 +10,18 @@ runs:
   using: composite
   steps:
     - name: Format
+      uses: fordaj/Utilities/.github/actions/format@main
+      with:
+        working_directory: "${{ inputs.working_directory }}"
+
+    - name: Build
       shell: bash
       run: |
         cd "${{ inputs.working_directory }}"
-        source scripts/env.sh
-        ./format.sh --check
+        source Embedded/env.sh
+        ./$BUILD_SH -l trace --mode all
 
     - name: Test
-      shell: bash
-      run: |
-        cd "${{ inputs.working_directory }}"
-        source scripts/env.sh
-        uv run pytest
+      uses: fordaj/AirFrame/.github/actions/test@main
+      with:
+        working_directory: "${{ inputs.working_directory }}"

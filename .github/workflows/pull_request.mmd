@@ -1,5 +1,5 @@
 ---
-title: Pull Request Workflow
+title: Release Workflow
 ---
 
 flowchart TD
@@ -7,25 +7,31 @@ flowchart TD
     MacOS:Checkout["Checkout"]
     MacOS:Host["Host"]
     MacOS:Format["Format"]
+    MacOS:Build["Build"]
     MacOS:Test["Test"]
     MacOS:CleanUp["Clean Up"]
     subgraph MacOS
         direction TD
         MacOS:Checkout-->MacOS:Host
         MacOS:Host-->MacOS:Format
-        MacOS:Format-->MacOS:Test
+        MacOS:Format-->MacOS:Build
+        MacOS:Build-->MacOS:Test
         MacOS:Test-->MacOS:CleanUp
     end
 
     Windows:Checkout["Checkout"]
     Windows:Host["Host"]
     Windows:Format["Format"]
+    Windows:Build["Build"]
     Windows:Test["Test"]
     Windows:CleanUp["Clean Up"]
     subgraph Windows
         direction TD
         Windows:Checkout-->Windows:Host
         Windows:Host-->Windows:Format
-        Windows:Format-->Windows:Test
+        Windows:Format-->Windows:Build
+        Windows:Build-->Windows:Test
         Windows:Test-->Windows:CleanUp
     end
+    
+    

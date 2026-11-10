@@ -1,5 +1,5 @@
 name: Test
-description: Run the Python test suite.
+description: Test the code!
 
 inputs:
   working_directory:
@@ -9,9 +9,32 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Test
+    - name: Test Host
       shell: bash
       run: |
         cd "${{ inputs.working_directory }}"
-        source scripts/env.sh
-        uv run pytest
+        source Embedded/env.sh
+        ./$TEST_SH -l trace --mode host
+
+    - name: Detect Connected Devices
+      shell: bash
+      run: |
+        cd "${{ inputs.working_directory }}"
+        source Embedded/env.sh
+        ./$DETECT_SH -l trace
+
+    - name: Test ESP32S3
+      if: env.IS_ESP32S3_CONNECTED == 'true'
+      shell: bash
+      run: |
+        cd "${{ inputs.working_directory }}"
+        source Embedded/env.sh
+        ./$TEST_SH -l trace --mode ESP32_S3 --flash
+
+    - name: Test ESP32S3 (Emulated)
+      if: env.IS_ESP32S3_CONNECTED == 'true'
+      shell: bash
+      run: |
+        cd "${{ inputs.working_directory }}"
+        source Embedded/env.sh
+        ./$TEST_SH -l trace --mode ESP32_S3_EMULATED --flash

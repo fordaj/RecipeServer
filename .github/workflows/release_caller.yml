@@ -1,0 +1,23 @@
+name: Pull Request Caller
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  Release:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows, macos]
+    permissions:
+      contents: write # Allow write permissions for uploading files to release
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}-${{ matrix.os }}
+      cancel-in-progress: true
+    uses: ./.github/workflows/release.yml
+    with:
+      os: ${{ matrix.os }}
+      working_directory: "$HOME/.runners/AirFrame/Release-${{ github.event.release.tag_name }}"
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}

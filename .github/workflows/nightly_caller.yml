@@ -17,4 +17,4 @@ jobs:
     uses: ./.github/workflows/nightly.yml
     with:
       os: ${{ matrix.os }}
-      working_directory: "$HOME/.runners/RecipeServer/Nightly-${{ github.run_id }}"
+      working_directory: "$HOME/.runners/AirFrame/Nightly-${{ github.run_id }}"

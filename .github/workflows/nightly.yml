@@ -30,7 +30,7 @@ jobs:
           echo "RUNNER_NAME=$RUNNER_NAME" >> $GITHUB_OUTPUT
 
       - name: Checkout
-        uses: ./.github/actions/checkout
+        uses: fordaj/Utilities/.github/actions/checkout@main
         with:
           working_directory: "${{ inputs.working_directory }}"
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -46,7 +46,7 @@ jobs:
       ]
     steps:
       - name: Checks
-        uses: ./.github/actions/checks
+        uses: fordaj/AirFrame/.github/actions/checks@main
         with:
           working_directory: "${{ inputs.working_directory }}"
 
@@ -62,6 +62,6 @@ jobs:
       ]
     steps:
       - name: Cleanup
-        uses: ./.github/actions/cleanup
+        uses: fordaj/Utilities/.github/actions/cleanup@main
         with:
           working_directory: "${{ inputs.working_directory }}"
