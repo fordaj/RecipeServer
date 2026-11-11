@@ -126,36 +126,147 @@
     };
   }
 
-  // ----- Ingredient markup ----- //
+  // ----- Ingredient helpers ----- //
+
+  // Two ingredients are the same when they name the same thing in the same
+  // unit. The name and the unit come from the server, so the rules live in
+  // one place.
+  function mergeKeyFor(ingredient) {
+    return [ingredient.name, ingredient.unit, ingredient.has_range ? "range" : "single"].join("|");
+  }
 
   // The plain text of an ingredient, with the scaled amount in place of the
   // quantity span the recipe scaler renders with KaTeX.
-  function ingredientText(item) {
-    const clone = item.cloneNode(true);
+  function plainText(element) {
+    const clone = element.cloneNode(true);
 
-    clone.querySelectorAll('input[type="checkbox"]').forEach((input) => input.remove());
-    clone.querySelectorAll(".quantity").forEach((quantity) => {
-      const text = quantity.dataset.scaledText ?? quantity.textContent;
-      quantity.replaceWith(document.createTextNode(text));
+    clone.querySelectorAll('input[type="checkbox"]').forEach((node) => node.remove());
+    clone.querySelectorAll(".meal-planner__sources").forEach((node) => node.remove());
+    clone.querySelectorAll(".quantity").forEach((node) => {
+      node.replaceWith(document.createTextNode(node.dataset.scaledText ?? node.textContent));
     });
 
     return clone.textContent.replace(/\s+/g, " ").trim();
   }
 
-  function buildChecklistItem(source) {
-    const item = document.createElement("li");
-    item.className = "task-list-item";
+  // The parts of an ingredient that are not the amount.
+  function remainderOf(item) {
+    const clone = item.cloneNode(true);
 
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
+    clone.querySelectorAll('input[type="checkbox"]').forEach((node) => node.remove());
+    clone.querySelectorAll(".quantity").forEach((node) => node.remove());
 
+    return clone.textContent.replace(/\s+/g, " ").trim();
+  }
+
+  // ----- Combining ingredients ----- //
+
+  function collectEntries() {
+    const entries = [];
+
+    for (const row of state.rows) {
+      const source = row.dataset.recipeName ?? "";
+
+      for (const item of row.querySelectorAll(".meal-planner__recipe-ingredients > li")) {
+        // The placeholder for a recipe without ingredients is not an ingredient.
+        if (item.classList.contains("meal-planner__no-ingredients")) continue;
+
+        const quantityElement = item.querySelector(".quantity");
+        const scaled = quantityElement ? parseFloat(quantityElement.dataset.scaledQuantity) : NaN;
+        const scaledEnd = quantityElement?.dataset.scaledQuantityEnd;
+
+        entries.push({
+          key: item.dataset.mergeKey,
+          source,
+          item,
+          unit: quantityElement?.dataset.unit ?? "",
+          remainder: remainderOf(item),
+          quantity: Number.isFinite(scaled) ? scaled : null,
+          end: scaledEnd === undefined ? null : Number.parseFloat(scaledEnd),
+        });
+      }
+    }
+
+    return entries;
+  }
+
+  // Add the amounts of the ingredients that name the same thing together.
+  function mergeEntries(entries) {
+    const groups = new Map();
+
+    for (const entry of entries) {
+      let group = groups.get(entry.key);
+
+      if (!group) {
+        group = {
+          key: entry.key,
+          unit: entry.unit,
+          hasRange: entry.end !== null,
+          quantity: entry.quantity,
+          end: entry.end,
+          sources: [],
+          members: [],
+        };
+        groups.set(entry.key, group);
+      } else if (group.quantity !== null && entry.quantity !== null) {
+        group.quantity += entry.quantity;
+        if (group.end !== null && entry.end !== null) group.end += entry.end;
+      }
+
+      group.members.push(entry);
+      if (!group.sources.includes(entry.source)) group.sources.push(entry.source);
+    }
+
+    return [...groups.values()];
+  }
+
+  // The amount of a combined ingredient.
+  function buildGroupAmount(group) {
+    if (group.quantity === null) return null;
+
+    const span = document.createElement("span");
+    span.className = "quantity";
+    span.dataset.unit = group.unit;
+    // The combined list is not scaled, so the amount is already the
+    // scaled one.
+    span.dataset.quantity = String(group.quantity);
+    if (group.hasRange && group.end !== null) span.dataset.quantityEnd = String(group.end);
+
+    const scaled = RecipeScaler.roundQuantity(group.quantity, group.unit);
+    let formatted = RecipeScaler.formatQuantity(scaled, group.unit);
+    let text = RecipeScaler.formatQuantityText(scaled, group.unit);
+
+    if (group.hasRange && group.end !== null) {
+      formatted = RecipeScaler.formatScaledRange(scaled, group.end, group.unit);
+      text = RecipeScaler.formatScaledRangeText(scaled, group.end, group.unit);
+    }
+
+    span.dataset.scaledText = text;
+    RecipeScaler.renderQuantity(span, formatted);
+    return span;
+  }
+
+  // The content of a combined ingredient: the amount and the rest of the
+  // line, keeping the markup of the recipe it came from.
+  function buildGroupContent(group) {
     const content = document.createElement("span");
     content.className = "meal-planner__ingredient";
-    content.innerHTML = source.innerHTML;
-    content.querySelectorAll('input[type="checkbox"]').forEach((input) => input.remove());
 
-    item.append(checkbox, document.createTextNode(" "), content);
-    return item;
+    const clone = group.members[0].item.cloneNode(true);
+    clone.querySelectorAll('input[type="checkbox"]').forEach((node) => node.remove());
+
+    const amount = buildGroupAmount(group);
+    const quantityElement = clone.querySelector(".quantity");
+    if (quantityElement) {
+      if (amount) {
+        quantityElement.replaceWith(amount);
+      } else {
+        quantityElement.remove();
+      }
+    }
+
+    while (clone.firstChild) content.append(clone.firstChild);
+    return content;
   }
 
   // ----- Rendering ----- //
@@ -163,6 +274,7 @@
   function buildRow(recipe, ingredients) {
     const row = document.createElement("div");
     row.className = "meal-planner__recipe";
+    row.dataset.recipeName = recipe.title;
 
     const scaler = document.createElement("div");
     scaler.className = "meal-planner__scaler";
@@ -190,9 +302,10 @@
     const list = document.createElement("ul");
     list.className = "meal-planner__recipe-ingredients";
 
-    for (const markup of ingredients) {
+    for (const ingredient of ingredients) {
       const item = document.createElement("li");
-      item.innerHTML = markup;
+      item.innerHTML = ingredient.html;
+      item.dataset.mergeKey = mergeKeyFor(ingredient);
       // The combined list is the checklist. The per-recipe lists only
       // show the amounts, so their checkboxes are dropped.
       item.querySelectorAll('input[type="checkbox"]').forEach((input) => input.remove());
@@ -211,23 +324,47 @@
     return row;
   }
 
+  function buildChecklistItem(entry) {
+    const item = document.createElement("li");
+    item.className = "task-list-item";
+    // The merge key identifies the ingredient, so a ticked ingredient
+    // stays ticked when a scale change changes its amount.
+    item.dataset.mergeKey = entry.group.key;
+
+    const row = document.createElement("span");
+    row.className = "meal-planner__item";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+
+    const sources = document.createElement("span");
+    sources.className = "meal-planner__sources";
+    sources.textContent = entry.group.sources.join(", ");
+
+    row.append(checkbox, entry.content, sources);
+    item.append(row);
+    return item;
+  }
+
+  // The key of a ticked item. The merge key is used when it is there, so
+  // the tick survives a scale change.
+  function tickedKey(item) {
+    return item.dataset.mergeKey || plainText(item);
+  }
+
   function renderCombined() {
     if (!state?.ready) return;
 
     // Keep the ticked items ticked when a scale change re-renders the list.
     const ticked = new Set();
     for (const item of state.list.querySelectorAll(".task-list-item")) {
-      if (item.querySelector('input[type="checkbox"]')?.checked) ticked.add(ingredientText(item));
+      if (item.querySelector('input[type="checkbox"]')?.checked) ticked.add(tickedKey(item));
     }
 
-    const entries = [];
-    for (const row of state.rows) {
-      for (const item of row.querySelectorAll(".meal-planner__recipe-ingredients > li")) {
-        // The placeholder for a recipe without ingredients is not an ingredient.
-        if (item.classList.contains("meal-planner__no-ingredients")) continue;
-        entries.push({ text: ingredientText(item), item });
-      }
-    }
+    const entries = mergeEntries(collectEntries()).map((group) => {
+      const content = buildGroupContent(group);
+      return { group, content, text: plainText(content) };
+    });
 
     entries.sort((left, right) =>
       left.text.localeCompare(right.text, undefined, { sensitivity: "base" }),
@@ -235,13 +372,13 @@
 
     const fragment = document.createDocumentFragment();
     for (const entry of entries) {
-      fragment.append(buildChecklistItem(entry.item));
+      fragment.append(buildChecklistItem(entry));
     }
     state.list.replaceChildren(fragment);
 
     for (const item of state.list.querySelectorAll(".task-list-item")) {
       const checkbox = item.querySelector('input[type="checkbox"]');
-      if (checkbox) checkbox.checked = ticked.has(ingredientText(item));
+      if (checkbox) checkbox.checked = ticked.has(tickedKey(item));
     }
 
     if (!state.list.childElementCount) {
@@ -265,7 +402,7 @@
 
     for (const item of state.list.querySelectorAll(".task-list-item")) {
       const checked = item.querySelector('input[type="checkbox"]')?.checked ? "x" : " ";
-      lines.push(`- [${checked}] ${ingredientText(item)}`);
+      lines.push(`- [${checked}] ${plainText(item)}`);
     }
 
     return `${lines.join("\n")}\n`;

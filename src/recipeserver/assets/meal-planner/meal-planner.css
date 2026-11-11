@@ -138,7 +138,7 @@
 
 .meal-planner__name {
   margin: 0 0 0.25rem;
-  color: var(--heading-color);
+  color: var(--food-color);
   font-size: 1rem;
   font-weight: 600;
   overflow-wrap: anywhere;
@@ -189,6 +189,29 @@
 
 .meal-planner__ingredients .quantity {
   min-height: 0;
+}
+
+/* The checklist row: the amount, and the recipes it came from on the
+   right hand side. */
+.meal-planner__item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.meal-planner__ingredient {
+  min-width: 0;
+}
+
+.meal-planner__sources {
+  flex: 0 1 auto;
+  margin-left: auto;
+  padding-left: 0.75rem;
+
+  color: var(--muted-color);
+  font-size: 0.85em;
+  font-style: italic;
+  text-align: right;
 }
 
 /* ---------- Checklist checkboxes ---------- */
@@ -355,5 +378,13 @@
 
   .meal-planner__ingredients {
     color: var(--print-text-color);
+    /* The printed checklist is laid out in two columns. */
+    columns: 2;
+    column-gap: 2rem;
+    padding-right: 1.25rem;
+  }
+
+  .meal-planner__ingredients li {
+    break-inside: avoid;
   }
 }

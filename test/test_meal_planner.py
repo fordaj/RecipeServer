@@ -11,7 +11,7 @@ from urllib.request import urlopen
 import pytest
 from bs4 import BeautifulSoup
 
-from recipeserver.meal_planner import scrape_ingredients
+from recipeserver.meal_planner import parse_ingredient, scrape_ingredients
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
 
 from types import SimpleNamespace
@@ -46,28 +46,28 @@ def test_scrape_ingredients_collects_items_under_an_ingredient_heading():
     ingredients = scrape_ingredients(RECIPE_PAGE)
 
     assert len(ingredients) == 2
-    assert "of flour" in ingredients[0]
-    assert "salt to taste" in ingredients[1]
+    assert "of flour" in ingredients[0]["html"]
+    assert "salt to taste" in ingredients[1]["html"]
 
 
 def test_scrape_ingredients_keeps_the_quantity_spans():
     [ingredient] = scrape_ingredients(RECIPE_PAGE)[:1]
 
-    assert 'class="quantity"' in ingredient
-    assert 'data-quantity="0.5"' in ingredient
-    assert 'data-unit="cup"' in ingredient
+    assert 'class="quantity"' in ingredient["html"]
+    assert 'data-quantity="0.5"' in ingredient["html"]
+    assert 'data-unit="cup"' in ingredient["html"]
 
 
 def test_scrape_ingredients_stops_at_the_next_heading():
     ingredients = scrape_ingredients(RECIPE_PAGE)
 
-    assert not any("Stir well" in ingredient for ingredient in ingredients)
+    assert not any("Stir well" in ingredient["html"] for ingredient in ingredients)
 
 
 def test_scrape_ingredients_matches_the_heading_case_insensitively():
     html = "<h2>INGREDIENTS</h2><ul><li>salt</li></ul><h2>Other</h2><ul><li>pepper</li></ul>"
 
-    assert scrape_ingredients(html) == ["salt"]
+    assert [ingredient["html"] for ingredient in scrape_ingredients(html)] == ["salt"]
 
 
 def test_scrape_ingredients_requires_an_ingredient_heading():
@@ -83,13 +83,58 @@ def test_scrape_ingredients_re_evaluates_the_heading_for_every_section():
       <h2>More Ingredients</h2><ul><li>salt</li></ul>
     """
 
-    assert scrape_ingredients(html) == ["flour", "salt"]
+    assert [ingredient["html"] for ingredient in scrape_ingredients(html)] == ["flour", "salt"]
 
 
 def test_scrape_ingredients_reads_nested_list_items():
     html = "<h2>Ingredients</h2><ul><li>flour<ul><li>more flour</li></ul></li></ul>"
 
-    assert scrape_ingredients(html) == ["flour<ul><li>more flour</li></ul>", "more flour"]
+    assert [ingredient["html"] for ingredient in scrape_ingredients(html)] == [
+        "flour<ul><li>more flour</li></ul>",
+        "more flour",
+    ]
+
+
+# ----- Combining ingredients ----- #
+
+
+def test_parse_ingredient_names_the_ingredient_without_the_amount():
+    ingredient = parse_ingredient('<span class="quantity" data-quantity="0.5" data-unit="cup"></span> of flour')
+
+    assert ingredient["name"] == "flour"
+    assert ingredient["unit"] == "cup"
+    assert ingredient["has_range"] is False
+
+
+def test_parse_ingredient_ignores_a_leading_of():
+    assert parse_ingredient("<span class='quantity'></span> of flour")["name"] == "flour"
+    assert parse_ingredient("flour")["name"] == "flour"
+
+
+def test_parse_ingredient_normalizes_the_plural_of_a_unit():
+    assert parse_ingredient('<span class="quantity" data-unit="cups"></span> flour')["unit"] == "cup"
+    assert parse_ingredient('<span class="quantity" data-unit="carrots"></span>')["unit"] == "carrot"
+
+
+def test_parse_ingredient_keeps_units_that_end_in_es_or_ss():
+    assert parse_ingredient('<span class="quantity" data-unit="molasses"></span>')["unit"] == "molasses"
+    assert parse_ingredient('<span class="quantity" data-unit="tomatoes"></span>')["unit"] == "tomatoes"
+
+
+def test_parse_ingredient_notices_a_range():
+    range_ingredient = parse_ingredient('<span class="quantity" data-quantity="2" data-quantity-end="3" data-unit="cup"></span> stock')
+    plain_ingredient = parse_ingredient('<span class="quantity" data-quantity="2" data-unit="cup"></span> stock')
+
+    assert range_ingredient["has_range"] is True
+    assert plain_ingredient["has_range"] is False
+
+
+def test_parse_ingredient_keeps_the_ingredient_without_an_amount():
+    ingredient = parse_ingredient("salt to taste")
+
+    assert ingredient["name"] == "salt to taste"
+    assert ingredient["unit"] == ""
+    assert ingredient["has_range"] is False
 
 
 # ----- API ----- #
@@ -128,7 +173,11 @@ def test_meal_planner_api_returns_the_ingredients_of_each_recipe(meal_planner_se
 
     assert [recipe["path"] for recipe in data["recipes"]] == ["Soup/recipe.md"]
     assert len(data["recipes"][0]["ingredients"]) == 2
-    assert "of flour" in data["recipes"][0]["ingredients"][0]
+    assert "of flour" in data["recipes"][0]["ingredients"][0]["html"]
+    # The name and the unit say which ingredient this is, so the planner can
+    # add the amounts of several recipes together.
+    assert data["recipes"][0]["ingredients"][0]["name"] == "flour"
+    assert data["recipes"][0]["ingredients"][0]["unit"] == "cup"
 
 
 def test_meal_planner_api_rejects_paths_outside_the_source_directory(meal_planner_server):
@@ -258,3 +307,42 @@ def test_meal_planner_sorts_the_combined_ingredients_alphabetically():
 
     assert "localeCompare" in script
     assert "task-list-item" in script
+
+
+def test_meal_planner_adds_the_amounts_of_the_same_ingredient_together():
+    script = (MEAL_PLANNER_ASSETS / "meal-planner.js").read_text(encoding="UTF-8")
+
+    # Ingredients are grouped by the key the server works out, and the
+    # amounts of the group are added together.
+    assert "function mergeEntries(" in script
+    assert "group.quantity += entry.quantity" in script
+    assert "group.end += entry.end" in script
+    assert "mergeKeyFor" in script
+
+
+def test_meal_planner_shows_the_recipes_the_ingredients_come_from():
+    script = (MEAL_PLANNER_ASSETS / "meal-planner.js").read_text(encoding="UTF-8")
+    css = (MEAL_PLANNER_ASSETS / "meal-planner.css").read_text(encoding="UTF-8")
+
+    assert "meal-planner__sources" in script
+    assert "group.sources.join" in script
+    # The sources sit to the right of the checkbox, in muted italic text.
+    assert ".meal-planner__sources {" in css
+    assert "font-style: italic" in css
+    assert "color: var(--muted-color)" in css
+    assert "margin-left: auto" in css
+
+
+def test_meal_planner_names_the_recipes_in_the_food_color():
+    css = (MEAL_PLANNER_ASSETS / "meal-planner.css").read_text(encoding="UTF-8")
+
+    name_rule = css.split(".meal-planner__name {")[1].split("}")[0]
+    assert "color: var(--food-color)" in name_rule
+
+
+def test_meal_planner_prints_the_checklist_in_two_columns():
+    css = (MEAL_PLANNER_ASSETS / "meal-planner.css").read_text(encoding="UTF-8")
+
+    print_rule = css.split("@media print {")[1]
+    assert "columns: 2" in print_rule
+    assert "break-inside: avoid" in print_rule
