@@ -43,6 +43,7 @@ INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor/recipe-editor.css"
 RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor/recipe-editor.js"
+RECIPE_SCALER_JS_PATH = "/assets/recipe-scaler.js"
 MEAL_PLANNER_CSS_PATH = "/assets/meal-planner.css"
 MEAL_PLANNER_JS_PATH = "/assets/meal-planner.js"
 CONFIG_EDITOR_CSS_PATH = "/assets/config-editor.css"
@@ -664,6 +665,7 @@ class IndexHTMLGenerator:
         index_js_url = _versioned_asset_url(INDEX_JS_PATH)
         recipe_editor_css_url = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
         recipe_editor_js_url = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
+        recipe_scaler_js_url = _versioned_asset_url(RECIPE_SCALER_JS_PATH)
         meal_planner_css_url = _versioned_asset_url(MEAL_PLANNER_CSS_PATH)
         meal_planner_js_url = _versioned_asset_url(MEAL_PLANNER_JS_PATH)
         config_editor_css_url = _versioned_asset_url(CONFIG_EDITOR_CSS_PATH)
@@ -682,10 +684,13 @@ class IndexHTMLGenerator:
                 <link rel="stylesheet" href="{index_css_url}">
                 <link rel="stylesheet" href="{recipe_editor_css_url}">
                 <link rel="stylesheet" href="{meal_planner_css_url}">
+                <link rel="stylesheet" href="/assets/katex/dist/katex.min.css">
                 <link rel="stylesheet" href="{config_editor_css_url}">
                 <script src="{MENU_JS_URL}" defer></script>
                 <script src="{index_js_url}" defer></script>
                 <script src="{recipe_editor_js_url}" defer></script>
+                <script defer src="/assets/katex/dist/katex.min.js"></script>
+                <script src="{recipe_scaler_js_url}" defer></script>
                 <script src="{meal_planner_js_url}" defer></script>
                 <script src="{config_editor_js_url}" defer></script>
             </head>

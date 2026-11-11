@@ -2,6 +2,8 @@
   const MEAL_PLANNER_ID = "meal-planner-dialog";
   const MEAL_PLANNER_ASSET = "/assets/meal-planner.html";
 
+  const scaler = typeof RecipeScaler !== "undefined" ? Object.create(RecipeScaler.prototype) : null;
+
   async function createMealPlanner() {
     const dialog = document.createElement("dialog");
     dialog.id = MEAL_PLANNER_ID;
@@ -34,16 +36,39 @@
     let SCRAPING_INGREDIENTS = false;
     const walker = doc.createTreeWalker(doc.body || doc, NodeFilter.SHOW_ELEMENT);
     let node = walker.currentNode;
-    // Start before first node; use nextNode loop
     while ((node = walker.nextNode())) {
       if (/^H[1-6]$/.test(node.nodeName)) {
         SCRAPING_INGREDIENTS = /ingredient/i.test(node.textContent || "");
       } else if (node.nodeName === "LI" && SCRAPING_INGREDIENTS) {
-        const text = (node.textContent || "").trim();
-        if (text) ingredients.push(text);
+        ingredients.push(node.cloneNode(true));
       }
     }
     return { title, image, ingredients };
+  }
+
+  function scaleQuantitySpan(span, scale) {
+    const quantity = parseFloat(span.dataset.quantity);
+    const unit = span.dataset.unit ?? "";
+    const quantityEnd = span.dataset.quantityEnd;
+    if (!Number.isFinite(quantity)) return;
+
+    if (!scaler) {
+      span.textContent = String(quantity * scale);
+      return;
+    }
+
+    const scaled = scaler.roundQuantity(quantity * scale, unit);
+    let formatted = scaler.formatQuantity(scaled, unit);
+    if (quantityEnd !== undefined) {
+      formatted = scaler.formatQuantityRange(scaled, quantityEnd, scale, unit, formatted);
+    }
+    scaler.renderQuantity(span, formatted);
+  }
+
+  function scaleIngredientNode(node, scale) {
+    node.querySelectorAll(".quantity").forEach((span) => {
+      scaleQuantitySpan(span, scale);
+    });
   }
 
   function renderRow(container, recipe) {
@@ -97,8 +122,6 @@
       }
       return Number(scaleSelect.value) || 1;
     };
-
-    return recipe;
   }
 
   let dialog = null;
@@ -108,22 +131,31 @@
   function renderCombined() {
     if (!combinedList) return;
     const items = [];
-    for (const recipe of recipes) {
+    recipes.forEach((recipe, recipeIndex) => {
       const scale = recipe.scale ? recipe.scale() : 1;
-      for (const ingredient of recipe.ingredients) {
-        items.push(ingredient);
-      }
-    }
-    items.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+      recipe.ingredients.forEach((originalNode) => {
+        const clone = originalNode.cloneNode(true);
+        clone.dataset.recipeIndex = String(recipeIndex);
+        const sortKey =
+          (clone.textContent || "").trim().toLowerCase() ||
+          (clone.querySelector(".quantity")?.dataset.unit || "").toLowerCase();
+        clone.dataset.sortKey = sortKey;
+        scaleIngredientNode(clone, scale);
+        items.push(clone);
+      });
+    });
+    items.sort((a, b) =>
+      (a.dataset.sortKey || "").localeCompare(b.dataset.sortKey || "", undefined, {
+        sensitivity: "base",
+      }),
+    );
     combinedList.replaceChildren();
-    for (const item of items) {
-      const li = document.createElement("li");
-      li.className = "task-list-item";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      li.append(checkbox, document.createTextNode(" " + item));
-      combinedList.append(li);
-    }
+    items.forEach((item) => {
+      if (!item.classList.contains("task-list-item")) {
+        item.classList.add("task-list-item");
+      }
+      combinedList.append(item);
+    });
   }
 
   async function openMealPlanner(paths) {
@@ -164,10 +196,10 @@
       }),
     );
 
-    for (const recipe of loaded) {
+    loaded.forEach((recipe) => {
       renderRow(recipesContainer, recipe);
       recipes.push(recipe);
-    }
+    });
 
     renderCombined();
     if (!dialog.open) dialog.showModal();
