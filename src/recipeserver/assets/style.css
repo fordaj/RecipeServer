@@ -544,7 +544,7 @@ input[type="checkbox"]:focus-visible {
   width: 0.55em;
   height: 0.55em;
 
-  background: currentColor;
+  background: var(--muted-color);
   mask: url("/assets/down-arrow.svg") center / contain no-repeat;
   -webkit-mask: url("/assets/down-arrow.svg") center / contain no-repeat;
 
