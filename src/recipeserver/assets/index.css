@@ -728,8 +728,9 @@ a {
   overflow: hidden;
   aspect-ratio: 16 / 10;
   background: var(--hover-bg);
-  border-top-left-radius: 11px;
-  border-top-right-radius: 11px;
+  /* Keep the top corners rounded, scaling with card size (zoom slider). */
+  border-top-left-radius: calc(var(--card-min-width, 280px) * 0.0393);
+  border-top-right-radius: calc(var(--card-min-width, 280px) * 0.0393);
 }
 
 .recipe-card__image img {
@@ -940,6 +941,10 @@ a {
   height: var(--list-thumb-size, 4rem);
   margin: 0;
   aspect-ratio: auto;
+  /* List thumbnails are free-standing, so round all corners. The radius
+     scales with the thumbnail (and thus the Size slider). */
+  border-radius: 8px;
+  border-radius: calc(var(--list-thumb-size, 4rem) * 0.125);
 }
 
 #recipe-list.list-view .recipe-card__heading {
@@ -991,22 +996,18 @@ a {
 
 @media (max-width: 499px) {
   .recipes {
-    width: 100%;
+    width: min(100% - 2rem, 1500px);
     padding-bottom: 3rem;
   }
 
   .recipes-header {
-    padding: 10svh 1rem 0;
+    padding-top: 10svh;
   }
 
   .recipe-toolbar {
     width: 100%;
     margin: 7svh 0 2rem;
     padding: 1rem;
-    border-radius: 0;
-    border-left: 0;
-    border-right: 0;
-    box-shadow: none;
   }
 
   .results-controls {
