@@ -346,6 +346,19 @@ a {
   color: var(--page-bg);
 }
 
+/* Plan Meals uses the same filled style as the recipe editor's Save button. */
+.bulk-controls #plan-meals {
+  border-color: var(--food-color);
+  background: var(--food-color);
+  color: var(--page-bg);
+}
+
+.bulk-controls #plan-meals:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
 /* Delete Selected uses the same red style as the recipe editor's Delete button. */
 .bulk-controls #bulk-delete {
   background: var(--danger-color);
