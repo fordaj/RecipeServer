@@ -1,0 +1,359 @@
+/* ---------- Meal planner dialog ---------- */
+
+.meal-planner-dialog {
+  width: min(900px, calc(100% - 2rem));
+  height: min(85dvh, 800px);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  box-sizing: border-box;
+
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-color);
+
+  overflow: hidden;
+}
+
+.meal-planner-dialog::backdrop {
+  background: var(--dialog-backdrop);
+}
+
+/* ---------- Layout ---------- */
+
+.meal-planner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+
+  padding: 1rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.meal-planner__header,
+.meal-planner__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.meal-planner__header h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.meal-planner__close {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1.75rem;
+  cursor: pointer;
+}
+
+.meal-planner__close:hover {
+  background: var(--hover-bg);
+}
+
+.meal-planner__close:focus-visible,
+.meal-planner__footer button:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.meal-planner__status {
+  flex: 0 0 auto;
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.meal-planner__status:empty {
+  display: none;
+}
+
+/* ---------- Recipe rows ---------- */
+
+/* The first section is a grid of rows: one row per selected recipe. */
+.meal-planner__recipes {
+  display: grid;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.meal-planner__recipe {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.meal-planner__scaler {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+/* The planner uses a smaller scaler than the one on a recipe page. */
+.meal-planner__scaler .recipe-scaler {
+  font-size: 1.15rem;
+  justify-content: flex-start;
+}
+
+.meal-planner__image {
+  width: 3.25rem;
+  height: 3.25rem;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--hover-bg);
+}
+
+.meal-planner__image--empty {
+  display: block;
+}
+
+.meal-planner__details {
+  min-width: 0;
+}
+
+.meal-planner__name {
+  margin: 0 0 0.25rem;
+  color: var(--heading-color);
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.meal-planner__recipe-ingredients {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.meal-planner__recipe-ingredients li {
+  margin-bottom: 0.1rem;
+}
+
+.meal-planner__recipe-ingredients .quantity {
+  min-height: 0;
+}
+
+.meal-planner__no-ingredients {
+  color: var(--muted-color);
+  list-style: none;
+}
+
+/* ---------- Combined ingredients ---------- */
+
+.meal-planner__combined {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.meal-planner__combined h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.meal-planner__ingredients {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.meal-planner__ingredients li {
+  margin-bottom: 0.15rem;
+}
+
+.meal-planner__ingredients .quantity {
+  min-height: 0;
+}
+
+/* ---------- Checklist checkboxes ---------- */
+
+.meal-planner__ingredients input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+
+  width: 1.1em;
+  height: 1.1em;
+  margin-right: 0.45rem;
+  border: 2px solid var(--food-color);
+  border-radius: 3px;
+  background-color: transparent;
+
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.meal-planner__ingredients input[type="checkbox"]:checked {
+  background-color: var(--food-color);
+  border-color: var(--food-color);
+}
+
+.meal-planner__ingredients input[type="checkbox"]:checked::before {
+  content: "";
+  width: 0.3em;
+  height: 0.6em;
+  border: solid var(--checkmark-color);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-top: -0.1em;
+}
+
+.meal-planner__ingredients input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.meal-planner__ingredients li:has(input[type="checkbox"]:checked) {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+/* ---------- Actions ---------- */
+
+.meal-planner__footer {
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--card-bg);
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
+
+.meal-planner__footer button {
+  padding: 0.65rem 1rem;
+
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+
+  cursor: pointer;
+}
+
+.meal-planner__footer button:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+/* Done uses the same filled style as the recipe editor's Save button. */
+.meal-planner__footer .meal-planner__done {
+  border-color: var(--food-color);
+  background: var(--food-color);
+  color: var(--page-bg);
+}
+
+.meal-planner__footer .meal-planner__done:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 600px) {
+  .meal-planner-dialog {
+    width: calc(100% - 1rem);
+    height: 90dvh;
+  }
+
+  .meal-planner {
+    gap: 0.6rem;
+    padding: 0.75rem;
+  }
+
+  .meal-planner__recipe {
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .meal-planner__image {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .meal-planner__footer button {
+    min-height: 2.75rem;
+  }
+}
+
+/* ---------- Printing ---------- */
+
+/* Printing produces the checklist on its own so it can be shared as a PDF. */
+@media print {
+  body > *:not(.meal-planner-dialog) {
+    display: none !important;
+  }
+
+  .meal-planner-dialog {
+    position: static;
+    display: block;
+    width: auto;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: var(--print-bg);
+    overflow: visible;
+  }
+
+  .meal-planner-dialog::backdrop {
+    background: none;
+  }
+
+  .meal-planner {
+    display: block;
+    height: auto;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .meal-planner__header,
+  .meal-planner__status,
+  .meal-planner__recipes,
+  .meal-planner__footer {
+    display: none !important;
+  }
+
+  .meal-planner__combined h3 {
+    color: var(--print-text-color);
+  }
+
+  .meal-planner__ingredients {
+    color: var(--print-text-color);
+  }
+}

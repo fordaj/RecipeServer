@@ -346,6 +346,16 @@ a {
   color: var(--page-bg);
 }
 
+/* Plan Meals keeps the outlined button style but uses the food color so it
+   reads as the primary action next to the filled Bulk Edit button. */
+.bulk-controls #plan-meals {
+  border-color: var(--food-color);
+}
+
+.bulk-controls #plan-meals:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+}
+
 /* Delete Selected uses the same red style as the recipe editor's Delete button. */
 .bulk-controls #bulk-delete {
   background: var(--danger-color);
