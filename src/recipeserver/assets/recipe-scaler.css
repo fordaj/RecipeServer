@@ -24,8 +24,8 @@
   visibility: visible;
 }
 
-#recipe-scale-select,
-#recipe-scale-custom {
+.recipe-scale-select,
+.recipe-scale-custom {
   box-sizing: border-box;
 
   /* `field-sizing: content` lets the control grow/shrink with its
@@ -48,7 +48,7 @@
   margin: 0;
 }
 
-#recipe-scale-select {
+.recipe-scale-select {
   appearance: none;
   -webkit-appearance: none;
   text-align: right;
@@ -56,33 +56,33 @@
   cursor: pointer;
 }
 
-#recipe-scale-custom {
+.recipe-scale-custom {
   text-align: right;
   appearance: textfield;
   -moz-appearance: textfield;
 }
 
-#recipe-scale-select option {
+.recipe-scale-select option {
   font-size: 16px;
   font-family: var(--font-body);
   color: var(--heading-color);
   background: var(--card-bg);
 }
 
-#recipe-scale-select:focus-visible,
-#recipe-scale-custom:focus-visible {
+.recipe-scale-select:focus-visible,
+.recipe-scale-custom:focus-visible {
   outline: 2px solid var(--food-color);
   border-radius: 2px;
 }
 
-#recipe-scale-custom::-webkit-inner-spin-button,
-#recipe-scale-custom::-webkit-outer-spin-button {
+.recipe-scale-custom::-webkit-inner-spin-button,
+.recipe-scale-custom::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-#recipe-scale-select[hidden],
-#recipe-scale-custom[hidden] {
+.recipe-scale-select[hidden],
+.recipe-scale-custom[hidden] {
   display: none;
 }
 

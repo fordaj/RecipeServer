@@ -113,8 +113,8 @@ Mix everything.
 
     header = soup.select_one("header.recipe-header")
     assert header.select_one("a.recipe-home[href='/index.html']") is not None
-    assert header.select_one("select#recipe-scale-select") is not None
-    assert header.select_one("input#recipe-scale-custom") is not None
+    assert header.select_one("select.recipe-scale-select") is not None
+    assert header.select_one("input.recipe-scale-custom") is not None
     assert header.select_one("button#edit-recipe") is not None
 
     overview = soup.select_one(".recipe-overview")

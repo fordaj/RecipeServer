@@ -20,11 +20,44 @@ class RecipeScaler {
     RecipeScaler.IRREGULAR_NOUN_FORMS.map(([singular, plural]) => [plural, singular]),
   );
 
-  constructor() {
-    this.scalerElement = document.querySelector(".recipe-scaler");
-    this.scaleSelect = document.getElementById("recipe-scale-select");
-    this.customInput = document.getElementById("recipe-scale-custom");
-    this.quantities = document.querySelectorAll(".quantity");
+  // ----- Fraction table ----- //
+  // Each fraction carries a LaTeX form for KaTeX and a plain text form
+  // for callers that need to read a quantity back (the meal planner
+  // checklist, for example).
+  static FRACTIONS = [
+    { value: 0, latex: "", text: "" },
+    { value: 1 / 8, latex: "\\frac{1}{8}", text: "1/8" },
+    // { value: 1 / 6, latex: "\\frac{1}{6}", text: "1/6" },
+    { value: 1 / 4, latex: "\\frac{1}{4}", text: "1/4" },
+    { value: 1 / 3, latex: "\\frac{1}{3}", text: "1/3" },
+    { value: 3 / 8, latex: "\\frac{3}{8}", text: "3/8" },
+    { value: 1 / 2, latex: "\\frac{1}{2}", text: "1/2" },
+    { value: 5 / 8, latex: "\\frac{5}{8}", text: "5/8" },
+    { value: 2 / 3, latex: "\\frac{2}{3}", text: "2/3" },
+    { value: 3 / 4, latex: "\\frac{3}{4}", text: "3/4" },
+    // { value: 5 / 6, latex: "\\frac{5}{6}", text: "5/6" },
+    { value: 7 / 8, latex: "\\frac{7}{8}", text: "7/8" },
+    { value: 1, latex: "", text: "" },
+  ];
+
+  /**
+   * Scale the quantities inside `root`.
+   *
+   * @param {ParentNode} root Scope that holds the scaler controls and the
+   *   quantities they scale. The recipe page passes the document because
+   *   its scaler sits in the header while the quantities sit in the body;
+   *   the meal planner passes a single recipe row so every recipe can be
+   *   scaled on its own.
+   * @param {{onUpdate?: () => void}} [options] `onUpdate` runs after every
+   *   recalculation so callers can re-render derived content.
+   */
+  constructor(root = document, options = {}) {
+    this.root = root;
+    this.onUpdate = options.onUpdate ?? null;
+    this.scalerElement = root.querySelector(".recipe-scaler");
+    this.scaleSelect = this.scalerElement?.querySelector(".recipe-scale-select") ?? null;
+    this.customInput = this.scalerElement?.querySelector(".recipe-scale-custom") ?? null;
+    this.quantities = root.querySelectorAll(".quantity");
     this.isReady = Boolean(this.scaleSelect && this.customInput);
 
     if (!this.isReady) {
@@ -156,12 +189,23 @@ class RecipeScaler {
 
       const scaled = this.roundQuantity(quantity * scale, unit);
       let formatted = this.formatQuantity(scaled, unit);
+      let text = this.formatQuantityText(scaled, unit);
 
       if (quantityEnd !== undefined) {
         formatted = this.formatQuantityRange(scaled, quantityEnd, scale, unit, formatted);
+        text = this.formatQuantityRangeText(scaled, quantityEnd, scale, unit);
       }
 
+      // Keep the scaled amount available as plain text so callers that
+      // cannot read the rendered KaTeX output (the meal planner
+      // checklist, for example) can still show the amount.
+      element.dataset.scaledText = text;
+
       this.renderQuantity(element, formatted);
+    }
+
+    if (this.onUpdate) {
+      this.onUpdate();
     }
   }
 
@@ -205,6 +249,23 @@ class RecipeScaler {
     const startMath = this.unwrapMathText(formattedStart.replace(unitSuffix, ""));
     const endMath = this.unwrapMathText(endWithoutUnit);
     return `$${startMath}\\text{ - }${endMath}$${unitSuffix}`;
+  }
+
+  formatQuantityRangeText(scaledStart, quantityEndRaw, scale, unit) {
+    const quantityEnd = parseFloat(quantityEndRaw);
+    if (!Number.isFinite(quantityEnd)) {
+      return this.formatQuantityText(scaledStart, unit);
+    }
+
+    const scaledEnd = this.roundQuantity(quantityEnd * scale, unit);
+    const formattedUnit = this.formatUnit(unit, scaledStart);
+
+    const separator = formattedUnit && this.requiresSpaceBeforeUnit(formattedUnit) ? " " : "";
+    const unitSuffix = formattedUnit ? `${separator}${formattedUnit}` : "";
+
+    const startText = this.formatNumberText(scaledStart);
+    const endText = this.formatNumberText(scaledEnd);
+    return `${startText} - ${endText}${unitSuffix}`;
   }
 
   unwrapMathText(formattedText) {
@@ -255,47 +316,71 @@ class RecipeScaler {
 
     return `$${quantity}$${separator}${formattedUnit}`;
   }
-  formatNumber(value) {
+
+  formatQuantityText(value, unit) {
+    const quantity = this.formatNumberText(value);
+    const formattedUnit = this.formatUnit(unit, value);
+
+    if (!formattedUnit) {
+      return quantity;
+    }
+
+    const separator = this.requiresSpaceBeforeUnit(formattedUnit) ? " " : "";
+
+    return `${quantity}${separator}${formattedUnit}`;
+  }
+
+  formatNumberParts(value) {
     const whole = Math.floor(value);
     const decimal = value - whole;
 
-    const fractions = [
-      { value: 0, latex: "" },
-      { value: 1 / 8, latex: "\\frac{1}{8}" },
-      // { value: 1 / 6, latex: "\\frac{1}{6}" },
-      { value: 1 / 4, latex: "\\frac{1}{4}" },
-      { value: 1 / 3, latex: "\\frac{1}{3}" },
-      { value: 3 / 8, latex: "\\frac{3}{8}" },
-      { value: 1 / 2, latex: "\\frac{1}{2}" },
-      { value: 5 / 8, latex: "\\frac{5}{8}" },
-      { value: 2 / 3, latex: "\\frac{2}{3}" },
-      { value: 3 / 4, latex: "\\frac{3}{4}" },
-      // { value: 5 / 6, latex: "\\frac{5}{6}" },
-      { value: 7 / 8, latex: "\\frac{7}{8}" },
-      { value: 1, latex: "" },
-    ];
-
-    const nearest = fractions.reduce((best, current) =>
+    const nearest = RecipeScaler.FRACTIONS.reduce((best, current) =>
       Math.abs(current.value - decimal) < Math.abs(best.value - decimal) ? current : best,
     );
 
     // Rounding up to the next whole number.
     if (nearest.value === 1) {
-      return `${whole + 1}`;
+      return { whole: whole + 1, fraction: null };
     }
 
     // Exact whole number.
     if (nearest.value === 0) {
+      return { whole, fraction: null };
+    }
+
+    return { whole, fraction: nearest };
+  }
+
+  formatNumber(value) {
+    const { whole, fraction } = this.formatNumberParts(value);
+
+    if (!fraction) {
       return `${whole}`;
     }
 
     // Fraction less than one.
     if (whole === 0) {
-      return nearest.latex;
+      return fraction.latex;
     }
 
     // Mixed number.
-    return `${whole}\\,${nearest.latex}`;
+    return `${whole}\\,${fraction.latex}`;
+  }
+
+  formatNumberText(value) {
+    const { whole, fraction } = this.formatNumberParts(value);
+
+    if (!fraction) {
+      return `${whole}`;
+    }
+
+    // Fraction less than one.
+    if (whole === 0) {
+      return fraction.text;
+    }
+
+    // Mixed number.
+    return `${whole} ${fraction.text}`;
   }
 
   formatUnit(unit, quantity) {
@@ -418,5 +503,8 @@ class RecipeScaler {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Only the recipe page has a scaler of its own. Pages that embed the
+  // scaler markup (the meal planner) create their own instances.
+  if (!document.querySelector(".recipe-scaler")) return;
   new RecipeScaler();
 });
