@@ -15,6 +15,9 @@
   const helpers = window.RecipeFeedback || {};
   const recipePath = (helpers.getMarkdownPath || getMarkdownPathFallback)();
 
+  // Every star is worth two points, so the lowest score a star can set is 2.
+  const STAR_SCORES = [2, 4, 6, 8, 10];
+
   function getMarkdownPathFallback() {
     const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
     return page.replace(/\.html$/i, ".md");
@@ -85,6 +88,88 @@
     return `${rating / 2} out of 5 stars (${rating} out of 10)`;
   }
 
+  // ----- Number field ----- //
+  function selectAllOnClick(input) {
+    // Clicking the score field highlights the whole score so typing replaces it.
+    input.addEventListener("click", () => input.select());
+    input.addEventListener("focus", () => {
+      // The browser places the caret once the field is focused, so the score is
+      // highlighted on the next tick instead of during the focus event.
+      setTimeout(() => input.select(), 0);
+    });
+  }
+
+  function highlightScore(input) {
+    input.focus();
+    input.select();
+  }
+
+  // ----- Star picker ----- //
+  function starFill(score, starScore) {
+    if (score === null) return 0;
+    const ratio = (score - (starScore - 2)) / 2;
+    return Math.min(Math.max(ratio, 0), 1) * 100;
+  }
+
+  function updateStarPicker(picker, score) {
+    const stars = Array.from(picker.querySelectorAll(".recipe-rating__star"));
+    const selectedIndex = stars.findIndex((star) => Number(star.dataset.score) === score);
+    const tabbableIndex = selectedIndex === -1 ? 0 : selectedIndex;
+
+    stars.forEach((star, index) => {
+      star.style.setProperty("--star-fill", `${starFill(score, Number(star.dataset.score))}%`);
+      star.setAttribute("aria-checked", String(index === selectedIndex));
+      star.tabIndex = index === tabbableIndex ? 0 : -1;
+    });
+  }
+
+  function createStarPicker(score, onSelect) {
+    const picker = document.createElement("span");
+    picker.className = "recipe-rating__star-picker";
+    picker.setAttribute("role", "radiogroup");
+    picker.setAttribute("aria-label", "Rating out of 10");
+
+    STAR_SCORES.forEach((starScore, index) => {
+      const star = document.createElement("button");
+      star.type = "button";
+      star.className = "recipe-rating__star";
+      star.dataset.score = String(starScore);
+      star.setAttribute("role", "radio");
+      star.setAttribute("aria-checked", "false");
+      star.setAttribute("aria-label", `${starScore} out of 10`);
+      star.textContent = "★";
+      star.addEventListener("click", () => onSelect(starScore));
+      star.addEventListener("keydown", (event) =>
+        moveStarSelection(event, index, onSelect, picker),
+      );
+      picker.append(star);
+    });
+
+    updateStarPicker(picker, score);
+    return picker;
+  }
+
+  function moveStarSelection(event, index, onSelect, picker) {
+    let next = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+      next = index + 1;
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+      next = index - 1;
+    } else if (event.key === "Home") {
+      next = 0;
+    } else if (event.key === "End") {
+      next = STAR_SCORES.length - 1;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    const target = Math.min(Math.max(next, 0), STAR_SCORES.length - 1);
+    onSelect(STAR_SCORES[target]);
+    // Keep the keyboard focus inside the star group.
+    picker.querySelectorAll(".recipe-rating__star")[target].focus();
+  }
+
   // ----- Rendering ----- //
   function getInitials(name) {
     return helpers.getInitials
@@ -115,20 +200,17 @@
     return meter;
   }
 
-  function updateScorePreview(input, preview, meter) {
+  function updateScorePreview(input, preview, renderStars) {
     const score = parseRatingText(input.value);
     validateRatingInput(input);
+    renderStars(score);
 
     if (score === null) {
       preview.textContent = "—/10";
-      meter.style.setProperty("--rating-fill", "0%");
-      meter.setAttribute("aria-label", "Enter a rating from 0 to 10");
       return;
     }
 
     preview.textContent = `${score}/10`;
-    meter.style.setProperty("--rating-fill", `${(score / 10) * 100}%`);
-    meter.setAttribute("aria-label", getRatingLabel(score));
   }
 
   function updateAverage(ratings) {
@@ -245,14 +327,21 @@
     editScoreInput.value = String(rating.rating);
     editScoreInput.setAttribute("aria-label", "Rating out of 10");
 
-    const meter = createStarMeter(Number(rating.rating));
     const score = document.createElement("output");
     score.className = "recipe-rating__score";
-    updateScorePreview(editScoreInput, score, meter);
+
+    const picker = createStarPicker(Number(rating.rating), (starScore) => {
+      editScoreInput.value = String(starScore);
+      updateScorePreview(editScoreInput, score, (value) => updateStarPicker(picker, value));
+      highlightScore(editScoreInput);
+    });
+
+    selectAllOnClick(editScoreInput);
+    updateScorePreview(editScoreInput, score, (value) => updateStarPicker(picker, value));
     editScoreInput.addEventListener("input", () =>
-      updateScorePreview(editScoreInput, score, meter),
+      updateScorePreview(editScoreInput, score, (value) => updateStarPicker(picker, value)),
     );
-    scoreLine.append(editScoreInput, meter, score);
+    scoreLine.append(editScoreInput, picker, score);
 
     const actions = document.createElement("div");
     actions.className = "recipe-rating__actions recipe-rating__form-actions";
@@ -362,10 +451,24 @@
   }
 
   // ----- Event wiring ----- //
+  const formStars = form.querySelector(".recipe-rating__stars");
+  const formPicker = createStarPicker(5, (starScore) => {
+    scoreInput.value = String(starScore);
+    updateScorePreview(scoreInput, scoreValue, (value) => updateStarPicker(formPicker, value));
+    highlightScore(scoreInput);
+  });
+  formStars?.replaceWith(formPicker);
+
+  function renderFormStars(score) {
+    updateStarPicker(formPicker, score);
+  }
+
+  selectAllOnClick(scoreInput);
+
   addButton.addEventListener("click", () => {
     form.reset();
     scoreInput.value = "5";
-    updateScorePreview(scoreInput, scoreValue, form.querySelector(".recipe-rating__stars"));
+    updateScorePreview(scoreInput, scoreValue, renderFormStars);
     setFormOpen(true);
   });
 
@@ -375,7 +478,7 @@
   });
 
   scoreInput.addEventListener("input", () => {
-    updateScorePreview(scoreInput, scoreValue, form.querySelector(".recipe-rating__stars"));
+    updateScorePreview(scoreInput, scoreValue, renderFormStars);
   });
 
   form.addEventListener("submit", async (event) => {
