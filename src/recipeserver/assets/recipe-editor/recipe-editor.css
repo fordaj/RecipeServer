@@ -34,10 +34,23 @@
   box-sizing: border-box;
 
   padding: 1rem;
+  overflow: hidden;
+}
+
+/* The header and footer stay put; only this middle region scrolls. */
+.recipe-editor__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+
+  padding-right: 0.25rem;
 }
 
 /* ---------- Header and footer ---------- */
@@ -196,6 +209,7 @@
   flex: 0 0 auto;
   min-height: 1.25rem;
   margin: 0;
+  margin-right: auto;
   font-size: 0.9rem;
   overflow-wrap: anywhere;
 }
@@ -685,15 +699,12 @@
 .recipe-editor__footer {
   flex: 0 0 auto;
   justify-content: flex-end;
-  /* Always pinned to the bottom of the dialog, even when the
-     collapsed sections leave empty space above. */
-  margin-top: auto;
+  /* Always pinned to the bottom of the dialog, outside the scroll region. */
   padding-top: 0.75rem;
   border-top: 1px solid var(--border-color);
   background: var(--card-bg);
-  position: sticky;
-  bottom: 0;
   z-index: 1;
+  flex-wrap: wrap;
 }
 
 .recipe-editor__footer button {
@@ -757,6 +768,14 @@
   .recipe-editor {
     gap: 0.6rem;
     padding: 0.75rem;
+  }
+
+  .recipe-editor__body {
+    gap: 0.6rem;
+  }
+
+  .recipe-editor__status {
+    flex-basis: 100%;
   }
 
   .recipe-editor__section,

@@ -6,14 +6,22 @@
     </button>
   </header>
 
-  <p class="meal-planner__status" role="status"></p>
+  <div class="meal-planner__body">
+    <p class="meal-planner__status" role="status"></p>
 
-  <section class="meal-planner__recipes" aria-label="Selected recipes"></section>
+    <section class="meal-planner__recipes" aria-label="Selected recipes">
+      <div class="meal-planner__recipe meal-planner__recipe--header">
+        <span>Scale</span>
+        <span>Image</span>
+        <span>Recipe</span>
+      </div>
+    </section>
 
-  <section class="meal-planner__combined" aria-labelledby="meal-planner-combined-heading">
-    <h3 id="meal-planner-combined-heading">Combined Ingredients</h3>
-    <ul class="task-list meal-planner__ingredients"></ul>
-  </section>
+    <section class="meal-planner__combined" aria-labelledby="meal-planner-combined-heading">
+      <h3 id="meal-planner-combined-heading">Combined Ingredients</h3>
+      <ul class="task-list meal-planner__ingredients"></ul>
+    </section>
+  </div>
 
   <footer class="meal-planner__footer">
     <button type="button" class="meal-planner__copy">Copy Markdown</button>

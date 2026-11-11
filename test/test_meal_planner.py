@@ -53,6 +53,9 @@ def test_meal_planner_markup_has_rows_combined_list_and_done_button():
     soup = BeautifulSoup(markup, "html.parser")
 
     assert soup.select_one(".meal-planner__recipes") is not None
+    header = soup.select_one(".meal-planner__recipe--header")
+    assert header is not None
+    assert [cell.get_text(strip=True) for cell in header.find_all("span")] == ["Scale", "Image", "Recipe"]
     assert soup.select_one(".meal-planner__combined h3").get_text(strip=True) == "Combined Ingredients"
     assert soup.select_one("ul.task-list.meal-planner__ingredients") is not None
     done = soup.select_one(".meal-planner__footer .meal-planner__done")
@@ -74,13 +77,48 @@ def test_meal_planner_script_scans_headings_and_scales_per_recipe():
     # Each recipe owns a cloned recipe-scaler.html and its own quantity spans.
     assert 'SCALER_MARKUP_URL = "/assets/recipe-scaler.html"' in script
     assert "new RecipeScaler(scaler" in script
-    assert "quantities," in script
-    assert "onUpdate: sortIngredients" in script
+    assert "quantities: []" in script
+    assert "recipe.scale = scale" in script
+    assert "renderCombined()" in script
 
     # Combined list items are task-list items sorted alphabetically.
     assert 'item.className = "task-list-item"' in script
     assert "item.dataset.sortKey" in script
-    assert "sortIngredients()" in script
+    assert "combinedItems.sort" in script
+
+
+def test_meal_planner_combines_and_sums_duplicate_ingredients():
+    script = (ASSETS / "meal-planner" / "meal-planner.js").read_text(encoding="UTF-8")
+
+    # Amounts are grouped by unit + label and summed when recipes scale.
+    assert "const UNIT_ALIASES" in script
+    assert "group.entries.push({ recipe, start: parsed.start, end: parsed.end })" in script
+    assert "start += round(entry.start * scale)" in script
+    assert "end += round(entry.end * scale)" in script
+    # Unreadable or multi-amount rows stay separate instead of being mis-summed.
+    assert "quantitySpans.length === 1 ? parseQuantity(quantitySpans[0]) : null" in script
+    # Changing a recipe's scale re-renders the combined amounts in place so
+    # checked items keep their state.
+    assert "onUpdate: (scale) =>" in script
+    assert "renderGroupQuantity(group, start, end, hasRange)" in script
+
+
+def test_meal_planner_css_uses_fixed_footer_and_scrolling_body():
+    css = (ASSETS / "meal-planner" / "meal-planner.css").read_text(encoding="UTF-8")
+
+    planner = css.split(".meal-planner {")[1].split("}")[0]
+    assert "overflow: hidden" in planner
+
+    body = css.split(".meal-planner__body {")[1].split("}")[0]
+    assert "flex: 1 1 auto" in body
+    assert "overflow-y: auto" in body
+
+    footer = css.split(".meal-planner__footer {")[1].split("}")[0]
+    assert "position: sticky" not in footer
+    assert "flex: 0 0 auto" in footer
+
+    header = css.split(".meal-planner__recipe--header {")[1].split("}")[0]
+    assert "text-transform: uppercase" in header
 
 
 def test_meal_planner_css_sizes_scaler_and_styles_done_like_save():
