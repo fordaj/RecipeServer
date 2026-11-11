@@ -15,6 +15,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Edits recipe Markdown, metadata, ratings, and comments in the browser.
 - Writes browser edits back to the recipe's YAML front matter and Markdown body.
 - Scales quantities inside inline code, such as `1 1/2 cups` or `1-2 tbsp`.
+- Combines the ingredients of selected recipes into a single meal-planning checklist with per-recipe scaling, Markdown copy, and print/PDF output.
 - Uses the first image in each recipe folder as the hero image and derives a page accent color from it.
 - Shows metadata warnings for recipes missing recommended fields.
 - Typesets math with a bundled copy of KaTeX.
@@ -70,6 +71,8 @@ Open the site in either of these ways:
 - Visit [http://localhost:8000](http://localhost:8000) directly.
 
 Use the **+** button in the index to create a recipe. Choose an existing folder or enter a new folder path relative to the configured recipe directory, then write the recipe in Markdown. The editor can also upload supported images beside the recipe; images added while editing an existing recipe are saved to that recipe's folder.
+
+Turn on **Selection Mode** in the index's **Advanced** filters, select one or more recipes, and choose **Plan Meals**. The planner combines their ingredient lists into one checklist. Each selected recipe keeps its own scaler, so you can scale recipes independently, and the combined list can be copied as Markdown or printed to PDF.
 
 If a local AI model is configured, the create dialog also shows **From text**, **From URL**, and **From Image** inputs. Paste recipe text, a link, or choose a recipe photo and choose the matching **Generate** button; the model drafts the Markdown and metadata into the editor. Nothing is saved until you review the result and press **Create**.
 

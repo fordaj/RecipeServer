@@ -20,11 +20,17 @@ class RecipeScaler {
     RecipeScaler.IRREGULAR_NOUN_FORMS.map(([singular, plural]) => [plural, singular]),
   );
 
-  constructor() {
-    this.scalerElement = document.querySelector(".recipe-scaler");
-    this.scaleSelect = document.getElementById("recipe-scale-select");
-    this.customInput = document.getElementById("recipe-scale-custom");
-    this.quantities = document.querySelectorAll(".quantity");
+  constructor(root = document, options = {}) {
+    // The recipe page renders a single scaler. The meal planner mounts one
+    // scaler per recipe, so callers can pass the row as `root` and the
+    // quantities rendered from that recipe into that row.
+    this.scalerElement = options.scalerElement ?? root.querySelector(".recipe-scaler");
+    this.scaleSelect =
+      options.scaleSelect ?? this.scalerElement?.querySelector(".recipe-scale__select");
+    this.customInput =
+      options.customInput ?? this.scalerElement?.querySelector(".recipe-scale__custom");
+    this.quantities = options.quantities ?? root.querySelectorAll(".quantity");
+    this.onUpdate = options.onUpdate ?? null;
     this.isReady = Boolean(this.scaleSelect && this.customInput);
 
     if (!this.isReady) {
@@ -162,6 +168,10 @@ class RecipeScaler {
       }
 
       this.renderQuantity(element, formatted);
+    }
+
+    if (this.onUpdate) {
+      this.onUpdate(scale);
     }
   }
 
@@ -418,5 +428,9 @@ class RecipeScaler {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  new RecipeScaler();
+  // The meal planner mounts its own scalers inside its dialog; only the
+  // recipe page has a scaler in the initial document.
+  if (document.querySelector(".recipe-scaler")) {
+    new RecipeScaler();
+  }
 });

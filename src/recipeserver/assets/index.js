@@ -28,6 +28,7 @@ const initRecipeIndex = async () => {
   const cardZoom = document.querySelector("#card-zoom");
   const bulkControls = document.querySelector("#bulk-controls");
   const bulkEdit = document.querySelector("#bulk-edit");
+  const planMeals = document.querySelector("#plan-meals");
   const bulkDelete = document.querySelector("#bulk-delete");
   const clearSelections = document.querySelector("#clear-selections");
   const bulkCount = document.querySelector("#bulk-selection-count");
@@ -79,6 +80,7 @@ const initRecipeIndex = async () => {
     const selected = getSelectedPaths();
     if (bulkCount) bulkCount.textContent = `${selected.length} selected`;
     if (bulkEdit) bulkEdit.disabled = selected.length === 0;
+    if (planMeals) planMeals.disabled = selected.length === 0;
     if (bulkDelete) bulkDelete.disabled = selected.length === 0;
     for (const box of selectBoxes) {
       box.closest(".recipe")?.classList.toggle("is-selected", box.checked);
@@ -511,6 +513,27 @@ const initRecipeIndex = async () => {
       const paths = getSelectedPaths();
       if (!paths.length) return;
       document.dispatchEvent(new CustomEvent("bulk-edit", { detail: { paths } }));
+    });
+  }
+  if (planMeals) {
+    planMeals.addEventListener("click", () => {
+      const paths = getSelectedPaths();
+      if (!paths.length) return;
+
+      // The meal planner reads ingredients from each recipe's generated
+      // page; the card supplies the title and hero image so the dialog
+      // can render its rows before the pages finish loading.
+      const selected = paths.map((path) => {
+        const recipe = recipes.find((item) => item.dataset.path === path);
+        const image = recipe?.querySelector(".recipe-card__image img");
+        return {
+          path,
+          title: recipe?.dataset.title ?? "",
+          image: image?.getAttribute("src") ?? "",
+        };
+      });
+
+      document.dispatchEvent(new CustomEvent("meal-planner", { detail: { recipes: selected } }));
     });
   }
   if (bulkDelete) {
