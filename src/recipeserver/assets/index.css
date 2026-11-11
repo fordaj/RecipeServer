@@ -728,8 +728,6 @@ a {
   overflow: hidden;
   aspect-ratio: 16 / 10;
   background: var(--hover-bg);
-  border-top-left-radius: 11px;
-  border-top-right-radius: 11px;
   /* Keep the top corners rounded, scaling with card size (zoom slider). */
   border-top-left-radius: calc(var(--card-min-width, 280px) * 0.0393);
   border-top-right-radius: calc(var(--card-min-width, 280px) * 0.0393);
