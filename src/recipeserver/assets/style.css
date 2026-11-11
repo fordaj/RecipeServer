@@ -527,6 +527,39 @@ input[type="checkbox"]:focus-visible {
   margin-bottom: 1.5rem;
 }
 
+/* ---------- Collapsible headings ---------- */
+
+.collapsible-heading {
+  position: relative;
+  cursor: pointer;
+}
+
+.collapsible-heading::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  margin-right: 0.35em;
+  top: 50%;
+
+  width: 0.55em;
+  height: 0.55em;
+
+  background: currentColor;
+  mask: url("/assets/down-arrow.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/down-arrow.svg") center / contain no-repeat;
+
+  transform: translateY(-50%);
+  transition: transform 0.2s ease;
+}
+
+.collapsible-heading[aria-expanded="false"]::before {
+  transform: translateY(-50%) rotate(-90deg);
+}
+/* Preserve border bottoms */
+h2.collapsible-heading[aria-expanded="false"] {
+  border-bottom: none;
+}
+
 /* ---------- Mobile ---------- */
 
 @media (max-width: 600px) {
