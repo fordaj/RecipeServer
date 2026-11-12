@@ -307,23 +307,33 @@ def test_the_scheduler_offers_the_three_views():
     assert views == ["day", "week", "month"]
 
 
-def test_the_scheduler_has_a_selection_count_and_no_snap_slider():
+def test_the_scheduler_has_a_selection_count_and_no_snap_control():
     html = (SCHEDULER_ASSETS / "scheduler.html").read_text(encoding="utf-8")
 
     soup = BeautifulSoup(html, "html.parser")
     assert soup.select_one(".scheduler__selection") is not None
-    # The snap strength lives in the stylesheet, not in a control.
+    # There is no snap control anywhere.
     assert soup.select_one(".scheduler__snap-slider") is None
     assert soup.select_one(".scheduler__snap") is None
     # The recipe picker is gone; the count takes its place.
     assert soup.select_one(".scheduler__recipe") is None
 
 
-def test_the_scheduler_reads_its_snap_strength_from_the_css():
+def test_the_scheduler_scrolls_without_snapping():
     css = (SCHEDULER_ASSETS / "scheduler.css").read_text(encoding="utf-8")
+    script = (SCHEDULER_ASSETS / "scheduler.js").read_text(encoding="utf-8")
 
-    assert "--scheduler-snap-strength:" in css
+    # Every view scrolls in the one calendar container. A page grows to
+    # show all of its recipes instead of becoming a nested scroller.
     assert "overflow-y: auto" in css
+    assert ".scheduler__month-week" in css
+    assert "flex: 1 0 auto" in css
+    assert "overflow-y: auto" not in css.split(".scheduler__page-body", 1)[1]
+
+    # The snap strength and its glide are gone.
+    assert "--scheduler-snap-strength" not in css
+    assert "snapStrength" not in script
+    assert "glideTo" not in script
 
 
 def test_the_scheduler_offers_a_shopping_list_button_in_its_footer():
