@@ -3,6 +3,8 @@ import colorsys
 from collections import Counter
 from pathlib import Path
 
+from ._logger import logger
+
 DEFAULT_TITLE = "#4169E1"
 
 IMAGE_EXTENSIONS = {
@@ -25,6 +27,23 @@ def get_first_image_in_dir(directory: Path) -> Path | None:
         if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
             return path
     return None
+
+
+def resolve_accent_color(directory: Path, fallback: str) -> str:
+    """Return an accent color derived from the recipe's hero image.
+
+    Falls back to *fallback* when there is no usable hero image.
+    """
+    image = get_first_image_in_dir(directory)
+    if not image:
+        return fallback
+
+    logger.file(f"Found image: {image}")
+    try:
+        return ImageToColorConverter().get_hex_color_from_image(image)
+    except (OSError, ValueError) as exc:
+        logger.warning(f'Could not derive an accent color from "{image}": {exc}')
+        return fallback
 
 
 class ImageToColorConverter:

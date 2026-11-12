@@ -3,7 +3,7 @@ from datetime import date, datetime, time, timezone
 from html import escape
 from functools import lru_cache
 from .config import Configuration
-from .image_handler import DEFAULT_TITLE, ImageToColorConverter, get_first_image_in_dir
+from .image_handler import DEFAULT_TITLE, resolve_accent_color
 import json, markdown, re, frontmatter
 from textwrap import dedent
 from bs4 import BeautifulSoup, Tag
@@ -838,16 +838,7 @@ class MarkdownToHTMLConverter:
         hero image.
         """
         fallback = getattr(self.cfg, "food_color", None) or DEFAULT_TITLE
-        image = get_first_image_in_dir(recipe_directory)
-        if not image:
-            return fallback
-
-        logger.file(f"Found image: {image}")
-        try:
-            return ImageToColorConverter().get_hex_color_from_image(image)
-        except (OSError, ValueError) as exc:
-            logger.warning(f'Could not derive an accent color from "{image}": {exc}')
-            return fallback
+        return resolve_accent_color(recipe_directory, fallback)
 
     @staticmethod
     def _serialize_metadata_json(metadata: dict[str, object]) -> str:

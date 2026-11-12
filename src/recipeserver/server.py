@@ -35,7 +35,7 @@ from . import ai_recipe
 from . import scheduler
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
-from .config import Configuration
+from .config import DEFAULT_FOOD_COLOR, Configuration
 from .image_handler import IMAGE_EXTENSIONS
 from .shopping_list import scrape_ingredients
 from .recipe_utils import json_default, normalize_reviewer_name
@@ -682,8 +682,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_scheduler_get(self) -> None:
         """Return the scheduled dates of every recipe for the calendar."""
+        fallback = str(getattr(self.config, "food_color", None) or DEFAULT_FOOD_COLOR)
         try:
-            self._send_json(200, {"recipes": scheduler.read_schedules(self.source_directory)})
+            self._send_json(200, {"recipes": scheduler.read_schedules(self.source_directory, fallback)})
         except OSError:
             logger.exception("Failed to read the recipe schedules")
             self._send_json(500, {"error": "Unable to read the recipe schedules"})

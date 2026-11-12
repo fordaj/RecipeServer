@@ -14,6 +14,7 @@ from types import SimpleNamespace
 import pytest
 from bs4 import BeautifulSoup
 
+from recipeserver.config import DEFAULT_FOOD_COLOR
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
 from recipeserver.scheduler import (
     normalize_dates,
@@ -23,7 +24,7 @@ from recipeserver.scheduler import (
     write_dates,
 )
 
-from test.helpers import read_metadata, request_json, running_recipe_server
+from test.helpers import read_metadata, request_json, running_recipe_server, write_png
 
 ASSETS = Path(__file__).parents[1] / "src" / "recipeserver" / "assets"
 SCHEDULER_ASSETS = ASSETS / "scheduler"
@@ -156,6 +157,28 @@ def test_scheduler_api_returns_the_schedule_of_every_recipe(scheduler_server):
     assert body["recipes"][0]["title"] == "Soup"
 
 
+def test_scheduler_api_returns_the_accent_color_of_each_recipe(scheduler_server, tmp_path: Path):
+    base_url, source, _ = scheduler_server
+    write_png(source / "Soup" / "hero.png", (200, 70, 30))
+
+    status, body = request_json(f"{base_url}/api/scheduler")
+
+    assert status == 200
+    color = body["recipes"][0]["color"]
+    assert color.startswith("#")
+    # The color comes from the hero image, so it is not the fallback.
+    assert color.lower() != DEFAULT_FOOD_COLOR.lower()
+
+
+def test_scheduler_api_falls_back_to_the_configured_color_without_a_hero_image(scheduler_server):
+    base_url, _, _ = scheduler_server
+
+    status, body = request_json(f"{base_url}/api/scheduler")
+
+    assert status == 200
+    assert body["recipes"][0]["color"] == DEFAULT_FOOD_COLOR
+
+
 def test_scheduler_api_saves_the_dates_to_the_front_matter(scheduler_server):
     base_url, source, saved_paths = scheduler_server
 
@@ -241,13 +264,16 @@ def test_index_renders_a_scheduler_button_next_to_the_shopping_list(tmp_path: Pa
     assert button_ids.index("shopping-list") < button_ids.index("scheduler")
 
 
-def test_the_scheduler_button_is_always_visible_and_has_an_icon(tmp_path: Path):
+def test_the_scheduler_button_is_a_selection_action_with_an_icon(tmp_path: Path):
     soup = build_index(tmp_path)
 
     button = soup.select_one("#scheduler")
-    # The button is not a bulk action, so it stays visible outside selection mode.
-    assert button.get("data-selection-only") is None
-    assert button.get_text(strip=True) == "Scheduler"
+    # The button schedules the selected recipes, so it belongs to the
+    # selection actions and stays hidden outside selection mode.
+    assert button.get("data-selection-only") is not None
+    assert button.get("hidden") is not None
+    assert button.get("disabled") is not None
+    assert button.get_text(strip=True) == "Schedule Selected"
 
     icon = button.find("svg")
     assert icon is not None
@@ -278,7 +304,17 @@ def test_the_scheduler_offers_the_three_views():
 
     soup = BeautifulSoup(html, "html.parser")
     views = [button["data-scheduler-view"] for button in soup.select("[data-scheduler-view]")]
-    assert views == ["day", "multi", "list"]
+    assert views == ["day", "week", "month"]
+
+
+def test_the_scheduler_has_a_snap_control_and_a_selection_count():
+    html = (SCHEDULER_ASSETS / "scheduler.html").read_text(encoding="utf-8")
+
+    soup = BeautifulSoup(html, "html.parser")
+    assert soup.select_one(".scheduler__snap-slider") is not None
+    assert soup.select_one(".scheduler__selection") is not None
+    # The recipe picker is gone; the count takes its place.
+    assert soup.select_one(".scheduler__recipe") is None
 
 
 def test_the_scheduler_script_talks_to_the_scheduler_api():

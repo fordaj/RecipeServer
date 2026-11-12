@@ -3,9 +3,9 @@
     <h2 class="scheduler__title">Scheduler</h2>
 
     <div class="view-switcher" role="group" aria-label="Scheduler view">
-      <button type="button" data-scheduler-view="day" aria-pressed="true">Single Day</button>
-      <button type="button" data-scheduler-view="multi" aria-pressed="false">Multi Day</button>
-      <button type="button" data-scheduler-view="list" aria-pressed="false">List</button>
+      <button type="button" data-scheduler-view="day" aria-pressed="true">Day</button>
+      <button type="button" data-scheduler-view="week" aria-pressed="false">Week</button>
+      <button type="button" data-scheduler-view="month" aria-pressed="false">Month</button>
     </div>
 
     <button type="button" class="scheduler__close" aria-label="Close scheduler">&times;</button>
@@ -13,24 +13,47 @@
 
   <div class="scheduler__toolbar">
     <button type="button" class="scheduler__today">Today</button>
-    <button type="button" class="scheduler__nav" data-scheduler-step="-1" aria-label="Previous">
+    <button
+      type="button"
+      class="scheduler__nav"
+      data-scheduler-step="-1"
+      aria-label="Previous period"
+    >
       &lsaquo;
     </button>
-    <button type="button" class="scheduler__nav" data-scheduler-step="1" aria-label="Next">
+    <button type="button" class="scheduler__nav" data-scheduler-step="1" aria-label="Next period">
       &rsaquo;
     </button>
     <h3 class="scheduler__period" aria-live="polite"></h3>
+
+    <label class="scheduler__snap">
+      <span class="scheduler__label">Snap</span>
+      <input
+        class="scheduler__snap-slider"
+        type="range"
+        min="0"
+        max="100"
+        step="5"
+        value="60"
+        aria-label="Snap intensity"
+        title="How strongly the calendar snaps to the nearest day"
+      />
+    </label>
+
+    <button type="button" class="scheduler__select" aria-pressed="false">
+      <span data-scheduler-select-label>Select</span>
+    </button>
   </div>
 
   <p class="scheduler__status" role="status"></p>
 
-  <section class="scheduler__content" aria-label="Scheduled recipes"></section>
+  <section class="scheduler__content" aria-label="Scheduled recipes">
+    <div class="scheduler__track"></div>
+    <div class="scheduler__months"></div>
+  </section>
 
   <footer class="scheduler__footer">
-    <label class="scheduler__field">
-      <span class="scheduler__label">Recipe</span>
-      <select class="scheduler__recipe"></select>
-    </label>
+    <p class="scheduler__selection" aria-live="polite"></p>
 
     <label class="scheduler__field">
       <span class="scheduler__label">Date</span>

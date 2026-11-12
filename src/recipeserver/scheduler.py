@@ -22,7 +22,8 @@ from pathlib import Path
 import frontmatter
 
 from ._logger import logger
-from .image_handler import get_first_image_in_dir
+from .config import DEFAULT_FOOD_COLOR
+from .image_handler import get_first_image_in_dir, resolve_accent_color
 from .recipe_utils import slug_to_title
 
 # The front matter field that holds the scheduled dates.
@@ -120,8 +121,12 @@ def recipe_title(content: str, metadata: Mapping, folder_name: str) -> str:
     return str(metadata.get("title") or "").strip() or slug_to_title(folder_name)
 
 
-def read_schedules(source_directory: Path) -> list[dict]:
-    """Return the schedule of every recipe in the source tree."""
+def read_schedules(source_directory: Path, fallback_color: str = DEFAULT_FOOD_COLOR) -> list[dict]:
+    """Return the schedule of every recipe in the source tree.
+
+    Each entry carries the recipe's own accent color, so the calendar can
+    colour a recipe the same way its page does.
+    """
     entries: list[dict] = []
 
     for markdown in sorted(source_directory.rglob("recipe.md")):
@@ -143,6 +148,7 @@ def read_schedules(source_directory: Path) -> list[dict]:
                 "title": recipe_title(post.content, post.metadata, markdown.parent.name),
                 "image": f"/{image.relative_to(source_directory).as_posix()}" if image else "",
                 "url": "/" + Path(relative_path).with_suffix(".html").as_posix(),
+                "color": resolve_accent_color(markdown.parent, fallback_color),
                 "dates": normalize_dates(post.metadata.get(SCHEDULED_FIELD)),
             }
         )
