@@ -15,8 +15,11 @@
   const helpers = window.RecipeFeedback || {};
   const recipePath = (helpers.getMarkdownPath || getMarkdownPathFallback)();
 
-  // Every star is worth two points, so the lowest score a star can set is 2.
-  const STAR_SCORES = [2, 4, 6, 8, 10];
+  // Each star is worth two points, so every half star is worth one point and
+  // the lowest score the slider can set is 1.
+  const STAR_COUNT = 5;
+  const MIN_SLIDER_SCORE = 1;
+  const MAX_SLIDER_SCORE = 10;
 
   function getMarkdownPathFallback() {
     const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
@@ -99,75 +102,103 @@
     });
   }
 
-  function highlightScore(input) {
-    input.focus();
-    input.select();
+  // ----- Rating slider ----- //
+  function updateStarSlider(slider, score) {
+    const value = score === null ? 0 : score;
+    slider.style.setProperty("--rating-fill", `${(value / 10) * 100}%`);
+    slider.setAttribute(
+      "aria-valuenow",
+      String(Math.min(Math.max(value, MIN_SLIDER_SCORE), MAX_SLIDER_SCORE)),
+    );
+    slider.setAttribute("aria-valuetext", score === null ? "No rating" : `${value} out of 10`);
   }
 
-  // ----- Star picker ----- //
-  function starFill(score, starScore) {
-    if (score === null) return 0;
-    const ratio = (score - (starScore - 2)) / 2;
-    return Math.min(Math.max(ratio, 0), 1) * 100;
+  // Each star holds two scores, one for its left half and one for its right
+  // half, so a click anywhere on the slider lands on a whole or half star.
+  function scoreFromPointer(slider, clientX) {
+    const rect = slider.getBoundingClientRect();
+    if (!rect.width) return MIN_SLIDER_SCORE;
+
+    const ratio = (clientX - rect.left) / rect.width;
+    const star = Math.min(Math.max(Math.floor(ratio * STAR_COUNT), 0), STAR_COUNT - 1);
+    const half = ratio * STAR_COUNT - star;
+    return 2 * star + (half < 0.5 ? 1 : 2);
   }
 
-  function updateStarPicker(picker, score) {
-    const stars = Array.from(picker.querySelectorAll(".recipe-rating__star"));
-    const selectedIndex = stars.findIndex((star) => Number(star.dataset.score) === score);
-    const tabbableIndex = selectedIndex === -1 ? 0 : selectedIndex;
+  function createStarSlider(score, onChange) {
+    const slider = document.createElement("span");
+    slider.className = "recipe-rating__stars recipe-rating__stars--slider";
+    slider.setAttribute("role", "slider");
+    slider.setAttribute("aria-label", "Rating out of 10");
+    slider.setAttribute("aria-valuemin", String(MIN_SLIDER_SCORE));
+    slider.setAttribute("aria-valuemax", String(MAX_SLIDER_SCORE));
+    slider.tabIndex = 0;
 
-    stars.forEach((star, index) => {
-      star.style.setProperty("--star-fill", `${starFill(score, Number(star.dataset.score))}%`);
-      star.setAttribute("aria-checked", String(index === selectedIndex));
-      star.tabIndex = index === tabbableIndex ? 0 : -1;
-    });
-  }
-
-  function createStarPicker(score, onSelect) {
-    const picker = document.createElement("span");
-    picker.className = "recipe-rating__star-picker";
-    picker.setAttribute("role", "radiogroup");
-    picker.setAttribute("aria-label", "Rating out of 10");
-
-    STAR_SCORES.forEach((starScore, index) => {
-      const star = document.createElement("button");
-      star.type = "button";
+    for (let index = 0; index < STAR_COUNT; index += 1) {
+      const star = document.createElement("span");
       star.className = "recipe-rating__star";
-      star.dataset.score = String(starScore);
-      star.setAttribute("role", "radio");
-      star.setAttribute("aria-checked", "false");
-      star.setAttribute("aria-label", `${starScore} out of 10`);
       star.textContent = "★";
-      star.addEventListener("click", () => onSelect(starScore));
-      star.addEventListener("keydown", (event) =>
-        moveStarSelection(event, index, onSelect, picker),
-      );
-      picker.append(star);
-    });
-
-    updateStarPicker(picker, score);
-    return picker;
-  }
-
-  function moveStarSelection(event, index, onSelect, picker) {
-    let next = null;
-    if (event.key === "ArrowRight" || event.key === "ArrowUp") {
-      next = index + 1;
-    } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
-      next = index - 1;
-    } else if (event.key === "Home") {
-      next = 0;
-    } else if (event.key === "End") {
-      next = STAR_SCORES.length - 1;
-    } else {
-      return;
+      slider.append(star);
     }
 
-    event.preventDefault();
-    const target = Math.min(Math.max(next, 0), STAR_SCORES.length - 1);
-    onSelect(STAR_SCORES[target]);
-    // Keep the keyboard focus inside the star group.
-    picker.querySelectorAll(".recipe-rating__star")[target].focus();
+    let currentScore = score;
+
+    function setScore(nextScore) {
+      currentScore = nextScore;
+      updateStarSlider(slider, nextScore);
+    }
+
+    function applyScore(nextScore) {
+      const clamped = Math.min(Math.max(nextScore, MIN_SLIDER_SCORE), MAX_SLIDER_SCORE);
+      setScore(clamped);
+      onChange(clamped);
+    }
+
+    slider.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      slider.focus();
+      slider.setPointerCapture(event.pointerId);
+      applyScore(scoreFromPointer(slider, event.clientX));
+    });
+
+    slider.addEventListener("pointermove", (event) => {
+      if (!slider.hasPointerCapture(event.pointerId)) return;
+      applyScore(scoreFromPointer(slider, event.clientX));
+    });
+
+    const releasePointer = (event) => {
+      if (slider.hasPointerCapture(event.pointerId)) {
+        slider.releasePointerCapture(event.pointerId);
+      }
+    };
+    slider.addEventListener("pointerup", releasePointer);
+    slider.addEventListener("pointercancel", releasePointer);
+
+    slider.addEventListener("keydown", (event) => {
+      const base = Math.round(currentScore);
+      let next = null;
+      if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+        next = base + 1;
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+        next = base - 1;
+      } else if (event.key === "PageUp") {
+        next = base + 2;
+      } else if (event.key === "PageDown") {
+        next = base - 2;
+      } else if (event.key === "Home") {
+        next = MIN_SLIDER_SCORE;
+      } else if (event.key === "End") {
+        next = MAX_SLIDER_SCORE;
+      } else {
+        return;
+      }
+
+      event.preventDefault();
+      applyScore(next);
+    });
+
+    setScore(score);
+    return { slider, setScore };
   }
 
   // ----- Rendering ----- //
@@ -330,18 +361,20 @@
     const score = document.createElement("output");
     score.className = "recipe-rating__score";
 
-    const picker = createStarPicker(Number(rating.rating), (starScore) => {
-      editScoreInput.value = String(starScore);
-      updateScorePreview(editScoreInput, score, (value) => updateStarPicker(picker, value));
-      highlightScore(editScoreInput);
-    });
+    const { slider: editSlider, setScore: setEditScore } = createStarSlider(
+      Number(rating.rating),
+      (nextScore) => {
+        editScoreInput.value = String(nextScore);
+        updateScorePreview(editScoreInput, score, (value) => setEditScore(value));
+      },
+    );
 
     selectAllOnClick(editScoreInput);
-    updateScorePreview(editScoreInput, score, (value) => updateStarPicker(picker, value));
+    updateScorePreview(editScoreInput, score, (value) => setEditScore(value));
     editScoreInput.addEventListener("input", () =>
-      updateScorePreview(editScoreInput, score, (value) => updateStarPicker(picker, value)),
+      updateScorePreview(editScoreInput, score, (value) => setEditScore(value)),
     );
-    scoreLine.append(editScoreInput, picker, score);
+    scoreLine.append(editScoreInput, editSlider, score);
 
     const actions = document.createElement("div");
     actions.className = "recipe-rating__actions recipe-rating__form-actions";
@@ -452,23 +485,18 @@
 
   // ----- Event wiring ----- //
   const formStars = form.querySelector(".recipe-rating__stars");
-  const formPicker = createStarPicker(5, (starScore) => {
-    scoreInput.value = String(starScore);
-    updateScorePreview(scoreInput, scoreValue, (value) => updateStarPicker(formPicker, value));
-    highlightScore(scoreInput);
+  const { slider: formSlider, setScore: setFormScore } = createStarSlider(5, (nextScore) => {
+    scoreInput.value = String(nextScore);
+    updateScorePreview(scoreInput, scoreValue, (value) => setFormScore(value));
   });
-  formStars?.replaceWith(formPicker);
-
-  function renderFormStars(score) {
-    updateStarPicker(formPicker, score);
-  }
+  formStars?.replaceWith(formSlider);
 
   selectAllOnClick(scoreInput);
 
   addButton.addEventListener("click", () => {
     form.reset();
     scoreInput.value = "5";
-    updateScorePreview(scoreInput, scoreValue, renderFormStars);
+    updateScorePreview(scoreInput, scoreValue, (value) => setFormScore(value));
     setFormOpen(true);
   });
 
@@ -478,7 +506,7 @@
   });
 
   scoreInput.addEventListener("input", () => {
-    updateScorePreview(scoreInput, scoreValue, renderFormStars);
+    updateScorePreview(scoreInput, scoreValue, (value) => setFormScore(value));
   });
 
   form.addEventListener("submit", async (event) => {

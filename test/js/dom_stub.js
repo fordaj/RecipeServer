@@ -92,6 +92,8 @@ class Element {
     this.defaultValue = "";
     this.validationMessage = "";
     this.selected = false;
+    this.rect = {};
+    this.capturedPointers = new Set();
   }
 
   get children() {
@@ -227,6 +229,23 @@ class Element {
 
   reportValidity() {
     return true;
+  }
+
+  getBoundingClientRect() {
+    const { left = 0, top = 0, width = 0, height = 0 } = this.rect;
+    return { left, top, width, height, right: left + width, bottom: top + height };
+  }
+
+  setPointerCapture(pointerId) {
+    this.capturedPointers.add(pointerId);
+  }
+
+  hasPointerCapture(pointerId) {
+    return this.capturedPointers.has(pointerId);
+  }
+
+  releasePointerCapture(pointerId) {
+    this.capturedPointers.delete(pointerId);
   }
 
   reset() {

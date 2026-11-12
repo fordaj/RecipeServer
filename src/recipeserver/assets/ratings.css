@@ -123,35 +123,22 @@
   -webkit-text-fill-color: transparent;
 }
 
-.recipe-rating__star-picker {
+.recipe-rating__stars--slider {
   display: inline-flex;
   align-items: center;
-  gap: 0.05em;
-  font-size: 1.35rem;
-}
-
-.recipe-rating__star {
-  padding: 0;
-  border: 0;
-  background: linear-gradient(
-    90deg,
-    var(--food-color) var(--star-fill, 0%),
-    color-mix(in srgb, var(--food-color) 22%, transparent) var(--star-fill, 0%)
-  );
-  background-clip: text;
-  color: var(--food-color);
-  font: inherit;
-  font-size: 1.35rem;
-  line-height: 1;
-  -webkit-text-fill-color: transparent;
   cursor: pointer;
+  font-size: 2.25rem;
+  letter-spacing: 0;
+  padding: 0.5rem 0;
+  touch-action: none;
+  user-select: none;
 }
 
-.recipe-rating__star:hover {
-  transform: scale(1.15);
+.recipe-rating__stars--slider .recipe-rating__star {
+  padding: 0 0.025em;
 }
 
-.recipe-rating__star:focus-visible {
+.recipe-rating__stars--slider:focus-visible {
   border-radius: 2px;
   outline: 2px solid var(--food-color);
   outline-offset: 2px;
