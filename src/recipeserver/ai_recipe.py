@@ -415,8 +415,13 @@ def _build_user_message(input_type: str, input_value: str) -> tuple[str, str]:
     return _truncate_prompt_text(prompt_text), title
 
 
-def image_data_uri(image_filename: str, image_bytes: bytes) -> str:
-    """Validate an uploaded recipe image and return it as a data URI."""
+def image_base64(image_filename: str, image_bytes: bytes) -> str:
+    """Validate an uploaded recipe image and return it base64-encoded.
+
+    Ollama's native ``/api/chat`` takes images as raw base64 strings in the
+    message's ``images`` list; the data-URI form belongs to the OpenAI-style
+    ``image_url`` content parts, which the native route does not accept.
+    """
     if not image_bytes:
         raise ValueError("Expected a recipe image")
 
@@ -433,8 +438,7 @@ def image_data_uri(image_filename: str, image_bytes: bytes) -> str:
     except (OSError, UnidentifiedImageError) as exc:
         raise ValueError("Invalid image file") from exc
 
-    encoded = base64.b64encode(image_bytes).decode("ascii")
-    return f"data:{mime_type};base64,{encoded}"
+    return base64.b64encode(image_bytes).decode("ascii")
 
 
 def _content_text(content: object) -> str:
@@ -604,15 +608,21 @@ def _metrics_from_ollama_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def _chat_payload(
     model_name: str,
     prompt: str,
-    user_message: str | list[dict[str, Any]],
+    user_message: str,
     *,
     stream: bool,
+    images: list[str] | None = None,
 ) -> dict[str, Any]:
+    user: dict[str, Any] = {"role": "user", "content": user_message}
+    if images:
+        # Ollama's native chat route reads images from the message itself.
+        user["images"] = list(images)
+
     return {
         "model": model_name,
         "messages": [
             {"role": "system", "content": prompt},
-            {"role": "user", "content": user_message},
+            user,
         ],
         "stream": stream,
         "options": {
@@ -727,18 +737,19 @@ def _ollama_chat(
     endpoint: str,
     model_name: str,
     prompt: str,
-    user_message: str | list[dict[str, Any]],
+    user_message: str,
     *,
     stage: str = "recipe generation",
     stream: bool = False,
+    images: list[str] | None = None,
     on_thinking: Callable[[str], None] | None = None,
     on_content: Callable[[str], None] | None = None,
 ) -> ChatResult:
     chat_url = ollama_chat_url(endpoint)
-    payload = _chat_payload(model_name, prompt, user_message, stream=stream)
-    user_chars = len(user_message) if isinstance(user_message, str) else len(json.dumps(user_message))
+    payload = _chat_payload(model_name, prompt, user_message, stream=stream, images=images)
     logger.info(
-        f"Sending {stage} request to {chat_url} (model={model_name}, " f"stream={stream}, system_prompt_chars={len(prompt)}, user_chars={user_chars})"
+        f"Sending {stage} request to {chat_url} (model={model_name}, "
+        f"stream={stream}, system_prompt_chars={len(prompt)}, user_chars={len(user_message)})"
     )
     request = Request(
         chat_url,
@@ -820,10 +831,11 @@ def _chat(
     endpoint: str,
     model_name: str,
     prompt: str,
-    user_message: str | list[dict[str, Any]],
+    user_message: str,
     stage: str = "recipe generation",
+    images: list[str] | None = None,
 ) -> str:
-    return _ollama_chat(endpoint, model_name, prompt, user_message, stage=stage, stream=False).content
+    return _ollama_chat(endpoint, model_name, prompt, user_message, stage=stage, stream=False, images=images).content
 
 
 def _normalize_metadata(metadata: object) -> dict[str, Any]:
@@ -963,18 +975,15 @@ def _prepare_image_draft_input(
             STATUS_PREPARING,
             f"Sending {position} ({image_filename}) to {image_model_name} for transcription...",
         )
-        data_uri = image_data_uri(image_filename, image_bytes)
-        image_user_content: list[dict[str, Any]] = [
-            {"type": "text", "text": "Recipe image:"},
-            {"type": "image_url", "image_url": {"url": data_uri}},
-        ]
+        encoded = image_base64(image_filename, image_bytes)
         logger.info(f"Transcribing recipe image with local model '{image_model_name}' ({len(image_bytes)} bytes, {image_filename})")
         transcription = _chat(
             resolved.endpoint,
             image_model_name,
             resolved.new_recipe_from_image_prompt,
-            image_user_content,
+            "Recipe image:",
             stage="image transcription",
+            images=[encoded],
         )
         logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}")
         transcriptions.append(f"--- {position.capitalize()}: {image_filename} ---\n{transcription}")

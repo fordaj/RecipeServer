@@ -123,6 +123,17 @@ class FakeOllamaAPIHandler(BaseHTTPRequestHandler):
         type(self).state["payload"] = payload
         model = payload.get("model")
 
+        # Ollama's native chat route expects string content; list content is
+        # only valid on the OpenAI-compatible route, so reject it the same
+        # way the real server does.
+        for message in payload.get("messages", []):
+            if not isinstance(message.get("content"), str):
+                self._send_json(
+                    400,
+                    {"error": "json: cannot unmarshal array into Go struct field .ChatRequest.messages.content of type string"},
+                )
+                return
+
         if payload.get("stream") is True:
             self._stream_chat(model)
         else:
@@ -583,10 +594,9 @@ def test_ai_generation_from_image_transcribes_then_drafts(tmp_path):
         "role": "system",
         "content": "Transcribe the recipe image.",
     }
-    image_content = payloads[0]["messages"][1]["content"]
-    assert isinstance(image_content, list)
-    assert image_content[1]["type"] == "image_url"
-    assert image_content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    image_content = payloads[0]["messages"][1]
+    assert image_content["content"] == "Recipe image:"
+    assert image_content["images"] == [base64.b64encode(image_bytes).decode("ascii")]
     # Second call: all-purpose model drafts from the transcription.
     assert payloads[1]["model"] == "test-model"
     assert payloads[1]["stream"] is True
@@ -630,8 +640,9 @@ def test_ai_generation_from_multiple_images_keeps_upload_order(tmp_path):
     assert [payload["model"] for payload in payloads] == ["vision-model", "vision-model", "test-model"]
 
     for index, (_filename, image_bytes) in enumerate(images):
-        data_uri = payloads[index]["messages"][1]["content"][1]["image_url"]["url"]
-        assert data_uri == f"data:image/png;base64,{base64.b64encode(image_bytes).decode('ascii')}"
+        image_message = payloads[index]["messages"][1]
+        assert image_message["content"] == "Recipe image:"
+        assert image_message["images"] == [base64.b64encode(image_bytes).decode("ascii")]
 
     draft_content = payloads[2]["messages"][1]["content"]
     first = draft_content.index("--- Image 1 of 2: page-one.png ---")
