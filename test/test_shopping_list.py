@@ -221,12 +221,33 @@ def test_index_renders_a_shopping_list_button_next_to_bulk_edit(tmp_path: Path):
 
     soup = BeautifulSoup((tmp_path / "index.html").read_text(encoding="UTF-8"), "html.parser")
 
+    # The shopping list sits next to the bulk edit, before it.
     button_ids = [button["id"] for button in soup.select("#bulk-controls button")]
-    assert button_ids == ["clear-selections", "bulk-delete", "bulk-edit", "shopping-list"]
+    assert button_ids == ["clear-selections", "bulk-delete", "shopping-list", "bulk-edit"]
 
     shopping_list = soup.select_one("#shopping-list")
     assert shopping_list.get_text(strip=True) == "Shopping List"
     assert shopping_list["disabled"] is not None
+
+
+def test_index_buttons_have_an_icon_on_the_left(tmp_path: Path):
+    recipe_path = tmp_path / "soup" / "recipe.html"
+    recipe_path.parent.mkdir()
+    recipe_path.write_text("<h1>Soup</h1>", encoding="utf-8")
+
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.add(Recipe({}, recipe_path))
+    generator.convert()
+
+    soup = BeautifulSoup((tmp_path / "index.html").read_text(encoding="UTF-8"), "html.parser")
+
+    for selector, icon_class in (("#shopping-list", "lucide-shopping-cart"), ("#bulk-edit", "lucide-pencil")):
+        button = soup.select_one(selector)
+        icon = button.find("svg")
+        assert icon is not None
+        assert icon_class in icon.get("class", [])
+        # The icon comes before the text.
+        assert list(button.children).index(icon) < list(button.children).index(button.find("span"))
 
 
 def test_index_loads_the_shopping_list_assets(tmp_path: Path):
@@ -276,6 +297,58 @@ def test_shopping_list_template_has_the_combined_ingredients_checklist():
     done = soup.select_one(".shopping-list__done")
     assert done is not None
     assert done.get_text(strip=True) == "Done"
+
+
+def test_shopping_list_template_has_print_download_and_copy_buttons():
+    markup = (SHOPPING_LIST_ASSETS / "shopping-list.html").read_text(encoding="UTF-8")
+    soup = BeautifulSoup(markup, "html.parser")
+
+    footer = soup.select_one(".shopping-list__footer")
+    assert footer is not None
+
+    print_button = footer.select_one(".shopping-list__print")
+    download_button = footer.select_one(".shopping-list__download")
+    assert print_button is not None
+    assert print_button.get_text(strip=True) == "Print"
+    assert download_button is not None
+    assert download_button.get_text(strip=True) == "Download Markdown"
+    # The download button sits next to the print button.
+    assert print_button.find_next_sibling() is download_button
+
+    # Each of them has room for an icon.
+    assert print_button.select_one(".shopping-list__icon") is not None
+    assert download_button.select_one(".shopping-list__icon") is not None
+
+    # The copy button sits at the far right of the heading.
+    copy_button = soup.select_one(".shopping-list__combined-heading .shopping-list__copy")
+    assert copy_button is not None
+    assert "Copy" in copy_button.get("aria-label", "")
+
+
+def test_shopping_list_uses_the_new_icons():
+    script = (SHOPPING_LIST_ASSETS / "shopping-list.js").read_text(encoding="UTF-8")
+
+    assert "/assets/printer.svg" in script
+    assert "/assets/list.svg" in script
+    assert "/assets/copy.svg" in script
+    # The icons are inlined so they inherit the button colour.
+    assert "loadSvgIcon" in script
+
+
+def test_shopping_list_names_the_markdown_file_with_the_date():
+    script = (SHOPPING_LIST_ASSETS / "shopping-list.js").read_text(encoding="UTF-8")
+
+    assert "checklistFileName" in script
+    assert "Shopping List.md" in script
+    # The date comes first, as MM-DD-YYYY.
+    assert "`${month}-${day}-${today.getFullYear()} Shopping List.md`" in script
+
+
+def test_shopping_list_copies_the_markdown_to_the_clipboard():
+    script = (SHOPPING_LIST_ASSETS / "shopping-list.js").read_text(encoding="UTF-8")
+
+    assert "copyChecklist" in script
+    assert "navigator.clipboard.writeText" in script
 
 
 def test_shopping_list_styles_the_done_button_like_the_save_button():

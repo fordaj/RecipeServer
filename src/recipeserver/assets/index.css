@@ -310,6 +310,10 @@ a {
 }
 
 .bulk-controls button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+
   padding: 0.4rem 0.7rem;
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -318,6 +322,13 @@ a {
   font: inherit;
   font-size: 0.85rem;
   cursor: pointer;
+}
+
+/* The icons inherit the button colour through currentColor. */
+.bulk-controls button svg {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
 }
 
 .bulk-controls button:hover:not(:disabled) {
@@ -334,27 +345,20 @@ a {
   outline: 2px solid var(--food-color);
 }
 
-/* Bulk Edit uses the same filled style as the recipe editor's Save button. */
-.bulk-controls #bulk-edit {
+/* Bulk Edit and Shopping List use the same filled style as the recipe
+   editor's Save button. */
+.bulk-controls #bulk-edit,
+.bulk-controls #shopping-list {
   border-color: var(--food-color);
   background: var(--food-color);
   color: var(--page-bg);
 }
 
-.bulk-controls #bulk-edit:hover:not(:disabled) {
+.bulk-controls #bulk-edit:hover:not(:disabled),
+.bulk-controls #shopping-list:hover:not(:disabled) {
   border-color: var(--food-color-hover);
   background: var(--food-color-hover);
   color: var(--page-bg);
-}
-
-/* Shopping List keeps the outlined button style but uses the food color so it
-   reads as the primary action next to the filled Bulk Edit button. */
-.bulk-controls #shopping-list {
-  border-color: var(--food-color);
-}
-
-.bulk-controls #shopping-list:hover:not(:disabled) {
-  border-color: var(--food-color-hover);
 }
 
 /* Delete Selected uses the same red style as the recipe editor's Delete button. */

@@ -16,7 +16,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Writes browser edits back to the recipe's YAML front matter and Markdown body.
 - Scales quantities inside inline code, such as `1 1/2 cups` or `1-2 tbsp`.
 - Combines the ingredients of the recipes selected in the index into a shopping list, with a scale control per recipe.
-- Exports the shopping list as Markdown, or prints it as a checklist.
+- Downloads the shopping list as Markdown, copies it to the clipboard, or prints it as a checklist.
 - Uses the first image in each recipe folder as the hero image and derives a page accent color from it.
 - Shows metadata warnings for recipes missing recommended fields.
 - Typesets math with a bundled copy of KaTeX.

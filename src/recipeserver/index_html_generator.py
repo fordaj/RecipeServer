@@ -68,6 +68,8 @@ WARNING_SVG = ASSETS_DIR / "warning.svg"
 PLUS_SVG = ASSETS_DIR / "plus.svg"
 ARCHIVE_SVG = ASSETS_DIR / "archive.svg"
 INFO_SVG = ASSETS_DIR / "info.svg"
+SHOPPING_CART_SVG = ASSETS_DIR / "shopping-cart.svg"
+PENCIL_SVG = ASSETS_DIR / "pencil.svg"
 
 # Detail kinds that render with a mapped asset icon.
 _DETAIL_ICON_URLS = {
@@ -855,8 +857,14 @@ class IndexHTMLGenerator:
                             </label>
                             <button id="clear-selections" type="button">Clear Selections</button>
                             <button id="bulk-delete" class="bulk-delete" type="button" disabled>Delete Selected</button>
-                            <button id="bulk-edit" class="bulk-edit" type="button" disabled>Bulk Edit</button>
-                            <button id="shopping-list" class="shopping-list" type="button" disabled>Shopping List</button>
+                            <button id="shopping-list" class="shopping-list-button" type="button" disabled>
+                                {self._inline_svg(SHOPPING_CART_SVG)}
+                                <span>Shopping List</span>
+                            </button>
+                            <button id="bulk-edit" class="bulk-edit" type="button" disabled>
+                                {self._inline_svg(PENCIL_SVG)}
+                                <span>Bulk Edit</span>
+                            </button>
                         </div>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
                         <div class="results-controls">

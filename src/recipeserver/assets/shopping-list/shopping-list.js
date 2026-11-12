@@ -5,6 +5,9 @@
   const RECIPE_SCALER_URL = "/assets/recipe-scaler.html";
   const KATEX_CSS_URL = "/assets/katex/dist/katex.min.css";
   const KATEX_JS_URL = "/assets/katex/dist/katex.min.js";
+  const PRINTER_ICON_URL = "/assets/printer.svg";
+  const LIST_ICON_URL = "/assets/list.svg";
+  const COPY_ICON_URL = "/assets/copy.svg";
 
   let dialog = null;
   let state = null;
@@ -29,6 +32,43 @@
     element.innerHTML = await fetchTemplate("shopping-list");
     document.body.append(element);
     return element;
+  }
+
+  // The icons are fetched and inlined so they inherit the colour of the
+  // button they sit in through currentColor.
+  async function loadSvgIcon(url) {
+    try {
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) return "";
+
+      const svg = new DOMParser().parseFromString(
+        await response.text(),
+        "image/svg+xml",
+      ).documentElement;
+      svg.setAttribute("aria-hidden", "true");
+      svg.setAttribute("focusable", "false");
+      return new XMLSerializer().serializeToString(svg);
+    } catch {
+      return "";
+    }
+  }
+
+  async function loadIcons(element) {
+    const [printer, list, copy] = await Promise.all([
+      loadSvgIcon(PRINTER_ICON_URL),
+      loadSvgIcon(LIST_ICON_URL),
+      loadSvgIcon(COPY_ICON_URL),
+    ]);
+
+    const icons = { ".shopping-list__print": printer, ".shopping-list__download": list };
+
+    for (const [selector, icon] of Object.entries(icons)) {
+      const target = element.querySelector(`${selector} .shopping-list__icon`);
+      if (target && icon) target.innerHTML = icon;
+    }
+
+    const copyButton = element.querySelector(".shopping-list__copy");
+    if (copyButton && copy) copyButton.innerHTML = copy;
   }
 
   async function loadScalerMarkup() {
@@ -408,18 +448,55 @@
     return `${lines.join("\n")}\n`;
   }
 
+  // The file name carries the date, so a list of lists can be told apart.
+  function checklistFileName() {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    return `${month}-${day}-${today.getFullYear()} Shopping List.md`;
+  }
+
   function downloadChecklist() {
     const blob = new Blob([buildChecklistMarkdown()], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement("a");
     link.href = url;
-    link.download = "shopping-list.md";
+    link.download = checklistFileName();
     document.body.append(link);
     link.click();
     link.remove();
 
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // Copy the checklist to the clipboard, falling back to a hidden text area
+  // when the clipboard API is not available.
+  async function copyChecklist() {
+    const markdown = buildChecklistMarkdown();
+
+    try {
+      await navigator.clipboard.writeText(markdown);
+      return true;
+    } catch {
+      // The clipboard API needs a secure context, so fall back to the
+      // older selection based copy.
+    }
+
+    try {
+      const field = document.createElement("textarea");
+      field.value = markdown;
+      field.setAttribute("readonly", "");
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.append(field);
+      field.select();
+      const copied = document.execCommand("copy");
+      field.remove();
+      return copied;
+    } catch {
+      return false;
+    }
   }
 
   // ----- Dialog wiring ----- //
@@ -431,11 +508,16 @@
 
     element.querySelector(".shopping-list__print")?.addEventListener("click", () => window.print());
 
-    // The dialog form closes the shopping list; the checklist is downloaded first.
     element
-      .querySelector("form.shopping-list")
-      ?.addEventListener("submit", () => downloadChecklist());
+      .querySelector(".shopping-list__download")
+      ?.addEventListener("click", () => downloadChecklist());
 
+    element.querySelector(".shopping-list__copy")?.addEventListener("click", async () => {
+      const copied = await copyChecklist();
+      setStatus(copied ? "Checklist copied to the clipboard." : "Unable to copy the checklist.");
+    });
+
+    // The dialog form closes the shopping list; the "Done" button submits it.
     let pointerDownTarget = null;
     element.addEventListener("pointerdown", (event) => {
       pointerDownTarget = event.target;
@@ -465,6 +547,7 @@
         dialog = await createDialog();
         state = createState(dialog);
         registerDialogListeners(dialog);
+        loadIcons(dialog);
       }
 
       state.ready = false;

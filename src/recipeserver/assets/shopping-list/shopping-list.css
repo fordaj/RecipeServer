@@ -22,7 +22,7 @@
 
 /* ---------- Layout ---------- */
 
-.shopping-list {
+.shopping-list__form {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -171,9 +171,44 @@
   min-width: 0;
 }
 
-.shopping-list__combined h3 {
+.shopping-list__combined-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+
   margin: 0 0 0.5rem;
   font-size: 1rem;
+}
+
+/* The copy button sits at the far right of the heading. */
+.shopping-list__copy {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-color);
+  cursor: pointer;
+}
+
+.shopping-list__copy:hover {
+  background: var(--hover-bg);
+  color: var(--food-color);
+}
+
+.shopping-list__copy:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.shopping-list__copy svg {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .shopping-list__ingredients {
@@ -272,6 +307,10 @@
 }
 
 .shopping-list__footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+
   padding: 0.65rem 1rem;
 
   border: 1px solid var(--border-color);
@@ -284,6 +323,13 @@
   line-height: 1.4;
 
   cursor: pointer;
+}
+
+/* The icons inherit the button colour through currentColor. */
+.shopping-list__footer .shopping-list__icon svg {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
 }
 
 .shopping-list__footer button:hover:not(:disabled) {
@@ -311,7 +357,7 @@
     height: 90dvh;
   }
 
-  .shopping-list {
+  .shopping-list__form {
     gap: 0.6rem;
     padding: 0.75rem;
   }
@@ -358,7 +404,7 @@
     background: none;
   }
 
-  .shopping-list {
+  .shopping-list__form {
     display: block;
     height: auto;
     padding: 0;
@@ -374,6 +420,10 @@
 
   .shopping-list__combined h3 {
     color: var(--print-text-color);
+  }
+
+  .shopping-list__copy {
+    display: none !important;
   }
 
   .shopping-list__ingredients {
