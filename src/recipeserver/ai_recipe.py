@@ -50,7 +50,7 @@ STATUS_GENERATING = "generating"
 STATUS_COMPLETE = "complete"
 STATUS_ERROR = "error"
 
-# Vision-capable image formats accepted for "From Image" generation.
+# Vision-capable image formats accepted for "From Images" generation.
 # SVG is excluded: it is not a raster image a vision model can transcribe.
 IMAGE_MIME_TYPES = {
     ".jpg": "image/jpeg",
@@ -947,33 +947,53 @@ def _prepare_image_draft_input(
     resolved: AIConfigView,
     all_purpose_model_name: str,
     image_model_name: str,
-    image_bytes: bytes | None,
-    image_filename: str,
+    images: list[tuple[str, bytes]],
     event_callback: EventCallback | None,
 ) -> tuple[str, str]:
-    # Stage 1 (vision): transcribe the image. Stage 2 (all-purpose): draft recipe.
-    _emit_status(event_callback, STATUS_PREPARING, f"Sending the image to {image_model_name} for transcription...")
-    data_uri = image_data_uri(image_filename, image_bytes or b"")
-    image_user_content: list[dict[str, Any]] = [
-        {"type": "text", "text": "Recipe image:"},
-        {"type": "image_url", "image_url": {"url": data_uri}},
-    ]
-    logger.info(f"Transcribing recipe image with local model '{image_model_name}' " f"({len(image_bytes or b'')} bytes, {image_filename})")
+    # Stage 1 (vision): transcribe every image in the order it was uploaded.
+    # Stage 2 (all-purpose): draft the recipe from the combined text.
+    image_count = len(images)
     _report_model_loading(event_callback, resolved.endpoint, image_model_name)
-    transcription = _chat(
-        resolved.endpoint,
-        image_model_name,
-        resolved.new_recipe_from_image_prompt,
-        image_user_content,
-        stage="image transcription",
-    )
-    logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}")
+
+    transcriptions: list[str] = []
+    for index, (image_filename, image_bytes) in enumerate(images, start=1):
+        position = f"image {index} of {image_count}" if image_count > 1 else "the image"
+        _emit_status(
+            event_callback,
+            STATUS_PREPARING,
+            f"Sending {position} ({image_filename}) to {image_model_name} for transcription...",
+        )
+        data_uri = image_data_uri(image_filename, image_bytes)
+        image_user_content: list[dict[str, Any]] = [
+            {"type": "text", "text": "Recipe image:"},
+            {"type": "image_url", "image_url": {"url": data_uri}},
+        ]
+        logger.info(f"Transcribing recipe image with local model '{image_model_name}' ({len(image_bytes)} bytes, {image_filename})")
+        transcription = _chat(
+            resolved.endpoint,
+            image_model_name,
+            resolved.new_recipe_from_image_prompt,
+            image_user_content,
+            stage="image transcription",
+        )
+        logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}")
+        transcriptions.append(f"--- {position.capitalize()}: {image_filename} ---\n{transcription}")
+
+        if index < image_count:
+            _emit_status(
+                event_callback,
+                STATUS_PREPARING,
+                f"Transcribed {position}. Sending the next image...",
+            )
+
+    transcribed_label = f"{image_count} images" if image_count > 1 else "image"
     _emit_status(
         event_callback,
         STATUS_PREPARING,
-        f"Image transcribed. Preparing the extracted text for {all_purpose_model_name}...",
+        f"Transcribed {transcribed_label}. Preparing the extracted text for {all_purpose_model_name}...",
     )
-    return _truncate_prompt_text(f"Recipe text (transcribed from image):\n{transcription}"), ""
+    combined = "\n\n".join(transcriptions)
+    return _truncate_prompt_text(f"Recipe text (transcribed from {transcribed_label}):\n{combined}"), ""
 
 
 def _prepare_text_or_url_draft_input(
@@ -1016,14 +1036,16 @@ def generate_recipe(
     input_type: str,
     input_value: str,
     event_callback: EventCallback | None = None,
-    image_bytes: bytes | None = None,
-    image_filename: str = "",
+    images: list[tuple[str, bytes]] | None = None,
 ) -> dict[str, Any]:
+    images = list(images or [])
     resolved = resolve_ai_config(config)
     if not resolved.is_configured:
         raise ModelUnavailable("The local model is not configured")
     if input_type == "image" and not resolved.is_image_configured:
         raise ModelUnavailable("The image analysis model is not configured")
+    if input_type == "image" and not images:
+        raise ValueError("Expected at least one recipe image")
 
     _emit_status(event_callback, STATUS_CHECKING_MODEL, "Checking model status...")
     all_purpose_model_name = _require_model_name(
@@ -1044,7 +1066,10 @@ def generate_recipe(
     if input_type == "url":
         _emit_status(event_callback, STATUS_PREPARING, f"Fetching recipe page: {input_value}")
     elif input_type == "image":
-        _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe image...")
+        if len(images) == 1:
+            _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe image...")
+        else:
+            _emit_status(event_callback, STATUS_PREPARING, f"Preparing {len(images)} recipe images...")
     else:
         _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe text...")
 
@@ -1053,8 +1078,7 @@ def generate_recipe(
             resolved,
             all_purpose_model_name,
             image_model_name,
-            image_bytes,
-            image_filename,
+            images,
             event_callback,
         )
     else:

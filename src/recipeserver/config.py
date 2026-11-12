@@ -131,7 +131,7 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
     ConfigField(
         IMAGE_ANALYSIS_MODEL_KEY,
         "Image analysis model name",
-        "Used for From Image recipe creation. Leave blank to auto-detect from the endpoint.",
+        "Used for From Images recipe creation. Leave blank to auto-detect from the endpoint.",
         placeholder="llava3",
     ),
     ConfigField(

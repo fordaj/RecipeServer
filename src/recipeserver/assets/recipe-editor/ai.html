@@ -51,14 +51,22 @@
     </div>
 
     <div class="recipe-editor__ai-field">
-      <label for="recipe-editor-ai-image">From Image</label>
-      <input
-        id="recipe-editor-ai-image"
-        type="file"
-        class="recipe-editor__ai-image"
-        accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif"
-      />
-      <button type="button" class="recipe-editor__ai-generate-image">Generate from image</button>
+      <label for="recipe-editor-ai-image">From Images</label>
+      <div class="recipe-editor__images recipe-editor__ai-images">
+        <input
+          id="recipe-editor-ai-image"
+          type="file"
+          class="recipe-editor__ai-image"
+          multiple
+          accept=".jpg,.jpeg,.png,.gif,.webp,.bmp,.tiff,.tif"
+        />
+        <p class="recipe-editor__images-help">
+          Drag &amp; drop recipe images here, paste them from your clipboard, or click to choose
+          files. Each image is transcribed in the order it is added.
+        </p>
+        <p class="recipe-editor__images-selected" aria-live="polite"></p>
+      </div>
+      <button type="button" class="recipe-editor__ai-generate-image">Generate from images</button>
     </div>
   </fieldset>
 </details>

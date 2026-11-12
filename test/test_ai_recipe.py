@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import base64
 import json
 import socket
 from threading import Thread
@@ -272,11 +273,11 @@ def request_ai_raw(url: str, payload: dict) -> str:
         return response.read().decode("utf-8")
 
 
-def request_ai_image_events(url: str, image_bytes: bytes, filename: str = "recipe.png") -> tuple[int, list[dict]]:
+def request_ai_image_events(url: str, images: list[tuple[str, bytes]]) -> tuple[int, list[dict]]:
     import uuid
 
     boundary = f"----RecipeServerTest{uuid.uuid4().hex}"
-    body = (
+    parts = [
         (
             f"--{boundary}\r\n"
             'Content-Disposition: form-data; name="inputType"\r\n\r\n'
@@ -284,13 +285,13 @@ def request_ai_image_events(url: str, image_bytes: bytes, filename: str = "recip
             f"--{boundary}\r\n"
             'Content-Disposition: form-data; name="stream"\r\n\r\n'
             "true\r\n"
-            f"--{boundary}\r\n"
-            f'Content-Disposition: form-data; name="image"; filename="{filename}"\r\n'
-            "Content-Type: image/png\r\n\r\n"
         ).encode()
-        + image_bytes
-        + f"\r\n--{boundary}--\r\n".encode()
-    )
+    ]
+    for filename, image_bytes in images:
+        headers = f"--{boundary}\r\n" f'Content-Disposition: form-data; name="images"; filename="{filename}"\r\n' "Content-Type: image/png\r\n\r\n"
+        parts.append(headers.encode() + image_bytes + b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    body = b"".join(parts)
     request = Request(
         url,
         data=body,
@@ -298,8 +299,11 @@ def request_ai_image_events(url: str, image_bytes: bytes, filename: str = "recip
         method="POST",
     )
 
-    with urlopen(request) as response:
-        return response.status, read_sse_events(response)
+    try:
+        with urlopen(request) as response:
+            return response.status, read_sse_events(response)
+    except HTTPError as error:
+        return error.code, json.loads(error.read())
 
 
 @contextmanager
@@ -556,7 +560,7 @@ def test_ai_generation_from_image_transcribes_then_drafts(tmp_path):
 
     with running_model_api() as (model_url, model_state):
         with running_recipe_server(source, config_for(model_url)) as base_url:
-            status, events = request_ai_image_events(f"{base_url}/api/ai-recipe", image_bytes)
+            status, events = request_ai_image_events(f"{base_url}/api/ai-recipe", [("recipe.png", image_bytes)])
 
     result_event = events[-1]
     assert result_event["type"] == "result"
@@ -592,7 +596,91 @@ def test_ai_generation_from_image_transcribes_then_drafts(tmp_path):
 
     messages = [event["message"] for event in events if event["type"] == "status"]
     assert any("for transcription" in message for message in messages)
-    assert any("Image transcribed" in message for message in messages)
+    assert any("Transcribed image." in message for message in messages)
+
+
+def test_ai_generation_from_multiple_images_keeps_upload_order(tmp_path):
+    from io import BytesIO
+
+    from PIL import Image
+
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    def png_bytes(color: str, size: tuple[int, int]) -> bytes:
+        buffer = BytesIO()
+        Image.new("RGB", size, color=color).save(buffer, format="PNG")
+        return buffer.getvalue()
+
+    page_one = png_bytes("white", (8, 8))
+    page_two = png_bytes("red", (16, 16))
+    images = [("page-one.png", page_one), ("page-two.png", page_two)]
+
+    with running_model_api() as (model_url, model_state):
+        with running_recipe_server(source, config_for(model_url)) as base_url:
+            status, events = request_ai_image_events(f"{base_url}/api/ai-recipe", images)
+
+    assert status == 200
+    result_event = events[-1]
+    assert result_event["type"] == "result"
+    assert result_event["result"]["content"].startswith("# Brownies")
+
+    # One transcription per image, in upload order, then a single draft.
+    payloads = model_state["payloads"]
+    assert [payload["model"] for payload in payloads] == ["vision-model", "vision-model", "test-model"]
+
+    for index, (_filename, image_bytes) in enumerate(images):
+        data_uri = payloads[index]["messages"][1]["content"][1]["image_url"]["url"]
+        assert data_uri == f"data:image/png;base64,{base64.b64encode(image_bytes).decode('ascii')}"
+
+    draft_content = payloads[2]["messages"][1]["content"]
+    first = draft_content.index("--- Image 1 of 2: page-one.png ---")
+    second = draft_content.index("--- Image 2 of 2: page-two.png ---")
+    assert first < second
+    assert "Brownies: 1 cup sugar, 2 eggs, 1/2 cup butter." in draft_content
+
+    messages = [event["message"] for event in events if event["type"] == "status"]
+    assert any("Preparing 2 recipe images..." in message for message in messages)
+    assert any("Sending image 1 of 2 (page-one.png)" in message for message in messages)
+    assert any("Sending image 2 of 2 (page-two.png)" in message for message in messages)
+    assert any("Transcribed 2 images." in message for message in messages)
+
+
+def test_ai_image_generation_rejects_images_the_vision_model_cannot_read(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"></svg>'
+
+    with running_model_api() as (model_url, model_state):
+        with running_recipe_server(source, config_for(model_url)) as base_url:
+            status, body = request_ai_image_events(f"{base_url}/api/ai-recipe", [("sketch.svg", svg)])
+
+    assert status == 400
+    assert "Unsupported image type for AI generation" in body["error"]
+    assert model_state.get("payloads", []) == []
+
+
+def test_ai_image_generation_limits_the_number_of_images(tmp_path):
+    from io import BytesIO
+
+    from PIL import Image
+
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    buffer = BytesIO()
+    Image.new("RGB", (8, 8), color="white").save(buffer, format="PNG")
+    image_bytes = buffer.getvalue()
+
+    with running_model_api() as (model_url, model_state):
+        with running_recipe_server(source, config_for(model_url)) as base_url:
+            images = [(f"page-{index}.png", image_bytes) for index in range(21)]
+            status, body = request_ai_image_events(f"{base_url}/api/ai-recipe", images)
+
+    assert status == 400
+    assert "no more than 20 images" in body["error"]
+    assert model_state.get("payloads", []) == []
 
 
 def test_ai_reasoning_only_response_reports_token_limit(tmp_path):

@@ -385,6 +385,19 @@
   display: none;
 }
 
+/*
+ * The AI images picker reuses this dropzone, so its file input keeps the
+ * plain native look instead of the bordered text-field styling that the
+ * other Auto-Generate inputs use.
+ */
+.recipe-editor__ai-field .recipe-editor__images input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 /* ---------- AI recipe source ---------- */
 
 .recipe-editor__ai[hidden] {
