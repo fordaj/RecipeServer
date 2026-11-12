@@ -28,6 +28,7 @@ const initRecipeIndex = async () => {
   const cardZoom = document.querySelector("#card-zoom");
   const bulkControls = document.querySelector("#bulk-controls");
   const bulkEdit = document.querySelector("#bulk-edit");
+  const shoppingList = document.querySelector("#shopping-list");
   const bulkDelete = document.querySelector("#bulk-delete");
   const clearSelections = document.querySelector("#clear-selections");
   const bulkCount = document.querySelector("#bulk-selection-count");
@@ -42,7 +43,7 @@ const initRecipeIndex = async () => {
 
   const visibleRecipes = () => recipes.filter((recipe) => !recipe.hidden);
 
-  const applyMultiSelect = (targetRecipe, event) => {
+  const applyMultiSelect = (targetRecipe, event, checked) => {
     const visible = visibleRecipes();
     const targetIndex = visible.indexOf(targetRecipe);
     if (targetIndex < 0) return;
@@ -69,8 +70,10 @@ const initRecipeIndex = async () => {
     }
 
     // Plain click (and Ctrl/Cmd alone) toggles this card without clearing
-    // others, so multiple recipes can be selected on mouse and touch.
-    targetBox.checked = !targetBox.checked;
+    // others, so multiple recipes can be selected on mouse and touch. A
+    // click on the checkbox itself already toggled it in the browser, so
+    // that state is passed in instead of flipping the box a second time.
+    targetBox.checked = checked ?? !targetBox.checked;
     selectionAnchor = targetRecipe;
     updateBulkControls();
   };
@@ -79,6 +82,7 @@ const initRecipeIndex = async () => {
     const selected = getSelectedPaths();
     if (bulkCount) bulkCount.textContent = `${selected.length} selected`;
     if (bulkEdit) bulkEdit.disabled = selected.length === 0;
+    if (shoppingList) shoppingList.disabled = selected.length === 0;
     if (bulkDelete) bulkDelete.disabled = selected.length === 0;
     for (const box of selectBoxes) {
       box.closest(".recipe")?.classList.toggle("is-selected", box.checked);
@@ -468,16 +472,19 @@ const initRecipeIndex = async () => {
   selectBoxes.forEach((box) => {
     box.addEventListener("click", (event) => {
       if (!selectionMode?.checked) return;
-      event.preventDefault();
+      // The browser has already toggled the checkbox. Cancelling the click
+      // would undo that, so the new state is handed to the shared handler.
       const recipe = box.closest(".recipe");
-      if (recipe) applyMultiSelect(recipe, event);
+      if (recipe) applyMultiSelect(recipe, event, box.checked);
     });
   });
   // In selection mode, clicking the card selects it instead of navigating.
   list.addEventListener("click", (event) => {
     if (!selectionMode?.checked) return;
-    const checkbox = event.target.closest(".recipe-select__checkbox");
-    if (checkbox) return;
+    // The selection control has its own handler; clicking it must not
+    // toggle the recipe a second time.
+    const control = event.target.closest(".recipe-select");
+    if (control) return;
     const link = event.target.closest(".recipe-card__link, .recipe-card__image, .recipe-card");
     if (!link || !list.contains(link)) return;
     event.preventDefault();
@@ -511,6 +518,13 @@ const initRecipeIndex = async () => {
       const paths = getSelectedPaths();
       if (!paths.length) return;
       document.dispatchEvent(new CustomEvent("bulk-edit", { detail: { paths } }));
+    });
+  }
+  if (shoppingList) {
+    shoppingList.addEventListener("click", () => {
+      const paths = getSelectedPaths();
+      if (!paths.length) return;
+      document.dispatchEvent(new CustomEvent("shopping-list", { detail: { paths } }));
     });
   }
   if (bulkDelete) {

@@ -1,0 +1,37 @@
+<form class="shopping-list__form" method="dialog">
+  <header class="shopping-list__header">
+    <h2>Shopping List</h2>
+    <button type="button" class="shopping-list__close" aria-label="Close shopping list">
+      &times;
+    </button>
+  </header>
+
+  <p class="shopping-list__status" role="status"></p>
+
+  <section class="shopping-list__recipes" aria-label="Selected recipes"></section>
+
+  <section class="shopping-list__combined">
+    <h3 class="shopping-list__combined-heading">
+      <span>Combined Ingredients</span>
+      <button
+        type="button"
+        class="shopping-list__copy"
+        aria-label="Copy the checklist as Markdown"
+        title="Copy the checklist as Markdown"
+      ></button>
+    </h3>
+    <ul class="task-list shopping-list__ingredients"></ul>
+  </section>
+
+  <footer class="shopping-list__footer">
+    <button type="button" class="shopping-list__print">
+      <span class="shopping-list__icon" aria-hidden="true"></span>
+      <span>Print</span>
+    </button>
+    <button type="button" class="shopping-list__download">
+      <span class="shopping-list__icon" aria-hidden="true"></span>
+      <span>Download Markdown</span>
+    </button>
+    <button type="submit" class="shopping-list__done">Done</button>
+  </footer>
+</form>

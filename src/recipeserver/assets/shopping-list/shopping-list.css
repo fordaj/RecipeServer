@@ -1,0 +1,440 @@
+/* ---------- Shopping list dialog ---------- */
+
+.shopping-list-dialog {
+  width: min(900px, calc(100% - 2rem));
+  height: min(85dvh, 800px);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  box-sizing: border-box;
+
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-color);
+
+  overflow: hidden;
+}
+
+.shopping-list-dialog::backdrop {
+  background: var(--dialog-backdrop);
+}
+
+/* ---------- Layout ---------- */
+
+.shopping-list__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+
+  padding: 1rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.shopping-list__header,
+.shopping-list__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.shopping-list__header h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.shopping-list__close {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1.75rem;
+  cursor: pointer;
+}
+
+.shopping-list__close:hover {
+  background: var(--hover-bg);
+}
+
+.shopping-list__close:focus-visible,
+.shopping-list__footer button:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.shopping-list__status {
+  flex: 0 0 auto;
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.shopping-list__status:empty {
+  display: none;
+}
+
+/* ---------- Recipe rows ---------- */
+
+/* The first section is a grid of rows: one row per selected recipe. */
+.shopping-list__recipes {
+  display: grid;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.shopping-list__recipe {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.shopping-list__scaler {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+/* The shopping list uses a smaller scaler than the one on a recipe page. */
+.shopping-list__scaler .recipe-scaler {
+  font-size: 1.15rem;
+  justify-content: flex-start;
+}
+
+.shopping-list__image {
+  width: 3.25rem;
+  height: 3.25rem;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--hover-bg);
+}
+
+.shopping-list__image--empty {
+  display: block;
+}
+
+.shopping-list__details {
+  min-width: 0;
+}
+
+.shopping-list__name {
+  margin: 0 0 0.25rem;
+  color: var(--food-color);
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.shopping-list__recipe-ingredients {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.shopping-list__recipe-ingredients li {
+  margin-bottom: 0.1rem;
+}
+
+.shopping-list__recipe-ingredients .quantity {
+  min-height: 0;
+}
+
+.shopping-list__no-ingredients {
+  color: var(--muted-color);
+  list-style: none;
+}
+
+/* ---------- Combined ingredients ---------- */
+
+.shopping-list__combined {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.shopping-list__combined-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+/* The copy button sits at the far right of the heading. */
+.shopping-list__copy {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-color);
+  cursor: pointer;
+}
+
+.shopping-list__copy:hover {
+  background: var(--hover-bg);
+  color: var(--food-color);
+}
+
+.shopping-list__copy:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.shopping-list__copy svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.shopping-list__ingredients {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.shopping-list__ingredients li {
+  margin-bottom: 0.15rem;
+}
+
+.shopping-list__ingredients .quantity {
+  min-height: 0;
+}
+
+/* The checklist row: the amount, and the recipes it came from on the
+   right hand side. */
+.shopping-list__item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.shopping-list__ingredient {
+  min-width: 0;
+}
+
+.shopping-list__sources {
+  flex: 0 1 auto;
+  margin-left: auto;
+  padding-left: 0.75rem;
+
+  color: var(--muted-color);
+  font-size: 0.85em;
+  font-style: italic;
+  text-align: right;
+}
+
+/* ---------- Checklist checkboxes ---------- */
+
+.shopping-list__ingredients input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+
+  width: 1.1em;
+  height: 1.1em;
+  margin-right: 0.45rem;
+  border: 2px solid var(--food-color);
+  border-radius: 3px;
+  background-color: transparent;
+
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.shopping-list__ingredients input[type="checkbox"]:checked {
+  background-color: var(--food-color);
+  border-color: var(--food-color);
+}
+
+.shopping-list__ingredients input[type="checkbox"]:checked::before {
+  content: "";
+  width: 0.3em;
+  height: 0.6em;
+  border: solid var(--checkmark-color);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-top: -0.1em;
+}
+
+.shopping-list__ingredients input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.shopping-list__ingredients li:has(input[type="checkbox"]:checked) {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+/* ---------- Actions ---------- */
+
+.shopping-list__footer {
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--card-bg);
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
+
+.shopping-list__footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  padding: 0.65rem 1rem;
+
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+
+  cursor: pointer;
+}
+
+/* The icons inherit the button colour through currentColor. */
+.shopping-list__footer .shopping-list__icon svg {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 auto;
+}
+
+.shopping-list__footer button:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+/* Done uses the same filled style as the recipe editor's Save button. */
+.shopping-list__footer .shopping-list__done {
+  border-color: var(--food-color);
+  background: var(--food-color);
+  color: var(--page-bg);
+}
+
+.shopping-list__footer .shopping-list__done:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 600px) {
+  .shopping-list-dialog {
+    width: calc(100% - 1rem);
+    height: 90dvh;
+  }
+
+  .shopping-list__form {
+    gap: 0.6rem;
+    padding: 0.75rem;
+  }
+
+  .shopping-list__recipe {
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  .shopping-list__image {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .shopping-list__footer button {
+    min-height: 2.75rem;
+  }
+}
+
+/* ---------- Printing ---------- */
+
+/* Printing produces the checklist on its own so it can be shared as a PDF. */
+@media print {
+  body > *:not(.shopping-list-dialog) {
+    display: none !important;
+  }
+
+  .shopping-list-dialog {
+    position: static;
+    display: block;
+    width: auto;
+    max-width: none;
+    height: auto;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: var(--print-bg);
+    overflow: visible;
+  }
+
+  .shopping-list-dialog::backdrop {
+    background: none;
+  }
+
+  .shopping-list__form {
+    display: block;
+    height: auto;
+    padding: 0;
+    overflow: visible;
+  }
+
+  .shopping-list__header,
+  .shopping-list__status,
+  .shopping-list__recipes,
+  .shopping-list__footer {
+    display: none !important;
+  }
+
+  .shopping-list__combined h3 {
+    color: var(--print-text-color);
+  }
+
+  .shopping-list__copy {
+    display: none !important;
+  }
+
+  .shopping-list__ingredients {
+    color: var(--print-text-color);
+    /* The printed checklist is laid out in two columns. */
+    columns: 2;
+    column-gap: 2rem;
+    padding-right: 1.25rem;
+  }
+
+  .shopping-list__ingredients li {
+    break-inside: avoid;
+  }
+}
