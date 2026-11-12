@@ -113,14 +113,30 @@
 
     setOptions(options) {
       this.options = (Array.isArray(options) ? options : [])
-        .map((option) => String(option ?? "").trim())
-        .filter(Boolean);
-      this.renderSelect();
+        .map((option) => ({
+          value: String(option?.value ?? "").trim(),
+          count: Number(option?.count) || 0,
+        }))
+        .filter((option) => option.value);
+      this.render();
     }
 
     availableOptions() {
       const selected = new Set(this.values.map((value) => value.toLowerCase()));
-      return this.options.filter((option) => !selected.has(option.toLowerCase()));
+      return this.options.filter((option) => !selected.has(option.value.toLowerCase()));
+    }
+
+    countFor(value) {
+      const found = this.options.find(
+        (option) => option.value.toLowerCase() === value.toLowerCase(),
+      );
+      return found ? found.count : 0;
+    }
+
+    // The count tells the user how many recipes already use the value.
+    labelFor(value) {
+      const count = this.countFor(value);
+      return count ? `${value} (${count})` : value;
     }
 
     // ----- Rendering ----- //
@@ -135,18 +151,19 @@
       placeholder.value = "";
       placeholder.textContent = this.selectLabel();
 
-      const options = [placeholder];
-      this.availableOptions().forEach((value) => {
-        const option = document.createElement("option");
-        option.value = value;
-        option.textContent = value;
-        options.push(option);
-      });
-
+      // "Add new" sits at the top so a value that is not in the library yet
+      // is always one click away.
       const addNew = document.createElement("option");
       addNew.value = NEW_VALUE;
       addNew.textContent = "Add new…";
-      options.push(addNew);
+
+      const options = [placeholder, addNew];
+      this.availableOptions().forEach((option) => {
+        const element = document.createElement("option");
+        element.value = option.value;
+        element.textContent = this.labelFor(option.value);
+        options.push(element);
+      });
 
       this.select.replaceChildren(...options);
       this.select.value = "";
@@ -160,7 +177,7 @@
 
         const label = document.createElement("span");
         label.className = "recipe-editor__picker-chip-label";
-        label.textContent = value;
+        label.textContent = this.labelFor(value);
 
         const remove = document.createElement("button");
         remove.type = "button";

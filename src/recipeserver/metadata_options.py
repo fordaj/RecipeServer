@@ -54,9 +54,13 @@ def _recipe_files(root: Path) -> list[Path]:
     return [recipe_file for recipe_file in sorted(root.rglob("recipe.md")) if not recipe_file.is_symlink() and recipe_file.is_file()]
 
 
-def collect_metadata_options(source_directory: Path) -> dict[str, list[str]]:
-    """Return the distinct values used by each dropdown-backed metadata field."""
-    options: dict[str, set[str]] = {field: set() for field in OPTION_FIELDS}
+def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str, object]]]:
+    """Return the values used by each dropdown field and how many recipes use them.
+
+    Every value is reported with the number of recipes that use it, so the
+    editor can show how popular a value is next to the value itself.
+    """
+    counts: dict[str, dict[str, int]] = {field: {} for field in OPTION_FIELDS}
     root = Path(source_directory)
 
     for recipe_file in _recipe_files(root):
@@ -70,6 +74,11 @@ def collect_metadata_options(source_directory: Path) -> dict[str, list[str]]:
             continue
 
         for field in OPTION_FIELDS:
-            options[field].update(_field_values(metadata, field))
+            # A recipe counts once for every value it uses.
+            for value in dict.fromkeys(_field_values(metadata, field)):
+                counts[field][value] = counts[field].get(value, 0) + 1
 
-    return {field: sorted(values, key=lambda value: (value.casefold(), value)) for field, values in options.items()}
+    return {
+        field: [{"value": value, "count": count} for value, count in sorted(values.items(), key=lambda item: (item[0].casefold(), item[0]))]
+        for field, values in counts.items()
+    }
