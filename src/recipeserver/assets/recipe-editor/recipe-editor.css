@@ -415,47 +415,8 @@
 }
 
 .recipe-editor__ai-progress[hidden],
-.recipe-editor__ai-thinking[hidden],
-.recipe-editor__ai-preview[hidden],
 .recipe-editor__ai-metrics[hidden] {
   display: none;
-}
-
-.recipe-editor__ai-thinking {
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--input-bg);
-}
-
-.recipe-editor__ai-thinking summary {
-  padding: 0.4rem 0.6rem;
-  color: var(--muted-color);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.recipe-editor__ai-thinking-text,
-.recipe-editor__ai-preview {
-  max-height: 18rem;
-  margin: 0;
-  padding: 0.6rem;
-  overflow: auto;
-  border-radius: 0 0 6px 6px;
-  background: var(--input-bg);
-  color: var(--text-color);
-  font:
-    0.8rem/1.45 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Consolas,
-    monospace;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.recipe-editor__ai-preview {
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
 }
 
 .recipe-editor__ai-metrics {

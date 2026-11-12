@@ -353,10 +353,6 @@ def status_states(events: list[dict]) -> list[str]:
     return [event["state"] for event in events if event["type"] == "status"]
 
 
-def event_text(events: list[dict], event_type: str) -> str:
-    return "".join(event.get("text", "") for event in events if event["type"] == event_type)
-
-
 def test_ai_status_and_generation_from_text(tmp_path):
     source = tmp_path / "recipes"
     source.mkdir()
@@ -427,8 +423,9 @@ def test_ai_generation_streams_normalized_sse_events(tmp_path):
     assert "generating" in states
     assert states[-1] == "complete"
 
-    assert event_text(events, "content") == MODEL_OUTPUT
-    assert event_text(events, "thinking") == ""
+    # The generated Markdown is delivered once in the result event; there is
+    # no separate content or thinking event for the browser to render.
+    assert all(event["type"] not in {"content", "thinking"} for event in events)
 
     metrics_event = next(event for event in events if event["type"] == "metrics")
     assert metrics_event["metrics"]["model_load_seconds"] == 1.5
@@ -454,9 +451,10 @@ def test_ai_generation_uses_named_server_sent_events(tmp_path):
             )
 
     assert "event: status\n" in raw
-    assert "event: content\n" in raw
     assert "event: metrics\n" in raw
     assert "event: result\n" in raw
+    assert "event: content\n" not in raw
+    assert "event: thinking\n" not in raw
     assert "data: {" in raw
     assert raw.endswith("\n\n")
 
@@ -479,7 +477,7 @@ def test_ai_generation_skips_loading_when_model_is_already_loaded(tmp_path):
     assert states.index("generating") < states.index("complete")
 
 
-def test_ai_thinking_is_streamed_separately(tmp_path):
+def test_ai_thinking_reports_a_status_without_streaming_text(tmp_path):
     source = tmp_path / "recipes"
     source.mkdir()
 
@@ -492,12 +490,17 @@ def test_ai_thinking_is_streamed_separately(tmp_path):
             )
 
     assert status == 200
-    assert event_text(events, "thinking") == "Considering the ingredients."
-    assert event_text(events, "content") == MODEL_OUTPUT
-    assert "thinking" in status_states(events)
+    states = status_states(events)
+    assert "thinking" in states
+    # Content generation resumes after the thinking phase, but the reasoning
+    # text is never sent to the browser.
+    last_generating = max(index for index, state in enumerate(states) if state == "generating")
+    assert states.index("thinking") < last_generating
+    assert all(event["type"] != "thinking" for event in events)
 
     result_event = events[-1]
     assert result_event["type"] == "result"
+    assert result_event["result"]["content"].startswith("# Brownies")
     assert "Considering" not in result_event["result"]["content"]
 
 

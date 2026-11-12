@@ -684,7 +684,6 @@ Try this
           controller.signal,
         );
         if (!controller.signal.aborted) {
-          refs.aiProgress.flush();
           refs.aiProgress.setStatus(
             "Recipe draft ready. Review it, then create the recipe.",
             "complete",
@@ -693,7 +692,6 @@ Try this
           populateMetadata(refs, result.metadata || {});
         }
       } catch (caughtError) {
-        refs.aiProgress.flush();
         if (caughtError.name === "AbortError") {
           refs.aiProgress.setStatus("Generation cancelled.", "idle");
         } else {

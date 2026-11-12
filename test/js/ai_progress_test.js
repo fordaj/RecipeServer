@@ -1,9 +1,8 @@
 "use strict";
 
 // Behavioural checks for the AI generation progress panel. The progress module
-// is loaded into the DOM stub from dom_stub.js so the batching, immediate
-// status transitions, thinking output, and metrics can be driven the way the
-// browser drives them.
+// is loaded into the DOM stub from dom_stub.js so the status transitions and
+// metrics can be driven the way the browser drives them.
 
 const assert = require("node:assert/strict");
 const path = require("node:path");
@@ -37,16 +36,6 @@ function buildRoot(document) {
   progress.hidden = true;
   root.append(progress);
 
-  const thinking = element(document, "details", "recipe-editor__ai-thinking");
-  thinking.hidden = true;
-  const thinkingText = element(document, "pre", "recipe-editor__ai-thinking-text");
-  thinking.append(element(document, "summary"), thinkingText);
-  progress.append(thinking);
-
-  const preview = element(document, "pre", "recipe-editor__ai-preview");
-  preview.hidden = true;
-  progress.append(preview);
-
   const metrics = element(document, "dl", "recipe-editor__ai-metrics");
   metrics.hidden = true;
   for (const className of [
@@ -62,18 +51,14 @@ function buildRoot(document) {
   progress.append(metrics);
 
   document.body.append(root);
-  return { root, status, progress, thinking, thinkingText, preview, metrics };
-}
-
-function sleep(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  return { root, status, progress, metrics };
 }
 
 function metricText(root, className) {
   return root.querySelector(`.${className}`).textContent;
 }
 
-async function main() {
+function main() {
   const document = createDocument();
   globalThis.window = {};
   globalThis.document = document;
@@ -81,42 +66,30 @@ async function main() {
 
   const { createProgress } = window.RecipeAIProgress;
   const elements = buildRoot(document);
-  const progress = createProgress(elements.root, { flushInterval: 25 });
+  const progress = createProgress(elements.root);
 
   // Starting a generation shows the panel and the initial status immediately.
   progress.start("Recipe text received.");
   assert.equal(elements.status.textContent, "Recipe text received.");
   assert.equal(elements.progress.hidden, false);
+  assert.equal(elements.metrics.hidden, true);
 
-  // Status transitions are applied immediately, not on the content interval.
+  // Status transitions are applied immediately.
   progress.handle({ type: "status", state: "checking_model", message: "Checking model status..." });
   assert.equal(elements.status.textContent, "Checking model status...");
 
-  // Thinking is shown in its own collapsible block and batched like content.
-  progress.handle({ type: "thinking", text: "Considering " });
-  assert.equal(elements.thinking.hidden, false);
-  assert.equal(elements.thinkingText.textContent, "");
+  progress.handle({
+    type: "status",
+    state: "loading_model",
+    message: "Loading model into memory...",
+  });
+  assert.equal(elements.status.textContent, "Loading model into memory...");
+
+  progress.handle({ type: "status", state: "thinking", message: "Thinking..." });
   assert.equal(elements.status.textContent, "Thinking...");
 
-  await sleep(40);
-  assert.equal(elements.thinkingText.textContent, "Considering ");
-
-  // The first content chunk switches the status immediately, but the preview
-  // waits for the batch interval.
-  progress.handle({ type: "content", text: "Hello" });
-  assert.equal(elements.status.textContent, "Generating...");
-  assert.equal(elements.preview.textContent, "");
-
-  await sleep(40);
-  assert.equal(elements.preview.textContent, "Hello");
-  assert.equal(elements.preview.hidden, false);
-
-  // More content is batched: the old preview remains until the timer fires.
-  progress.handle({ type: "content", text: " world" });
-  assert.equal(elements.preview.textContent, "Hello");
-
-  await sleep(40);
-  assert.equal(elements.preview.textContent, "Hello world");
+  progress.handle({ type: "status", state: "generating", message: "Generating recipe..." });
+  assert.equal(elements.status.textContent, "Generating recipe...");
 
   // Metrics only display the values that are available.
   progress.handle({
@@ -134,45 +107,23 @@ async function main() {
   assert.equal(metricText(elements.root, "recipe-editor__ai-metric-tokens"), "100 tokens");
   assert.equal(metricText(elements.root, "recipe-editor__ai-metric-rate"), "50.0 tok/s");
 
-  // Completion flushes buffered content immediately instead of waiting for the
-  // next interval.
-  progress.handle({ type: "content", text: "!" });
-  assert.equal(elements.preview.textContent, "Hello world");
+  // Completion is shown as the final status.
   progress.handle({ type: "status", state: "complete", message: "Generation complete." });
   assert.equal(elements.status.textContent, "Generation complete.");
-  assert.equal(elements.preview.textContent, "Hello world!");
 
-  // An error also flushes and is shown as the final status.
-  progress.handle({ type: "content", text: " partial" });
+  // An error is shown as the final status.
   progress.handle({ type: "error", message: "Generation failed: boom" });
   assert.equal(elements.status.textContent, "Generation failed: boom");
-  assert.equal(elements.preview.textContent, "Hello world! partial");
 
-  // Flushing with no new information must not touch the DOM again.
-  let previewWrites = 0;
-  let previewValue = elements.preview.textContent;
-  Object.defineProperty(elements.preview, "textContent", {
-    get() {
-      return previewValue;
-    },
-    set(value) {
-      previewWrites += 1;
-      previewValue = String(value);
-    },
-  });
+  // Content and thinking events no longer have fields to render.
+  progress.handle({ type: "content", text: "ignored" });
+  progress.handle({ type: "thinking", text: "ignored" });
+  assert.equal(elements.status.textContent, "Generation failed: boom");
+  assert.equal(elements.metrics.hidden, false);
 
-  progress.handle({ type: "content", text: " again" });
-  await sleep(40);
-  const writesAfterUpdate = previewWrites;
-  progress.flush();
-  progress.flush();
-  assert.equal(previewWrites, writesAfterUpdate);
-
-  // Resetting clears every part of the panel.
+  // Resetting clears the panel.
   progress.reset();
   assert.equal(elements.progress.hidden, true);
-  assert.equal(elements.preview.textContent, "");
-  assert.equal(elements.thinking.hidden, true);
   assert.equal(elements.metrics.hidden, true);
   assert.equal(elements.status.textContent, "");
   assert.equal(metricText(elements.root, "recipe-editor__ai-metric-tokens"), "");
@@ -187,7 +138,4 @@ async function main() {
   console.log("ai progress checks passed");
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main();

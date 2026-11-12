@@ -1070,25 +1070,22 @@ def generate_recipe(
     )
 
     all_purpose_loaded = _report_model_loading(event_callback, resolved.endpoint, all_purpose_model_name)
-    generating_started = all_purpose_loaded is not False
-    if generating_started:
-        _emit_status(event_callback, STATUS_GENERATING, f"Generating recipe with {all_purpose_model_name}...")
+    last_status = None
 
-    thinking_started = False
+    def emit_progress(state: str, message: str) -> None:
+        nonlocal last_status
+        if last_status != state:
+            last_status = state
+            _emit_status(event_callback, state, message)
 
-    def on_thinking(text: str) -> None:
-        nonlocal thinking_started
-        if not thinking_started:
-            thinking_started = True
-            _emit_status(event_callback, STATUS_THINKING, "Thinking...")
-        _emit(event_callback, "thinking", text=text)
+    if all_purpose_loaded is not False:
+        emit_progress(STATUS_GENERATING, f"Generating recipe with {all_purpose_model_name}...")
 
-    def on_content(text: str) -> None:
-        nonlocal generating_started
-        if not generating_started:
-            generating_started = True
-            _emit_status(event_callback, STATUS_GENERATING, f"Generating recipe with {all_purpose_model_name}...")
-        _emit(event_callback, "content", text=text)
+    def on_thinking(_text: str) -> None:
+        emit_progress(STATUS_THINKING, "Thinking...")
+
+    def on_content(_text: str) -> None:
+        emit_progress(STATUS_GENERATING, f"Generating recipe with {all_purpose_model_name}...")
 
     result = _ollama_chat(
         resolved.endpoint,
