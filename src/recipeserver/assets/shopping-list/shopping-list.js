@@ -1,7 +1,7 @@
 (() => {
-  const MEAL_PLANNER_ID = "meal-planner-dialog";
-  const MEAL_PLANNER_ASSETS = "/assets/meal-planner";
-  const MEAL_PLANNER_API = "/api/meal-planner";
+  const SHOPPING_LIST_ID = "shopping-list-dialog";
+  const SHOPPING_LIST_ASSETS = "/assets/shopping-list";
+  const SHOPPING_LIST_API = "/api/shopping-list";
   const RECIPE_SCALER_URL = "/assets/recipe-scaler.html";
   const KATEX_CSS_URL = "/assets/katex/dist/katex.min.css";
   const KATEX_JS_URL = "/assets/katex/dist/katex.min.js";
@@ -15,18 +15,18 @@
   // ----- Markup and assets ----- //
 
   async function fetchTemplate(name) {
-    const response = await fetch(`${MEAL_PLANNER_ASSETS}/${name}.html`, { cache: "no-store" });
+    const response = await fetch(`${SHOPPING_LIST_ASSETS}/${name}.html`, { cache: "no-store" });
     if (!response.ok) {
-      throw new Error(`Failed to load meal planner template: ${name} (HTTP ${response.status})`);
+      throw new Error(`Failed to load shopping list template: ${name} (HTTP ${response.status})`);
     }
     return response.text();
   }
 
   async function createDialog() {
     const element = document.createElement("dialog");
-    element.id = MEAL_PLANNER_ID;
-    element.className = "meal-planner-dialog";
-    element.innerHTML = await fetchTemplate("meal-planner");
+    element.id = SHOPPING_LIST_ID;
+    element.className = "shopping-list-dialog";
+    element.innerHTML = await fetchTemplate("shopping-list");
     document.body.append(element);
     return element;
   }
@@ -43,7 +43,7 @@
     return scalerMarkup;
   }
 
-  // KaTeX is only needed once the planner opens, so it is loaded on demand
+  // KaTeX is only needed once the shopping list opens, so it is loaded on demand
   // instead of on every index page view.
   function loadKatex() {
     if (typeof window.katex?.render === "function") return Promise.resolve();
@@ -75,7 +75,7 @@
   // ----- API ----- //
 
   async function requestIngredients(paths) {
-    const url = new URL(MEAL_PLANNER_API, window.location.origin);
+    const url = new URL(SHOPPING_LIST_API, window.location.origin);
     for (const path of paths) url.searchParams.append("path", path);
 
     const response = await fetch(url, { cache: "no-store" });
@@ -93,9 +93,9 @@
   function createState(element) {
     return {
       dialog: element,
-      status: element.querySelector(".meal-planner__status"),
-      recipes: element.querySelector(".meal-planner__recipes"),
-      list: element.querySelector(".meal-planner__ingredients"),
+      status: element.querySelector(".shopping-list__status"),
+      recipes: element.querySelector(".shopping-list__recipes"),
+      list: element.querySelector(".shopping-list__ingredients"),
       rows: [],
       plans: [],
       ready: false,
@@ -141,7 +141,7 @@
     const clone = element.cloneNode(true);
 
     clone.querySelectorAll('input[type="checkbox"]').forEach((node) => node.remove());
-    clone.querySelectorAll(".meal-planner__sources").forEach((node) => node.remove());
+    clone.querySelectorAll(".shopping-list__sources").forEach((node) => node.remove());
     clone.querySelectorAll(".quantity").forEach((node) => {
       node.replaceWith(document.createTextNode(node.dataset.scaledText ?? node.textContent));
     });
@@ -167,9 +167,9 @@
     for (const row of state.rows) {
       const source = row.dataset.recipeName ?? "";
 
-      for (const item of row.querySelectorAll(".meal-planner__recipe-ingredients > li")) {
+      for (const item of row.querySelectorAll(".shopping-list__recipe-ingredients > li")) {
         // The placeholder for a recipe without ingredients is not an ingredient.
-        if (item.classList.contains("meal-planner__no-ingredients")) continue;
+        if (item.classList.contains("shopping-list__no-ingredients")) continue;
 
         const quantityElement = item.querySelector(".quantity");
         const scaled = quantityElement ? parseFloat(quantityElement.dataset.scaledQuantity) : NaN;
@@ -250,7 +250,7 @@
   // line, keeping the markup of the recipe it came from.
   function buildGroupContent(group) {
     const content = document.createElement("span");
-    content.className = "meal-planner__ingredient";
+    content.className = "shopping-list__ingredient";
 
     const clone = group.members[0].item.cloneNode(true);
     clone.querySelectorAll('input[type="checkbox"]').forEach((node) => node.remove());
@@ -273,34 +273,34 @@
 
   function buildRow(recipe, ingredients) {
     const row = document.createElement("div");
-    row.className = "meal-planner__recipe";
+    row.className = "shopping-list__recipe";
     row.dataset.recipeName = recipe.title;
 
     const scaler = document.createElement("div");
-    scaler.className = "meal-planner__scaler";
+    scaler.className = "shopping-list__scaler";
     scaler.innerHTML = scalerMarkup;
 
     const image = document.createElement(recipe.image ? "img" : "span");
-    image.className = "meal-planner__image";
+    image.className = "shopping-list__image";
     if (recipe.image) {
       image.src = recipe.image;
       image.alt = "";
       image.loading = "lazy";
     } else {
       // Keep the row aligned when the recipe has no image.
-      image.classList.add("meal-planner__image--empty");
+      image.classList.add("shopping-list__image--empty");
       image.setAttribute("aria-hidden", "true");
     }
 
     const details = document.createElement("div");
-    details.className = "meal-planner__details";
+    details.className = "shopping-list__details";
 
     const name = document.createElement("h4");
-    name.className = "meal-planner__name";
+    name.className = "shopping-list__name";
     name.textContent = recipe.title;
 
     const list = document.createElement("ul");
-    list.className = "meal-planner__recipe-ingredients";
+    list.className = "shopping-list__recipe-ingredients";
 
     for (const ingredient of ingredients) {
       const item = document.createElement("li");
@@ -314,7 +314,7 @@
 
     if (!list.childElementCount) {
       const empty = document.createElement("li");
-      empty.className = "meal-planner__no-ingredients";
+      empty.className = "shopping-list__no-ingredients";
       empty.textContent = "No ingredients found.";
       list.append(empty);
     }
@@ -332,13 +332,13 @@
     item.dataset.mergeKey = entry.group.key;
 
     const row = document.createElement("span");
-    row.className = "meal-planner__item";
+    row.className = "shopping-list__item";
 
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
 
     const sources = document.createElement("span");
-    sources.className = "meal-planner__sources";
+    sources.className = "shopping-list__sources";
     sources.textContent = entry.group.sources.join(", ");
 
     row.append(checkbox, entry.content, sources);
@@ -383,7 +383,7 @@
 
     if (!state.list.childElementCount) {
       const empty = document.createElement("li");
-      empty.className = "meal-planner__no-ingredients";
+      empty.className = "shopping-list__no-ingredients";
       empty.textContent = "No ingredients found.";
       state.list.append(empty);
     }
@@ -392,10 +392,10 @@
   // ----- Checklist export ----- //
 
   function buildChecklistMarkdown() {
-    const lines = ["# Meal Plan", "", "## Recipes", ""];
+    const lines = ["# Shopping List", "", "## Recipes", ""];
 
-    for (const plan of state.plans) {
-      lines.push(`- ${plan.title}`);
+    for (const recipe of state.selected) {
+      lines.push(`- ${recipe.title}`);
     }
 
     lines.push("", "## Combined Ingredients", "");
@@ -414,7 +414,7 @@
 
     const link = document.createElement("a");
     link.href = url;
-    link.download = "meal-plan.md";
+    link.download = "shopping-list.md";
     document.body.append(link);
     link.click();
     link.remove();
@@ -425,13 +425,15 @@
   // ----- Dialog wiring ----- //
 
   function registerDialogListeners(element) {
-    element.querySelector(".meal-planner__close")?.addEventListener("click", () => element.close());
-
-    element.querySelector(".meal-planner__print")?.addEventListener("click", () => window.print());
-
-    // The dialog form closes the planner; the checklist is downloaded first.
     element
-      .querySelector("form.meal-planner")
+      .querySelector(".shopping-list__close")
+      ?.addEventListener("click", () => element.close());
+
+    element.querySelector(".shopping-list__print")?.addEventListener("click", () => window.print());
+
+    // The dialog form closes the shopping list; the checklist is downloaded first.
+    element
+      .querySelector("form.shopping-list")
       ?.addEventListener("submit", () => downloadChecklist());
 
     let pointerDownTarget = null;
@@ -446,7 +448,7 @@
     element.addEventListener("close", () => {
       state.ready = false;
       state.rows = [];
-      state.plans = [];
+      state.selected = [];
       state.recipes.replaceChildren();
       state.list.replaceChildren();
     });
@@ -454,7 +456,7 @@
 
   // ----- Opening ----- //
 
-  async function openMealPlanner(paths) {
+  async function openShoppingList(paths) {
     if (!paths?.length || loading) return;
     loading = true;
 
@@ -467,12 +469,12 @@
 
       state.ready = false;
       state.rows = [];
-      state.plans = [];
+      state.selected = [];
       state.recipes.replaceChildren();
       state.list.replaceChildren();
       setStatus("Loading recipes…");
 
-      // Open the planner straight away so the wait is visible.
+      // Open the shopping list straight away so the wait is visible.
       if (!dialog.open) dialog.showModal();
 
       try {
@@ -492,11 +494,11 @@
           const recipe = recipeDetails(path);
           const row = buildRow(recipe, ingredientsByPath.get(path) ?? []);
           fragment.append(row);
-          state.plans.push(recipe);
+          state.selected.push(recipe);
         }
         state.recipes.append(fragment);
 
-        state.rows = [...state.recipes.querySelectorAll(".meal-planner__recipe")];
+        state.rows = [...state.recipes.querySelectorAll(".shopping-list__recipe")];
         for (const row of state.rows) {
           // Every recipe gets its own scaler so it can be scaled on its own.
           new RecipeScaler(row, { onUpdate: renderCombined });
@@ -514,8 +516,8 @@
   }
 
   function initialize() {
-    document.addEventListener("plan-meals", (event) => {
-      openMealPlanner(event.detail?.paths || []);
+    document.addEventListener("shopping-list", (event) => {
+      openShoppingList(event.detail?.paths || []);
     });
   }
 

@@ -183,10 +183,10 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert select_all is not None and select_all["type"] == "checkbox"
     assert select_all.find_parent("div", class_="bulk-controls") is not None
     assert "Select All" in select_all.find_parent("label").get_text(strip=True)
-    # Order left-to-right: Clear Selections, Delete Selected, Bulk Edit, Plan Meals.
+    # Order left-to-right: Clear Selections, Delete Selected, Bulk Edit, Shopping List.
     button_ids = [b["id"] for b in soup.select("#bulk-controls button")]
-    assert button_ids == ["clear-selections", "bulk-delete", "bulk-edit", "plan-meals"]
-    assert soup.select_one("#plan-meals").get_text(strip=True) == "Plan Meals"
+    assert button_ids == ["clear-selections", "bulk-delete", "bulk-edit", "shopping-list"]
+    assert soup.select_one("#shopping-list").get_text(strip=True) == "Shopping List"
     index_css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
     assert ".bulk-controls #bulk-edit" in index_css and "background: var(--food-color)" in index_css
     assert ".bulk-controls #bulk-delete" in index_css and "background: var(--danger-color)" in index_css

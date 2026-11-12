@@ -1,15 +1,15 @@
-"""Ingredient scraping for the meal planner.
+"""Ingredient scraping for the shopping list.
 
-The meal planner combines the ingredients of several recipes into a single
+The shopping list combines the ingredients of several recipes into a single
 checklist. The ingredients come from the generated recipe pages: a heading
 whose text mentions "ingredient" opens an ingredients section, every list
 item inside that section is an ingredient, and the next heading closes the
 section again.
 
 The scraper returns the content of the list items rather than plain text so
-the meal planner keeps the quantity spans the recipe scaler needs to scale
+the shopping list keeps the quantity spans the recipe scaler needs to scale
 each recipe independently. It also returns the name and the unit of every
-ingredient, which is what the planner groups on: two ingredients that name
+ingredient, which is what the shopping list groups on: two ingredients that name
 the same thing in the same unit are added together.
 """
 
@@ -67,9 +67,9 @@ def _normalize_unit(unit: str) -> str:
 
 
 def parse_ingredient(markup: str) -> dict:
-    """Return the parts of an ingredient the meal planner needs.
+    """Return the parts of an ingredient the shopping list needs.
 
-    The name and the unit say which ingredient this is, so the planner can
+    The name and the unit say which ingredient this is, so the shopping list can
     add the amounts of the recipes that need it together.
     """
     soup = BeautifulSoup(markup, "html.parser")

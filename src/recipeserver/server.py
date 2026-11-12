@@ -36,7 +36,7 @@ from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import Configuration
 from .image_handler import IMAGE_EXTENSIONS
-from .meal_planner import scrape_ingredients
+from .shopping_list import scrape_ingredients
 from .recipe_utils import json_default, normalize_reviewer_name
 
 MarkdownSavedCallback = Callable[[Path], None]
@@ -456,7 +456,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/config": self._handle_config_get,
             "/api/recipe-folders": self._handle_recipe_folders_get,
             "/api/bulk-editor": lambda: self._handle_bulk_editor_get(parsed),
-            "/api/meal-planner": lambda: self._handle_meal_planner_get(parsed),
+            "/api/shopping-list": lambda: self._handle_shopping_list_get(parsed),
         }
 
         if path in simple_handlers:
@@ -643,8 +643,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         self._send_json(200, {"recipes": recipes})
 
-    def _handle_meal_planner_get(self, parsed) -> None:
-        """Return the ingredients of each selected recipe for the meal planner."""
+    def _handle_shopping_list_get(self, parsed) -> None:
+        """Return the ingredients of each selected recipe for the shopping list."""
         try:
             raw_paths = _validate_bulk_paths(parse_qs(parsed.query).get("path", []))
             file_paths = [self._resolve_markdown_path(path) for path in raw_paths]

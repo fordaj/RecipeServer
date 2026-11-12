@@ -43,8 +43,8 @@ INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor/recipe-editor.css"
 RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor/recipe-editor.js"
-MEAL_PLANNER_CSS_PATH = "/assets/meal-planner/meal-planner.css"
-MEAL_PLANNER_JS_PATH = "/assets/meal-planner/meal-planner.js"
+SHOPPING_LIST_CSS_PATH = "/assets/shopping-list/shopping-list.css"
+SHOPPING_LIST_JS_PATH = "/assets/shopping-list/shopping-list.js"
 RECIPE_SCALER_CSS_PATH = "/assets/recipe-scaler.css"
 RECIPE_SCALER_JS_PATH = "/assets/recipe-scaler.js"
 CONFIG_EDITOR_CSS_PATH = "/assets/config-editor.css"
@@ -666,8 +666,8 @@ class IndexHTMLGenerator:
         index_js_url = _versioned_asset_url(INDEX_JS_PATH)
         recipe_editor_css_url = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
         recipe_editor_js_url = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
-        meal_planner_css_url = _versioned_asset_url(MEAL_PLANNER_CSS_PATH)
-        meal_planner_js_url = _versioned_asset_url(MEAL_PLANNER_JS_PATH)
+        shopping_list_css_url = _versioned_asset_url(SHOPPING_LIST_CSS_PATH)
+        shopping_list_js_url = _versioned_asset_url(SHOPPING_LIST_JS_PATH)
         recipe_scaler_css_url = _versioned_asset_url(RECIPE_SCALER_CSS_PATH)
         recipe_scaler_js_url = _versioned_asset_url(RECIPE_SCALER_JS_PATH)
         config_editor_css_url = _versioned_asset_url(CONFIG_EDITOR_CSS_PATH)
@@ -686,13 +686,13 @@ class IndexHTMLGenerator:
                 <link rel="stylesheet" href="{index_css_url}">
                 <link rel="stylesheet" href="{recipe_editor_css_url}">
                 <link rel="stylesheet" href="{recipe_scaler_css_url}">
-                <link rel="stylesheet" href="{meal_planner_css_url}">
+                <link rel="stylesheet" href="{shopping_list_css_url}">
                 <link rel="stylesheet" href="{config_editor_css_url}">
                 <script src="{MENU_JS_URL}" defer></script>
                 <script src="{index_js_url}" defer></script>
                 <script src="{recipe_editor_js_url}" defer></script>
                 <script src="{recipe_scaler_js_url}" defer></script>
-                <script src="{meal_planner_js_url}" defer></script>
+                <script src="{shopping_list_js_url}" defer></script>
                 <script src="{config_editor_js_url}" defer></script>
             </head>
             <body>
@@ -856,7 +856,7 @@ class IndexHTMLGenerator:
                             <button id="clear-selections" type="button">Clear Selections</button>
                             <button id="bulk-delete" class="bulk-delete" type="button" disabled>Delete Selected</button>
                             <button id="bulk-edit" class="bulk-edit" type="button" disabled>Bulk Edit</button>
-                            <button id="plan-meals" class="plan-meals" type="button" disabled>Plan Meals</button>
+                            <button id="shopping-list" class="shopping-list" type="button" disabled>Shopping List</button>
                         </div>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
                         <div class="results-controls">

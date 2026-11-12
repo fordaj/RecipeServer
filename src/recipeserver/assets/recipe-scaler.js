@@ -22,7 +22,7 @@ class RecipeScaler {
 
   // ----- Fraction table ----- //
   // Each fraction carries a LaTeX form for KaTeX and a plain text form
-  // for callers that need to read a quantity back (the meal planner
+  // for callers that need to read a quantity back (the shopping list
   // checklist, for example).
   static FRACTIONS = [
     { value: 0, latex: "", text: "" },
@@ -42,7 +42,7 @@ class RecipeScaler {
 
   // ----- Amount formatting ----- //
   // The formatters below are static so other features can reuse them. The
-  // meal planner adds the amounts of several recipes together and needs
+  // shopping list adds the amounts of several recipes together and needs
   // the same formatting the recipe pages use.
 
   static roundQuantity(value, unit) {
@@ -357,7 +357,7 @@ class RecipeScaler {
    * @param {ParentNode} root Scope that holds the scaler controls and the
    *   quantities they scale. The recipe page passes the document because
    *   its scaler sits in the header while the quantities sit in the body;
-   *   the meal planner passes a single recipe row so every recipe can be
+   *   the shopping list passes a single recipe row so every recipe can be
    *   scaled on its own.
    * @param {{onUpdate?: () => void}} [options] `onUpdate` runs after every
    *   recalculation so callers can re-render derived content.
@@ -514,8 +514,8 @@ class RecipeScaler {
       }
 
       // Keep the scaled amount available as plain text and as a number so
-      // callers that cannot read the rendered KaTeX output (the meal
-      // planner checklist, for example) can still work with it.
+      // callers that cannot read the rendered KaTeX output (the shopping
+      // list checklist, for example) can still work with it.
       element.dataset.scaledText = text;
       element.dataset.scaledQuantity = String(scaled);
       if (scaledEnd !== null) {
@@ -533,7 +533,7 @@ class RecipeScaler {
 
 document.addEventListener("DOMContentLoaded", () => {
   // Only the recipe page has a scaler of its own. Pages that embed the
-  // scaler markup (the meal planner) create their own instances.
+  // scaler markup (the shopping list) create their own instances.
   if (!document.querySelector(".recipe-scaler")) return;
   new RecipeScaler();
 });

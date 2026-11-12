@@ -28,7 +28,7 @@ const initRecipeIndex = async () => {
   const cardZoom = document.querySelector("#card-zoom");
   const bulkControls = document.querySelector("#bulk-controls");
   const bulkEdit = document.querySelector("#bulk-edit");
-  const planMeals = document.querySelector("#plan-meals");
+  const shoppingList = document.querySelector("#shopping-list");
   const bulkDelete = document.querySelector("#bulk-delete");
   const clearSelections = document.querySelector("#clear-selections");
   const bulkCount = document.querySelector("#bulk-selection-count");
@@ -82,7 +82,7 @@ const initRecipeIndex = async () => {
     const selected = getSelectedPaths();
     if (bulkCount) bulkCount.textContent = `${selected.length} selected`;
     if (bulkEdit) bulkEdit.disabled = selected.length === 0;
-    if (planMeals) planMeals.disabled = selected.length === 0;
+    if (shoppingList) shoppingList.disabled = selected.length === 0;
     if (bulkDelete) bulkDelete.disabled = selected.length === 0;
     for (const box of selectBoxes) {
       box.closest(".recipe")?.classList.toggle("is-selected", box.checked);
@@ -520,11 +520,11 @@ const initRecipeIndex = async () => {
       document.dispatchEvent(new CustomEvent("bulk-edit", { detail: { paths } }));
     });
   }
-  if (planMeals) {
-    planMeals.addEventListener("click", () => {
+  if (shoppingList) {
+    shoppingList.addEventListener("click", () => {
       const paths = getSelectedPaths();
       if (!paths.length) return;
-      document.dispatchEvent(new CustomEvent("plan-meals", { detail: { paths } }));
+      document.dispatchEvent(new CustomEvent("shopping-list", { detail: { paths } }));
     });
   }
   if (bulkDelete) {
