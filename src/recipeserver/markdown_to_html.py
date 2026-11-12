@@ -644,7 +644,7 @@ class MarkdownToHTMLConverter:
     def _build_recipe_version(self, metadata: dict, soup: BeautifulSoup) -> Tag:
         version_element = soup.new_tag(
             "div",
-            attrs={"class": "recipe-version"},
+            attrs={"class": "recipe-version recipe-extras"},
         )
 
         self._append_svg_icon(version_element, TAG_SVG)
@@ -712,7 +712,7 @@ class MarkdownToHTMLConverter:
     def _get_comments_html(self, has_comments: bool = False) -> str:
         empty_class = "" if has_comments else " is-empty"
         return dedent(f"""
-            <section class="recipe-comments{empty_class}" id="recipe-comments">
+            <section class="recipe-comments{empty_class} recipe-extras" id="recipe-comments">
                 <h2 class="recipe-comments__heading">
                     <span>Comments</span>
                     <button class="recipe-comments__add" type="button" aria-label="Add a comment" aria-expanded="false">
@@ -747,7 +747,7 @@ class MarkdownToHTMLConverter:
     def _get_ratings_html(self, has_ratings: bool = False) -> str:
         empty_class = "" if has_ratings else " is-empty"
         return dedent(f"""
-            <section class="recipe-ratings{empty_class}" id="recipe-ratings">
+            <section class="recipe-ratings{empty_class} recipe-extras" id="recipe-ratings">
                 <h2 class="recipe-ratings__heading">
                     <span>Ratings</span>
                     <button class="recipe-ratings__add" type="button" aria-label="Add a rating" aria-expanded="false">

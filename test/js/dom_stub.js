@@ -100,6 +100,14 @@ class Element {
     return this.childNodes.filter((node) => node instanceof Element);
   }
 
+  get nextElementSibling() {
+    if (!this.parentNode) return null;
+    const siblings = this.parentNode.children;
+    const index = siblings.indexOf(this);
+    if (index < 0 || index + 1 >= siblings.length) return null;
+    return siblings[index + 1];
+  }
+
   setAttribute(name, value) {
     const text = String(value);
     this.attributes.set(name, text);
