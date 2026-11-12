@@ -574,7 +574,11 @@
 /* Tags, categories, and meals span both columns. */
 
 .recipe-editor__metadata
-  label:has(input[name="tags"], input[name="categories"], input[name="meals"]) {
+  label:has(
+    .recipe-editor__picker[data-field="tags"],
+    .recipe-editor__picker[data-field="categories"],
+    .recipe-editor__picker[data-field="meals"]
+  ) {
   grid-column: 1 / -1;
 }
 
@@ -610,6 +614,134 @@
   border-radius: 0;
   background: transparent;
   font-size: inherit;
+}
+
+/* ---------- Metadata dropdowns ---------- */
+
+.recipe-editor__picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+
+  min-width: 0;
+}
+
+.recipe-editor__picker-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  min-width: 0;
+}
+
+.recipe-editor__metadata .recipe-editor__picker-controls select,
+.recipe-editor__metadata .recipe-editor__picker-controls input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+/* The dropdown has no native arrow, so it gets the shared chevron. */
+.recipe-editor__metadata .recipe-editor__picker-controls select {
+  background-image: url("/assets/chevron-down.svg");
+  background-repeat: no-repeat;
+  background-position: right 0.65rem center;
+  background-size: 0.9rem;
+}
+
+.recipe-editor__picker-add {
+  flex: 0 0 auto;
+
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.recipe-editor__picker-add:hover:not(:disabled) {
+  border-color: var(--food-color);
+  color: var(--food-color);
+}
+
+.recipe-editor__picker-add:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-editor__picker-add:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.recipe-editor__picker-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+
+  min-width: 0;
+}
+
+.recipe-editor__picker-values:empty {
+  display: none;
+}
+
+.recipe-editor__picker-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+
+  padding: 0.2rem 0.3rem 0.2rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--input-bg);
+
+  font-size: 0.9rem;
+}
+
+.recipe-editor__picker-chip-label {
+  overflow-wrap: anywhere;
+}
+
+.recipe-editor__picker-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-color);
+
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.recipe-editor__picker-chip-remove:hover:not(:disabled) {
+  background: var(--danger-color);
+  color: var(--danger-text-color);
+}
+
+.recipe-editor__picker-chip-remove:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-editor__picker-chip-remove:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 /* ---------- Markdown editor ---------- */
@@ -839,6 +971,11 @@
   padding-right: 3.9rem;
 }
 
+/* Keep the dropdown arrow clear of the per-field Save button. */
+.recipe-editor-dialog.is-bulk .recipe-editor__field-control select {
+  background-position: right 4.2rem center;
+}
+
 /* Same filled style as the main Save button (.recipe-editor__save). */
 .recipe-editor__bulk-field-save {
   position: absolute;
@@ -861,6 +998,15 @@
   border-color: var(--food-color-hover);
   background: var(--food-color-hover);
   color: var(--page-bg);
+}
+
+/*
+ * The dropdown fields are taller than a single text field, so their per-field
+ * Save button lines up with the dropdown row instead of the whole control.
+ */
+.recipe-editor__field-control:has(.recipe-editor__picker) .recipe-editor__bulk-field-save {
+  top: 0.65rem;
+  transform: none;
 }
 
 .recipe-editor__bulk-field-save[hidden] {

@@ -174,4 +174,4 @@ def test_recipe_editor_has_archived_checkbox():
     assert 'name="archived" type="checkbox"' in markup
     assert 'data-field="archived"' in markup
     assert 'form.elements.namedItem("archived").checked = metadata.archived === true' in script
-    assert 'archived: Boolean(form.elements.namedItem("archived")?.checked)' in script
+    assert 'archived: Boolean(refs.form.elements.namedItem("archived")?.checked)' in script
