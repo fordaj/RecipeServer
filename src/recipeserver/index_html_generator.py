@@ -43,6 +43,7 @@ INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor/recipe-editor.css"
 RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor/recipe-editor.js"
+METADATA_PICKER_JS_PATH = "/assets/recipe-editor/metadata-picker.js"
 SHOPPING_LIST_CSS_PATH = "/assets/shopping-list/shopping-list.css"
 SHOPPING_LIST_JS_PATH = "/assets/shopping-list/shopping-list.js"
 RECIPE_SCALER_CSS_PATH = "/assets/recipe-scaler.css"
@@ -668,6 +669,7 @@ class IndexHTMLGenerator:
         index_js_url = _versioned_asset_url(INDEX_JS_PATH)
         recipe_editor_css_url = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
         recipe_editor_js_url = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
+        metadata_picker_js_url = _versioned_asset_url(METADATA_PICKER_JS_PATH)
         shopping_list_css_url = _versioned_asset_url(SHOPPING_LIST_CSS_PATH)
         shopping_list_js_url = _versioned_asset_url(SHOPPING_LIST_JS_PATH)
         recipe_scaler_css_url = _versioned_asset_url(RECIPE_SCALER_CSS_PATH)
@@ -692,6 +694,7 @@ class IndexHTMLGenerator:
                 <link rel="stylesheet" href="{config_editor_css_url}">
                 <script src="{MENU_JS_URL}" defer></script>
                 <script src="{index_js_url}" defer></script>
+                <script src="{metadata_picker_js_url}" defer></script>
                 <script src="{recipe_editor_js_url}" defer></script>
                 <script src="{recipe_scaler_js_url}" defer></script>
                 <script src="{shopping_list_js_url}" defer></script>

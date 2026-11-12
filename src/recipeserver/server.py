@@ -36,6 +36,7 @@ from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import Configuration
 from .image_handler import IMAGE_EXTENSIONS
+from .metadata_options import collect_metadata_options
 from .shopping_list import scrape_ingredients
 from .recipe_utils import json_default, normalize_reviewer_name
 
@@ -454,6 +455,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/health": self._handle_health,
             "/api/ai-status": self._handle_ai_status,
             "/api/config": self._handle_config_get,
+            "/api/metadata-options": self._handle_metadata_options,
             "/api/recipe-folders": self._handle_recipe_folders_get,
             "/api/bulk-editor": lambda: self._handle_bulk_editor_get(parsed),
             "/api/shopping-list": lambda: self._handle_shopping_list_get(parsed),
@@ -547,6 +549,17 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         except OSError:
             logger.exception("Failed to list recipe folders")
             self._send_json(500, {"error": "Unable to list recipe folders"})
+
+    def _handle_metadata_options(self) -> None:
+        """Return the metadata values already used across the recipe library."""
+        try:
+            options = collect_metadata_options(self.source_directory)
+        except OSError:
+            logger.exception("Failed to collect metadata options")
+            self._send_json(500, {"error": "Unable to collect metadata options"})
+            return
+
+        self._send_json(200, {"options": options})
 
     def _handle_recipe_read(self, parsed) -> None:
         query = parse_qs(parsed.query)

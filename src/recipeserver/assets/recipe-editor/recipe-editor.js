@@ -8,6 +8,7 @@
   const AI_STATUS_API = "/api/ai-status";
   const AI_RECIPE_API = "/api/ai-recipe";
   const MAKES_METADATA_API = "/api/metadata/makes";
+  const METADATA_OPTIONS_API = "/api/metadata-options";
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
   const EDITOR_ASSETS_BASE = "/assets/recipe-editor";
 
@@ -153,6 +154,13 @@ Try this
       cache: "no-store",
     });
     return result.folders;
+  }
+
+  async function requestMetadataOptions() {
+    const result = await fetchJson(new URL(METADATA_OPTIONS_API, window.location.origin), {
+      cache: "no-store",
+    });
+    return result.options ?? {};
   }
 
   async function requestAiStatus() {
@@ -307,8 +315,19 @@ Try this
     };
   }
 
-  function listToInput(value) {
-    return Array.isArray(value) ? value.join(", ") : "";
+  // Metadata values arrive as a list, as a single string, or as a
+  // comma-separated string. They are always shown as a list of values.
+  function metadataValues(value) {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+    }
+    if (typeof value === "string" && value.trim()) {
+      return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+    return [];
   }
 
   function firstSource(source) {
@@ -318,44 +337,32 @@ Try this
     return source && typeof source === "object" ? source : {};
   }
 
-  function populateMetadata(form, metadata) {
-    for (const field of ["tags", "cuisine", "categories", "meals", "makes", "difficulty"]) {
-      const input = form.elements.namedItem(field);
+  function populateMetadata(refs, metadata) {
+    for (const field of ["makes", "difficulty"]) {
+      const input = refs.form.elements.namedItem(field);
       const value = metadata[field];
 
-      if (["tags", "categories", "meals", "cuisine"].includes(field)) {
-        input.value = listToInput(value);
-      } else {
-        input.value = value == null ? "" : String(value);
-      }
+      input.value = value == null ? "" : String(value);
     }
 
-    const statusValue = Array.isArray(metadata.status) ? metadata.status[0] : metadata.status;
-    form.elements.namedItem("status").value = statusValue ?? "";
-    form.elements.namedItem("contributor").value = metadata.contributor ?? "";
-    form.elements.namedItem("archived").checked = metadata.archived === true;
+    for (const field of ["tags", "cuisine", "categories", "meals", "status", "contributor"]) {
+      refs.pickers.setValues(field, metadataValues(metadata[field]));
+    }
+
+    refs.form.elements.namedItem("archived").checked = metadata.archived === true;
 
     const createdOn = metadata.createdOn;
-    form.elements.namedItem("createdOn").value =
+    refs.form.elements.namedItem("createdOn").value =
       typeof createdOn === "string" ? createdOn.slice(0, 10) : "";
 
     const source = firstSource(metadata.source);
     for (const field of ["author", "title", "format", "url"]) {
-      form.elements.namedItem(`source.${field}`).value = source[field] ?? "";
+      refs.form.elements.namedItem(`source.${field}`).value = source[field] ?? "";
     }
   }
 
-  function readMetadata(form) {
-    const get = (field) => form.elements.namedItem(field).value.trim();
-
-    const parseList = (field) => {
-      const value = get(field);
-      if (!value) return null;
-      return value
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-    };
+  function readMetadata(refs) {
+    const get = (field) => refs.form.elements.namedItem(field).value.trim();
 
     const parseNumber = (field, integer = false) => {
       const value = get(field);
@@ -370,18 +377,25 @@ Try this
       return number;
     };
 
+    const readList = (field) => {
+      const values = refs.pickers.values(field);
+      return values.length ? values : null;
+    };
+
+    const readSingle = (field) => refs.pickers.values(field)[0] || null;
+
     return {
-      tags: parseList("tags"),
-      cuisine: parseList("cuisine"),
-      categories: parseList("categories"),
-      meals: parseList("meals"),
+      tags: readList("tags"),
+      cuisine: readList("cuisine"),
+      categories: readList("categories"),
+      meals: readList("meals"),
       makes: parseNumber("makes", true),
       difficulty: parseNumber("difficulty"),
-      contributor: get("contributor") || null,
-      status: get("status") || null,
+      contributor: readSingle("contributor"),
+      status: readSingle("status"),
       createdOn: get("createdOn") || null,
-      archived: Boolean(form.elements.namedItem("archived")?.checked),
-      source: readSource(form),
+      archived: Boolean(refs.form.elements.namedItem("archived")?.checked),
+      source: readSource(refs.form),
     };
   }
 
@@ -461,12 +475,14 @@ Try this
       ratingsDetails: dialog.querySelector(".recipe-editor__ratings-details"),
       bulkList: dialog.querySelector(".recipe-editor__bulk-list"),
       filesDetails: dialog.querySelector(".recipe-editor__details"),
+      pickers: null,
     };
   }
 
   function finalizeDomRefs(refs) {
     refs.aiControls = [refs.aiText, refs.aiUrl, refs.aiTextButton, refs.aiUrlButton];
     refs.aiImageControls = [refs.aiImage, refs.aiImageButton];
+    refs.pickers = window.RecipeMetadataPicker.createPickers(refs.dialog);
     return refs;
   }
 
@@ -544,6 +560,7 @@ Try this
         .forEach((input) => {
           input.disabled = value;
         });
+      refs.pickers.setDisabled(value);
       refs.bulkFieldSaves.forEach((button) => {
         button.disabled = value;
       });
@@ -647,7 +664,7 @@ Try this
         const result = await requestAiRecipe(inputType, input, setAiProgress, controller.signal);
         if (!controller.signal.aborted) {
           refs.textarea.value = result.content || "";
-          populateMetadata(refs.form, result.metadata || {});
+          populateMetadata(refs, result.metadata || {});
           setAiProgress("Recipe draft ready. Review it, then create the recipe.");
         }
       } catch (caughtError) {
@@ -825,8 +842,14 @@ Try this
       });
   }
 
+  function findFieldLabel(refs, field) {
+    const picker = refs.pickers.get(field);
+    if (picker) return picker.element.closest("label");
+    return refs.form.elements.namedItem(field)?.closest("label");
+  }
+
   function showMixed(refs, inputName) {
-    const label = refs.form.elements.namedItem(inputName)?.closest("label");
+    const label = findFieldLabel(refs, inputName);
     const badge = label?.querySelector(".recipe-editor__mixed");
     if (!label || !badge) return;
     badge.hidden = false;
@@ -881,7 +904,7 @@ Try this
     const label = BULK_FIELD_LABELS[field] || field;
     ui.setBusy(true);
     ui.setStatus(`Saving ${label} to ${state.bulkPaths.length} recipes...`);
-    const metadata = readMetadata(refs.form);
+    const metadata = readMetadata(refs);
     await requestBulkSave(state.bulkPaths, { metadata, fields: [field] });
     ui.setStatus(`${label} saved to ${state.bulkPaths.length} recipes! Reloading...`);
     window.location.reload();
@@ -940,6 +963,20 @@ Try this
     refs.aiCancelButton.hidden = true;
   }
 
+  // The dropdown options come from the recipes that are already in the
+  // library. They are read from the server on every open so a value that was
+  // just added to another recipe shows up right away.
+  async function refreshMetadataOptions(refs) {
+    try {
+      const options = await requestMetadataOptions();
+      Object.entries(options).forEach(([field, values]) => {
+        refs.pickers.setOptions(field, values);
+      });
+    } catch {
+      // Without the library values the dropdowns only offer "Add new".
+    }
+  }
+
   async function openBulkEditor(refs, state, ui, bulk, paths) {
     if (state.busy || !paths?.length) return;
     state.isBulk = true;
@@ -966,8 +1003,9 @@ Try this
     ui.setStatus("Loading recipes…");
     ui.setBusy(true);
     try {
+      await refreshMetadataOptions(refs);
       state.bulkRecipes = await requestBulkEditor(state.bulkPaths);
-      populateMetadata(refs.form, state.bulkRecipes[0].metadata);
+      populateMetadata(refs, state.bulkRecipes[0].metadata);
       refs.form.elements.namedItem("rating.name").value = "";
       refs.form.elements.namedItem("rating.score").value = "";
       bulk.markMixedFields();
@@ -996,7 +1034,7 @@ Try this
     refs.folderMode.value = "title";
     refs.newFolder.value = "";
     ui.updateFolderControls();
-    populateMetadata(refs.form, {});
+    populateMetadata(refs, {});
     refs.textarea.value = NEW_RECIPE_TEMPLATE;
     try {
       const status = await requestAiStatus();
@@ -1020,8 +1058,8 @@ Try this
     const result = await requestEditor(state.markdownPath);
     state.originalContent = result.content;
     refs.textarea.value = result.content;
-    populateMetadata(refs.form, result.metadata);
-    state.originalMetadata = JSON.stringify(readMetadata(refs.form));
+    populateMetadata(refs, result.metadata);
+    state.originalMetadata = JSON.stringify(readMetadata(refs));
     madeThis.updateMadeThisCount(normalizeMakes(result.metadata.makes));
     refs.deleteButton.hidden = false;
     refs.madeThisButton.hidden = false;
@@ -1061,6 +1099,7 @@ Try this
     resetAiOpenState(refs, state);
     ui.setBusy(true);
     try {
+      await refreshMetadataOptions(refs);
       if (state.isCreating) await loadCreateMode(refs, ui, ai);
       else await loadEditMode(refs, state, madeThis);
       ui.setStatus("");
@@ -1122,7 +1161,7 @@ Try this
     if (state.busy) return;
     let metadata;
     try {
-      metadata = readMetadata(refs.form);
+      metadata = readMetadata(refs);
     } catch (error) {
       ui.setStatus(error.message);
       return;
