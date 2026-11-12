@@ -23,7 +23,11 @@ const initRecipeIndex = async () => {
   const reviewAll = document.querySelector("#filter-reviews-all");
   const reviewBoxes = [...document.querySelectorAll(".filter-reviews")];
   const reviewLabel = document.querySelector("#review-filter-label");
-  const selectionMode = document.querySelector("#bulk-selection-mode");
+  const selectionToggle = document.querySelector("#bulk-selection-toggle");
+  const selectionToggleLabel = selectionToggle?.querySelector("[data-selection-label]");
+  const selectionOnlyControls = [
+    ...document.querySelectorAll("#bulk-controls [data-selection-only]"),
+  ];
   const showArchived = document.querySelector("#show-archived");
   const cardZoom = document.querySelector("#card-zoom");
   const bulkControls = document.querySelector("#bulk-controls");
@@ -36,6 +40,9 @@ const initRecipeIndex = async () => {
   const selectBoxes = [...document.querySelectorAll(".recipe-select__checkbox")];
 
   let selectionAnchor = null;
+  // Selection mode is driven by the Select/Cancel button in the bulk
+  // controls bar, so the state lives here instead of on a checkbox.
+  let selectionModeEnabled = false;
 
   // ----- Bulk Selection ----- //
   const getSelectedPaths = () =>
@@ -98,11 +105,19 @@ const initRecipeIndex = async () => {
   };
 
   const setSelectionMode = (enabled) => {
+    selectionModeEnabled = enabled;
     list.classList.toggle("selection-mode", enabled);
     document.querySelectorAll(".recipe-select").forEach((label) => {
       label.hidden = !enabled;
     });
-    if (bulkControls) bulkControls.hidden = !enabled;
+    // The bulk controls bar is always visible because it holds the
+    // Select/Cancel button; the bulk actions themselves only show up
+    // while selection mode is on.
+    if (bulkControls) bulkControls.classList.toggle("is-selection-mode", enabled);
+    selectionOnlyControls.forEach((control) => {
+      control.hidden = !enabled;
+    });
+    if (selectionToggleLabel) selectionToggleLabel.textContent = enabled ? "Cancel" : "Select";
     if (!enabled) {
       selectBoxes.forEach((box) => (box.checked = false));
       selectionAnchor = null;
@@ -459,19 +474,19 @@ const initRecipeIndex = async () => {
     });
   }
 
-  if (selectionMode) {
-    selectionMode.addEventListener("change", () => setSelectionMode(selectionMode.checked));
+  if (selectionToggle) {
+    selectionToggle.addEventListener("click", () => setSelectionMode(!selectionModeEnabled));
   }
   // Prevent Shift+click from creating a native text selection. The
   // selection-mode CSS also disables user-select, but preventing the
   // mousedown default stops the browser forming the highlight at all.
   list.addEventListener("mousedown", (event) => {
-    if (!selectionMode?.checked) return;
+    if (!selectionModeEnabled) return;
     if (event.shiftKey) event.preventDefault();
   });
   selectBoxes.forEach((box) => {
     box.addEventListener("click", (event) => {
-      if (!selectionMode?.checked) return;
+      if (!selectionModeEnabled) return;
       // The browser has already toggled the checkbox. Cancelling the click
       // would undo that, so the new state is handed to the shared handler.
       const recipe = box.closest(".recipe");
@@ -480,7 +495,7 @@ const initRecipeIndex = async () => {
   });
   // In selection mode, clicking the card selects it instead of navigating.
   list.addEventListener("click", (event) => {
-    if (!selectionMode?.checked) return;
+    if (!selectionModeEnabled) return;
     // The selection control has its own handler; clicking it must not
     // toggle the recipe a second time.
     const control = event.target.closest(".recipe-select");
@@ -559,7 +574,7 @@ const initRecipeIndex = async () => {
   // ----- Initialization ----- //
   applyCardZoom(loadCardZoom());
   setView(loadRecipeView());
-  setSelectionMode(Boolean(selectionMode?.checked));
+  setSelectionMode(false);
   update();
 };
 

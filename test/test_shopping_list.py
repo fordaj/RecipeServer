@@ -221,9 +221,10 @@ def test_index_renders_a_shopping_list_button_next_to_bulk_edit(tmp_path: Path):
 
     soup = BeautifulSoup((tmp_path / "index.html").read_text(encoding="UTF-8"), "html.parser")
 
-    # The shopping list sits next to the bulk edit, before it.
+    # The shopping list sits next to the bulk edit, before it. The
+    # Select/Cancel button closes the bar on the far right.
     button_ids = [button["id"] for button in soup.select("#bulk-controls button")]
-    assert button_ids == ["clear-selections", "bulk-delete", "shopping-list", "bulk-edit"]
+    assert button_ids == ["clear-selections", "bulk-delete", "shopping-list", "bulk-edit", "bulk-selection-toggle"]
 
     shopping_list = soup.select_one("#shopping-list")
     assert shopping_list.get_text(strip=True) == "Shopping List"
