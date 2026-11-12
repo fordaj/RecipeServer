@@ -17,7 +17,8 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Scales quantities inside inline code, such as `1 1/2 cups` or `1-2 tbsp`.
 - Combines the ingredients of the recipes selected in the index into a shopping list, with a scale control per recipe.
 - Downloads the shopping list as Markdown, copies it to the clipboard, or prints it as a checklist.
-- Schedules recipes on a calendar, with a single day, a multi day month grid, and a list of every scheduled recipe.
+- Schedules recipes on a calendar, with a day, a week and a month view, and writes the plan back to the recipe's front matter.
+- Opens the configuration, the archive downloads and the schedule from the sandwich menu.
 - Uses the first image in each recipe folder as the hero image and derives a page accent color from it.
 - Shows metadata warnings for recipes missing recommended fields.
 - Typesets math with a bundled copy of KaTeX.
@@ -184,7 +185,9 @@ When a reviewer is selected in **Filter Reviews**, Metadata Status also warns on
 
 ### Scheduling
 
-The **Scheduler** button in the index opens a calendar of the recipes that are planned for a date. A recipe is scheduled by listing calendar dates in its front matter:
+The **Schedule Selected** button in the index opens a calendar of the recipes that are planned for a date. It is a selection action, so it only shows in selection mode and schedules the recipes that are selected. The sandwich menu has a **View Schedule** entry that opens the same calendar without a selection.
+
+A recipe is scheduled by listing calendar dates in its front matter:
 
 ```yaml
 scheduledOn:
@@ -193,6 +196,15 @@ scheduledOn:
 ```
 
 `scheduledOn` is optional, and holds `YYYY-MM-DD` dates as strings, so one recipe can be scheduled on several days. The scheduler writes the field back to the same file, so the schedule travels with the recipe and needs no separate database.
+
+The calendar has three views:
+
+- **Day** and **Week** scroll sideways without an end. They pull towards the nearest day when the scrolling stops, with a strength you can set with the **Snap** control.
+- **Month** scrolls up and down through the months.
+
+Every recipe keeps its own accent color in the calendar, the same color its recipe page uses.
+
+The **Select** button in the scheduler turns on the day selection mode. Picking a day then selects every recipe scheduled on that day, which overrides the selection made on the index. The button in the footer turns into **Unschedule** and clears the recipes under the selected days.
 
 ### Quantity scaling
 

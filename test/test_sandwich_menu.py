@@ -102,6 +102,33 @@ def test_sandwich_menu_html_uses_menu_icon_and_both_downloads():
     assert [item.get_text(strip=True) for item in config_items] == ["Configuration"]
 
 
+def test_sandwich_menu_has_a_view_schedule_entry():
+    soup = BeautifulSoup(sandwich_menu_html(), "html.parser")
+
+    items = [item for item in soup.select(".sandwich-menu__item") if item.get("data-schedule") == "open"]
+    assert [item.get_text(strip=True) for item in items] == ["View Schedule"]
+
+
+def test_every_sandwich_menu_entry_has_an_icon_on_the_left():
+    soup = BeautifulSoup(sandwich_menu_html(), "html.parser")
+
+    icons = {
+        "Configuration": "lucide-settings",
+        "Download Site Archive": "lucide-file-database",
+        "Download Source Archive": "lucide-file-code-corner",
+        "View Schedule": "lucide-calendar",
+    }
+
+    for item in soup.select(".sandwich-menu__item"):
+        label = item.get_text(strip=True)
+        icon = item.find("svg")
+
+        assert icon is not None, label
+        assert icons[label] in icon.get("class", []), label
+        # The icon comes before the label.
+        assert list(item.children).index(icon) < list(item.children).index(item.find("span"))
+
+
 def test_index_page_includes_sandwich_menu_and_assets(tmp_path: Path):
     recipe_path = tmp_path / "cinnamon-rolls" / "index.html"
     recipe_path.parent.mkdir()

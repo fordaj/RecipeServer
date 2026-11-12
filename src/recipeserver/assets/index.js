@@ -33,6 +33,7 @@ const initRecipeIndex = async () => {
   const bulkControls = document.querySelector("#bulk-controls");
   const bulkEdit = document.querySelector("#bulk-edit");
   const shoppingList = document.querySelector("#shopping-list");
+  const scheduler = document.querySelector("#scheduler");
   const bulkDelete = document.querySelector("#bulk-delete");
   const clearSelections = document.querySelector("#clear-selections");
   const bulkCount = document.querySelector("#bulk-selection-count");
@@ -90,6 +91,7 @@ const initRecipeIndex = async () => {
     if (bulkCount) bulkCount.textContent = `${selected.length} selected`;
     if (bulkEdit) bulkEdit.disabled = selected.length === 0;
     if (shoppingList) shoppingList.disabled = selected.length === 0;
+    if (scheduler) scheduler.disabled = selected.length === 0;
     if (bulkDelete) bulkDelete.disabled = selected.length === 0;
     for (const box of selectBoxes) {
       box.closest(".recipe")?.classList.toggle("is-selected", box.checked);

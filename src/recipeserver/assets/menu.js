@@ -47,6 +47,15 @@ const initSandwichMenu = () => {
       return match ? match[1] : fallback;
     };
 
+    panel.querySelectorAll("[data-schedule]").forEach((item) => {
+      item.addEventListener("click", () => {
+        close();
+        // The scheduler listens for this event, so the menu stays
+        // independent of the pages that include it.
+        document.dispatchEvent(new CustomEvent("scheduler"));
+      });
+    });
+
     panel.querySelectorAll("[data-archive]").forEach((item) => {
       item.addEventListener("click", async () => {
         if (item.disabled) return;

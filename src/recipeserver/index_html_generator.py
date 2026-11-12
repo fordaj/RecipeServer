@@ -857,9 +857,9 @@ class IndexHTMLGenerator:
                                 {self._inline_svg(SHOPPING_CART_SVG)}
                                 <span>Shopping List</span>
                             </button>
-                            <button id="scheduler" class="scheduler-button" type="button">
+                            <button id="scheduler" class="scheduler-button" type="button" data-selection-only hidden disabled>
                                 {self._inline_svg(CALENDAR_SVG)}
-                                <span>Scheduler</span>
+                                <span>Schedule Selected</span>
                             </button>
                             <button id="bulk-edit" class="bulk-edit" type="button" data-selection-only hidden disabled>
                                 {self._inline_svg(PENCIL_SVG)}
