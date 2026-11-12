@@ -344,7 +344,7 @@ def test_recipe_overview_shows_cuisine_before_categories_and_tags():
         "recipe-overview__categories",
         "recipe-overview__tags",
     ]
-    assert "lucide-pin" in str(groups[0])
+    assert "lucide-map-pin" in str(groups[0])
 
 
 def test_recipe_overview_accepts_legacy_singular_category():

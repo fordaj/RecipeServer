@@ -36,6 +36,7 @@ from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import Configuration
 from .image_handler import IMAGE_EXTENSIONS
+from .shopping_list import scrape_ingredients
 from .recipe_utils import json_default, normalize_reviewer_name
 
 MarkdownSavedCallback = Callable[[Path], None]
@@ -455,6 +456,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/config": self._handle_config_get,
             "/api/recipe-folders": self._handle_recipe_folders_get,
             "/api/bulk-editor": lambda: self._handle_bulk_editor_get(parsed),
+            "/api/shopping-list": lambda: self._handle_shopping_list_get(parsed),
         }
 
         if path in simple_handlers:
@@ -640,6 +642,38 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             return
 
         self._send_json(200, {"recipes": recipes})
+
+    def _handle_shopping_list_get(self, parsed) -> None:
+        """Return the ingredients of each selected recipe for the shopping list."""
+        try:
+            raw_paths = _validate_bulk_paths(parse_qs(parsed.query).get("path", []))
+            file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        recipes = []
+        for raw_path, file_path in zip(raw_paths, file_paths):
+            html_file = self._recipe_page_path(file_path)
+            if not html_file.is_file():
+                self._send_json(404, {"error": f"Recipe page not found: {raw_path}"})
+                return
+
+            try:
+                html = html_file.read_text(encoding="utf-8")
+            except OSError:
+                logger.exception("Failed to read generated recipe page")
+                self._send_json(500, {"error": "Unable to read the generated recipe page"})
+                return
+
+            recipes.append({"path": raw_path, "ingredients": scrape_ingredients(html)})
+
+        self._send_json(200, {"recipes": recipes})
+
+    def _recipe_page_path(self, markdown_path: Path) -> Path:
+        """Return the generated page that belongs to a recipe Markdown file."""
+        relative_path = markdown_path.relative_to(self.source_directory)
+        return (Path(self.directory).resolve() / relative_path).with_suffix(".html")
 
     # ----- POST handlers: configuration and AI -----------------------------
 

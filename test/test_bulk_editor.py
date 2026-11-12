@@ -183,11 +183,14 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert select_all is not None and select_all["type"] == "checkbox"
     assert select_all.find_parent("div", class_="bulk-controls") is not None
     assert "Select All" in select_all.find_parent("label").get_text(strip=True)
-    # Order left-to-right: Clear Selections, Delete Selected, Bulk Edit.
+    # Order left-to-right: Clear Selections, Delete Selected, Shopping List, Bulk Edit.
     button_ids = [b["id"] for b in soup.select("#bulk-controls button")]
-    assert button_ids == ["clear-selections", "bulk-delete", "bulk-edit"]
+    assert button_ids == ["clear-selections", "bulk-delete", "shopping-list", "bulk-edit"]
+    assert soup.select_one("#shopping-list").get_text(strip=True) == "Shopping List"
     index_css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
-    assert ".bulk-controls #bulk-edit" in index_css and "background: var(--food-color)" in index_css
+    # Bulk Edit and Shopping List share the filled style.
+    assert ".bulk-controls #bulk-edit,\n.bulk-controls #shopping-list {" in index_css
+    assert "background: var(--food-color)" in index_css
     assert ".bulk-controls #bulk-delete" in index_css and "background: var(--danger-color)" in index_css
     # Selection mode must not show a native text highlight.
     assert ".select-all-control" in index_css
@@ -203,8 +206,16 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     # Range adds without clearing, plain click toggles without clearing.
     range_block = index_js.split("const isRangeClick")[1].split("updateBulkControls();")[0]
     assert "selectBoxes.forEach" not in range_block
-    assert "targetBox.checked = !targetBox.checked" in index_js
+    # A click on the checkbox keeps the state the browser already toggled.
+    assert "targetBox.checked = checked ?? !targetBox.checked" in index_js
     assert "selectBoxes.forEach" not in index_js.split("const applyMultiSelect")[1].split("updateBulkControls();")[0]
+    # The click on the checkbox must not be cancelled, or the browser would
+    # restore the state it toggled.
+    checkbox_block = index_js.split("selectBoxes.forEach((box)")[1].split("});")[0]
+    assert "event.preventDefault()" not in checkbox_block
+    # The selection control has its own handler, so the card handler must
+    # leave it alone instead of toggling the recipe a second time.
+    assert 'event.target.closest(".recipe-select")' in index_js
     # Shift+click must not form a native text selection.
     assert 'list.addEventListener("mousedown"' in index_js and "event.shiftKey" in index_js
     # Select All selects/deselects recipes in view and stays synced.

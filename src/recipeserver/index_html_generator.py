@@ -43,6 +43,10 @@ INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor/recipe-editor.css"
 RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor/recipe-editor.js"
+SHOPPING_LIST_CSS_PATH = "/assets/shopping-list/shopping-list.css"
+SHOPPING_LIST_JS_PATH = "/assets/shopping-list/shopping-list.js"
+RECIPE_SCALER_CSS_PATH = "/assets/recipe-scaler.css"
+RECIPE_SCALER_JS_PATH = "/assets/recipe-scaler.js"
 CONFIG_EDITOR_CSS_PATH = "/assets/config-editor.css"
 CONFIG_EDITOR_JS_PATH = "/assets/config-editor.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
@@ -64,6 +68,8 @@ WARNING_SVG = ASSETS_DIR / "warning.svg"
 PLUS_SVG = ASSETS_DIR / "plus.svg"
 ARCHIVE_SVG = ASSETS_DIR / "archive.svg"
 INFO_SVG = ASSETS_DIR / "info.svg"
+SHOPPING_CART_SVG = ASSETS_DIR / "shopping-cart.svg"
+PENCIL_SVG = ASSETS_DIR / "pencil.svg"
 
 # Detail kinds that render with a mapped asset icon.
 _DETAIL_ICON_URLS = {
@@ -662,6 +668,10 @@ class IndexHTMLGenerator:
         index_js_url = _versioned_asset_url(INDEX_JS_PATH)
         recipe_editor_css_url = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
         recipe_editor_js_url = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
+        shopping_list_css_url = _versioned_asset_url(SHOPPING_LIST_CSS_PATH)
+        shopping_list_js_url = _versioned_asset_url(SHOPPING_LIST_JS_PATH)
+        recipe_scaler_css_url = _versioned_asset_url(RECIPE_SCALER_CSS_PATH)
+        recipe_scaler_js_url = _versioned_asset_url(RECIPE_SCALER_JS_PATH)
         config_editor_css_url = _versioned_asset_url(CONFIG_EDITOR_CSS_PATH)
         config_editor_js_url = _versioned_asset_url(CONFIG_EDITOR_JS_PATH)
         return dedent(f"""\
@@ -677,10 +687,14 @@ class IndexHTMLGenerator:
                 <link rel="stylesheet" href="{MENU_CSS_URL}">
                 <link rel="stylesheet" href="{index_css_url}">
                 <link rel="stylesheet" href="{recipe_editor_css_url}">
+                <link rel="stylesheet" href="{recipe_scaler_css_url}">
+                <link rel="stylesheet" href="{shopping_list_css_url}">
                 <link rel="stylesheet" href="{config_editor_css_url}">
                 <script src="{MENU_JS_URL}" defer></script>
                 <script src="{index_js_url}" defer></script>
                 <script src="{recipe_editor_js_url}" defer></script>
+                <script src="{recipe_scaler_js_url}" defer></script>
+                <script src="{shopping_list_js_url}" defer></script>
                 <script src="{config_editor_js_url}" defer></script>
             </head>
             <body>
@@ -843,7 +857,14 @@ class IndexHTMLGenerator:
                             </label>
                             <button id="clear-selections" type="button">Clear Selections</button>
                             <button id="bulk-delete" class="bulk-delete" type="button" disabled>Delete Selected</button>
-                            <button id="bulk-edit" class="bulk-edit" type="button" disabled>Bulk Edit</button>
+                            <button id="shopping-list" class="shopping-list-button" type="button" disabled>
+                                {self._inline_svg(SHOPPING_CART_SVG)}
+                                <span>Shopping List</span>
+                            </button>
+                            <button id="bulk-edit" class="bulk-edit" type="button" disabled>
+                                {self._inline_svg(PENCIL_SVG)}
+                                <span>Bulk Edit</span>
+                            </button>
                         </div>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
                         <div class="results-controls">
