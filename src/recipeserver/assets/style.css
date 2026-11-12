@@ -114,6 +114,7 @@ body > a:hover {
   line-height: 1.1;
   text-align: center;
 }
+
 /* ---------- Recipe metadata ---------- */
 
 .recipe-meta {
@@ -560,6 +561,78 @@ h2.collapsible-heading[aria-expanded="false"] {
   border-bottom: none;
 }
 
+/* ---------- Collapse and expand all sections ---------- */
+
+/* The button that collapses or expands every section sits at the right of a
+   section heading, mirroring the collapser of the section at its left. */
+.recipe-sections__toggle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+}
+
+.recipe-sections__toggle:hover {
+  background: var(--hover-bg);
+}
+
+.recipe-sections__toggle:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+/* The icon is a mask of the shared chevrons, so it follows the color of the
+   page the way the collapser of a section does. */
+.recipe-sections__icon {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+
+  background-color: var(--muted-color);
+  mask: url("/assets/chevrons-up-down.svg") center / contain no-repeat;
+  -webkit-mask: url("/assets/chevrons-up-down.svg") center / contain no-repeat;
+}
+
+.recipe-sections__toggle:hover .recipe-sections__icon {
+  background-color: var(--food-color);
+}
+
+/* The button shows the chevrons of the action it offers. */
+.recipe-sections__toggle[data-state="collapsed"] .recipe-sections__icon {
+  mask-image: url("/assets/chevrons-down-up.svg");
+  -webkit-mask-image: url("/assets/chevrons-down-up.svg");
+}
+
+/* A heading that keeps the button inside needs room for it. */
+.collapsible-heading:has(> .recipe-sections__toggle) {
+  padding-right: 2.25rem;
+}
+
+/* The h2 and h3 headings are narrower than the page, so their button sits in
+   the margin beside them, the way the collapser sits at the other side. */
+@media (min-width: 800px) {
+  .recipe h2 > .recipe-sections__toggle,
+  .recipe h3 > .recipe-sections__toggle {
+    left: 100%;
+    right: auto;
+    margin-left: 0.35em;
+  }
+
+  .recipe h2:has(> .recipe-sections__toggle),
+  .recipe h3:has(> .recipe-sections__toggle) {
+    padding-right: 0;
+  }
+}
+
 /* ---------- Mobile ---------- */
 
 @media (max-width: 600px) {
@@ -653,6 +726,11 @@ h2.collapsible-heading[aria-expanded="false"] {
     text-align: left;
     column-span: all;
     break-after: avoid;
+  }
+
+  /* The buttons are not on paper, so the headings keep their full width. */
+  .collapsible-heading {
+    padding-right: 0;
   }
 
   /* Compact metadata strip */
