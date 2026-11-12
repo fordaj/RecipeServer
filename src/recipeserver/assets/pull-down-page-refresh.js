@@ -27,7 +27,10 @@ class PullToRefresh {
   isDisabled() {
     const editorDialog = document.getElementById("recipe-markdown-editor");
     const configDialog = document.getElementById("config-editor");
-    return editorDialog?.open === true || configDialog?.open === true;
+    const schedulerDialog = document.getElementById("scheduler-dialog");
+    return (
+      editorDialog?.open === true || configDialog?.open === true || schedulerDialog?.open === true
+    );
   }
 
   addStyles() {

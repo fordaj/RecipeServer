@@ -23,6 +23,12 @@
 /* ---------- Layout ---------- */
 
 .scheduler {
+  /* How hard the calendar snaps to a whole day, week, or month after it
+     is scrolled: 0 glides freely, 1 locks onto the nearest period. This is
+     a server-side setting so the strength can be tuned for every screen
+     from here; add a media query below to make it responsive later. */
+  --scheduler-snap-strength: 0.6;
+
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -70,10 +76,11 @@
 
 .scheduler__close:focus-visible,
 .scheduler__toolbar button:focus-visible,
-.scheduler__toolbar input:focus-visible,
 .scheduler__footer button:focus-visible,
 .scheduler__footer input:focus-visible,
 .scheduler__entry:focus-visible,
+.scheduler__day-header:focus-visible,
+.scheduler__weekday-name:focus-visible,
 .scheduler__month-number:focus-visible {
   outline: 2px solid var(--food-color);
 }
@@ -121,20 +128,6 @@
   overflow-wrap: anywhere;
 }
 
-.scheduler__snap {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--muted-color);
-  font-size: 0.8rem;
-}
-
-.scheduler__snap-slider {
-  width: 6rem;
-  accent-color: var(--food-color);
-  cursor: pointer;
-}
-
 /* Select enters the day selection mode, the same way the index page does. */
 .scheduler__select[aria-pressed="true"] {
   border-color: var(--food-color);
@@ -152,10 +145,6 @@
   overflow-wrap: anywhere;
 }
 
-.scheduler__status:empty {
-  display: none;
-}
-
 /* ---------- Scrollable calendar ---------- */
 
 /* The calendar takes the room that is left; only the calendar scrolls. */
@@ -167,135 +156,151 @@
   overflow: hidden;
 }
 
-/* The day and week views scroll sideways, without an end. */
-.scheduler__track {
-  display: flex;
-  align-items: stretch;
-  gap: 0.5rem;
-
-  width: 100%;
+/* Every view scrolls up and down. A page is exactly one screen of the
+   calendar: one day, one week, or one month. */
+.scheduler__scroll {
   height: 100%;
-  padding-bottom: 0.25rem;
-
-  overflow-x: auto;
-  overflow-y: hidden;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-gutter: stable;
-}
-
-/* The month view scrolls up and down. */
-.scheduler__months {
-  position: relative;
-  display: none;
-  height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+
+  /* Replacing the rendered pages must not move the view: the calendar
+     puts the day it is showing back in the middle itself. */
+  overflow-anchor: none;
 }
 
-.scheduler--month .scheduler__track {
-  display: none;
-}
-
-.scheduler--month .scheduler__months {
-  display: block;
-}
-
-/* ---------- Columns (day and week views) ---------- */
-
-.scheduler__column {
+.scheduler__page {
   display: flex;
   flex-direction: column;
-  flex: 0 0 auto;
-  min-width: 0;
+  gap: 0.4rem;
 
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--page-bg);
+  height: 100%;
+  box-sizing: border-box;
   overflow: hidden;
 }
 
-.scheduler__column-header {
+/* ---------- Day page ---------- */
+
+.scheduler__day-header {
   display: flex;
   align-items: baseline;
-  gap: 0.35rem;
+  gap: 0.5rem;
   flex: 0 0 auto;
 
-  padding: 0.4rem 0.6rem;
-  border-bottom: 1px solid var(--border-color);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.6rem;
+
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
   background: var(--card-bg);
+  color: var(--heading-color);
+
+  font: inherit;
+  text-align: left;
   cursor: pointer;
 }
 
-.scheduler__column-weekday {
+.scheduler__day-header:hover {
+  background: var(--hover-bg);
+}
+
+.scheduler__day-weekday {
   color: var(--muted-color);
   font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
 }
 
-/* The week range reads better without the capitals. */
-.scheduler__column-range {
-  color: var(--muted-color);
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.scheduler__column-date {
-  color: var(--heading-color);
+.scheduler__day-date {
   font-size: 1rem;
   font-weight: 600;
 }
 
-.scheduler__column-month {
+.scheduler__day-month {
+  margin-left: auto;
   color: var(--muted-color);
   font-size: 0.8rem;
 }
 
-.scheduler__column-body {
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: 0.4rem;
-
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* The selected day and the recipes under it are marked. */
-.scheduler__column.is-selected {
+.scheduler__page.is-selected .scheduler__day-header {
   border-color: var(--food-color);
   box-shadow: inset 0 0 0 1px var(--food-color);
 }
 
-.scheduler__column.is-today .scheduler__column-date {
+.scheduler__page.is-today .scheduler__day-date {
   color: var(--food-color);
 }
 
-/* ---------- Week rows ---------- */
+.scheduler__page-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.15rem;
 
-.scheduler__weekday {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.scheduler__empty {
+  margin: 0.5rem 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+/* ---------- Week page ---------- */
+
+.scheduler__week {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0.3rem 0.15rem;
-  border-radius: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
-.scheduler__weekday + .scheduler__weekday {
-  border-top: 1px solid var(--border-color);
+/* One day of the seven that fill the screen. */
+.scheduler__weekday {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 0.25rem 0.4rem;
+
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--page-bg);
+
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
 }
 
 .scheduler__weekday-name {
+  flex: 0 0 auto;
+  align-self: flex-start;
+
+  border: 0;
+  border-radius: 4px;
+  padding: 0 0.2rem;
+  background: transparent;
   color: var(--muted-color);
-  font-size: 0.75rem;
+
+  font: inherit;
+  font-size: 0.78rem;
   font-weight: 600;
+  text-align: left;
   cursor: pointer;
 }
 
-.scheduler__weekday.is-selected {
+.scheduler__weekday-name:hover {
   background: var(--hover-bg);
+  color: var(--food-color);
+}
+
+.scheduler__weekday.is-selected {
+  border-color: var(--food-color);
+  box-shadow: inset 0 0 0 1px var(--food-color);
 }
 
 .scheduler__weekday.is-today .scheduler__weekday-name {
@@ -379,46 +384,50 @@
   font-size: 0.75rem;
 }
 
-/* ---------- Month view ---------- */
+/* ---------- Month page ---------- */
 
 .scheduler__month {
-  margin-bottom: 1.25rem;
-}
-
-.scheduler__month-header {
-  margin: 0 0 0.4rem;
-  color: var(--heading-color);
-  font-size: 1rem;
-  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .scheduler__weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.25rem;
-  margin-bottom: 0.25rem;
+  flex: 0 0 auto;
 
   color: var(--muted-color);
   font-size: 0.75rem;
   text-align: center;
 }
 
+/* The six weeks of the month fill the screen. */
 .scheduler__month-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(0, 1fr));
   gap: 0.25rem;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .scheduler__month-day {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  min-height: 4.5rem;
-  padding: 0.25rem;
+  gap: 0.15rem;
+  min-height: 0;
+  padding: 0.2rem;
 
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--page-bg);
+
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
 }
 
 .scheduler__month-day.is-outside {
@@ -466,7 +475,7 @@
   background: var(--card-bg);
 }
 
-/* The count takes the room that is left, so the date and the button sit
+/* The count takes the room that is left, so the buttons and the date sit
    next to each other on the right. */
 .scheduler__selection {
   flex: 1 1 auto;
@@ -502,6 +511,10 @@
 }
 
 .scheduler__footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+
   padding: 0.6rem 1rem;
 
   border: 1px solid var(--food-color);
@@ -518,6 +531,29 @@
 .scheduler__footer button:hover:not(:disabled) {
   border-color: var(--food-color-hover);
   background: var(--food-color-hover);
+}
+
+/* The Shopping List button is a secondary action. */
+.scheduler__footer .scheduler__shopping {
+  border-color: var(--border-color);
+  background: var(--card-bg);
+  color: var(--food-color);
+}
+
+.scheduler__footer .scheduler__shopping:hover:not(:disabled) {
+  border-color: var(--hover-border-color);
+  background: var(--hover-bg);
+}
+
+.scheduler__icon {
+  display: inline-flex;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.scheduler__icon svg {
+  width: 100%;
+  height: 100%;
 }
 
 .scheduler__footer button:disabled {
@@ -544,5 +580,6 @@
 
   .scheduler__footer button {
     width: 100%;
+    justify-content: center;
   }
 }
