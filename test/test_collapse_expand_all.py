@@ -63,6 +63,12 @@ def test_ratings_and_comments_stay_outside_the_sections(tmp_path: Path):
         assert "recipe-extras" in block.get("class", []), f"{selector} sits outside the sections"
 
 
+def declaration_block(css: str, selector: str) -> str:
+    marker = f"{selector} {{"
+    assert marker in css, f"{selector} is missing from the stylesheet"
+    return css.split(marker, 1)[1].split("}", 1)[0]
+
+
 def test_the_button_sits_at_the_right_of_a_section_heading():
     css = (ASSETS / "style.css").read_text(encoding="utf-8")
 
@@ -71,6 +77,19 @@ def test_the_button_sits_at_the_right_of_a_section_heading():
     assert 'url("/assets/chevrons-up-down.svg")' in css, "the button shows the chevrons of the shared assets"
     assert 'url("/assets/chevrons-down-up.svg")' in css
     assert '.recipe-sections__toggle[data-state="collapsed"]' in css, "the icon follows the state"
+
+
+def test_the_collapser_of_a_section_stays_on_the_page():
+    css = (ASSETS / "style.css").read_text(encoding="utf-8")
+
+    # A narrow page has no margin beside the heading, so the collapser sits
+    # inside the heading, which is bumped over to make room for it.
+    assert "padding-left: 1em;" in declaration_block(css, ".collapsible-heading")
+    assert "left: 0;" in declaration_block(css, ".collapsible-heading::before")
+
+    # A wide page has room beside the heading for the collapser.
+    wide = css.split("@media (min-width: 800px)", 1)[1]
+    assert "right: 100%;" in wide, "the collapser sits in the margin of a wide page"
 
 
 def test_the_script_builds_a_button_for_every_section():

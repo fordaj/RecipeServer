@@ -533,13 +533,16 @@ input[type="checkbox"]:focus-visible {
 .collapsible-heading {
   position: relative;
   cursor: pointer;
+
+  /* A narrow page has no margin beside the heading for the collapser, so the
+     collapser sits inside the heading, which is bumped over to make room. */
+  padding-left: 1em;
 }
 
 .collapsible-heading::before {
   content: "";
   position: absolute;
-  right: 100%;
-  margin-right: 0.35em;
+  left: 0;
   top: 50%;
 
   width: 0.55em;
@@ -559,6 +562,21 @@ input[type="checkbox"]:focus-visible {
 /* Preserve border bottoms */
 h2.collapsible-heading[aria-expanded="false"] {
   border-bottom: none;
+}
+
+/* A wide page has room beside the heading, so the collapser sits in the
+   margin, the way the button that collapses every section sits at the other
+   side of the heading. */
+@media (min-width: 800px) {
+  .collapsible-heading {
+    padding-left: 0;
+  }
+
+  .collapsible-heading::before {
+    left: auto;
+    right: 100%;
+    margin-right: 0.35em;
+  }
 }
 
 /* ---------- Collapse and expand all sections ---------- */
