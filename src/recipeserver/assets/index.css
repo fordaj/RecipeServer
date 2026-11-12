@@ -96,7 +96,8 @@ a {
 .recipe-toolbar {
   width: 100%;
   margin: 10svh auto 2rem;
-  padding: 1.25rem 1.5rem;
+  padding-top: 1.25rem;
+  padding-bottom: 1.25rem;
   border-radius: 14px;
 }
 
@@ -1007,7 +1008,8 @@ a {
   .recipe-toolbar {
     width: 100%;
     margin: 7svh 0 2rem;
-    padding: 1rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
   }
 
   .results-controls {
@@ -1027,7 +1029,8 @@ a {
 
 @media (min-width: 500px) {
   .recipe-toolbar {
-    padding: 1.1rem;
+    padding-top: 1.1rem;
+    padding-bottom: 1.1rem;
   }
 
   .recipe-filters {
@@ -1041,7 +1044,8 @@ a {
   }
 
   .recipe-toolbar {
-    padding: 1.25rem;
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
   }
 
   .search-control {
