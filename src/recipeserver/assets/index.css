@@ -378,35 +378,8 @@ a {
   background: var(--danger-color-hover);
 }
 
-/* Select starts selection mode, so it is the primary action in the bar
-   and uses the same filled style as Bulk Edit. */
-.bulk-controls #bulk-selection-toggle {
-  border-color: var(--food-color);
-  background: var(--food-color);
-  color: var(--page-bg);
-  font-weight: 600;
-}
-
-.bulk-controls #bulk-selection-toggle:hover:not(:disabled) {
-  border-color: var(--food-color-hover);
-  background: var(--food-color-hover);
-  color: var(--page-bg);
-}
-
-/* The same button reads Cancel in selection mode, so it steps back to
-   the plain outline style used by the other bulk actions. */
-.bulk-controls.is-selection-mode #bulk-selection-toggle {
-  border-color: var(--border-color);
-  background: var(--card-bg);
-  color: var(--food-color);
-  font-weight: inherit;
-}
-
-.bulk-controls.is-selection-mode #bulk-selection-toggle:hover:not(:disabled) {
-  border-color: var(--hover-border-color);
-  background: var(--hover-bg);
-  color: var(--food-color);
-}
+/* Select/Cancel is deliberately left unstyled so it reads like the
+   other plain bulk action buttons such as Clear Selections. */
 
 #bulk-selection-count {
   color: var(--muted-color);
