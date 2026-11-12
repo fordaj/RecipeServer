@@ -414,9 +414,9 @@ def test_recipe_editor_includes_local_model_source_inputs():
 
     assert "From text" in markup
     assert "From URL" in markup
-    assert "From Image" in markup
+    assert "From Images" in markup
     assert "Generate from text" in markup
-    assert "Generate from image" in markup
+    assert "Generate from images" in markup
     assert 'class="recipe-editor__section recipe-editor__ai"' in markup
     assert "Cancel generation" in markup
     assert "AbortController" in script
