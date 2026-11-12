@@ -85,32 +85,37 @@ uv run python -m recipeserver --log-level DEBUG
 
 ## Optional local AI model
 
-Recipe creation from text, URL, or image uses an OpenAI-compatible local model endpoint. Point it at a server such as Ollama, LM Studio, or `llama.cpp`:
+Recipe creation from text, URL, or image uses an [Ollama](https://ollama.com) server. Point RecipeServer at the Ollama base URL:
 
 ```toml
 # In recipe-server-cfg.toml:
 source_directory = "/path/to/recipes"
-model_endpoint = "http://localhost:11434/v1"
+model_endpoint = "http://localhost:11434"
 all_purpose_model_name = "llama3.2"
 image_analysis_model = "llava3"
 recipe_server_name = "My Recipe Server"
 ```
 
+RecipeServer talks to Ollama's native API (`/api/chat`, `/api/ps`, and `/api/tags`). A configured endpoint that includes an OpenAI-style suffix such as `/v1` still works; the suffix is normalized away.
+
 The TOML file lives in your user data directory (`recipe-server-cfg.toml`). Configuration can also be edited in the browser: choose **Configuration** from the menu on the home page, then Save and Cancel. Saving rebuilds the site immediately. If the `model_endpoint` key is absent, the app asks for the endpoint on startup:
 
 ```text
-Local model endpoint (for example http://localhost:11434/v1). Press Enter to skip:
+Ollama endpoint (for example http://localhost:11434). Press Enter to skip:
 All-purpose model name (press Enter to auto-detect from the endpoint):
 Image analysis model name (press Enter to auto-detect from the endpoint):
 ```
 
-Press <kbd>Enter</kbd> at the endpoint prompt to skip the integration. The empty setting is saved, so the app will not ask again; to enable it later, add or edit the `model_endpoint` key in `recipe-server-cfg.toml` (or use the Configuration dialog). Set `all_purpose_model_name` (and `image_analysis_model` for From Image) when your server has more than one model, or leave it out and RecipeServer will ask `/v1/models` for the first available model.
+Press <kbd>Enter</kbd> at the endpoint prompt to skip the integration. The empty setting is saved, so the app will not ask again; to enable it later, add or edit the `model_endpoint` key in `recipe-server-cfg.toml` (or use the Configuration dialog). Set `all_purpose_model_name` (and `image_analysis_model` for From Image) when your server has more than one model, or leave it out and RecipeServer will ask `/api/tags` for the first available model.
 
 The AI controls behave as follows:
 
 - All controls are hidden when no model endpoint is configured.
 - All controls are shown but disabled when the endpoint is configured but cannot be reached.
 - The endpoint is checked with a short timeout each time the create dialog opens, so start the model server and reopen the dialog after it becomes available.
+- Before generating, RecipeServer asks Ollama's `/api/ps` route whether the selected model is already loaded. When it is not, the dialog reports that the model is being loaded into memory.
+
+While a recipe is generated, the dialog reports each step: checking the model, loading it into memory, preparing the source, thinking (when the model emits reasoning), generating, and complete or error. The generated Markdown is written to the recipe editor when generation finishes, and the final model load time, generation time, token count, and tokens per second are shown when Ollama reports them.
 
 The model prompt requirements are read from `src/recipeserver/NewRecipePrompt.md` on every app run, so edits to that file take effect the next time you start RecipeServer. For **From URL**, RecipeServer fetches the page and sends its readable text (not the raw HTML) to the model. For **From Image**, the image is sent to the configured `image_analysis_model` with the prompt from `src/recipeserver/NewRecipeFromImagePrompt.md`; its transcription is then sent to the `all_purpose_model_name` model with `NewRecipePrompt.md` to draft the recipe. The generated Markdown and front matter only pre-fill the editor; review them before creating the recipe.
 
@@ -231,7 +236,7 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **The From text, From URL, and From Image inputs are missing:** No local model endpoint is configured. Add `model_endpoint` to `recipe-server-cfg.toml` (or use **Configuration**), or remove that key and restart to be prompted again.
 - **The From text, From URL, and From Image inputs are disabled:** The configured model endpoint could not be reached. Start the model server, check the endpoint URL, and reopen the create dialog.
 - **The From Image input is disabled while text/URL work:** The image prompt could not be loaded. Check `src/recipeserver/NewRecipeFromImagePrompt.md` exists, and that the endpoint serves a vision-capable `image_analysis_model`.
-- **AI generation fails with an HTTP error:** Confirm the endpoint is OpenAI-compatible and exposes `/v1/chat/completions`. Set `all_purpose_model_name` explicitly if auto-detection picks the wrong model.
+- **AI generation fails with an HTTP error:** Confirm the Ollama server is running and reachable, and that it exposes `/api/chat` and `/api/ps`. Set `all_purpose_model_name` explicitly if auto-detection picks the wrong model.
 
 ## Development
 

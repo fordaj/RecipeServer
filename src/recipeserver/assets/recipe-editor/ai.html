@@ -3,9 +3,30 @@
 
   <fieldset class="recipe-editor__section recipe-editor__ai">
     <h3>Create from source</h3>
-    <p class="recipe-editor__ai-status" role="status"></p>
+    <p class="recipe-editor__ai-status" role="status" aria-live="polite"></p>
 
     <button type="button" class="recipe-editor__ai-cancel" hidden>Cancel generation</button>
+
+    <div class="recipe-editor__ai-progress" hidden>
+      <dl class="recipe-editor__ai-metrics" hidden>
+        <div class="recipe-editor__ai-metric">
+          <dt>Model load</dt>
+          <dd class="recipe-editor__ai-metric-model-load"></dd>
+        </div>
+        <div class="recipe-editor__ai-metric">
+          <dt>Generation</dt>
+          <dd class="recipe-editor__ai-metric-generation"></dd>
+        </div>
+        <div class="recipe-editor__ai-metric">
+          <dt>Tokens</dt>
+          <dd class="recipe-editor__ai-metric-tokens"></dd>
+        </div>
+        <div class="recipe-editor__ai-metric">
+          <dt>Speed</dt>
+          <dd class="recipe-editor__ai-metric-rate"></dd>
+        </div>
+      </dl>
+    </div>
 
     <div class="recipe-editor__ai-field">
       <label for="recipe-editor-ai-text">From text</label>
