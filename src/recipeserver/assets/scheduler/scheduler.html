@@ -26,20 +26,6 @@
     </button>
     <h3 class="scheduler__period" aria-live="polite"></h3>
 
-    <label class="scheduler__snap">
-      <span class="scheduler__label">Snap</span>
-      <input
-        class="scheduler__snap-slider"
-        type="range"
-        min="0"
-        max="100"
-        step="5"
-        value="60"
-        aria-label="Snap intensity"
-        title="How strongly the calendar snaps to the nearest day"
-      />
-    </label>
-
     <button type="button" class="scheduler__select" aria-pressed="false">
       <span data-scheduler-select-label>Select</span>
     </button>
@@ -48,12 +34,16 @@
   <p class="scheduler__status" role="status"></p>
 
   <section class="scheduler__content" aria-label="Scheduled recipes">
-    <div class="scheduler__track"></div>
-    <div class="scheduler__months"></div>
+    <div class="scheduler__scroll"></div>
   </section>
 
   <footer class="scheduler__footer">
     <p class="scheduler__selection" aria-live="polite"></p>
+
+    <button type="button" class="scheduler__shopping" disabled>
+      <span class="scheduler__icon" aria-hidden="true"></span>
+      <span>Shopping List</span>
+    </button>
 
     <label class="scheduler__field">
       <span class="scheduler__label">Date</span>

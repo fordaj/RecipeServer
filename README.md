@@ -197,14 +197,17 @@ scheduledOn:
 
 `scheduledOn` is optional, and holds `YYYY-MM-DD` dates as strings, so one recipe can be scheduled on several days. The scheduler writes the field back to the same file, so the schedule travels with the recipe and needs no separate database.
 
-The calendar has three views:
+The calendar has three views, and all of them scroll up and down without an end. Each screen holds one period:
 
-- **Day** and **Week** scroll sideways without an end. They pull towards the nearest day when the scrolling stops, with a strength you can set with the **Snap** control.
-- **Month** scrolls up and down through the months.
+- **Day** shows a single day.
+- **Week** shows seven days, starting with today.
+- **Month** shows one month.
+
+When the scrolling stops, the calendar pulls towards the nearest period. The strength of that snap is the `--scheduler-snap-strength` setting in `assets/scheduler/scheduler.css`, from `0` for a free glide to `1` for a hard snap, so it can be tuned for every screen from the stylesheet.
 
 Every recipe keeps its own accent color in the calendar, the same color its recipe page uses.
 
-The **Select** button in the scheduler turns on the day selection mode. Picking a day then selects every recipe scheduled on that day, which overrides the selection made on the index. The button in the footer turns into **Unschedule** and clears the recipes under the selected days.
+The **Select** button in the scheduler turns on the day selection mode. Picking a day then selects every recipe scheduled on that day, which overrides the selection made on the index. The button in the footer turns into **Unschedule** and clears the recipes under the selected days. The **Shopping List** button next to it closes the calendar and opens the shopping list for the selected recipes.
 
 ### Quantity scaling
 

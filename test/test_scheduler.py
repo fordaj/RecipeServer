@@ -307,14 +307,45 @@ def test_the_scheduler_offers_the_three_views():
     assert views == ["day", "week", "month"]
 
 
-def test_the_scheduler_has_a_snap_control_and_a_selection_count():
+def test_the_scheduler_has_a_selection_count_and_no_snap_slider():
     html = (SCHEDULER_ASSETS / "scheduler.html").read_text(encoding="utf-8")
 
     soup = BeautifulSoup(html, "html.parser")
-    assert soup.select_one(".scheduler__snap-slider") is not None
     assert soup.select_one(".scheduler__selection") is not None
+    # The snap strength lives in the stylesheet, not in a control.
+    assert soup.select_one(".scheduler__snap-slider") is None
+    assert soup.select_one(".scheduler__snap") is None
     # The recipe picker is gone; the count takes its place.
     assert soup.select_one(".scheduler__recipe") is None
+
+
+def test_the_scheduler_reads_its_snap_strength_from_the_css():
+    css = (SCHEDULER_ASSETS / "scheduler.css").read_text(encoding="utf-8")
+
+    assert "--scheduler-snap-strength:" in css
+    assert "overflow-y: auto" in css
+
+
+def test_the_scheduler_offers_a_shopping_list_button_in_its_footer():
+    html = (SCHEDULER_ASSETS / "scheduler.html").read_text(encoding="utf-8")
+
+    soup = BeautifulSoup(html, "html.parser")
+    footer = soup.select_one(".scheduler__footer")
+    shopping = footer.select_one(".scheduler__shopping")
+
+    assert shopping is not None
+    assert shopping.get_text(strip=True) == "Shopping List"
+    assert shopping.select_one(".scheduler__icon") is not None
+
+    script = (SCHEDULER_ASSETS / "scheduler.js").read_text(encoding="utf-8")
+    assert '"/assets/shopping-cart.svg"' in script
+    assert "new CustomEvent(SHOPPING_LIST_EVENT, { detail: { paths } })" in script
+
+
+def test_pull_to_refresh_is_disabled_while_the_scheduler_is_open():
+    script = (ASSETS / "pull-down-page-refresh.js").read_text(encoding="utf-8")
+
+    assert 'document.getElementById("scheduler-dialog")' in script
 
 
 def test_the_scheduler_script_talks_to_the_scheduler_api():
