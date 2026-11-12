@@ -128,6 +128,15 @@ class Element {
     }
   }
 
+  appendChild(node) {
+    // The browser moves an existing child instead of duplicating it.
+    if (!this.childNodes.includes(node)) {
+      node.parentNode = this;
+      this.childNodes.push(node);
+    }
+    return node;
+  }
+
   replaceChildren(...nodes) {
     this.childNodes = [];
     this.append(...nodes);
@@ -349,6 +358,7 @@ function matchesCompound(element, compound) {
 function createDocument() {
   const document = {
     activeElement: null,
+    listeners: new Map(),
     createElement(tagName) {
       return new Element(tagName, document);
     },
@@ -357,6 +367,16 @@ function createDocument() {
     },
     querySelectorAll(selector) {
       return document.documentElement.querySelectorAll(selector);
+    },
+    addEventListener(type, handler) {
+      if (!document.listeners.has(type)) document.listeners.set(type, []);
+      document.listeners.get(type).push(handler);
+    },
+    dispatchEvent(event) {
+      const handlers = document.listeners.get(event.type) ?? [];
+      const payload = { ...event, target: event.target ?? document };
+      for (const handler of handlers) handler(payload);
+      return true;
     },
   };
 
