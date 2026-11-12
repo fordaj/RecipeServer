@@ -173,9 +173,20 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     generator.add(Recipe({"categories": ["Soup"]}, recipe_path))
     generator.convert()
     soup = BeautifulSoup((tmp_path / "index.html").read_text(encoding="UTF-8"), "html.parser")
-    assert soup.select_one("#bulk-selection-mode") is not None
-    assert "Selection Mode" in soup.select_one(".bulk-selection-toggle").get_text()
+    # The Selection Mode checkbox is gone: it is now a Select/Cancel
+    # button in the bulk controls bar.
+    assert soup.select_one("#bulk-selection-mode") is None
+    assert soup.select_one(".bulk-selection-toggle") is None
     assert soup.select_one("#bulk-controls") is not None
+    selection_toggle = soup.select_one("#bulk-selection-toggle")
+    assert selection_toggle is not None and selection_toggle["type"] == "button"
+    assert selection_toggle.get_text(strip=True) == "Select"
+    assert selection_toggle.find_parent("div", class_="bulk-controls") is not None
+    # The bulk actions only appear in selection mode, so they start hidden.
+    assert soup.select_one("#bulk-controls").get("hidden") is None
+    assert soup.select_one(".select-all-control").get("hidden") is not None
+    for control_id in ("clear-selections", "bulk-delete", "shopping-list", "bulk-edit", "bulk-selection-count"):
+        assert soup.select_one(f"#{control_id}").get("hidden") is not None
     assert soup.select_one("#bulk-edit").get_text(strip=True) == "Bulk Edit"
     assert soup.select_one("#clear-selections").get_text(strip=True) == "Clear Selections"
     # Select All lives in the bulk controls with the other bulk actions.
@@ -183,9 +194,24 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert select_all is not None and select_all["type"] == "checkbox"
     assert select_all.find_parent("div", class_="bulk-controls") is not None
     assert "Select All" in select_all.find_parent("label").get_text(strip=True)
-    # Order left-to-right: Clear Selections, Delete Selected, Shopping List, Bulk Edit.
+    # Order left-to-right: Clear Selections, Delete Selected, Shopping List,
+    # Bulk Edit, then the Select button on the far right.
     button_ids = [b["id"] for b in soup.select("#bulk-controls button")]
-    assert button_ids == ["clear-selections", "bulk-delete", "shopping-list", "bulk-edit"]
+    assert button_ids == [
+        "clear-selections",
+        "bulk-delete",
+        "shopping-list",
+        "bulk-edit",
+        "bulk-selection-toggle",
+    ]
+    # The selection count sits directly to the left of the Select button,
+    # which closes the bar on the far right.
+    selection_count = soup.select_one("#bulk-selection-count")
+    assert selection_count.get_text(strip=True) == "0 selected"
+    assert selection_count.find_next_sibling() is selection_toggle
+    status_group = selection_toggle.find_parent("span", class_="bulk-controls__status")
+    assert status_group is not None and selection_count.find_parent("span", class_="bulk-controls__status") is status_group
+    assert soup.select_one("#bulk-controls").find_all(recursive=False)[-1] is status_group
     assert soup.select_one("#shopping-list").get_text(strip=True) == "Shopping List"
     index_css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
     # Bulk Edit and Shopping List share the filled style.
@@ -195,7 +221,19 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     # Selection mode must not show a native text highlight.
     assert ".select-all-control" in index_css
     assert "#recipe-list.selection-mode .recipe-card" in index_css and "user-select: none" in index_css
+    # The hidden bulk actions have to beat their own display rules.
+    assert ".bulk-controls [hidden]" in index_css
+    # Select is the primary action; Cancel steps back to the outline style.
+    assert ".bulk-controls #bulk-selection-toggle {" in index_css
+    assert ".bulk-controls.is-selection-mode #bulk-selection-toggle {" in index_css
     index_js = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js").read_text(encoding="UTF-8")
+    # The Select/Cancel button drives selection mode; the old checkbox is
+    # no longer wired up.
+    assert 'document.querySelector("#bulk-selection-toggle")' in index_js
+    assert 'document.querySelectorAll("#bulk-controls [data-selection-only]")' in index_js
+    assert 'selectionToggle.addEventListener("click", () => setSelectionMode(!selectionModeEnabled))' in index_js
+    assert 'selectionToggleLabel.textContent = enabled ? "Cancel" : "Select"' in index_js
+    assert "#bulk-selection-mode" not in index_js
     # Plain click toggles (no separate Ctrl behavior) and Ctrl+Shift
     # (or Cmd+Shift) adds a File Explorer-style range from the anchor.
     assert "selectionAnchor" in index_js

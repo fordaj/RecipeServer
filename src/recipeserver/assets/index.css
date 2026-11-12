@@ -305,7 +305,11 @@ a {
   gap: 0.5rem;
 }
 
-.bulk-controls[hidden] {
+/* The bar itself stays visible because it holds the Select/Cancel
+   button. The bulk actions inside it are hidden until selection mode
+   is on, so the hidden attribute has to win over their display rules. */
+.bulk-controls[hidden],
+.bulk-controls [hidden] {
   display: none;
 }
 
@@ -374,9 +378,47 @@ a {
   background: var(--danger-color-hover);
 }
 
+/* Select starts selection mode, so it is the primary action in the bar
+   and uses the same filled style as Bulk Edit. */
+.bulk-controls #bulk-selection-toggle {
+  border-color: var(--food-color);
+  background: var(--food-color);
+  color: var(--page-bg);
+  font-weight: 600;
+}
+
+.bulk-controls #bulk-selection-toggle:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+/* The same button reads Cancel in selection mode, so it steps back to
+   the plain outline style used by the other bulk actions. */
+.bulk-controls.is-selection-mode #bulk-selection-toggle {
+  border-color: var(--border-color);
+  background: var(--card-bg);
+  color: var(--food-color);
+  font-weight: inherit;
+}
+
+.bulk-controls.is-selection-mode #bulk-selection-toggle:hover:not(:disabled) {
+  border-color: var(--hover-border-color);
+  background: var(--hover-bg);
+  color: var(--food-color);
+}
+
 #bulk-selection-count {
   color: var(--muted-color);
   font-size: 0.85rem;
+}
+
+/* The count belongs next to the Select/Cancel button, so they are
+   grouped to keep them together when the bar wraps. */
+.bulk-controls__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .select-all-control {

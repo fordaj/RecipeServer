@@ -834,37 +834,38 @@ class IndexHTMLGenerator:
                                     >
                                     <span>Show Archived</span>
                                 </label>
-
-                                <label class="metadata-status-toggle bulk-selection-toggle">
-                                    <input
-                                        id="bulk-selection-mode"
-                                        type="checkbox"
-                                        aria-controls="recipe-list bulk-controls"
-                                    >
-                                    <span>Selection Mode</span>
-                                </label>
                             </div>
                         </details>
                     </section>
 
                     <div class="recipe-results-bar">
                         <p id="recipe-count" aria-live="polite"></p>
-                        <div id="bulk-controls" class="bulk-controls" hidden>
-                            <span id="bulk-selection-count" aria-live="polite">0 selected</span>
-                            <label class="select-all-control">
+                        <div id="bulk-controls" class="bulk-controls">
+                            <label class="select-all-control" data-selection-only hidden>
                                 <input type="checkbox" id="select-all">
                                 <span>Select All</span>
                             </label>
-                            <button id="clear-selections" type="button">Clear Selections</button>
-                            <button id="bulk-delete" class="bulk-delete" type="button" disabled>Delete Selected</button>
-                            <button id="shopping-list" class="shopping-list-button" type="button" disabled>
+                            <button id="clear-selections" type="button" data-selection-only hidden>Clear Selections</button>
+                            <button id="bulk-delete" class="bulk-delete" type="button" data-selection-only hidden disabled>Delete Selected</button>
+                            <button id="shopping-list" class="shopping-list-button" type="button" data-selection-only hidden disabled>
                                 {self._inline_svg(SHOPPING_CART_SVG)}
                                 <span>Shopping List</span>
                             </button>
-                            <button id="bulk-edit" class="bulk-edit" type="button" disabled>
+                            <button id="bulk-edit" class="bulk-edit" type="button" data-selection-only hidden disabled>
                                 {self._inline_svg(PENCIL_SVG)}
                                 <span>Bulk Edit</span>
                             </button>
+                            <span class="bulk-controls__status">
+                                <span id="bulk-selection-count" aria-live="polite" data-selection-only hidden>0 selected</span>
+                                <button
+                                    id="bulk-selection-toggle"
+                                    class="bulk-selection-button"
+                                    type="button"
+                                    aria-controls="recipe-list"
+                                >
+                                    <span data-selection-label>Select</span>
+                                </button>
+                            </span>
                         </div>
                         <button id="clear-filters" type="button" hidden>Clear filters</button>
                         <div class="results-controls">
