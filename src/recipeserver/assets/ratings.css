@@ -123,6 +123,27 @@
   -webkit-text-fill-color: transparent;
 }
 
+.recipe-rating__stars--slider {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 2.25rem;
+  letter-spacing: 0;
+  padding: 0.5rem 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.recipe-rating__stars--slider .recipe-rating__star {
+  padding: 0 0.025em;
+}
+
+.recipe-rating__stars--slider:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
 .recipe-rating__score {
   color: var(--text-muted);
   font-size: 0.85rem;
@@ -193,7 +214,8 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 0.9rem;
+  /* 16 pixels is the smallest a field may be, or iOS zooms the page in. */
+  font-size: 1rem;
   font-weight: 700;
 }
 
@@ -221,7 +243,8 @@
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 0.9rem;
+  /* 16 pixels is the smallest a field may be, or iOS zooms the page in. */
+  font-size: 1rem;
   font-weight: 700;
 }
 
@@ -249,6 +272,8 @@
   background: var(--input-background);
   color: inherit;
   font: inherit;
+  /* 16 pixels is the smallest a field may be, or iOS zooms the page in. */
+  font-size: 1rem;
   text-align: center;
 }
 

@@ -15,6 +15,12 @@
   const helpers = window.RecipeFeedback || {};
   const recipePath = (helpers.getMarkdownPath || getMarkdownPathFallback)();
 
+  // Each star is worth two points, so every half star is worth one point and
+  // the lowest score the slider can set is 1.
+  const STAR_COUNT = 5;
+  const MIN_SLIDER_SCORE = 1;
+  const MAX_SLIDER_SCORE = 10;
+
   function getMarkdownPathFallback() {
     const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
     return page.replace(/\.html$/i, ".md");
@@ -85,6 +91,116 @@
     return `${rating / 2} out of 5 stars (${rating} out of 10)`;
   }
 
+  // ----- Number field ----- //
+  function selectAllOnClick(input) {
+    // Clicking the score field highlights the whole score so typing replaces it.
+    input.addEventListener("click", () => input.select());
+    input.addEventListener("focus", () => {
+      // The browser places the caret once the field is focused, so the score is
+      // highlighted on the next tick instead of during the focus event.
+      setTimeout(() => input.select(), 0);
+    });
+  }
+
+  // ----- Rating slider ----- //
+  function updateStarSlider(slider, score) {
+    const value = score === null ? 0 : score;
+    slider.style.setProperty("--rating-fill", `${(value / 10) * 100}%`);
+    slider.setAttribute(
+      "aria-valuenow",
+      String(Math.min(Math.max(value, MIN_SLIDER_SCORE), MAX_SLIDER_SCORE)),
+    );
+    slider.setAttribute("aria-valuetext", score === null ? "No rating" : `${value} out of 10`);
+  }
+
+  // Each star holds two scores, one for its left half and one for its right
+  // half, so a click anywhere on the slider lands on a whole or half star.
+  function scoreFromPointer(slider, clientX) {
+    const rect = slider.getBoundingClientRect();
+    if (!rect.width) return MIN_SLIDER_SCORE;
+
+    const ratio = (clientX - rect.left) / rect.width;
+    const star = Math.min(Math.max(Math.floor(ratio * STAR_COUNT), 0), STAR_COUNT - 1);
+    const half = ratio * STAR_COUNT - star;
+    return 2 * star + (half < 0.5 ? 1 : 2);
+  }
+
+  function createStarSlider(score, onChange) {
+    const slider = document.createElement("span");
+    slider.className = "recipe-rating__stars recipe-rating__stars--slider";
+    slider.setAttribute("role", "slider");
+    slider.setAttribute("aria-label", "Rating out of 10");
+    slider.setAttribute("aria-valuemin", String(MIN_SLIDER_SCORE));
+    slider.setAttribute("aria-valuemax", String(MAX_SLIDER_SCORE));
+    slider.tabIndex = 0;
+
+    for (let index = 0; index < STAR_COUNT; index += 1) {
+      const star = document.createElement("span");
+      star.className = "recipe-rating__star";
+      star.textContent = "★";
+      slider.append(star);
+    }
+
+    let currentScore = score;
+
+    function setScore(nextScore) {
+      currentScore = nextScore;
+      updateStarSlider(slider, nextScore);
+    }
+
+    function applyScore(nextScore) {
+      const clamped = Math.min(Math.max(nextScore, MIN_SLIDER_SCORE), MAX_SLIDER_SCORE);
+      setScore(clamped);
+      onChange(clamped);
+    }
+
+    slider.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      slider.focus();
+      slider.setPointerCapture(event.pointerId);
+      applyScore(scoreFromPointer(slider, event.clientX));
+    });
+
+    slider.addEventListener("pointermove", (event) => {
+      if (!slider.hasPointerCapture(event.pointerId)) return;
+      applyScore(scoreFromPointer(slider, event.clientX));
+    });
+
+    const releasePointer = (event) => {
+      if (slider.hasPointerCapture(event.pointerId)) {
+        slider.releasePointerCapture(event.pointerId);
+      }
+    };
+    slider.addEventListener("pointerup", releasePointer);
+    slider.addEventListener("pointercancel", releasePointer);
+
+    slider.addEventListener("keydown", (event) => {
+      const base = Math.round(currentScore);
+      let next = null;
+      if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+        next = base + 1;
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+        next = base - 1;
+      } else if (event.key === "PageUp") {
+        next = base + 2;
+      } else if (event.key === "PageDown") {
+        next = base - 2;
+      } else if (event.key === "Home") {
+        next = MIN_SLIDER_SCORE;
+      } else if (event.key === "End") {
+        next = MAX_SLIDER_SCORE;
+      } else {
+        return;
+      }
+
+      event.preventDefault();
+      applyScore(next);
+    });
+
+    setScore(score);
+    return { slider, setScore };
+  }
+
   // ----- Rendering ----- //
   function getInitials(name) {
     return helpers.getInitials
@@ -115,20 +231,17 @@
     return meter;
   }
 
-  function updateScorePreview(input, preview, meter) {
+  function updateScorePreview(input, preview, renderStars) {
     const score = parseRatingText(input.value);
     validateRatingInput(input);
+    renderStars(score);
 
     if (score === null) {
       preview.textContent = "—/10";
-      meter.style.setProperty("--rating-fill", "0%");
-      meter.setAttribute("aria-label", "Enter a rating from 0 to 10");
       return;
     }
 
     preview.textContent = `${score}/10`;
-    meter.style.setProperty("--rating-fill", `${(score / 10) * 100}%`);
-    meter.setAttribute("aria-label", getRatingLabel(score));
   }
 
   function updateAverage(ratings) {
@@ -245,14 +358,23 @@
     editScoreInput.value = String(rating.rating);
     editScoreInput.setAttribute("aria-label", "Rating out of 10");
 
-    const meter = createStarMeter(Number(rating.rating));
     const score = document.createElement("output");
     score.className = "recipe-rating__score";
-    updateScorePreview(editScoreInput, score, meter);
-    editScoreInput.addEventListener("input", () =>
-      updateScorePreview(editScoreInput, score, meter),
+
+    const { slider: editSlider, setScore: setEditScore } = createStarSlider(
+      Number(rating.rating),
+      (nextScore) => {
+        editScoreInput.value = String(nextScore);
+        updateScorePreview(editScoreInput, score, (value) => setEditScore(value));
+      },
     );
-    scoreLine.append(editScoreInput, meter, score);
+
+    selectAllOnClick(editScoreInput);
+    updateScorePreview(editScoreInput, score, (value) => setEditScore(value));
+    editScoreInput.addEventListener("input", () =>
+      updateScorePreview(editScoreInput, score, (value) => setEditScore(value)),
+    );
+    scoreLine.append(editScoreInput, editSlider, score);
 
     const actions = document.createElement("div");
     actions.className = "recipe-rating__actions recipe-rating__form-actions";
@@ -362,10 +484,19 @@
   }
 
   // ----- Event wiring ----- //
+  const formStars = form.querySelector(".recipe-rating__stars");
+  const { slider: formSlider, setScore: setFormScore } = createStarSlider(5, (nextScore) => {
+    scoreInput.value = String(nextScore);
+    updateScorePreview(scoreInput, scoreValue, (value) => setFormScore(value));
+  });
+  formStars?.replaceWith(formSlider);
+
+  selectAllOnClick(scoreInput);
+
   addButton.addEventListener("click", () => {
     form.reset();
     scoreInput.value = "5";
-    updateScorePreview(scoreInput, scoreValue, form.querySelector(".recipe-rating__stars"));
+    updateScorePreview(scoreInput, scoreValue, (value) => setFormScore(value));
     setFormOpen(true);
   });
 
@@ -375,7 +506,7 @@
   });
 
   scoreInput.addEventListener("input", () => {
-    updateScorePreview(scoreInput, scoreValue, form.querySelector(".recipe-rating__stars"));
+    updateScorePreview(scoreInput, scoreValue, (value) => setFormScore(value));
   });
 
   form.addEventListener("submit", async (event) => {
