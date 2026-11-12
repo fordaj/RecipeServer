@@ -1,0 +1,410 @@
+/* ---------- Scheduler dialog ---------- */
+
+.scheduler-dialog {
+  width: min(1100px, calc(100% - 2rem));
+  height: min(92dvh, 900px);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  box-sizing: border-box;
+
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-color);
+
+  overflow: hidden;
+}
+
+.scheduler-dialog::backdrop {
+  background: var(--dialog-backdrop);
+}
+
+/* ---------- Layout ---------- */
+
+.scheduler {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.scheduler__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.scheduler__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.scheduler__close {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.scheduler__close:hover {
+  background: var(--hover-bg);
+}
+
+.scheduler__close:focus-visible,
+.scheduler__toolbar button:focus-visible,
+.scheduler__footer button:focus-visible,
+.scheduler__footer select:focus-visible,
+.scheduler__footer input:focus-visible,
+.scheduler__day-number:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+/* ---------- Toolbar ---------- */
+
+.scheduler__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.scheduler__toolbar button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.scheduler__toolbar button:hover {
+  border-color: var(--hover-border-color);
+  background: var(--hover-bg);
+}
+
+/* The step buttons are narrow arrows. */
+.scheduler__nav {
+  min-width: 2rem;
+  font-size: 1.1rem !important;
+  line-height: 1;
+}
+
+/* The list view shows every date at once, so it has nothing to step through. */
+.scheduler--list .scheduler__today,
+.scheduler--list .scheduler__nav {
+  display: none;
+}
+
+.scheduler__period {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0 0 0 0.4rem;
+  color: var(--heading-color);
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.scheduler__status {
+  flex: 0 0 auto;
+  min-height: 1.1rem;
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.scheduler__status:empty {
+  display: none;
+}
+
+/* ---------- Scrollable calendar ---------- */
+
+/* Only the calendar scrolls; the header, toolbar and footer stay put. */
+.scheduler__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 0.25rem;
+}
+
+.scheduler__empty {
+  margin: 1rem 0;
+  color: var(--muted-color);
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+/* ---------- Scheduled recipes ---------- */
+
+.scheduler__entries {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.scheduler__entry {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.scheduler__entry-image {
+  width: 2.75rem;
+  height: 2.75rem;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--hover-bg);
+}
+
+.scheduler__entry-text {
+  min-width: 0;
+}
+
+.scheduler__entry-title {
+  color: var(--food-color);
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.scheduler__remove {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+  background: transparent;
+  color: var(--muted-color);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.scheduler__remove:hover {
+  background: var(--hover-bg);
+  color: var(--danger-color);
+}
+
+/* ---------- List view ---------- */
+
+.scheduler__list {
+  display: grid;
+  gap: 1rem;
+}
+
+.scheduler__group-title {
+  margin: 0 0 0.4rem;
+  color: var(--heading-color);
+  font-size: 0.95rem;
+}
+
+/* ---------- Multi day view ---------- */
+
+/* The month grid keeps a readable width, so it scrolls sideways on a
+   narrow screen instead of squashing the days together. */
+.scheduler__month-wrapper {
+  min-width: 38rem;
+}
+
+.scheduler__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+
+  color: var(--muted-color);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.scheduler__month {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.scheduler__day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-height: 5.5rem;
+  padding: 0.3rem;
+
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--page-bg);
+}
+
+/* The days of the neighbouring months are shown, but toned down. */
+.scheduler__day--outside {
+  opacity: 0.5;
+}
+
+.scheduler__day--today {
+  border-color: var(--food-color);
+}
+
+.scheduler__day-number {
+  align-self: flex-start;
+  border: 0;
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  background: transparent;
+  color: var(--heading-color);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scheduler__day-number:hover {
+  background: var(--hover-bg);
+  color: var(--food-color);
+}
+
+.scheduler__chip {
+  display: block;
+  padding: 0.15rem 0.35rem;
+
+  border-radius: 4px;
+  background: var(--food-color);
+  color: var(--page-bg);
+
+  font-size: 0.75rem;
+  line-height: 1.3;
+  text-decoration: none;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduler__chip:hover {
+  background: var(--food-color-hover);
+}
+
+/* ---------- Actions ---------- */
+
+.scheduler__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.scheduler__field {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.scheduler__label {
+  color: var(--muted-color);
+  font-size: 0.8rem;
+}
+
+.scheduler__recipe {
+  min-width: 0;
+  width: min(20rem, 60vw);
+}
+
+.scheduler__footer select,
+.scheduler__footer input {
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  background-color: var(--input-bg);
+  color: var(--heading-color);
+
+  /* Text fields stay at 16px so iOS Safari does not zoom the page. */
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.scheduler__footer button {
+  margin-left: auto;
+  padding: 0.6rem 1rem;
+
+  border: 1px solid var(--food-color);
+  border-radius: 6px;
+  background: var(--food-color);
+  color: var(--page-bg);
+
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.scheduler__footer button:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+}
+
+.scheduler__footer button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 600px) {
+  .scheduler-dialog {
+    width: calc(100% - 1rem);
+    height: 94dvh;
+  }
+
+  .scheduler {
+    gap: 0.5rem;
+    padding: 0.75rem;
+  }
+
+  .scheduler__footer {
+    gap: 0.5rem;
+  }
+
+  .scheduler__recipe {
+    width: 100%;
+  }
+
+  .scheduler__footer button {
+    margin-left: 0;
+    width: 100%;
+  }
+}

@@ -349,17 +349,19 @@ a {
   outline: 2px solid var(--food-color);
 }
 
-/* Bulk Edit and Shopping List use the same filled style as the recipe
-   editor's Save button. */
+/* Bulk Edit, Shopping List and Scheduler use the same filled style as the
+   recipe editor's Save button. */
 .bulk-controls #bulk-edit,
-.bulk-controls #shopping-list {
+.bulk-controls #shopping-list,
+.bulk-controls #scheduler {
   border-color: var(--food-color);
   background: var(--food-color);
   color: var(--page-bg);
 }
 
 .bulk-controls #bulk-edit:hover:not(:disabled),
-.bulk-controls #shopping-list:hover:not(:disabled) {
+.bulk-controls #shopping-list:hover:not(:disabled),
+.bulk-controls #scheduler:hover:not(:disabled) {
   border-color: var(--food-color-hover);
   background: var(--food-color-hover);
   color: var(--page-bg);

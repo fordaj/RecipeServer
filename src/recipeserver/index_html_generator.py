@@ -45,6 +45,8 @@ RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor/recipe-editor.css"
 RECIPE_EDITOR_JS_PATH = "/assets/recipe-editor/recipe-editor.js"
 SHOPPING_LIST_CSS_PATH = "/assets/shopping-list/shopping-list.css"
 SHOPPING_LIST_JS_PATH = "/assets/shopping-list/shopping-list.js"
+SCHEDULER_CSS_PATH = "/assets/scheduler/scheduler.css"
+SCHEDULER_JS_PATH = "/assets/scheduler/scheduler.js"
 RECIPE_SCALER_CSS_PATH = "/assets/recipe-scaler.css"
 RECIPE_SCALER_JS_PATH = "/assets/recipe-scaler.js"
 CONFIG_EDITOR_CSS_PATH = "/assets/config-editor.css"
@@ -670,6 +672,8 @@ class IndexHTMLGenerator:
         recipe_editor_js_url = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
         shopping_list_css_url = _versioned_asset_url(SHOPPING_LIST_CSS_PATH)
         shopping_list_js_url = _versioned_asset_url(SHOPPING_LIST_JS_PATH)
+        scheduler_css_url = _versioned_asset_url(SCHEDULER_CSS_PATH)
+        scheduler_js_url = _versioned_asset_url(SCHEDULER_JS_PATH)
         recipe_scaler_css_url = _versioned_asset_url(RECIPE_SCALER_CSS_PATH)
         recipe_scaler_js_url = _versioned_asset_url(RECIPE_SCALER_JS_PATH)
         config_editor_css_url = _versioned_asset_url(CONFIG_EDITOR_CSS_PATH)
@@ -689,12 +693,14 @@ class IndexHTMLGenerator:
                 <link rel="stylesheet" href="{recipe_editor_css_url}">
                 <link rel="stylesheet" href="{recipe_scaler_css_url}">
                 <link rel="stylesheet" href="{shopping_list_css_url}">
+                <link rel="stylesheet" href="{scheduler_css_url}">
                 <link rel="stylesheet" href="{config_editor_css_url}">
                 <script src="{MENU_JS_URL}" defer></script>
                 <script src="{index_js_url}" defer></script>
                 <script src="{recipe_editor_js_url}" defer></script>
                 <script src="{recipe_scaler_js_url}" defer></script>
                 <script src="{shopping_list_js_url}" defer></script>
+                <script src="{scheduler_js_url}" defer></script>
                 <script src="{config_editor_js_url}" defer></script>
             </head>
             <body>
@@ -850,6 +856,10 @@ class IndexHTMLGenerator:
                             <button id="shopping-list" class="shopping-list-button" type="button" data-selection-only hidden disabled>
                                 {self._inline_svg(SHOPPING_CART_SVG)}
                                 <span>Shopping List</span>
+                            </button>
+                            <button id="scheduler" class="scheduler-button" type="button">
+                                {self._inline_svg(CALENDAR_SVG)}
+                                <span>Scheduler</span>
                             </button>
                             <button id="bulk-edit" class="bulk-edit" type="button" data-selection-only hidden disabled>
                                 {self._inline_svg(PENCIL_SVG)}
