@@ -1,0 +1,42 @@
+<div class="scheduler">
+  <header class="scheduler__header">
+    <h2 class="scheduler__title">Scheduler</h2>
+
+    <div class="view-switcher" role="group" aria-label="Scheduler view">
+      <button type="button" data-scheduler-view="day" aria-pressed="true">Single Day</button>
+      <button type="button" data-scheduler-view="multi" aria-pressed="false">Multi Day</button>
+      <button type="button" data-scheduler-view="list" aria-pressed="false">List</button>
+    </div>
+
+    <button type="button" class="scheduler__close" aria-label="Close scheduler">&times;</button>
+  </header>
+
+  <div class="scheduler__toolbar">
+    <button type="button" class="scheduler__today">Today</button>
+    <button type="button" class="scheduler__nav" data-scheduler-step="-1" aria-label="Previous">
+      &lsaquo;
+    </button>
+    <button type="button" class="scheduler__nav" data-scheduler-step="1" aria-label="Next">
+      &rsaquo;
+    </button>
+    <h3 class="scheduler__period" aria-live="polite"></h3>
+  </div>
+
+  <p class="scheduler__status" role="status"></p>
+
+  <section class="scheduler__content" aria-label="Scheduled recipes"></section>
+
+  <footer class="scheduler__footer">
+    <label class="scheduler__field">
+      <span class="scheduler__label">Recipe</span>
+      <select class="scheduler__recipe"></select>
+    </label>
+
+    <label class="scheduler__field">
+      <span class="scheduler__label">Date</span>
+      <input class="scheduler__date" type="date" />
+    </label>
+
+    <button type="button" class="scheduler__schedule">Schedule</button>
+  </footer>
+</div>

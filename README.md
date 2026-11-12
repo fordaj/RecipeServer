@@ -17,6 +17,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Scales quantities inside inline code, such as `1 1/2 cups` or `1-2 tbsp`.
 - Combines the ingredients of the recipes selected in the index into a shopping list, with a scale control per recipe.
 - Downloads the shopping list as Markdown, copies it to the clipboard, or prints it as a checklist.
+- Schedules recipes on a calendar, with a single day, a multi day month grid, and a list of every scheduled recipe.
 - Uses the first image in each recipe folder as the hero image and derives a page accent color from it.
 - Shows metadata warnings for recipes missing recommended fields.
 - Typesets math with a bundled copy of KaTeX.
@@ -181,6 +182,18 @@ When a reviewer is selected in **Filter Reviews**, Metadata Status also warns on
 
 `categories` is the canonical field. Older recipes using the singular `category` are still read correctly, but that field is normalized to `categories` when the recipe is saved.
 
+### Scheduling
+
+The **Scheduler** button in the index opens a calendar of the recipes that are planned for a date. A recipe is scheduled by listing calendar dates in its front matter:
+
+```yaml
+scheduledOn:
+  - "2026-02-14"
+  - "2026-02-21"
+```
+
+`scheduledOn` is optional, and holds `YYYY-MM-DD` dates as strings, so one recipe can be scheduled on several days. The scheduler writes the field back to the same file, so the schedule travels with the recipe and needs no separate database.
+
 ### Quantity scaling
 
 Wrap quantities in inline code to make them scalable:
@@ -266,6 +279,7 @@ src/recipeserver/
 ├── markdown_to_html.py     # recipe rendering and quantity scaling
 ├── index_html_generator.py # searchable/sortable index and metadata warnings
 ├── shopping_list.py         # ingredient scraping for the shopping list
+├── scheduler.py             # scheduledOn dates for the calendar view
 ├── metadata_linter.py      # required-field list and warning text
 ├── image_handler.py        # supported images, hero selection, accent colors
 ├── server.py               # HTTP server and JSON APIs
@@ -284,7 +298,7 @@ format.sh                   # Python (Black) and Bash (shfmt) formatting via for
 - One broken recipe is skipped with a logged error so the rest of the site can still build.
 - Metadata warnings are advisory and never block generation, serving, or saving.
 - The HTTP API uses relative `.md` paths inside the configured source directory. Paths outside it are rejected.
-- APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/ai-status`, `POST /api/ai-recipe`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, `GET|POST /api/metadata/<field>`, and `GET /api/shopping-list`.
+- APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/ai-status`, `POST /api/ai-recipe`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, `GET|POST /api/metadata/<field>`, `GET /api/shopping-list`, and `GET|POST /api/scheduler`.
 - Recipe creation writes `recipe.md` into the selected folder and rejects folder paths outside the source directory or existing recipes.
 - AI recipe generation never writes files. It returns Markdown and metadata to the editor, which saves only when the user submits the create form.
 - The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, not when the app is built.

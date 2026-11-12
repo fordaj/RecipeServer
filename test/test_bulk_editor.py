@@ -195,12 +195,13 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert select_all.find_parent("div", class_="bulk-controls") is not None
     assert "Select All" in select_all.find_parent("label").get_text(strip=True)
     # Order left-to-right: Clear Selections, Delete Selected, Shopping List,
-    # Bulk Edit, then the Select button on the far right.
+    # Scheduler, Bulk Edit, then the Select button on the far right.
     button_ids = [b["id"] for b in soup.select("#bulk-controls button")]
     assert button_ids == [
         "clear-selections",
         "bulk-delete",
         "shopping-list",
+        "scheduler",
         "bulk-edit",
         "bulk-selection-toggle",
     ]
@@ -214,8 +215,8 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert soup.select_one("#bulk-controls").find_all(recursive=False)[-1] is status_group
     assert soup.select_one("#shopping-list").get_text(strip=True) == "Shopping List"
     index_css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
-    # Bulk Edit and Shopping List share the filled style.
-    assert ".bulk-controls #bulk-edit,\n.bulk-controls #shopping-list {" in index_css
+    # Bulk Edit, Shopping List and Scheduler share the filled style.
+    assert ".bulk-controls #bulk-edit,\n.bulk-controls #shopping-list,\n.bulk-controls #scheduler {" in index_css
     assert "background: var(--food-color)" in index_css
     assert ".bulk-controls #bulk-delete" in index_css and "background: var(--danger-color)" in index_css
     # Selection mode must not show a native text highlight.

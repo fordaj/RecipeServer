@@ -32,6 +32,7 @@ import frontmatter
 from PIL import Image, UnidentifiedImageError
 
 from . import ai_recipe
+from . import scheduler
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import Configuration
@@ -457,6 +458,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/recipe-folders": self._handle_recipe_folders_get,
             "/api/bulk-editor": lambda: self._handle_bulk_editor_get(parsed),
             "/api/shopping-list": lambda: self._handle_shopping_list_get(parsed),
+            "/api/scheduler": self._handle_scheduler_get,
         }
 
         if path in simple_handlers:
@@ -488,6 +490,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/recipe": self._handle_recipe_create,
             "/api/recipe-editor": self._handle_recipe_editor_post,
             "/api/markdown": self._handle_markdown_post,
+            "/api/scheduler": self._handle_scheduler_post,
         }
 
         handler = exact_handlers.get(path)
@@ -674,6 +677,51 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         """Return the generated page that belongs to a recipe Markdown file."""
         relative_path = markdown_path.relative_to(self.source_directory)
         return (Path(self.directory).resolve() / relative_path).with_suffix(".html")
+
+    # ----- Scheduler ----- #
+
+    def _handle_scheduler_get(self) -> None:
+        """Return the scheduled dates of every recipe for the calendar."""
+        try:
+            self._send_json(200, {"recipes": scheduler.read_schedules(self.source_directory)})
+        except OSError:
+            logger.exception("Failed to read the recipe schedules")
+            self._send_json(500, {"error": "Unable to read the recipe schedules"})
+
+    def _handle_scheduler_post(self) -> None:
+        """Save the scheduled dates of one recipe."""
+        try:
+            payload = self._read_json_payload()
+            path = payload.get("path")
+            if not isinstance(path, str):
+                raise ValueError("Expected string field: path")
+            dates = scheduler.parse_dates(payload.get("dates"))
+            file_path = self._resolve_markdown_path(path)
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        try:
+            if not file_path.is_file():
+                self._send_json(404, {"error": "Markdown file not found"})
+                return
+
+            saved = scheduler.write_dates(file_path, dates)
+        except OSError:
+            logger.exception("Failed to save the recipe schedule")
+            self._send_json(500, {"error": "Unable to save the recipe schedule"})
+            return
+        except Exception:
+            logger.exception("Failed to update the recipe front matter")
+            self._send_json(500, {"error": "Unable to update the recipe front matter"})
+            return
+
+        logger.info(f"Updated the schedule of recipe: {file_path}")
+        self._notify_markdown_saved(file_path)
+        self._send_json(200, {"success": True, "dates": saved})
 
     # ----- POST handlers: configuration and AI -----------------------------
 
