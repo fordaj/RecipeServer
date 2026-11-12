@@ -84,6 +84,7 @@ RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
 RECIPE_EDITOR_JS = "/assets/recipe-editor/recipe-editor.js"
 RECIPE_EDITOR_CSS = "/assets/recipe-editor/recipe-editor.css"
 METADATA_PICKER_JS = "/assets/recipe-editor/metadata-picker.js"
+AI_PROGRESS_JS = "/assets/recipe-editor/ai-progress.js"
 RECIPE_SCALER_JS = "/assets/recipe-scaler.js"
 COMMENTS_CSS = "/assets/comments.css"
 COMMENTS_JS = "/assets/comments.js"
@@ -909,6 +910,7 @@ class MarkdownToHTMLConverter:
             <script defer src="{COMMENTS_JS}"></script>
             <script defer src="{RATINGS_JS}"></script>
             <script defer src="{METADATA_PICKER_JS}"></script>
+            <script defer src="{AI_PROGRESS_JS}"></script>
             <script defer src="{RECIPE_EDITOR_JS}"></script>
         </body>
         </html>

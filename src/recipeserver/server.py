@@ -63,6 +63,10 @@ class _RequestTooLarge(ValueError):
     """Raised when a request body exceeds the accepted size."""
 
 
+class _StreamClosed(Exception):
+    """Raised when the browser closes an in-progress event stream."""
+
+
 def _now_utc_iso() -> str:
     """Current UTC time as a millisecond ISO string ending in ``Z``."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
@@ -785,37 +789,55 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _stream_ai_recipe(self, request: dict) -> None:
         self.send_response(200)
-        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Connection", "close")
+        self.send_header("X-Accel-Buffering", "no")
         self.end_headers()
         self.close_connection = True
 
-        def send_event(event_type: str, **values) -> None:
-            body = json.dumps({"type": event_type, **values}, default=json_default).encode("utf-8")
-            self.wfile.write(body + b"\n")
-            self.wfile.flush()
+        def send_event(event: dict) -> None:
+            event_type = str(event.get("type", "message")).replace("\n", "")
+            body = json.dumps(event, default=json_default).encode("utf-8")
+            try:
+                self.wfile.write(f"event: {event_type}\n".encode("utf-8"))
+                self.wfile.write(b"data: " + body + b"\n\n")
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError) as exc:
+                raise _StreamClosed from exc
 
         try:
-            result = self._generate_ai_recipe(request, progress_callback=lambda msg: send_event("progress", message=msg))
+            result = self._generate_ai_recipe(request, event_callback=send_event)
+        except _StreamClosed:
+            logger.debug("AI progress stream closed by the browser")
+            return
         except (ai_recipe.ModelUnavailable, ai_recipe.ModelRequestError, ai_recipe.SourceFetchError, ValueError) as exc:
             logger.warning(f"AI recipe generation failed: {exc}")
-            send_event("error", message=str(exc))
+            try:
+                send_event({"type": "error", "state": ai_recipe.STATUS_ERROR, "message": str(exc)})
+            except _StreamClosed:
+                pass
         except Exception:
             logger.exception("Failed to generate a recipe with the local model")
-            send_event("error", message="Unable to generate recipe")
+            try:
+                send_event({"type": "error", "state": ai_recipe.STATUS_ERROR, "message": "Unable to generate recipe"})
+            except _StreamClosed:
+                pass
         else:
             logger.info(f"AI recipe generation succeeded ({len(result.get('content', ''))} characters of Markdown)")
-            send_event("result", result=result)
+            try:
+                send_event({"type": "result", "result": result})
+            except _StreamClosed:
+                logger.debug("AI result was not delivered because the browser closed the stream")
 
-    def _generate_ai_recipe(self, request: dict, progress_callback=None):
+    def _generate_ai_recipe(self, request: dict, event_callback=None):
         if request["input_type"] == "image" and request["image"] is not None:
             filename, image_bytes = request["image"]
             return ai_recipe.generate_recipe(
                 self.config,
                 request["input_type"],
                 filename,
-                progress_callback=progress_callback,
+                event_callback=event_callback,
                 image_bytes=image_bytes,
                 image_filename=filename,
             )
@@ -823,7 +845,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self.config,
             request["input_type"],
             request["input_value"],
-            progress_callback=progress_callback,
+            event_callback=event_callback,
         )
 
     # ----- POST handlers: recipe creation and editing ----------------------
