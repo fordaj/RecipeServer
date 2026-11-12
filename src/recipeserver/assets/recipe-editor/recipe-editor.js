@@ -211,11 +211,12 @@ Try this
 
   function buildAiRequest(inputType, input) {
     if (inputType === "image") {
-      // `input` is a File for image uploads; send it as multipart form data.
+      // `input` is a list of Files for image uploads; send them in the order
+      // they were chosen so the transcriptions stay in that order too.
       const body = new FormData();
       body.append("inputType", inputType);
       body.append("stream", "true");
-      body.append("image", input, input.name);
+      input.forEach((file) => body.append("images", file, file.name));
       return { headers: {}, body };
     }
 
@@ -443,6 +444,86 @@ Try this
     }
   }
 
+  // ----- Image pickers ----- //
+
+  function clipboardImageFiles(event) {
+    const items = event.clipboardData?.items;
+    if (!items) return [];
+    return [...items]
+      .filter((item) => item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+  }
+
+  function imageFilesFromList(list) {
+    return [...(list ?? [])].filter((file) => file.type.startsWith("image/"));
+  }
+
+  // A picker wraps a multiple file input, its dashed dropzone, and the line
+  // that lists the chosen files. Files can be chosen, dragged in, or pasted
+  // from the clipboard, and they are appended so the upload order is kept.
+  function createImagePicker({ input, dropzone, selected, isDisabled }) {
+    function showSelected() {
+      if (!selected) return;
+      selected.textContent = [...input.files].map((file) => file.name).join(", ");
+    }
+
+    function append(files) {
+      if (!files.length || typeof DataTransfer === "undefined") return false;
+      const transfer = new DataTransfer();
+      [...input.files, ...files].forEach((file) => transfer.items.add(file));
+      input.files = transfer.files;
+      showSelected();
+      return true;
+    }
+
+    function handlePaste(event) {
+      // The handler closest to the paste target runs first and marks the
+      // event handled, so a paste never lands in two pickers at once.
+      if (event.defaultPrevented || isDisabled()) return;
+      const pasted = clipboardImageFiles(event);
+      if (!pasted.length) return;
+      event.preventDefault();
+      append(pasted);
+    }
+
+    input.addEventListener("change", showSelected);
+    input.addEventListener("paste", handlePaste);
+
+    dropzone?.addEventListener("dragover", (event) => {
+      if (isDisabled()) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      dropzone.classList.add("is-dragging");
+    });
+    dropzone?.addEventListener("dragleave", (event) => {
+      if (event.currentTarget.contains(event.relatedTarget)) return;
+      dropzone.classList.remove("is-dragging");
+    });
+    dropzone?.addEventListener("drop", (event) => {
+      if (isDisabled()) return;
+      event.preventDefault();
+      dropzone.classList.remove("is-dragging");
+      const files = imageFilesFromList(event.dataTransfer?.files);
+      if (files.length) append(files);
+    });
+    // Clicking anywhere in the box opens the file picker; the native input
+    // and its label are left alone so the browser does not open it twice.
+    dropzone?.addEventListener("click", (event) => {
+      if (isDisabled()) return;
+      if (event.target === input || event.target.closest("label")) return;
+      input.click();
+    });
+
+    function reset() {
+      input.value = "";
+      dropzone?.classList.remove("is-dragging");
+      showSelected();
+    }
+
+    return { append, handlePaste, reset, showSelected };
+  }
+
   // ----- Initialize: DOM refs and state ----- //
 
   function collectDomRefs(dialog) {
@@ -469,14 +550,20 @@ Try this
       folderPathLabel: dialog.querySelector(".recipe-editor__folder-path"),
       newFolder: dialog.querySelector(".recipe-editor__new-folder"),
       imageInput: dialog.querySelector("#recipe-editor-images"),
-      imageDropzone: dialog.querySelector(".recipe-editor__images"),
-      selectedImages: dialog.querySelector(".recipe-editor__images-selected"),
+      imageDropzone: dialog.querySelector(".recipe-editor__recipe-images"),
+      selectedImages: dialog.querySelector(
+        ".recipe-editor__recipe-images .recipe-editor__images-selected",
+      ),
       aiSection: dialog.querySelector(".recipe-editor__ai"),
       aiDetails: dialog.querySelector(".recipe-editor__ai-details"),
       aiStatus: dialog.querySelector(".recipe-editor__ai-status"),
       aiText: dialog.querySelector(".recipe-editor__ai-text"),
       aiUrl: dialog.querySelector(".recipe-editor__ai-url"),
       aiImage: dialog.querySelector(".recipe-editor__ai-image"),
+      aiImageDropzone: dialog.querySelector(".recipe-editor__ai-images"),
+      aiImageSelected: dialog.querySelector(
+        ".recipe-editor__ai-images .recipe-editor__images-selected",
+      ),
       aiTextButton: dialog.querySelector(".recipe-editor__ai-generate-text"),
       aiUrlButton: dialog.querySelector(".recipe-editor__ai-generate-url"),
       aiImageButton: dialog.querySelector(".recipe-editor__ai-generate-image"),
@@ -498,6 +585,18 @@ Try this
     refs.aiImageControls = [refs.aiImage, refs.aiImageButton];
     refs.aiProgress = window.RecipeAIProgress.createProgress(refs.aiSection);
     refs.pickers = window.RecipeMetadataPicker.createPickers(refs.dialog);
+    refs.recipeImages = createImagePicker({
+      input: refs.imageInput,
+      dropzone: refs.imageDropzone,
+      selected: refs.selectedImages,
+      isDisabled: () => refs.imageInput.disabled,
+    });
+    refs.aiImages = createImagePicker({
+      input: refs.aiImage,
+      dropzone: refs.aiImageDropzone,
+      selected: refs.aiImageSelected,
+      isDisabled: () => refs.aiImage.disabled,
+    });
     return refs;
   }
 
@@ -633,7 +732,7 @@ Try this
           "The configured local model is unavailable. Start it, then reopen this dialog.",
         );
       } else if (!state.aiImageAvailable) {
-        setAiProgress("The image analysis model is not configured. From Image is unavailable.");
+        setAiProgress("The image analysis model is not configured. From Images is unavailable.");
       } else {
         setAiProgress("");
       }
@@ -641,9 +740,9 @@ Try this
 
     function readAiInput(inputType) {
       if (inputType === "image") {
-        const file = refs.aiImage.files?.[0];
-        if (!file) return { error: "Choose a recipe image first." };
-        return { input: file };
+        const files = [...(refs.aiImage.files ?? [])];
+        if (!files.length) return { error: "Choose at least one recipe image first." };
+        return { input: files };
       }
 
       const input = inputType === "url" ? refs.aiUrl.value.trim() : refs.aiText.value.trim();
@@ -655,7 +754,11 @@ Try this
 
     function aiStartMessage(inputType, input) {
       if (inputType === "url") return `URL received: ${input}`;
-      if (inputType === "image") return `Image received: ${input.name}`;
+      if (inputType === "image") {
+        const names = input.map((file) => file.name).join(", ");
+        if (input.length === 1) return `Image received: ${names}`;
+        return `${input.length} images received: ${names}`;
+      }
       return "Recipe text received.";
     }
 
@@ -983,7 +1086,7 @@ Try this
     refs.aiProgress.reset();
     refs.aiText.value = "";
     refs.aiUrl.value = "";
-    refs.aiImage.value = "";
+    refs.aiImages.reset();
     refs.aiCancelButton.hidden = true;
   }
 
@@ -1111,9 +1214,7 @@ Try this
     refs.markdownDetails.open = false;
     refs.saveButton.textContent = state.isCreating ? "Create" : "Save";
     refs.location.hidden = !state.isCreating;
-    refs.imageInput.value = "";
-    refs.selectedImages.textContent = "";
-    refs.imageDropzone?.classList.remove("is-dragging");
+    refs.recipeImages.reset();
   }
 
   async function openEditor(refs, state, ui, ai, madeThis, bulk, mode) {
@@ -1288,66 +1389,10 @@ Try this
       state.createButton.addEventListener("click", () => session.openEditor("create"));
 
     refs.folderMode.addEventListener("change", ui.updateFolderControls);
-    refs.imageInput.addEventListener("change", () => {
-      refs.selectedImages.textContent = [...refs.imageInput.files]
-        .map((image) => image.name)
-        .join(", ");
-    });
 
-    function appendImages(newFiles) {
-      if (!newFiles.length || typeof DataTransfer === "undefined") return false;
-      const transfer = new DataTransfer();
-      [...refs.imageInput.files, ...newFiles].forEach((file) => transfer.items.add(file));
-      refs.imageInput.files = transfer.files;
-      refs.selectedImages.textContent = [...refs.imageInput.files]
-        .map((image) => image.name)
-        .join(", ");
-      return true;
-    }
-
-    // Paste an image from the clipboard into the image picker.
-    const handleImagePaste = (event) => {
-      if (state.busy || refs.imageInput.disabled) return;
-      const items = event.clipboardData?.items;
-      if (!items) return;
-      const pasted = [...items]
-        .filter((item) => item.type.startsWith("image/"))
-        .map((item) => item.getAsFile())
-        .filter(Boolean);
-      if (!pasted.length) return;
-      event.preventDefault();
-      appendImages(pasted);
-    };
-    refs.dialog.addEventListener("paste", handleImagePaste);
-    refs.imageInput.addEventListener("paste", handleImagePaste);
-
-    // Drag and drop images into the dropzone; clicking the box also opens
-    // the file picker (clicking the native input or its label is left alone
-    // so the browser does not open the picker twice).
-    refs.imageDropzone?.addEventListener("dragover", (event) => {
-      if (state.busy || refs.imageInput.disabled) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-      refs.imageDropzone.classList.add("is-dragging");
-    });
-    refs.imageDropzone?.addEventListener("dragleave", (event) => {
-      if (event.currentTarget.contains(event.relatedTarget)) return;
-      refs.imageDropzone.classList.remove("is-dragging");
-    });
-    refs.imageDropzone?.addEventListener("drop", (event) => {
-      if (state.busy || refs.imageInput.disabled) return;
-      event.preventDefault();
-      refs.imageDropzone.classList.remove("is-dragging");
-      const files = [...(event.dataTransfer?.files ?? [])].filter((file) =>
-        file.type.startsWith("image/"),
-      );
-      if (files.length) appendImages(files);
-    });
-    refs.imageDropzone?.addEventListener("click", (event) => {
-      if (state.busy || refs.imageInput.disabled) return;
-      if (event.target === refs.imageInput || event.target.closest("label")) return;
-      refs.imageInput.click();
-    });
+    // Pasting anywhere in the dialog adds the image to the recipe images.
+    // The AI image picker handles its own paste first and marks it handled.
+    refs.dialog.addEventListener("paste", refs.recipeImages.handlePaste);
 
     refs.cancelButton.addEventListener("click", ui.closeEditor);
     refs.closeButton.addEventListener("click", ui.closeEditor);

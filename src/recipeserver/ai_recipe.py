@@ -50,7 +50,7 @@ STATUS_GENERATING = "generating"
 STATUS_COMPLETE = "complete"
 STATUS_ERROR = "error"
 
-# Vision-capable image formats accepted for "From Image" generation.
+# Vision-capable image formats accepted for "From Images" generation.
 # SVG is excluded: it is not a raster image a vision model can transcribe.
 IMAGE_MIME_TYPES = {
     ".jpg": "image/jpeg",
@@ -415,8 +415,13 @@ def _build_user_message(input_type: str, input_value: str) -> tuple[str, str]:
     return _truncate_prompt_text(prompt_text), title
 
 
-def image_data_uri(image_filename: str, image_bytes: bytes) -> str:
-    """Validate an uploaded recipe image and return it as a data URI."""
+def image_base64(image_filename: str, image_bytes: bytes) -> str:
+    """Validate an uploaded recipe image and return it base64-encoded.
+
+    Ollama's native ``/api/chat`` takes images as raw base64 strings in the
+    message's ``images`` list; the data-URI form belongs to the OpenAI-style
+    ``image_url`` content parts, which the native route does not accept.
+    """
     if not image_bytes:
         raise ValueError("Expected a recipe image")
 
@@ -433,8 +438,7 @@ def image_data_uri(image_filename: str, image_bytes: bytes) -> str:
     except (OSError, UnidentifiedImageError) as exc:
         raise ValueError("Invalid image file") from exc
 
-    encoded = base64.b64encode(image_bytes).decode("ascii")
-    return f"data:{mime_type};base64,{encoded}"
+    return base64.b64encode(image_bytes).decode("ascii")
 
 
 def _content_text(content: object) -> str:
@@ -604,15 +608,21 @@ def _metrics_from_ollama_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def _chat_payload(
     model_name: str,
     prompt: str,
-    user_message: str | list[dict[str, Any]],
+    user_message: str,
     *,
     stream: bool,
+    images: list[str] | None = None,
 ) -> dict[str, Any]:
+    user: dict[str, Any] = {"role": "user", "content": user_message}
+    if images:
+        # Ollama's native chat route reads images from the message itself.
+        user["images"] = list(images)
+
     return {
         "model": model_name,
         "messages": [
             {"role": "system", "content": prompt},
-            {"role": "user", "content": user_message},
+            user,
         ],
         "stream": stream,
         "options": {
@@ -727,18 +737,19 @@ def _ollama_chat(
     endpoint: str,
     model_name: str,
     prompt: str,
-    user_message: str | list[dict[str, Any]],
+    user_message: str,
     *,
     stage: str = "recipe generation",
     stream: bool = False,
+    images: list[str] | None = None,
     on_thinking: Callable[[str], None] | None = None,
     on_content: Callable[[str], None] | None = None,
 ) -> ChatResult:
     chat_url = ollama_chat_url(endpoint)
-    payload = _chat_payload(model_name, prompt, user_message, stream=stream)
-    user_chars = len(user_message) if isinstance(user_message, str) else len(json.dumps(user_message))
+    payload = _chat_payload(model_name, prompt, user_message, stream=stream, images=images)
     logger.info(
-        f"Sending {stage} request to {chat_url} (model={model_name}, " f"stream={stream}, system_prompt_chars={len(prompt)}, user_chars={user_chars})"
+        f"Sending {stage} request to {chat_url} (model={model_name}, "
+        f"stream={stream}, system_prompt_chars={len(prompt)}, user_chars={len(user_message)})"
     )
     request = Request(
         chat_url,
@@ -820,10 +831,11 @@ def _chat(
     endpoint: str,
     model_name: str,
     prompt: str,
-    user_message: str | list[dict[str, Any]],
+    user_message: str,
     stage: str = "recipe generation",
+    images: list[str] | None = None,
 ) -> str:
-    return _ollama_chat(endpoint, model_name, prompt, user_message, stage=stage, stream=False).content
+    return _ollama_chat(endpoint, model_name, prompt, user_message, stage=stage, stream=False, images=images).content
 
 
 def _normalize_metadata(metadata: object) -> dict[str, Any]:
@@ -947,33 +959,50 @@ def _prepare_image_draft_input(
     resolved: AIConfigView,
     all_purpose_model_name: str,
     image_model_name: str,
-    image_bytes: bytes | None,
-    image_filename: str,
+    images: list[tuple[str, bytes]],
     event_callback: EventCallback | None,
 ) -> tuple[str, str]:
-    # Stage 1 (vision): transcribe the image. Stage 2 (all-purpose): draft recipe.
-    _emit_status(event_callback, STATUS_PREPARING, f"Sending the image to {image_model_name} for transcription...")
-    data_uri = image_data_uri(image_filename, image_bytes or b"")
-    image_user_content: list[dict[str, Any]] = [
-        {"type": "text", "text": "Recipe image:"},
-        {"type": "image_url", "image_url": {"url": data_uri}},
-    ]
-    logger.info(f"Transcribing recipe image with local model '{image_model_name}' " f"({len(image_bytes or b'')} bytes, {image_filename})")
+    # Stage 1 (vision): transcribe every image in the order it was uploaded.
+    # Stage 2 (all-purpose): draft the recipe from the combined text.
+    image_count = len(images)
     _report_model_loading(event_callback, resolved.endpoint, image_model_name)
-    transcription = _chat(
-        resolved.endpoint,
-        image_model_name,
-        resolved.new_recipe_from_image_prompt,
-        image_user_content,
-        stage="image transcription",
-    )
-    logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}")
+
+    transcriptions: list[str] = []
+    for index, (image_filename, image_bytes) in enumerate(images, start=1):
+        position = f"image {index} of {image_count}" if image_count > 1 else "the image"
+        _emit_status(
+            event_callback,
+            STATUS_PREPARING,
+            f"Sending {position} ({image_filename}) to {image_model_name} for transcription...",
+        )
+        encoded = image_base64(image_filename, image_bytes)
+        logger.info(f"Transcribing recipe image with local model '{image_model_name}' ({len(image_bytes)} bytes, {image_filename})")
+        transcription = _chat(
+            resolved.endpoint,
+            image_model_name,
+            resolved.new_recipe_from_image_prompt,
+            "Recipe image:",
+            stage="image transcription",
+            images=[encoded],
+        )
+        logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}")
+        transcriptions.append(f"--- {position.capitalize()}: {image_filename} ---\n{transcription}")
+
+        if index < image_count:
+            _emit_status(
+                event_callback,
+                STATUS_PREPARING,
+                f"Transcribed {position}. Sending the next image...",
+            )
+
+    transcribed_label = f"{image_count} images" if image_count > 1 else "image"
     _emit_status(
         event_callback,
         STATUS_PREPARING,
-        f"Image transcribed. Preparing the extracted text for {all_purpose_model_name}...",
+        f"Transcribed {transcribed_label}. Preparing the extracted text for {all_purpose_model_name}...",
     )
-    return _truncate_prompt_text(f"Recipe text (transcribed from image):\n{transcription}"), ""
+    combined = "\n\n".join(transcriptions)
+    return _truncate_prompt_text(f"Recipe text (transcribed from {transcribed_label}):\n{combined}"), ""
 
 
 def _prepare_text_or_url_draft_input(
@@ -1016,14 +1045,16 @@ def generate_recipe(
     input_type: str,
     input_value: str,
     event_callback: EventCallback | None = None,
-    image_bytes: bytes | None = None,
-    image_filename: str = "",
+    images: list[tuple[str, bytes]] | None = None,
 ) -> dict[str, Any]:
+    images = list(images or [])
     resolved = resolve_ai_config(config)
     if not resolved.is_configured:
         raise ModelUnavailable("The local model is not configured")
     if input_type == "image" and not resolved.is_image_configured:
         raise ModelUnavailable("The image analysis model is not configured")
+    if input_type == "image" and not images:
+        raise ValueError("Expected at least one recipe image")
 
     _emit_status(event_callback, STATUS_CHECKING_MODEL, "Checking model status...")
     all_purpose_model_name = _require_model_name(
@@ -1044,7 +1075,10 @@ def generate_recipe(
     if input_type == "url":
         _emit_status(event_callback, STATUS_PREPARING, f"Fetching recipe page: {input_value}")
     elif input_type == "image":
-        _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe image...")
+        if len(images) == 1:
+            _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe image...")
+        else:
+            _emit_status(event_callback, STATUS_PREPARING, f"Preparing {len(images)} recipe images...")
     else:
         _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe text...")
 
@@ -1053,8 +1087,7 @@ def generate_recipe(
             resolved,
             all_purpose_model_name,
             image_model_name,
-            image_bytes,
-            image_filename,
+            images,
             event_callback,
         )
     else:

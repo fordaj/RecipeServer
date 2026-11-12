@@ -740,7 +740,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._run_ai_recipe(request)
 
     def _validate_ai_recipe_request(self) -> dict:
-        payload, image = self._read_ai_recipe_payload()
+        payload, images = self._read_ai_recipe_payload()
         input_type = payload.get("inputType")
         input_value = payload.get("input")
 
@@ -748,15 +748,19 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raise ValueError("Expected inputType to be 'url', 'text', or 'image'")
 
         if input_type == "image":
-            if image is None:
-                raise ValueError("Expected a recipe image upload")
-            image = self._validate_uploaded_images([image])[0]
-            input_value = image[0]
-            logger.info(f"Received AI recipe request from image input ({image[0]}, {len(image[1])} bytes)")
+            if not images:
+                raise ValueError("Expected at least one recipe image upload")
+            images = self._validate_uploaded_images(images)
+            for filename, _content in images:
+                if Path(filename).suffix.lower() not in ai_recipe.IMAGE_MIME_TYPES:
+                    raise ValueError(f"Unsupported image type for AI generation: {filename}. Use a JPG, PNG, GIF, WebP, BMP, or TIFF image.")
+            filenames = ", ".join(filename for filename, _content in images)
+            logger.info(f"Received AI recipe request from {len(images)} image input(s) ({filenames})")
+            input_value = ""
         else:
             if not isinstance(input_value, str) or not input_value.strip():
                 raise ValueError("Expected a non-empty input value")
-            if image is not None:
+            if images:
                 raise ValueError("Unexpected uploaded file for this inputType")
             input_value = input_value.strip()
             logger.info(f"Received AI recipe request from {input_type} input ({len(input_value)} characters)")
@@ -764,7 +768,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         return {
             "input_type": input_type,
             "input_value": input_value,
-            "image": image,
+            "images": images,
             "stream_progress": payload.get("stream") is True,
         }
 
@@ -831,15 +835,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 logger.debug("AI result was not delivered because the browser closed the stream")
 
     def _generate_ai_recipe(self, request: dict, event_callback=None):
-        if request["input_type"] == "image" and request["image"] is not None:
-            filename, image_bytes = request["image"]
+        if request["input_type"] == "image" and request["images"]:
             return ai_recipe.generate_recipe(
                 self.config,
                 request["input_type"],
-                filename,
+                request["input_value"],
                 event_callback=event_callback,
-                image_bytes=image_bytes,
-                image_filename=filename,
+                images=request["images"],
             )
         return ai_recipe.generate_recipe(
             self.config,
@@ -1340,17 +1342,17 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raise ValueError("Invalid multipart request")
         return message
 
-    def _read_ai_recipe_payload(self) -> tuple[dict, tuple[str, bytes] | None]:
-        """Read an AI recipe request, which may carry a multipart image upload."""
+    def _read_ai_recipe_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
+        """Read an AI recipe request, which may carry multipart image uploads."""
         content_type = self.headers.get("Content-Type", "")
         if not content_type.lower().startswith("multipart/form-data"):
-            return self._read_json_payload(), None
+            return self._read_json_payload(), []
 
         body = self._read_body(self.MAX_IMAGE_UPLOAD_SIZE, "Image upload request too large")
         message = self._parse_multipart_message(body, content_type)
 
         payload: dict = {}
-        image: tuple[str, bytes] | None = None
+        images: list[tuple[str, bytes]] = []
         for part in message.iter_parts():
             field_name = part.get_param("name", header="content-disposition")
             if not isinstance(field_name, str):
@@ -1359,11 +1361,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             filename = part.get_filename()
             content = part.get_payload(decode=True) or b""
             if filename is not None:
-                if field_name != "image":
+                if field_name != "images":
                     raise ValueError("Unexpected uploaded file field")
-                if image is not None:
-                    raise ValueError("Expected a single recipe image upload")
-                image = (filename, content)
+                images.append((filename, content))
                 continue
 
             try:
@@ -1376,7 +1376,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 raise ValueError("Invalid stream value")
             payload["stream"] = payload["stream"] == "true"
 
-        return payload, image
+        return payload, images
 
     def _read_recipe_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
         content_type = self.headers.get("Content-Type", "")
