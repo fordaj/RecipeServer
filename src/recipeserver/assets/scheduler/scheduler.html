@@ -13,17 +13,6 @@
 
   <div class="scheduler__toolbar">
     <button type="button" class="scheduler__today">Today</button>
-    <button
-      type="button"
-      class="scheduler__nav"
-      data-scheduler-step="-1"
-      aria-label="Previous period"
-    >
-      &lsaquo;
-    </button>
-    <button type="button" class="scheduler__nav" data-scheduler-step="1" aria-label="Next period">
-      &rsaquo;
-    </button>
     <h3 class="scheduler__period" aria-live="polite"></h3>
 
     <button type="button" class="scheduler__select" aria-pressed="false">
@@ -34,15 +23,25 @@
   <p class="scheduler__status" role="status"></p>
 
   <section class="scheduler__content" aria-label="Scheduled recipes">
-    <div class="scheduler__scroll"></div>
+    <div class="scheduler__scroll">
+      <div class="scheduler__weekdays" hidden>
+        <span>Sun</span>
+        <span>Mon</span>
+        <span>Tue</span>
+        <span>Wed</span>
+        <span>Thu</span>
+        <span>Fri</span>
+        <span>Sat</span>
+      </div>
+    </div>
   </section>
 
   <footer class="scheduler__footer">
     <p class="scheduler__selection" aria-live="polite"></p>
 
-    <button type="button" class="scheduler__shopping" disabled>
+    <button type="button" class="scheduler__shopping" hidden disabled>
       <span class="scheduler__icon" aria-hidden="true"></span>
-      <span>Shopping List</span>
+      <span>Open in Shopping List</span>
     </button>
 
     <label class="scheduler__field">

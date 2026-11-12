@@ -86,6 +86,7 @@
       element,
       status: element.querySelector(".scheduler__status"),
       scroll: element.querySelector(".scheduler__scroll"),
+      weekdays: element.querySelector(".scheduler__weekdays"),
       period: element.querySelector(".scheduler__period"),
       dateInput: element.querySelector(".scheduler__date"),
       scheduleButton: element.querySelector(".scheduler__schedule"),
@@ -251,6 +252,9 @@
         "0 recipes selected. Select recipes on the index page, then open the scheduler.";
     }
 
+    // The shopping list is a day-selection action, so it only shows while
+    // the scheduler is in selection mode.
+    state.shoppingButton.hidden = state.mode !== "day";
     state.shoppingButton.disabled = count === 0;
     state.scheduleButton.textContent = state.mode === "day" ? "Unschedule" : "Schedule";
     state.scheduleButton.disabled = state.mode === "day" ? days === 0 : count === 0;
@@ -291,10 +295,17 @@
     });
     entry.append(remove);
 
+    // In selection mode a click anywhere in the day picks the day, even
+    // on a recipe. Otherwise a recipe opens its page, and the entry body
+    // toggles the recipe.
     entry.addEventListener("click", (event) => {
+      if (state.mode === "day") {
+        event.preventDefault();
+        toggleDay(dateText);
+        return;
+      }
       if (event.target.closest("a, button")) return;
-      if (state.mode === "day") toggleDay(dateText);
-      else toggleRecipe(recipe.path);
+      toggleRecipe(recipe.path);
     });
 
     return entry;
@@ -383,19 +394,12 @@
   }
 
   // The month view is a stack of months, one per screen. The toolbar
-  // already names the month, so the page holds only the grid.
+  // already names the month and the weekday row is frozen above the
+  // calendar, so the page holds only the grid.
   function buildMonthPage(date) {
     const page = document.createElement("section");
     page.className = "scheduler__page scheduler__page--month";
     page.dataset.month = isoMonth(date);
-
-    const weekdays = document.createElement("div");
-    weekdays.className = "scheduler__weekdays";
-    for (const name of WEEKDAYS) {
-      const label = document.createElement("span");
-      label.textContent = name;
-      weekdays.append(label);
-    }
 
     const grid = document.createElement("div");
     grid.className = "scheduler__month-grid";
@@ -433,7 +437,7 @@
       grid.append(row);
     }
 
-    page.append(weekdays, grid);
+    page.append(grid);
     return page;
   }
 
@@ -483,13 +487,20 @@
       fragment.append(buildPage(addUnits(state.start, index)));
     }
 
-    state.scroll.replaceChildren(fragment);
+    // The weekday row is a frozen pane above the months, so it stays at
+    // the top of the scroll container while the pages replace each other.
+    state.scroll.replaceChildren(state.weekdays, fragment);
 
     // The focused page sits at the top of the view. A page is at least a
     // screen tall, so the calendar opens on the whole day, week or month.
-    const focused = state.scroll.children[half];
-    if (focused) state.scroll.scrollTop = focused.offsetTop;
+    const headerHeight = state.weekdays.hidden ? 0 : state.weekdays.offsetHeight;
+    const focused = pages()[half];
+    if (focused) state.scroll.scrollTop = focused.offsetTop - headerHeight;
     refreshSelection();
+  }
+
+  function pages() {
+    return state.scroll.querySelectorAll(":scope > .scheduler__page");
   }
 
   // The footer can wrap after its icons load, which changes how tall the
@@ -511,13 +522,15 @@
 
   // The page at the top of the view is the one the calendar is showing.
   function currentPage() {
-    const top = state.scroll.scrollTop + 1;
+    const headerHeight = state.weekdays.hidden ? 0 : state.weekdays.offsetHeight;
+    const top = state.scroll.scrollTop + headerHeight + 1;
+    const list = pages();
 
-    for (const page of state.scroll.children) {
+    for (const page of list) {
       if (page.offsetTop + page.offsetHeight > top) return page;
     }
 
-    return state.scroll.lastElementChild;
+    return list[list.length - 1] ?? null;
   }
 
   // Grows the window at one end so the view never runs out of pages. The
@@ -541,7 +554,8 @@
       }
 
       const height = state.scroll.scrollHeight;
-      state.scroll.prepend(fragment);
+      // The weekday row stays first so it remains the frozen pane.
+      state.weekdays.after(fragment);
       state.start = start;
       // The pages that were in view moved down by the added height.
       state.scroll.scrollTop += state.scroll.scrollHeight - height;
@@ -561,7 +575,7 @@
     // The pages that were in view moved up by the height of the pages
     // that are trimmed from the top.
     for (let index = 0; index < units; index += 1) {
-      const page = state.scroll.firstElementChild;
+      const page = state.weekdays.nextElementSibling;
       if (!page) break;
 
       const height = page.offsetHeight;
@@ -612,18 +626,9 @@
       button.setAttribute("aria-pressed", String(button.dataset.schedulerView === view));
     }
 
-    renderPeriod();
-    renderPages();
-  }
+    // The weekday row is the frozen pane of the month view only.
+    state.weekdays.hidden = view !== "month";
 
-  function step(amount) {
-    if (state.view === "month") {
-      state.date = addMonths(state.date, amount);
-    } else {
-      state.date = addDays(state.date, amount * unitDays());
-    }
-
-    state.dateInput.value = isoDate(state.date);
     renderPeriod();
     renderPages();
   }
@@ -769,10 +774,6 @@
 
     element.querySelectorAll("[data-scheduler-view]").forEach((button) => {
       button.addEventListener("click", () => setView(button.dataset.schedulerView));
-    });
-
-    element.querySelectorAll("[data-scheduler-step]").forEach((button) => {
-      button.addEventListener("click", () => step(Number(button.dataset.schedulerStep)));
     });
 
     element.querySelector(".scheduler__today")?.addEventListener("click", () => {

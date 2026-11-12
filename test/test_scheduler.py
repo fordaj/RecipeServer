@@ -336,7 +336,38 @@ def test_the_scheduler_scrolls_without_snapping():
     assert "glideTo" not in script
 
 
-def test_the_scheduler_offers_a_shopping_list_button_in_its_footer():
+def test_the_scheduler_toolbar_has_today_and_select_without_arrows():
+    html = (SCHEDULER_ASSETS / "scheduler.html").read_text(encoding="utf-8")
+
+    soup = BeautifulSoup(html, "html.parser")
+    toolbar = soup.select_one(".scheduler__toolbar")
+    assert toolbar.select_one(".scheduler__today") is not None
+    assert toolbar.select_one(".scheduler__select") is not None
+    # The calendar scrolls, so there are no previous/next arrows.
+    assert soup.select_one(".scheduler__nav") is None
+    assert soup.select_one("[data-scheduler-step]") is None
+
+
+def test_the_scheduler_has_a_frozen_weekday_row_for_the_month_view():
+    html = (SCHEDULER_ASSETS / "scheduler.html").read_text(encoding="utf-8")
+    css = (SCHEDULER_ASSETS / "scheduler.css").read_text(encoding="utf-8")
+    script = (SCHEDULER_ASSETS / "scheduler.js").read_text(encoding="utf-8")
+
+    soup = BeautifulSoup(html, "html.parser")
+    scroll = soup.select_one(".scheduler__scroll")
+    weekdays = scroll.select_one(".scheduler__weekdays")
+    # The row is the first child of the one scroll container, so it can
+    # stay put while the months scroll beneath it.
+    assert weekdays is scroll.find(recursive=False)
+    assert weekdays.has_attr("hidden")
+    assert len(weekdays.select("span")) == 7
+
+    assert "position: sticky" in css
+    assert ".scheduler__weekdays[hidden]" in css
+    assert 'state.weekdays.hidden = view !== "month"' in script
+
+
+def test_the_scheduler_shows_the_shopping_list_only_in_selection_mode():
     html = (SCHEDULER_ASSETS / "scheduler.html").read_text(encoding="utf-8")
 
     soup = BeautifulSoup(html, "html.parser")
@@ -344,12 +375,25 @@ def test_the_scheduler_offers_a_shopping_list_button_in_its_footer():
     shopping = footer.select_one(".scheduler__shopping")
 
     assert shopping is not None
-    assert shopping.get_text(strip=True) == "Shopping List"
+    assert shopping.get_text(strip=True) == "Open in Shopping List"
+    assert shopping.has_attr("hidden")
     assert shopping.select_one(".scheduler__icon") is not None
 
     script = (SCHEDULER_ASSETS / "scheduler.js").read_text(encoding="utf-8")
     assert '"/assets/shopping-cart.svg"' in script
     assert "new CustomEvent(SHOPPING_LIST_EVENT, { detail: { paths } })" in script
+    assert 'state.shoppingButton.hidden = state.mode !== "day"' in script
+
+
+def test_a_click_in_selection_mode_picks_the_day_even_on_a_recipe():
+    script = (SCHEDULER_ASSETS / "scheduler.js").read_text(encoding="utf-8")
+
+    entry = script.split("function buildEntry", 1)[1].split("return entry;", 1)[0]
+    # In selection mode the entry stops the link and picks the day.
+    assert "event.preventDefault();" in entry
+    assert "toggleDay(dateText);" in entry
+    # Otherwise a recipe link opens its page.
+    assert 'event.target.closest("a, button")' in entry
 
 
 def test_pull_to_refresh_is_disabled_while_the_scheduler_is_open():
