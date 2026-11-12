@@ -223,9 +223,10 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert "#recipe-list.selection-mode .recipe-card" in index_css and "user-select: none" in index_css
     # The hidden bulk actions have to beat their own display rules.
     assert ".bulk-controls [hidden]" in index_css
-    # Select is the primary action; Cancel steps back to the outline style.
-    assert ".bulk-controls #bulk-selection-toggle {" in index_css
-    assert ".bulk-controls.is-selection-mode #bulk-selection-toggle {" in index_css
+    # The Select button stays understated: it uses the same plain style
+    # as the other bulk action buttons, so it gets no dedicated rules.
+    assert ".bulk-controls #bulk-selection-toggle" not in index_css
+    assert ".bulk-controls.is-selection-mode #bulk-selection-toggle" not in index_css
     index_js = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js").read_text(encoding="UTF-8")
     # The Select/Cancel button drives selection mode; the old checkbox is
     # no longer wired up.
