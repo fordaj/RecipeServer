@@ -225,45 +225,58 @@ Try this
     };
   }
 
-  async function readAiStream(response, onProgress) {
+  function parseAiEvent(block) {
+    let data = "";
+    for (const line of block.split("\n")) {
+      if (line.startsWith("data:")) data += line.slice(5).trimStart();
+    }
+    if (!data) return null;
+    return JSON.parse(data);
+  }
+
+  async function readAiStream(response, onEvent) {
     if (!response.body) throw new Error("The AI progress stream is unavailable.");
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     let result;
+    let streamError;
 
-    async function handleLine(line) {
-      if (!line.trim()) return;
-      const event = JSON.parse(line);
+    function handleBlock(block) {
+      const event = parseAiEvent(block);
+      if (!event) return;
 
-      if (event.type === "progress" && typeof event.message === "string") {
-        onProgress(event.message);
-      } else if (event.type === "error" && typeof event.message === "string") {
-        throw new Error(event.message);
+      onEvent?.(event);
+
+      if (event.type === "error") {
+        streamError = new Error(event.message || "Generation failed.");
       } else if (event.type === "result" && event.result) {
         result = event.result;
-      } else {
-        throw new Error("The AI progress stream returned an invalid event.");
       }
     }
 
     while (true) {
       const { done, value } = await reader.read();
       buffer += decoder.decode(value, { stream: !done });
-      const lines = buffer.split("\n");
-      buffer = lines.pop();
 
-      for (const line of lines) await handleLine(line);
+      let separator = buffer.indexOf("\n\n");
+      while (separator !== -1) {
+        handleBlock(buffer.slice(0, separator));
+        buffer = buffer.slice(separator + 2);
+        separator = buffer.indexOf("\n\n");
+      }
+
       if (done) break;
     }
 
-    await handleLine(buffer);
+    if (buffer.trim()) handleBlock(buffer);
+    if (streamError) throw streamError;
     if (!result) throw new Error("The AI progress stream ended without a recipe.");
     return result;
   }
 
-  async function requestAiRecipe(inputType, input, onProgress, signal) {
+  async function requestAiRecipe(inputType, input, onEvent, signal) {
     const request = buildAiRequest(inputType, input);
     const response = await fetch(new URL(AI_RECIPE_API, window.location.origin), {
       method: "POST",
@@ -278,7 +291,7 @@ Try this
       throw new Error(result.error || `Request failed (HTTP ${response.status})`);
     }
 
-    return readAiStream(response, onProgress);
+    return readAiStream(response, onEvent);
   }
 
   // ----- Data helpers ----- //
@@ -470,6 +483,7 @@ Try this
       aiCancelButton: dialog.querySelector(".recipe-editor__ai-cancel"),
       aiControls: null,
       aiImageControls: null,
+      aiProgress: null,
       bulkFieldSaves: [...dialog.querySelectorAll(".recipe-editor__bulk-field-save")],
       mixedBadges: [...dialog.querySelectorAll(".recipe-editor__mixed")],
       ratingsDetails: dialog.querySelector(".recipe-editor__ratings-details"),
@@ -482,6 +496,7 @@ Try this
   function finalizeDomRefs(refs) {
     refs.aiControls = [refs.aiText, refs.aiUrl, refs.aiTextButton, refs.aiUrlButton];
     refs.aiImageControls = [refs.aiImage, refs.aiImageButton];
+    refs.aiProgress = window.RecipeAIProgress.createProgress(refs.aiSection);
     refs.pickers = window.RecipeMetadataPicker.createPickers(refs.dialog);
     return refs;
   }
@@ -587,7 +602,7 @@ Try this
 
   function createAiActions(refs, state, ui) {
     function setAiProgress(message) {
-      refs.aiStatus.textContent = message;
+      refs.aiProgress.setStatus(message);
     }
 
     function setAiState(
@@ -602,6 +617,7 @@ Try this
       state.aiImageAvailable = configured && imageConfigured && imageAvailable;
       refs.aiSection.hidden = !configured;
       aiDetails.hidden = !configured || !isCreating;
+      if (!state.busy) refs.aiProgress.reset();
 
       refs.aiControls.forEach((control) => {
         control.disabled = state.busy || !state.aiAvailable;
@@ -611,15 +627,15 @@ Try this
       });
 
       if (!configured) {
-        refs.aiStatus.textContent = "";
+        setAiProgress("");
       } else if (!available) {
-        refs.aiStatus.textContent =
-          "The configured local model is unavailable. Start it, then reopen this dialog.";
+        setAiProgress(
+          "The configured local model is unavailable. Start it, then reopen this dialog.",
+        );
       } else if (!state.aiImageAvailable) {
-        refs.aiStatus.textContent =
-          "The image analysis model is not configured. From Image is unavailable.";
+        setAiProgress("The image analysis model is not configured. From Image is unavailable.");
       } else {
-        refs.aiStatus.textContent = "";
+        setAiProgress("");
       }
     }
 
@@ -657,21 +673,31 @@ Try this
       state.aiAbortController = controller;
       refs.aiCancelButton.hidden = false;
       ui.setBusy(true);
-      setAiProgress(aiStartMessage(inputType, input));
+      refs.aiProgress.start(aiStartMessage(inputType, input));
       ui.setStatus("");
 
       try {
-        const result = await requestAiRecipe(inputType, input, setAiProgress, controller.signal);
+        const result = await requestAiRecipe(
+          inputType,
+          input,
+          (event) => refs.aiProgress.handle(event),
+          controller.signal,
+        );
         if (!controller.signal.aborted) {
+          refs.aiProgress.flush();
+          refs.aiProgress.setStatus(
+            "Recipe draft ready. Review it, then create the recipe.",
+            "complete",
+          );
           refs.textarea.value = result.content || "";
           populateMetadata(refs, result.metadata || {});
-          setAiProgress("Recipe draft ready. Review it, then create the recipe.");
         }
       } catch (caughtError) {
+        refs.aiProgress.flush();
         if (caughtError.name === "AbortError") {
-          setAiProgress("Generation cancelled.");
+          refs.aiProgress.setStatus("Generation cancelled.", "idle");
         } else {
-          setAiProgress(`Generation failed: ${caughtError.message}`);
+          refs.aiProgress.setStatus(`Generation failed: ${caughtError.message}`, "error");
         }
       } finally {
         if (state.aiAbortController === controller) state.aiAbortController = null;
@@ -956,7 +982,7 @@ Try this
     state.aiAvailable = false;
     state.aiImageAvailable = false;
     state.aiAbortController = null;
-    refs.aiStatus.textContent = "";
+    refs.aiProgress.reset();
     refs.aiText.value = "";
     refs.aiUrl.value = "";
     refs.aiImage.value = "";

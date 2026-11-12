@@ -118,10 +118,9 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
     ConfigField(
         MODEL_ENDPOINT_KEY,
         "Local model endpoint",
-        "OpenAI-compatible endpoint, for example http://localhost:11434/v1. "
-        "Leave blank to disable AI recipe creation. A scheme is added if omitted.",
+        "Ollama server endpoint, for example http://localhost:11434. " "Leave blank to disable AI recipe creation. A scheme is added if omitted.",
         input_type="url",
-        placeholder="http://localhost:11434/v1",
+        placeholder="http://localhost:11434",
     ),
     ConfigField(
         ALL_PURPOSE_MODEL_NAME_KEY,
@@ -458,10 +457,10 @@ class Configuration:
             return ""
 
     def get_model_settings_from_user(self) -> None:
-        """Optionally ask for an OpenAI-compatible local model endpoint."""
+        """Optionally ask for an Ollama server endpoint."""
         print("Optionally configure a local AI model so recipes can be created " "from text, a URL, or an image.")
 
-        endpoint = self._prompt_user("Local model endpoint (for example http://localhost:11434/v1). Press Enter to skip: ")
+        endpoint = self._prompt_user("Ollama endpoint (for example http://localhost:11434). Press Enter to skip: ")
         if not endpoint:
             logger.info("No local model configured; AI recipe creation is disabled")
             self.model_endpoint = ""

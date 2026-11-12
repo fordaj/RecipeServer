@@ -33,6 +33,23 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_MODEL_TOKENS = 8192
 USER_AGENT = "RecipeServer/0.1"
 
+# Ollama exposes the chat stream, the loaded-model list, and the installed-model
+# list under these paths. The endpoint configured by the user may still include
+# an OpenAI-compatible suffix such as ``/v1``; ``normalize_ollama_base_url``
+# removes it so every request reaches the Ollama server itself.
+OLLAMA_CHAT_PATH = "/api/chat"
+OLLAMA_PS_PATH = "/api/ps"
+OLLAMA_TAGS_PATH = "/api/tags"
+
+# Normalized generation states shared by the backend and the browser UI.
+STATUS_CHECKING_MODEL = "checking_model"
+STATUS_LOADING_MODEL = "loading_model"
+STATUS_PREPARING = "preparing"
+STATUS_THINKING = "thinking"
+STATUS_GENERATING = "generating"
+STATUS_COMPLETE = "complete"
+STATUS_ERROR = "error"
+
 # Vision-capable image formats accepted for "From Image" generation.
 # SVG is excluded: it is not a raster image a vision model can transcribe.
 IMAGE_MIME_TYPES = {
@@ -137,7 +154,26 @@ def ai_status(config: object | None) -> dict[str, Any]:
     return status
 
 
-def normalize_chat_completions_url(endpoint: str) -> str:
+# Endpoint suffixes that point at a specific Ollama (or OpenAI-compatible)
+# route. Stripping them leaves the base URL of the Ollama server.
+_OLLAMA_ENDPOINT_SUFFIXES = (
+    "/v1/chat/completions",
+    "/chat/completions",
+    "/api/chat",
+    "/api/ps",
+    "/api/tags",
+    "/v1",
+    "/api",
+)
+
+
+def normalize_ollama_base_url(endpoint: str) -> str:
+    """Return the Ollama server base URL for a configured endpoint.
+
+    RecipeServer targets Ollama exclusively. Accepting the ``/v1`` shape keeps
+    existing configurations (and the documented ``.../v1`` example) working
+    while every request is sent to Ollama's native API.
+    """
     endpoint = (endpoint or "").strip()
     if not endpoint:
         raise ValueError("Model endpoint is not configured")
@@ -146,24 +182,27 @@ def normalize_chat_completions_url(endpoint: str) -> str:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError("Model endpoint must be an http or https URL")
 
-    endpoint = endpoint.rstrip("/")
+    base = endpoint.rstrip("/")
     path = parsed.path.rstrip("/")
 
-    if path.endswith("/chat/completions") or path.endswith("/api/chat"):
-        return endpoint
-    if not path:
-        return f"{endpoint}/v1/chat/completions"
-    return f"{endpoint}/chat/completions"
+    for suffix in _OLLAMA_ENDPOINT_SUFFIXES:
+        if path.endswith(suffix):
+            base = base[: -len(suffix)].rstrip("/")
+            break
+
+    return base
 
 
-def normalize_models_url(endpoint: str) -> str:
-    chat_url = normalize_chat_completions_url(endpoint)
-    path = urlsplit(chat_url).path.rstrip("/")
+def ollama_chat_url(endpoint: str) -> str:
+    return f"{normalize_ollama_base_url(endpoint)}{OLLAMA_CHAT_PATH}"
 
-    if path.endswith("/api/chat"):
-        return chat_url.removesuffix("/api/chat") + "/api/tags"
 
-    return chat_url.removesuffix("/chat/completions") + "/models"
+def ollama_ps_url(endpoint: str) -> str:
+    return f"{normalize_ollama_base_url(endpoint)}{OLLAMA_PS_PATH}"
+
+
+def ollama_tags_url(endpoint: str) -> str:
+    return f"{normalize_ollama_base_url(endpoint)}{OLLAMA_TAGS_PATH}"
 
 
 def _read_response(response, limit: int) -> bytes:
@@ -204,7 +243,7 @@ def _model_names_from_payload(payload: object) -> list[str]:
 
 
 def list_models(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> list[str]:
-    models_url = normalize_models_url(endpoint)
+    models_url = ollama_tags_url(endpoint)
     logger.debug(f"Listing models from {models_url}")
     request = Request(
         models_url,
@@ -257,6 +296,57 @@ def is_available(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -
         logger.warning(f"Model endpoint {endpoint} is unavailable: {exc}")
         return False
     return True
+
+
+def loaded_model_names(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> list[str]:
+    """Return the names of the models Ollama currently has loaded in memory."""
+    ps_url = ollama_ps_url(endpoint)
+    logger.debug(f"Checking loaded models at {ps_url}")
+    request = Request(
+        ps_url,
+        headers={"Accept": "application/json", "User-Agent": USER_AGENT},
+        method="GET",
+    )
+
+    with urlopen(request, timeout=timeout) as response:
+        if not 200 <= response.status < 300:
+            logger.debug(f"Loaded-model request to {ps_url} returned HTTP {response.status}")
+            return []
+        payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
+
+    entries = payload.get("models") if isinstance(payload, dict) else None
+    names: list[str] = []
+    if isinstance(entries, list):
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name") or entry.get("model")
+            if isinstance(name, str) and name.strip():
+                names.append(name.strip())
+
+    logger.debug(f"Models loaded at {ps_url}: {names}")
+    return names
+
+
+def _model_names_match(left: str, right: str) -> bool:
+    """Compare Ollama model names, treating ``:latest`` as implicit."""
+    left = left.strip().casefold()
+    right = right.strip().casefold()
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    return left.removesuffix(":latest") == right.removesuffix(":latest")
+
+
+def is_model_loaded(endpoint: str, model_name: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> bool | None:
+    """Whether ``model_name`` is loaded, or ``None`` when the status is unknown."""
+    try:
+        names = loaded_model_names(endpoint, timeout=timeout)
+    except (HTTPError, URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError) as exc:
+        logger.debug(f"Could not read loaded models from {endpoint}: {exc}")
+        return None
+    return any(_model_names_match(name, model_name) for name in names)
 
 
 def _html_looks_like_markup(text: str) -> bool:
@@ -367,135 +457,294 @@ def _content_text(content: object) -> str:
     return "".join(parts)
 
 
-def _extract_reasoning_text(message: dict[str, Any]) -> str:
-    return _content_text(message.get("reasoning_content") or message.get("reasoning"))
+THINKING_START_PATTERN = re.compile(r"<think\b[^>]*>", re.IGNORECASE)
+THINKING_END_PATTERN = re.compile(r"</think\s*>", re.IGNORECASE)
 
 
-def _extract_choice_content(choice: object) -> tuple[str, str, Any]:
-    if not isinstance(choice, dict):
-        return "", "", None
+class _ThinkingStreamFilter:
+    """Split streamed text into answer text and embedded thinking text.
 
-    message = choice.get("message")
-    content = ""
-    reasoning = ""
-    if isinstance(message, dict):
-        content = _content_text(message.get("content"))
-        reasoning = _extract_reasoning_text(message)
-
-    if not content:
-        content = _content_text(choice.get("text"))
-    if not reasoning:
-        reasoning = _content_text(choice.get("reasoning_content") or choice.get("reasoning"))
-
-    return content, reasoning, choice.get("finish_reason")
-
-
-def _extract_payload_fallback_content(payload: dict[str, Any]) -> tuple[str, str]:
-    message = payload.get("message")
-    if not isinstance(message, dict):
-        return "", ""
-    return _content_text(message.get("content")), _extract_reasoning_text(message)
-
-
-THINKING_BLOCK_PATTERN = re.compile(
-    r"<think\b[^>]*>.*?</think\s*>",
-    re.IGNORECASE | re.DOTALL,
-)
-
-THINKING_START_PATTERN = re.compile(
-    r"<think\b[^>]*>.*$",
-    re.IGNORECASE | re.DOTALL,
-)
-
-THINKING_END_PATTERN = re.compile(
-    r"</think\s*>",
-    re.IGNORECASE,
-)
-
-
-def _strip_thinking_content(content: str) -> str:
-    """Remove embedded model reasoning from response content."""
-    content = THINKING_BLOCK_PATTERN.sub("", content)
-
-    # Handle an unmatched closing tag by discarding preceding reasoning.
-    closing_match = THINKING_END_PATTERN.search(content)
-    if closing_match:
-        content = content[closing_match.end() :]
-
-    # Discard an incomplete trailing thinking block.
-    content = THINKING_START_PATTERN.sub("", content)
-
-    return content.strip()
-
-
-def _extract_chat_content(payload: object) -> tuple[str, dict[str, Any]]:
-    """Extract answer text plus diagnostics from a chat completion payload.
-
-    Thinking models may return reasoning in separate ``reasoning_content``/
-    ``reasoning`` fields or embed it directly in ``content``. Reasoning is
-    diagnostics only and is never used as the answer.
+    Ollama exposes reasoning in ``message.thinking``, but some models still
+    embed ``<think>`` blocks in ``message.content``. This filter keeps the two
+    channels separate even when a tag is split across stream chunks.
     """
-    diagnostics: dict[str, Any] = {
-        "finish_reason": None,
-        "usage": None,
-        "content_chars": 0,
-        "reasoning_chars": 0,
-        "response_keys": sorted(payload) if isinstance(payload, dict) else [],
-    }
-    content = ""
-    reasoning = ""
 
-    if isinstance(payload, dict):
-        diagnostics["usage"] = payload.get("usage")
-        choices = payload.get("choices")
-        if isinstance(choices, list) and choices:
-            content, reasoning, diagnostics["finish_reason"] = _extract_choice_content(choices[0])
+    def __init__(self) -> None:
+        self._pending = ""
+        self._in_thinking = False
 
-        if not content:
-            fallback_content, fallback_reasoning = _extract_payload_fallback_content(payload)
-            content = fallback_content or content
-            reasoning = reasoning or fallback_reasoning
+    def feed(self, text: str) -> tuple[str, str]:
+        if text:
+            self._pending += text
+        return self._drain(final=False)
 
-    original_content = content
-    content = _strip_thinking_content(content)
+    def finish(self) -> tuple[str, str]:
+        return self._drain(final=True)
 
-    if content != original_content:
-        diagnostics["embedded_reasoning_stripped"] = True
-        logger.debug("Stripped embedded thinking content from model response")
+    @staticmethod
+    def _pending_tag_start(text: str, markers: tuple[str, ...]) -> int | None:
+        """Index of a trailing ``<`` that may still become one of ``markers``."""
+        index = text.rfind("<")
+        if index == -1:
+            return None
 
-    diagnostics["content_chars"] = len(content)
-    diagnostics["reasoning_chars"] = len(reasoning)
-    diagnostics["reasoning_preview"] = reasoning[:2000]
-    diagnostics["content_preview"] = content[:2000]
-    return content, diagnostics
+        suffix = text[index:].lower()
+        for marker in markers:
+            if marker.startswith(suffix):
+                return index
+            if suffix.startswith(marker) and ">" not in suffix:
+                return index
+        return None
+
+    def _drain(self, final: bool) -> tuple[str, str]:
+        content: list[str] = []
+        thinking: list[str] = []
+
+        while self._pending:
+            if self._in_thinking:
+                match = THINKING_END_PATTERN.search(self._pending)
+                if match:
+                    thinking.append(self._pending[: match.start()])
+                    self._pending = self._pending[match.end() :]
+                    self._in_thinking = False
+                    continue
+                if final:
+                    thinking.append(self._pending)
+                    self._pending = ""
+                    break
+                hold = self._pending_tag_start(self._pending, ("</think",))
+                if hold is None:
+                    thinking.append(self._pending)
+                    self._pending = ""
+                else:
+                    thinking.append(self._pending[:hold])
+                    self._pending = self._pending[hold:]
+                break
+
+            start_match = THINKING_START_PATTERN.search(self._pending)
+            end_match = THINKING_END_PATTERN.search(self._pending)
+            if end_match and (start_match is None or end_match.start() < start_match.start()):
+                # An unmatched closing tag: the preceding text was reasoning.
+                thinking.append(self._pending[: end_match.start()])
+                self._pending = self._pending[end_match.end() :]
+                continue
+            if start_match:
+                content.append(self._pending[: start_match.start()])
+                self._pending = self._pending[start_match.end() :]
+                self._in_thinking = True
+                continue
+            if final:
+                content.append(self._pending)
+                self._pending = ""
+                break
+            hold = self._pending_tag_start(self._pending, ("<think", "</think"))
+            if hold is None:
+                content.append(self._pending)
+                self._pending = ""
+            else:
+                content.append(self._pending[:hold])
+                self._pending = self._pending[hold:]
+            break
+
+        return "".join(content), "".join(thinking)
 
 
-def _chat(
-    endpoint: str,
+def _split_embedded_thinking(text: str) -> tuple[str, str]:
+    filter_ = _ThinkingStreamFilter()
+    content, thinking = filter_.feed(text)
+    final_content, final_thinking = filter_.finish()
+    return content + final_content, thinking + final_thinking
+
+
+@dataclass(frozen=True)
+class ChatResult:
+    """Normalized result of one Ollama chat request."""
+
+    content: str
+    thinking: str
+    metrics: dict[str, Any]
+    finish_reason: str | None
+
+
+def _duration_seconds(payload: dict[str, Any], key: str) -> float | None:
+    value = payload.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        return None
+    return value / 1_000_000_000
+
+
+def _metrics_from_ollama_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize Ollama's nanosecond timings into display-friendly metrics."""
+    load_seconds = _duration_seconds(payload, "load_duration")
+    generation_seconds = _duration_seconds(payload, "eval_duration")
+    total_seconds = _duration_seconds(payload, "total_duration")
+    prompt_seconds = _duration_seconds(payload, "prompt_eval_duration")
+
+    token_count = payload.get("eval_count")
+    prompt_token_count = payload.get("prompt_eval_count")
+
+    metrics: dict[str, Any] = {}
+    if load_seconds is not None:
+        metrics["model_load_seconds"] = round(load_seconds, 3)
+    if generation_seconds is not None:
+        metrics["generation_seconds"] = round(generation_seconds, 3)
+    if total_seconds is not None:
+        metrics["total_seconds"] = round(total_seconds, 3)
+    if isinstance(token_count, int) and not isinstance(token_count, bool):
+        metrics["token_count"] = token_count
+    if isinstance(prompt_token_count, int) and not isinstance(prompt_token_count, bool):
+        metrics["prompt_token_count"] = prompt_token_count
+    if token_count and generation_seconds:
+        metrics["tokens_per_second"] = round(token_count / generation_seconds, 2)
+    if prompt_token_count and prompt_seconds:
+        metrics["prompt_tokens_per_second"] = round(prompt_token_count / prompt_seconds, 2)
+    return metrics
+
+
+def _chat_payload(
     model_name: str,
     prompt: str,
     user_message: str | list[dict[str, Any]],
-    stage: str = "recipe generation",
-) -> str:
-    chat_url = normalize_chat_completions_url(endpoint)
-    payload = {
+    *,
+    stream: bool,
+) -> dict[str, Any]:
+    return {
         "model": model_name,
         "messages": [
             {"role": "system", "content": prompt},
             {"role": "user", "content": user_message},
         ],
-        "temperature": 0.2,
-        "max_tokens": MAX_MODEL_TOKENS,
-        "reasoning_effort": "none",  # TODO: Expose this in configuration. It is also an ollama specific setting so that will need handled if other providers are used
-        "stream": False,
+        "stream": stream,
+        "options": {
+            "temperature": 0.2,
+            "num_predict": MAX_MODEL_TOKENS,
+        },
     }
+
+
+def _raise_model_error(payload: dict[str, Any]) -> None:
+    error = payload.get("error")
+    if error:
+        raise ModelRequestError(f"The model returned an error: {error}")
+
+
+def _parse_chat_payload(payload: object) -> ChatResult:
+    if not isinstance(payload, dict):
+        raise ModelRequestError("The model returned an invalid response")
+    _raise_model_error(payload)
+
+    message = payload.get("message")
+    if not isinstance(message, dict):
+        raise ModelRequestError("The model returned a response without a message")
+
+    content = _content_text(message.get("content"))
+    thinking = _content_text(message.get("thinking"))
+    content, embedded_thinking = _split_embedded_thinking(content)
+    thinking = f"{thinking}{embedded_thinking}"
+
+    return ChatResult(
+        content=content,
+        thinking=thinking,
+        metrics=_metrics_from_ollama_payload(payload),
+        finish_reason=payload.get("done_reason"),
+    )
+
+
+def _read_chat_stream(
+    response,
+    *,
+    on_thinking: Callable[[str], None] | None,
+    on_content: Callable[[str], None] | None,
+) -> ChatResult:
+    content_parts: list[str] = []
+    thinking_parts: list[str] = []
+    filter_ = _ThinkingStreamFilter()
+    metrics: dict[str, Any] = {}
+    finish_reason: str | None = None
+    total_bytes = 0
+
+    for raw_line in response:
+        total_bytes += len(raw_line)
+        if total_bytes > MAX_MODEL_RESPONSE_BYTES:
+            raise ModelRequestError("Model response is too large")
+
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ModelRequestError("The model returned invalid JSON") from exc
+
+        if not isinstance(payload, dict):
+            raise ModelRequestError("The model returned an invalid response")
+        _raise_model_error(payload)
+
+        message = payload.get("message")
+        thinking_delta = _content_text(message.get("thinking")) if isinstance(message, dict) else ""
+        content_delta = _content_text(message.get("content")) if isinstance(message, dict) else ""
+
+        if thinking_delta:
+            thinking_parts.append(thinking_delta)
+            if on_thinking is not None:
+                on_thinking(thinking_delta)
+
+        filtered_content, embedded_thinking = filter_.feed(content_delta)
+        if embedded_thinking:
+            thinking_parts.append(embedded_thinking)
+            if on_thinking is not None:
+                on_thinking(embedded_thinking)
+        if filtered_content:
+            content_parts.append(filtered_content)
+            if on_content is not None:
+                on_content(filtered_content)
+
+        if payload.get("done"):
+            finish_reason = payload.get("done_reason")
+            metrics = _metrics_from_ollama_payload(payload)
+            break
+
+    final_content, final_thinking = filter_.finish()
+    if final_thinking:
+        thinking_parts.append(final_thinking)
+        if on_thinking is not None:
+            on_thinking(final_thinking)
+    if final_content:
+        content_parts.append(final_content)
+        if on_content is not None:
+            on_content(final_content)
+
+    return ChatResult(
+        content="".join(content_parts),
+        thinking="".join(thinking_parts),
+        metrics=metrics,
+        finish_reason=finish_reason,
+    )
+
+
+def _ollama_chat(
+    endpoint: str,
+    model_name: str,
+    prompt: str,
+    user_message: str | list[dict[str, Any]],
+    *,
+    stage: str = "recipe generation",
+    stream: bool = False,
+    on_thinking: Callable[[str], None] | None = None,
+    on_content: Callable[[str], None] | None = None,
+) -> ChatResult:
+    chat_url = ollama_chat_url(endpoint)
+    payload = _chat_payload(model_name, prompt, user_message, stream=stream)
     user_chars = len(user_message) if isinstance(user_message, str) else len(json.dumps(user_message))
-    logger.info(f"Sending {stage} request to {chat_url} (model={model_name}, " f"system_prompt_chars={len(prompt)}, user_chars={user_chars})")
+    logger.info(
+        f"Sending {stage} request to {chat_url} (model={model_name}, " f"stream={stream}, system_prompt_chars={len(prompt)}, user_chars={user_chars})"
+    )
     request = Request(
         chat_url,
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "Accept": "application/json",
+            "Accept": "application/x-ndjson" if stream else "application/json",
             "Content-Type": "application/json",
             "User-Agent": USER_AGENT,
         },
@@ -503,10 +752,7 @@ def _chat(
     )
 
     try:
-        with urlopen(request, timeout=MODEL_TIMEOUT_SECONDS) as response:
-            logger.debug(f"Model request to {chat_url} returned HTTP {response.status}")
-            body = _read_response(response, MAX_MODEL_RESPONSE_BYTES)
-            logger.debug(f"Received {len(body)} bytes from the model")
+        response = urlopen(request, timeout=MODEL_TIMEOUT_SECONDS)
     except HTTPError as exc:
         details = exc.read(2000).decode("utf-8", errors="replace").strip()
         message = f"Model request failed (HTTP {exc.code})"
@@ -519,45 +765,65 @@ def _chat(
         raise ModelUnavailable(f"Could not reach the model endpoint: {exc}") from exc
 
     try:
-        response_payload = json.loads(body)
-    except json.JSONDecodeError as exc:
-        raise ModelRequestError("The model returned invalid JSON") from exc
+        with response:
+            logger.debug(f"Model request to {chat_url} returned HTTP {response.status}")
+            if stream:
+                result = _read_chat_stream(response, on_thinking=on_thinking, on_content=on_content)
+            else:
+                body = _read_response(response, MAX_MODEL_RESPONSE_BYTES)
+                logger.debug(f"Received {len(body)} bytes from the model")
+                try:
+                    response_payload = json.loads(body)
+                except json.JSONDecodeError as exc:
+                    raise ModelRequestError("The model returned invalid JSON") from exc
+                result = _parse_chat_payload(response_payload)
+    except BrokenPipeError, ConnectionResetError:
+        raise
+    except (OSError, TimeoutError) as exc:
+        logger.error(f"Model response from {chat_url} was interrupted: {exc}")
+        raise ModelRequestError(f"The model response was interrupted: {exc}") from exc
 
-    content, diagnostics = _extract_chat_content(response_payload)
     logger.info(
-        f"{stage} response from {model_name}: {len(body)} bytes, "
-        f"finish_reason={diagnostics['finish_reason']!r}, "
-        f"usage={diagnostics['usage']!r}, "
-        f"content_chars={diagnostics['content_chars']}, "
-        f"reasoning_chars={diagnostics['reasoning_chars']}, "
-        f"response_keys={diagnostics['response_keys']}"
+        f"{stage} response from {model_name}: "
+        f"finish_reason={result.finish_reason!r}, "
+        f"content_chars={len(result.content)}, "
+        f"thinking_chars={len(result.thinking)}, "
+        f"metrics={result.metrics}"
     )
-    logger.debug(f"{stage} content preview: {diagnostics['content_preview']!r}")
-    if diagnostics["reasoning_chars"]:
-        logger.debug(f"{stage} reasoning preview: {diagnostics['reasoning_preview']!r}")
+    logger.debug(f"{stage} content preview: {result.content[:2000]!r}")
+    if result.thinking:
+        logger.debug(f"{stage} thinking preview: {result.thinking[:2000]!r}")
 
-    if not content.strip():
-        if diagnostics["finish_reason"] == "length":
+    if not result.content.strip():
+        if result.finish_reason == "length":
             raise ModelRequestError(
                 f"The {stage} model ({model_name}) stopped before producing "
                 "an answer because it reached the token limit; it returned "
                 "only reasoning/thinking text. Try again, or use a "
                 "non-thinking model for the all-purpose model."
             )
-        if diagnostics["reasoning_chars"]:
+        if result.thinking.strip():
             raise ModelRequestError(
                 f"The {stage} model ({model_name}) returned only "
                 "reasoning/thinking text and no answer "
-                f"(finish_reason={diagnostics['finish_reason']!r}). "
+                f"(finish_reason={result.finish_reason!r}). "
                 "Try again, or use a non-thinking model."
             )
         raise ModelRequestError(
-            f"The {stage} model ({model_name}) returned an empty response "
-            f"(finish_reason={diagnostics['finish_reason']!r}, "
-            f"usage={diagnostics['usage']!r})"
+            f"The {stage} model ({model_name}) returned an empty response " f"(finish_reason={result.finish_reason!r}, metrics={result.metrics!r})"
         )
 
-    return content
+    return result
+
+
+def _chat(
+    endpoint: str,
+    model_name: str,
+    prompt: str,
+    user_message: str | list[dict[str, Any]],
+    stage: str = "recipe generation",
+) -> str:
+    return _ollama_chat(endpoint, model_name, prompt, user_message, stage=stage, stream=False).content
 
 
 def _normalize_metadata(metadata: object) -> dict[str, Any]:
@@ -657,9 +923,24 @@ def _require_model_name(endpoint: str, configured_name: str, missing_message: st
     return model_name
 
 
-def _report_progress(progress_callback: Callable[[str], None] | None, message: str) -> None:
-    if progress_callback is not None:
-        progress_callback(message)
+EventCallback = Callable[[dict[str, Any]], None]
+
+
+def _emit(event_callback: EventCallback | None, event_type: str, **fields: Any) -> None:
+    if event_callback is not None:
+        event_callback({"type": event_type, **fields})
+
+
+def _emit_status(event_callback: EventCallback | None, state: str, message: str) -> None:
+    _emit(event_callback, "status", state=state, message=message)
+
+
+def _report_model_loading(event_callback: EventCallback | None, endpoint: str, model_name: str) -> bool | None:
+    """Report a loading state when Ollama says the model is not in memory."""
+    loaded = is_model_loaded(endpoint, model_name)
+    if loaded is False:
+        _emit_status(event_callback, STATUS_LOADING_MODEL, f"Loading {model_name} into memory...")
+    return loaded
 
 
 def _prepare_image_draft_input(
@@ -668,16 +949,17 @@ def _prepare_image_draft_input(
     image_model_name: str,
     image_bytes: bytes | None,
     image_filename: str,
-    progress_callback: Callable[[str], None] | None,
+    event_callback: EventCallback | None,
 ) -> tuple[str, str]:
     # Stage 1 (vision): transcribe the image. Stage 2 (all-purpose): draft recipe.
-    _report_progress(progress_callback, f"Sending the image to {image_model_name} for transcription...")
+    _emit_status(event_callback, STATUS_PREPARING, f"Sending the image to {image_model_name} for transcription...")
     data_uri = image_data_uri(image_filename, image_bytes or b"")
     image_user_content: list[dict[str, Any]] = [
         {"type": "text", "text": "Recipe image:"},
         {"type": "image_url", "image_url": {"url": data_uri}},
     ]
     logger.info(f"Transcribing recipe image with local model '{image_model_name}' " f"({len(image_bytes or b'')} bytes, {image_filename})")
+    _report_model_loading(event_callback, resolved.endpoint, image_model_name)
     transcription = _chat(
         resolved.endpoint,
         image_model_name,
@@ -686,9 +968,10 @@ def _prepare_image_draft_input(
         stage="image transcription",
     )
     logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}")
-    _report_progress(
-        progress_callback,
-        f"Image transcribed. Sending the extracted text to {all_purpose_model_name}...",
+    _emit_status(
+        event_callback,
+        STATUS_PREPARING,
+        f"Image transcribed. Preparing the extracted text for {all_purpose_model_name}...",
     )
     return _truncate_prompt_text(f"Recipe text (transcribed from image):\n{transcription}"), ""
 
@@ -696,17 +979,13 @@ def _prepare_image_draft_input(
 def _prepare_text_or_url_draft_input(
     input_type: str,
     input_value: str,
-    all_purpose_model_name: str,
-    progress_callback: Callable[[str], None] | None,
+    event_callback: EventCallback | None,
 ) -> tuple[str, str]:
     user_message, title = _build_user_message(input_type, input_value)
     if input_type == "url":
-        _report_progress(
-            progress_callback,
-            f"Page fetched. Sending the source URL and extracted text to {all_purpose_model_name}...",
-        )
+        _emit_status(event_callback, STATUS_PREPARING, "Page fetched. Preparing the extracted text...")
     else:
-        _report_progress(progress_callback, f"Sending the recipe text to {all_purpose_model_name}...")
+        _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe text...")
     return user_message, title
 
 
@@ -736,7 +1015,7 @@ def generate_recipe(
     config: object,
     input_type: str,
     input_value: str,
-    progress_callback: Callable[[str], None] | None = None,
+    event_callback: EventCallback | None = None,
     image_bytes: bytes | None = None,
     image_filename: str = "",
 ) -> dict[str, Any]:
@@ -746,7 +1025,7 @@ def generate_recipe(
     if input_type == "image" and not resolved.is_image_configured:
         raise ModelUnavailable("The image analysis model is not configured")
 
-    _report_progress(progress_callback, "Checking the configured AI model...")
+    _emit_status(event_callback, STATUS_CHECKING_MODEL, "Checking model status...")
     all_purpose_model_name = _require_model_name(
         resolved.endpoint,
         resolved.all_purpose_model_name,
@@ -763,11 +1042,11 @@ def generate_recipe(
 
     # Report the input-specific preparation step before doing any expensive work.
     if input_type == "url":
-        _report_progress(progress_callback, f"Fetching recipe page: {input_value}")
+        _emit_status(event_callback, STATUS_PREPARING, f"Fetching recipe page: {input_value}")
     elif input_type == "image":
-        _report_progress(progress_callback, "Preparing the recipe image...")
+        _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe image...")
     else:
-        _report_progress(progress_callback, "Preparing the recipe text...")
+        _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe text...")
 
     if input_type == "image":
         user_message, title = _prepare_image_draft_input(
@@ -776,31 +1055,59 @@ def generate_recipe(
             image_model_name,
             image_bytes,
             image_filename,
-            progress_callback,
+            event_callback,
         )
     else:
         user_message, title = _prepare_text_or_url_draft_input(
             input_type,
             input_value,
-            all_purpose_model_name,
-            progress_callback,
+            event_callback,
         )
 
     logger.info(
         f"Generating recipe from {input_type} input with local model '{all_purpose_model_name}' "
         f"({len(user_message)} characters of source content)"
     )
-    _report_progress(progress_callback, f"Generating recipe with {all_purpose_model_name}...")
-    output = _chat(
+
+    all_purpose_loaded = _report_model_loading(event_callback, resolved.endpoint, all_purpose_model_name)
+    generating_started = all_purpose_loaded is not False
+    if generating_started:
+        _emit_status(event_callback, STATUS_GENERATING, f"Generating recipe with {all_purpose_model_name}...")
+
+    thinking_started = False
+
+    def on_thinking(text: str) -> None:
+        nonlocal thinking_started
+        if not thinking_started:
+            thinking_started = True
+            _emit_status(event_callback, STATUS_THINKING, "Thinking...")
+        _emit(event_callback, "thinking", text=text)
+
+    def on_content(text: str) -> None:
+        nonlocal generating_started
+        if not generating_started:
+            generating_started = True
+            _emit_status(event_callback, STATUS_GENERATING, f"Generating recipe with {all_purpose_model_name}...")
+        _emit(event_callback, "content", text=text)
+
+    result = _ollama_chat(
         resolved.endpoint,
         all_purpose_model_name,
         resolved.new_recipe_prompt,
         user_message,
         stage="recipe drafting" if input_type == "image" else "recipe generation",
+        stream=event_callback is not None,
+        on_thinking=on_thinking,
+        on_content=on_content,
     )
-    _report_progress(progress_callback, "AI response received. Preparing the recipe draft...")
 
-    content, metadata = parse_model_output(output)
-    logger.info(f"Model returned {len(output)} characters; parsed {len(content)} characters of Markdown " f"and metadata fields {sorted(metadata)}")
+    if result.metrics:
+        _emit(event_callback, "metrics", metrics=result.metrics)
+
+    content, metadata = parse_model_output(result.content)
+    logger.info(
+        f"Model returned {len(result.content)} characters; parsed {len(content)} characters of Markdown " f"and metadata fields {sorted(metadata)}"
+    )
     _apply_default_source(metadata, input_type, all_purpose_model_name, input_value, title)
-    return {"content": content, "metadata": metadata}
+    _emit_status(event_callback, STATUS_COMPLETE, "Generation complete.")
+    return {"content": content, "metadata": metadata, "metrics": result.metrics}
