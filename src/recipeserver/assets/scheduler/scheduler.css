@@ -105,11 +105,27 @@
   background: var(--hover-bg);
 }
 
-/* The step buttons are narrow arrows. */
-.scheduler__nav {
-  min-width: 2rem;
-  font-size: 1.1rem !important;
-  line-height: 1;
+/* Select is the main action of the toolbar, styled like the editor Save
+   button. Pressing it turns the calendar into day selection mode, so the
+   pressed state drops back to the quiet toolbar look. */
+.scheduler__toolbar .scheduler__select {
+  border-color: var(--food-color);
+  background: var(--food-color);
+  color: var(--page-bg);
+  font-weight: 600;
+}
+
+.scheduler__toolbar .scheduler__select:hover {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+.scheduler__toolbar .scheduler__select[aria-pressed="true"],
+.scheduler__toolbar .scheduler__select[aria-pressed="true"]:hover {
+  border-color: var(--food-color);
+  background: var(--card-bg);
+  color: var(--food-color);
 }
 
 .scheduler__period {
@@ -120,14 +136,6 @@
   font-size: 1rem;
   font-weight: 600;
   overflow-wrap: anywhere;
-}
-
-/* Select enters the day selection mode, the same way the index page does. */
-.scheduler__select[aria-pressed="true"] {
-  border-color: var(--food-color);
-  background: var(--food-color);
-  color: var(--page-bg);
-  font-weight: 600;
 }
 
 .scheduler__status {
@@ -375,15 +383,29 @@
 
 /* ---------- Month page ---------- */
 
+/* The weekday row is a frozen pane: it sits at the top of the scroll
+   container while the months scroll beneath it. */
 .scheduler__weekdays {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.25rem;
-  flex: 0 0 auto;
+
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
 
   color: var(--muted-color);
   font-size: 0.75rem;
   text-align: center;
+}
+
+/* The frozen row is only part of the month view. */
+.scheduler__weekdays[hidden] {
+  display: none;
 }
 
 /* The six weeks of the month share the screen, and a week grows when its
@@ -516,6 +538,10 @@
   background: var(--food-color-hover);
 }
 
+.scheduler__footer button[hidden] {
+  display: none;
+}
+
 /* The Shopping List button is a secondary action. */
 .scheduler__footer .scheduler__shopping {
   border-color: var(--border-color);
@@ -558,11 +584,13 @@
   }
 
   .scheduler__footer {
+    align-items: center;
     gap: 0.5rem;
   }
 
+  /* Keep the actions compact so the dialog stays about the calendar. */
   .scheduler__footer button {
-    width: 100%;
-    justify-content: center;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.85rem;
   }
 }

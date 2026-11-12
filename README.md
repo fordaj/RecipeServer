@@ -201,11 +201,11 @@ The calendar has three views, and all of them scroll up and down without an end.
 
 - **Day** shows a single day.
 - **Week** shows seven days, starting with today. A day grows to show all of its recipes.
-- **Month** shows one month.
+- **Month** shows one month, with its weekday row frozen at the top while the months scroll beneath it.
 
-There is no snapping: the calendar scrolls freely, and the toolbar names the period that is in view. Every recipe keeps its own accent color in the calendar, the same color its recipe page uses.
+There is no snapping: the calendar scrolls freely, and the toolbar names the period that is in view. The **Today** button returns to today; there are no previous or next arrows. Every recipe keeps its own accent color in the calendar, the same color its recipe page uses.
 
-The **Select** button in the scheduler turns on the day selection mode. Picking a day then selects every recipe scheduled on that day, which overrides the selection made on the index. The button in the footer turns into **Unschedule** and clears the recipes under the selected days. The **Shopping List** button next to it closes the calendar and opens the shopping list for the selected recipes.
+The **Select** button in the scheduler turns on the day selection mode, the way the editor's Save button stands out. Picking a day then selects every recipe scheduled on that day, which overrides the selection made on the index; in this mode a click anywhere in a day, including on a recipe, picks the day. Outside selection mode, clicking a recipe opens its page. The button in the footer turns into **Unschedule** and clears the recipes under the selected days. The **Open in Shopping List** button next to it only appears in selection mode and opens the shopping list for the selected recipes.
 
 ### Quantity scaling
 
