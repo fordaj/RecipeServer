@@ -200,12 +200,10 @@ scheduledOn:
 The calendar has three views, and all of them scroll up and down without an end. Each screen holds one period:
 
 - **Day** shows a single day.
-- **Week** shows seven days, starting with today.
+- **Week** shows seven days, starting with today. A day grows to show all of its recipes.
 - **Month** shows one month.
 
-When the scrolling stops, the calendar pulls towards the nearest period. The strength of that snap is the `--scheduler-snap-strength` setting in `assets/scheduler/scheduler.css`, from `0` for a free glide to `1` for a hard snap, so it can be tuned for every screen from the stylesheet.
-
-Every recipe keeps its own accent color in the calendar, the same color its recipe page uses.
+There is no snapping: the calendar scrolls freely, and the toolbar names the period that is in view. Every recipe keeps its own accent color in the calendar, the same color its recipe page uses.
 
 The **Select** button in the scheduler turns on the day selection mode. Picking a day then selects every recipe scheduled on that day, which overrides the selection made on the index. The button in the footer turns into **Unschedule** and clears the recipes under the selected days. The **Shopping List** button next to it closes the calendar and opens the shopping list for the selected recipes.
 

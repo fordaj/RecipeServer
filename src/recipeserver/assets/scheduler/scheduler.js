@@ -29,8 +29,6 @@
 
   let dialog = null;
   let state = null;
-  let glideFrame = 0;
-  let snapTimer = 0;
 
   // ----- Dates ----- //
 
@@ -104,9 +102,8 @@
       selectedDays: new Set(),
       dayRecipes: new Set(),
       start: new Date(),
-      pageHeight: 0,
       shifting: false,
-      shiftTimer: 0,
+      viewportHeight: 0,
       resizeObserver: null,
     };
   }
@@ -349,11 +346,13 @@
     return page;
   }
 
-  // The week view is a stack of seven-day pages, one per screen. The
-  // toolbar already names the week, so the page holds only the days.
+  // The week view is a stack of seven-day pages. Each day grows to show
+  // all of its recipes. The toolbar already names the week, so the page
+  // holds only the days.
   function buildWeekPage(date) {
     const page = document.createElement("section");
     page.className = "scheduler__page scheduler__page--week";
+    page.dataset.date = isoDate(date);
 
     const days = document.createElement("div");
     days.className = "scheduler__week";
@@ -405,26 +404,33 @@
     const firstOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
     const start = addDays(firstOfMonth, -firstOfMonth.getDay());
 
-    for (let index = 0; index < 42; index += 1) {
-      const day = addDays(start, index);
-      const dateText = isoDate(day);
+    for (let week = 0; week < 6; week += 1) {
+      const row = document.createElement("div");
+      row.className = "scheduler__month-week";
 
-      const cell = document.createElement("div");
-      cell.className = "scheduler__month-day";
-      cell.dataset.date = dateText;
-      if (day.getMonth() !== date.getMonth()) cell.classList.add("is-outside");
-      if (dateText === isoDate(new Date())) cell.classList.add("is-today");
+      for (let weekday = 0; weekday < 7; weekday += 1) {
+        const day = addDays(start, week * 7 + weekday);
+        const dateText = isoDate(day);
 
-      const number = document.createElement("button");
-      number.type = "button";
-      number.className = "scheduler__month-number";
-      number.textContent = String(day.getDate());
-      number.addEventListener("click", () => toggleDay(dateText));
+        const cell = document.createElement("div");
+        cell.className = "scheduler__month-day";
+        cell.dataset.date = dateText;
+        if (day.getMonth() !== date.getMonth()) cell.classList.add("is-outside");
+        if (dateText === isoDate(new Date())) cell.classList.add("is-today");
 
-      cell.append(number);
-      for (const recipe of recipesOn(dateText)) cell.append(buildEntry(recipe, dateText, true));
+        const number = document.createElement("button");
+        number.type = "button";
+        number.className = "scheduler__month-number";
+        number.textContent = String(day.getDate());
+        number.addEventListener("click", () => toggleDay(dateText));
 
-      grid.append(cell);
+        cell.append(number);
+        for (const recipe of recipesOn(dateText)) cell.append(buildEntry(recipe, dateText, true));
+
+        row.append(cell);
+      }
+
+      grid.append(row);
     }
 
     page.append(weekdays, grid);
@@ -469,11 +475,6 @@
   }
 
   function renderPages() {
-    // A glide that is still settling must not fight the rebuilt calendar.
-    window.cancelAnimationFrame(glideFrame);
-    window.clearTimeout(snapTimer);
-    glideFrame = 0;
-
     const half = Math.floor(unitCount() / 2);
     state.start = addUnits(unitAnchor(state.date), -half);
 
@@ -484,117 +485,114 @@
 
     state.scroll.replaceChildren(fragment);
 
-    // The pages are exactly one screen tall. The height is read from the
-    // rendered page so a fractional layout height is kept.
-    state.pageHeight =
-      state.scroll.firstElementChild?.getBoundingClientRect().height ||
-      state.scroll.getBoundingClientRect().height;
-
-    // The focused page is the one in the middle of the window.
-    state.scroll.scrollTop = half * state.pageHeight;
+    // The focused page sits at the top of the view. A page is at least a
+    // screen tall, so the calendar opens on the whole day, week or month.
+    const focused = state.scroll.children[half];
+    if (focused) state.scroll.scrollTop = focused.offsetTop;
     refreshSelection();
   }
 
-  // A change in the size of the calendar (a resize, a wrapped footer, or
-  // the first real layout) changes the height of a page, so the calendar
-  // is rebuilt around the day it is showing.
+  // The footer can wrap after its icons load, which changes how tall the
+  // calendar is. Rebuild around the focused page when that happens so the
+  // page in view stays lined up with the top of the calendar.
   function observeSize() {
     if (!("ResizeObserver" in window) || state.resizeObserver) return;
 
     state.resizeObserver = new ResizeObserver(() => {
-      const height = state.scroll.getBoundingClientRect().height;
-      if (!height || Math.abs(height - state.pageHeight) < 1) return;
+      const height = state.scroll.clientHeight;
+      if (!height || height === state.viewportHeight) return;
+
+      state.viewportHeight = height;
       renderPages();
     });
 
     state.resizeObserver.observe(state.scroll);
   }
 
+  // The page at the top of the view is the one the calendar is showing.
+  function currentPage() {
+    const top = state.scroll.scrollTop + 1;
+
+    for (const page of state.scroll.children) {
+      if (page.offsetTop + page.offsetHeight > top) return page;
+    }
+
+    return state.scroll.lastElementChild;
+  }
+
   // Grows the window at one end so the view never runs out of pages. The
-  // pages are added and removed at the far ends, so the page that is in
-  // view stays where it is.
+  // window is trimmed at the other end, and the scroll position is moved
+  // by the height that was added or removed so the view stays still.
   function shiftWindow(direction) {
-    if (state.shifting || !state.pageHeight) return;
+    if (state.shifting) return;
 
     state.shifting = true;
-    window.clearTimeout(state.shiftTimer);
-    state.shiftTimer = window.setTimeout(() => {
+    requestAnimationFrame(() => {
       state.shifting = false;
-    }, 80);
+    });
 
     const units = Math.floor(unitCount() / 2);
-    const fragment = document.createDocumentFragment();
 
     if (direction < 0) {
       const start = addUnits(state.start, -units);
+      const fragment = document.createDocumentFragment();
       for (let index = 0; index < units; index += 1) {
         fragment.append(buildPage(addUnits(start, index)));
       }
 
+      const height = state.scroll.scrollHeight;
       state.scroll.prepend(fragment);
       state.start = start;
-      // The pages that were in view moved down.
-      state.scroll.scrollTop += units * state.pageHeight;
-      trimPages("bottom");
+      // The pages that were in view moved down by the added height.
+      state.scroll.scrollTop += state.scroll.scrollHeight - height;
+
+      for (let index = 0; index < units; index += 1) {
+        state.scroll.lastElementChild?.remove();
+      }
       return;
     }
 
+    const fragment = document.createDocumentFragment();
     for (let index = 0; index < units; index += 1) {
       fragment.append(buildPage(addUnits(state.start, unitCount() + index)));
     }
-
     state.scroll.append(fragment);
-    trimPages("top");
-  }
 
-  // Removes the pages that fell out of the window at the far end.
-  function trimPages(side) {
-    const units = Math.floor(unitCount() / 2);
-
+    // The pages that were in view moved up by the height of the pages
+    // that are trimmed from the top.
     for (let index = 0; index < units; index += 1) {
-      const element =
-        side === "bottom" ? state.scroll.lastElementChild : state.scroll.firstElementChild;
-      if (!element) break;
+      const page = state.scroll.firstElementChild;
+      if (!page) break;
 
-      element.remove();
-
-      if (side === "top") {
-        state.start = addUnits(state.start, 1);
-        // The pages that were in view moved up.
-        state.scroll.scrollTop -= state.pageHeight;
-      }
+      const height = page.offsetHeight;
+      page.remove();
+      state.start = addUnits(state.start, 1);
+      state.scroll.scrollTop = Math.max(0, state.scroll.scrollTop - height);
     }
   }
 
-  // ----- Scrolling and snapping ----- //
+  // ----- Scrolling ----- //
 
   function onScroll() {
-    if (!state.pageHeight) return;
-
-    const top = state.scroll.scrollTop / state.pageHeight;
-    const bottom = (state.scroll.scrollTop + state.scroll.clientHeight) / state.pageHeight;
-
-    if (!state.shifting) {
-      if (top <= 0) {
-        shiftWindow(-1);
-      } else if (bottom >= unitCount()) {
-        shiftWindow(1);
-      }
+    if (state.scroll.scrollTop <= 0) {
+      shiftWindow(-1);
+    } else if (
+      state.scroll.scrollTop + state.scroll.clientHeight >=
+      state.scroll.scrollHeight - 1
+    ) {
+      shiftWindow(1);
     }
 
     updateFocusedDate();
-    scheduleSnap();
   }
 
-  // The page in the middle of the window is the one the view is about.
+  // The page at the top of the view is the one the toolbar names.
   function updateFocusedDate() {
-    if (!state.pageHeight) return;
+    const page = currentPage();
+    if (!page) return;
 
-    const index = Math.max(
-      0,
-      Math.min(unitCount() - 1, Math.round(state.scroll.scrollTop / state.pageHeight)),
-    );
-    const anchor = addUnits(state.start, index);
+    const anchor =
+      state.view === "month" ? parseDate(page.dataset.month) : parseDate(page.dataset.date);
 
     const current = state.view === "month" ? isoMonth(state.date) : isoDate(state.date);
     const next = state.view === "month" ? isoMonth(anchor) : isoDate(anchor);
@@ -603,65 +601,6 @@
     state.date = anchor;
     renderPeriod();
     if (document.activeElement !== state.dateInput) state.dateInput.value = isoDate(anchor);
-  }
-
-  function scheduleSnap() {
-    window.clearTimeout(snapTimer);
-    snapTimer = window.setTimeout(snapPage, 300);
-  }
-
-  // The snap strength is a CSS setting, so the calendar can be tuned for
-  // every screen without a control on the page.
-  function snapStrength() {
-    const raw = getComputedStyle(state.element)
-      .getPropertyValue("--scheduler-snap-strength")
-      .trim();
-    const value = Number.parseFloat(raw);
-
-    return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.6;
-  }
-
-  // Pulls the calendar to the nearest page. The snap strength decides how
-  // hard the calendar is pulled, so a low setting glides and a high one snaps.
-  function snapPage() {
-    const strength = snapStrength();
-    if (strength <= 0 || !state.pageHeight) return;
-
-    const offset = state.scroll.scrollTop;
-    const target = Math.round(offset / state.pageHeight) * state.pageHeight;
-    if (Math.abs(target - offset) < 1) return;
-
-    glideTo(target, strength);
-  }
-
-  function glideTo(target, strength) {
-    window.cancelAnimationFrame(glideFrame);
-
-    const step = () => {
-      const difference = target - state.scroll.scrollTop;
-      // The last step is set outright: the browser keeps the scroll
-      // position on whole pixels, so a smaller step would never arrive.
-      if (Math.abs(difference) <= 2) {
-        state.scroll.scrollTop = target;
-        glideFrame = 0;
-        return;
-      }
-
-      const next = Math.round(state.scroll.scrollTop + difference * (0.06 + 0.26 * strength));
-
-      // A fractional target can round to the pixel the view is already
-      // on. Set the target outright in that case instead of spinning.
-      if (next === state.scroll.scrollTop) {
-        state.scroll.scrollTop = target;
-        glideFrame = 0;
-        return;
-      }
-
-      state.scroll.scrollTop = next;
-      glideFrame = window.requestAnimationFrame(step);
-    };
-
-    glideFrame = window.requestAnimationFrame(step);
   }
 
   // ----- Navigation ----- //

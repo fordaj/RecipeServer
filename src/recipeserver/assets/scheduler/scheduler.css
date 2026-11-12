@@ -23,12 +23,6 @@
 /* ---------- Layout ---------- */
 
 .scheduler {
-  /* How hard the calendar snaps to a whole day, week, or month after it
-     is scrolled: 0 glides freely, 1 locks onto the nearest period. This is
-     a server-side setting so the strength can be tuned for every screen
-     from here; add a media query below to make it responsive later. */
-  --scheduler-snap-strength: 0.6;
-
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -156,9 +150,10 @@
   overflow: hidden;
 }
 
-/* Every view scrolls up and down. A page is exactly one screen of the
-   calendar: one day, one week, or one month. */
+/* Every view scrolls up and down. The scroll container is also the
+   offset parent of the pages, so their positions can be read directly. */
 .scheduler__scroll {
+  position: relative;
   height: 100%;
   overflow-x: hidden;
   overflow-y: auto;
@@ -167,18 +162,19 @@
   scrollbar-gutter: stable;
 
   /* Replacing the rendered pages must not move the view: the calendar
-     puts the day it is showing back in the middle itself. */
+     puts the page it is showing back at the top itself. */
   overflow-anchor: none;
 }
 
+/* A page is at least one screen tall, and grows when a day has more
+   recipes than fit. */
 .scheduler__page {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
 
-  height: 100%;
+  min-height: 100%;
   box-sizing: border-box;
-  overflow: hidden;
 }
 
 /* ---------- Day page ---------- */
@@ -236,11 +232,7 @@
 
 .scheduler__page-body {
   flex: 1 1 auto;
-  min-height: 0;
   padding: 0.15rem;
-
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
 }
 
 .scheduler__empty {
@@ -251,12 +243,13 @@
 
 /* ---------- Week page ---------- */
 
+/* Seven rows that share the screen when the week is sparse, and grow to
+   show every recipe when a day has more than fits. */
 .scheduler__week {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   flex: 1 1 auto;
-  min-height: 0;
 }
 
 /* One day of the seven that fill the screen. */
@@ -264,16 +257,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
-  flex: 1 1 0;
-  min-height: 0;
+  flex: 1 0 auto;
   padding: 0.25rem 0.4rem;
 
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--page-bg);
-
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
 }
 
 .scheduler__weekday-name {
@@ -386,14 +375,6 @@
 
 /* ---------- Month page ---------- */
 
-.scheduler__month {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
 .scheduler__weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -405,29 +386,31 @@
   text-align: center;
 }
 
-/* The six weeks of the month fill the screen. */
+/* The six weeks of the month share the screen, and a week grows when its
+   days hold more recipes than fit. */
 .scheduler__month-grid {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-template-rows: repeat(6, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 0.25rem;
   flex: 1 1 auto;
-  min-height: 0;
+}
+
+.scheduler__month-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.25rem;
+  flex: 1 0 auto;
 }
 
 .scheduler__month-day {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  min-height: 0;
   padding: 0.2rem;
 
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--page-bg);
-
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
 }
 
 .scheduler__month-day.is-outside {
