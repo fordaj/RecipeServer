@@ -890,6 +890,10 @@ class IndexHTMLGenerator:
 """).rstrip("\n")
 
     def _sort_control_html(self) -> str:
+        # Option values are "<field>:<direction>" with direction "asc" or
+        # "desc" (for example "edited:desc"). index.js splits the value on
+        # ":" and sorts on the field; keep the format in sync with the
+        # SORT_* constants there.
         return dedent(f"""\
 <label class="filter-control">
     {self._inline_svg(UP_DOWN_ARROW_SVG)}

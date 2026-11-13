@@ -172,7 +172,7 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert 'stroke="currentColor"' in page
     index_script = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js").read_text(encoding="UTF-8")
     assert 'list.classList.toggle("card-view", isCards)' in index_script
-    assert "setView(loadRecipeView())" in index_script
+    assert "setView(ctx, loadRecipeView())" in index_script
     assert "group.boxes.forEach((box) => (box.checked = false))" in index_script
     assert 'id="clear-filters" type="button" hidden' in page
     assert 'data-title="Cinnamon &quot;Rolls&quot;"' in page
