@@ -19,6 +19,22 @@ def test_files_section_offers_main_image_dropdown_and_thumbnails():
     assert "recipe-editor__image-list" in markup
 
 
+def test_files_section_stages_uploads_and_deletes_images():
+    markup = (ASSETS / "files.html").read_text(encoding="utf-8")
+    script = (ASSETS / "recipe-editor.js").read_text(encoding="utf-8")
+
+    # Staged images get a row with an Upload button and an X to discard them.
+    assert "recipe-editor__staged-images" in markup
+    assert "renderStagedImages" in script
+    assert "uploadStagedImage" in script
+    assert "/api/recipe-images/upload" in script
+    # Uploaded images get an X to delete them, inline with rename and the name.
+    assert "deleteExistingImage" in script
+    assert "/api/recipe-images/delete" in script
+    # Both delete paths confirm with the user before acting.
+    assert script.count("confirm(") >= 2
+
+
 def test_main_image_dropdown_is_wired_to_markdown_and_rename_api():
     script = (ASSETS / "recipe-editor.js").read_text(encoding="utf-8")
 

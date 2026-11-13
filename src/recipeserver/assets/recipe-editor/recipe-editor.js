@@ -8,6 +8,8 @@
   const AI_STATUS_API = "/api/ai-status";
   const AI_RECIPE_API = "/api/ai-recipe";
   const RECIPE_IMAGES_RENAME_API = "/api/recipe-images/rename";
+  const RECIPE_IMAGES_UPLOAD_API = "/api/recipe-images/upload";
+  const RECIPE_IMAGES_DELETE_API = "/api/recipe-images/delete";
   const MAKES_METADATA_API = "/api/metadata/makes";
   const METADATA_OPTIONS_API = "/api/metadata-options";
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
@@ -202,6 +204,24 @@ Try this
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path, from, to }),
+    });
+  }
+
+  async function requestImageDelete(path, name) {
+    return fetchJson(new URL(RECIPE_IMAGES_DELETE_API, window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, name }),
+    });
+  }
+
+  async function requestImageUpload(path, file) {
+    const requestBody = createRequestBody({ path }, [file]);
+    return fetchJson(new URL(RECIPE_IMAGES_UPLOAD_API, window.location.origin), {
+      method: "POST",
+      cache: "no-store",
+      headers: requestBody.headers ?? {},
+      body: requestBody.body,
     });
   }
 
@@ -464,10 +484,14 @@ Try this
   // A picker wraps a multiple file input, its dashed dropzone, and the line
   // that lists the chosen files. Files can be chosen, dragged in, or pasted
   // from the clipboard, and they are appended so the upload order is kept.
-  function createImagePicker({ input, dropzone, selected, isDisabled }) {
+  // `onChange` fires after every change to the input's file list (chosen,
+  // pasted, dropped, appended, or reset).
+  function createImagePicker({ input, dropzone, selected, isDisabled, onChange }) {
     function showSelected() {
-      if (!selected) return;
-      selected.textContent = [...input.files].map((file) => file.name).join(", ");
+      if (selected) {
+        selected.textContent = [...input.files].map((file) => file.name).join(", ");
+      }
+      onChange?.();
     }
 
     function append(files) {
@@ -750,6 +774,12 @@ Try this
         input.value.trim() === input.dataset.original ||
         !isRenameCandidate(input.value);
     });
+    refs.imageList.querySelectorAll(".recipe-editor__image-remove").forEach((button) => {
+      button.disabled = state.busy;
+    });
+    refs.stagedList.querySelectorAll("button").forEach((button) => {
+      button.disabled = state.busy;
+    });
   }
 
   function createImageRow(ctx, image) {
@@ -790,7 +820,14 @@ Try this
     });
     button.addEventListener("click", () => renameExistingImage(ctx, image.name, input, button));
 
-    item.append(thumb, input, button);
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "recipe-editor__image-remove";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Delete ${image.name}`);
+    remove.addEventListener("click", () => deleteExistingImage(ctx, image.name, remove));
+
+    item.append(thumb, input, button, remove);
     return item;
   }
 
@@ -820,10 +857,132 @@ Try this
   function resetExistingImages(ctx) {
     const { refs, state } = ctx;
     state.existingImages = [];
+    revokeStagedUrls(state);
     refs.existingImagesBlock.hidden = true;
     refs.mainImageSelect.replaceChildren(new Option("None", ""));
     refs.mainImagePreview.hidden = true;
     refs.imageList.replaceChildren();
+    refs.stagedList.hidden = true;
+    refs.stagedList.replaceChildren();
+  }
+
+  function revokeStagedUrls(state) {
+    for (const url of state.stagedUrls) URL.revokeObjectURL(url);
+    state.stagedUrls = [];
+  }
+
+  function removeStagedFile(input, fileToRemove) {
+    if (typeof DataTransfer === "undefined") return;
+    const transfer = new DataTransfer();
+    for (const file of [...input.files]) {
+      if (file !== fileToRemove) transfer.items.add(file);
+    }
+    input.files = transfer.files;
+  }
+
+  function createStagedRow(ctx, file) {
+    const { state } = ctx;
+    const item = document.createElement("li");
+    item.className = "recipe-editor__image-item recipe-editor__staged-item";
+
+    const thumb = document.createElement("img");
+    thumb.className = "recipe-editor__image-thumb";
+    const url = URL.createObjectURL(file);
+    state.stagedUrls.push(url);
+    thumb.src = url;
+    thumb.alt = "";
+
+    const name = document.createElement("span");
+    name.className = "recipe-editor__staged-name";
+    name.textContent = file.name;
+    name.title = file.name;
+
+    const upload = document.createElement("button");
+    upload.type = "button";
+    upload.className = "recipe-editor__image-upload";
+    upload.textContent = "Upload";
+    upload.setAttribute("aria-label", `Upload ${file.name} to the folder`);
+    upload.addEventListener("click", () => uploadStagedImage(ctx, file));
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "recipe-editor__image-remove";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Discard staged image ${file.name}`);
+    remove.addEventListener("click", () => removeStagedImage(ctx, file));
+
+    item.append(thumb, name, upload, remove);
+    return item;
+  }
+
+  // Re-renders the staged list from the input's file list. Only used in
+  // Edit Recipe; in Create mode there is no folder yet, so staged images
+  // are uploaded when the recipe is created.
+  function renderStagedImages(ctx) {
+    const { refs, state } = ctx;
+    const files = [...(refs.imageInput.files ?? [])];
+    if (state.isCreating) {
+      refs.stagedList.hidden = true;
+      refs.stagedList.replaceChildren();
+      return;
+    }
+    revokeStagedUrls(state);
+    refs.stagedList.hidden = files.length === 0;
+    refs.stagedList.replaceChildren(...files.map((file) => createStagedRow(ctx, file)));
+    refs.selectedImages.textContent = files.length
+      ? `${files.length} image(s) staged for upload.`
+      : "";
+    refreshExistingImageControls(ctx);
+  }
+
+  function removeStagedImage(ctx, file) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    if (!confirm(`Discard staged image "${file.name}"? It won't be saved to the folder.`)) return;
+    removeStagedFile(refs.imageInput, file);
+    renderStagedImages(ctx);
+    ui.setStatus(`Discarded staged image "${file.name}".`);
+  }
+
+  async function uploadStagedImage(ctx, file) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    ui.setBusy(true);
+    ui.setStatus(`Uploading "${file.name}"...`);
+    try {
+      const result = await requestImageUpload(state.markdownPath, file);
+      removeStagedFile(refs.imageInput, file);
+      state.existingImages = Array.isArray(result.images) ? result.images : state.existingImages;
+      renderStagedImages(ctx);
+      renderExistingImages(ctx);
+      ui.setStatus(`Saved "${file.name}" to the folder.`);
+    } catch (error) {
+      ui.setStatus(error.message);
+    } finally {
+      ui.setBusy(false);
+    }
+  }
+
+  async function deleteExistingImage(ctx, imageName, button) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    if (!confirm(`Delete "${imageName}" from the folder? This cannot be undone.`)) return;
+    ui.setBusy(true);
+    ui.setStatus(`Deleting "${imageName}"...`);
+    try {
+      const result = await requestImageDelete(state.markdownPath, imageName);
+      state.existingImages = Array.isArray(result.images) ? result.images : [];
+      renderExistingImages(ctx);
+      const note = result.referenced
+        ? ` The Markdown still references "${imageName}" — edit the page to fix.`
+        : "";
+      ui.setStatus(`Deleted "${imageName}".${note}`);
+    } catch (error) {
+      ui.setStatus(error.message);
+      button.disabled = false;
+    } finally {
+      ui.setBusy(false);
+    }
   }
 
   async function renameExistingImage(ctx, oldName, input, button) {
@@ -883,6 +1042,7 @@ Try this
       selectedImages: dialog.querySelector(
         ".recipe-editor__recipe-images .recipe-editor__images-selected",
       ),
+      stagedList: dialog.querySelector(".recipe-editor__staged-images"),
       existingImagesBlock: dialog.querySelector(".recipe-editor__existing-images"),
       mainImageSelect: dialog.querySelector(".recipe-editor__main-image-select"),
       mainImagePreview: dialog.querySelector(".recipe-editor__main-image-preview"),
@@ -913,7 +1073,7 @@ Try this
     };
   }
 
-  function finalizeDomRefs(refs) {
+  function finalizeDomRefs(refs, state) {
     refs.aiControls = [refs.aiText, refs.aiUrl, refs.aiTextButton, refs.aiUrlButton];
     refs.aiImageControls = [refs.aiImage, refs.aiImageButton];
     refs.aiProgress = RecipeAIProgress.createProgress(refs.aiSection);
@@ -923,6 +1083,7 @@ Try this
       dropzone: refs.imageDropzone,
       selected: refs.selectedImages,
       isDisabled: () => refs.imageInput.disabled,
+      onChange: () => renderStagedImages({ refs, state }),
     });
     refs.aiImages = createImagePicker({
       input: refs.aiImage,
@@ -948,6 +1109,7 @@ Try this
       bulkPaths: [],
       bulkRecipes: [],
       existingImages: [],
+      stagedUrls: [],
       aiAvailable: false,
       aiImageAvailable: false,
       aiAbortController: null,
@@ -1863,13 +2025,14 @@ Try this
     if (!editButton && !createButton) return;
 
     const dialog = await createEditor();
+    const state = createState(editButton, createButton);
 
     // The collaborators are bundled into a single context object that is
     // threaded through the flows below, instead of passing each of them
     // positionally.
     const ctx = {
-      refs: finalizeDomRefs(collectDomRefs(dialog)),
-      state: createState(editButton, createButton),
+      refs: finalizeDomRefs(collectDomRefs(dialog), state),
+      state,
     };
 
     if (ctx.refs.makesIcon) {

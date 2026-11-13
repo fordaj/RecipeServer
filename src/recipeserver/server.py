@@ -528,6 +528,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/recipe": self._handle_recipe_create,
             "/api/recipe-editor": self._handle_recipe_editor_post,
             "/api/recipe-images/rename": self._handle_recipe_images_rename_post,
+            "/api/recipe-images/upload": self._handle_recipe_images_upload_post,
+            "/api/recipe-images/delete": self._handle_recipe_images_delete_post,
             "/api/markdown": self._handle_markdown_post,
         }
 
@@ -668,6 +670,15 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 "images": self._list_recipe_images(file_path),
             },
         )
+
+    def _drop_site_image_copy(self, file_path: Path, image_name: str) -> None:
+        """Remove the image's copy in the generated site, if any."""
+        try:
+            relative_dir = file_path.parent.relative_to(self.source_directory)
+            stale = Path(self.directory).resolve() / relative_dir / image_name
+            stale.unlink(missing_ok=True)
+        except OSError:
+            logger.warning(f"Unable to remove stale image copy for {image_name}")
 
     def _list_recipe_images(self, file_path: Path) -> list[dict]:
         """Return the images sitting next to a recipe Markdown file.
@@ -1114,12 +1125,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             return
 
         # Drop the stale copy in the generated site so the old URL stops working.
-        try:
-            relative_dir = file_path.parent.relative_to(self.source_directory)
-            stale = Path(self.directory).resolve() / relative_dir / source_name
-            stale.unlink(missing_ok=True)
-        except OSError:
-            logger.warning(f"Unable to remove stale image copy for {source_name}")
+        self._drop_site_image_copy(file_path, source_name)
 
         logger.info(f"Renamed image {source_name} to {target_name} for {file_path}")
         try:
@@ -1133,6 +1139,115 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             return
 
         self._send_json(200, {"success": True, "images": self._list_recipe_images(file_path)})
+
+    def _handle_recipe_images_upload_post(self) -> None:
+        """Save staged images into the recipe folder without saving the recipe.
+
+        Lets the editor upload an image as soon as it is staged; the recipe
+        Markdown is untouched, and the response carries the refreshed folder
+        listing so the UI can update in place.
+        """
+        try:
+            payload, images = self._read_recipe_payload()
+            path = payload.get("path")
+            if not isinstance(path, str):
+                raise ValueError("Expected string field: path")
+            images = self._validate_uploaded_images(images)
+            if not images:
+                raise ValueError("Choose at least one image to upload")
+            file_path = self._resolve_markdown_path(path)
+            if not file_path.is_file():
+                self._send_json(404, {"error": "Markdown file not found"})
+                return
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        try:
+            self._write_uploaded_images(file_path.parent, images)
+        except FileExistsError as exc:
+            self._send_json(409, {"error": str(exc)})
+            return
+        except OSError:
+            logger.exception(f"Failed to save uploaded images for {file_path}")
+            self._send_json(500, {"error": "Unable to save image"})
+            return
+
+        logger.info(f"Uploaded {len(images)} image(s) for {file_path}")
+        try:
+            self._notify_markdown_saved(file_path)
+        except Exception:
+            logger.exception("Failed to regenerate recipe after image upload")
+            self._send_json(
+                500,
+                {"error": "Image uploaded, but HTML regeneration failed", "images": self._list_recipe_images(file_path)},
+            )
+            return
+
+        self._send_json(200, {"success": True, "images": self._list_recipe_images(file_path)})
+
+    def _handle_recipe_images_delete_post(self) -> None:
+        """Delete one of the images that sit next to a recipe Markdown file.
+
+        The image is removed from the folder and from the generated site.
+        The Markdown is left alone; when it references the image the response
+        says so so the editor can warn the user.
+        """
+        try:
+            payload = self._read_json_payload()
+            path = payload.get("path")
+            name = payload.get("name")
+            if not isinstance(path, str) or not isinstance(name, str):
+                raise ValueError("Expected string fields: path, name")
+            file_path = self._resolve_markdown_path(path)
+            if not file_path.is_file():
+                self._send_json(404, {"error": "Markdown file not found"})
+                return
+            image_name = _validate_image_name(name, field="name")
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        target = file_path.parent / image_name
+        if not target.is_file():
+            self._send_json(404, {"error": f"Image not found: {image_name}"})
+            return
+
+        try:
+            content = file_path.read_text(encoding="utf-8")
+            referenced = bool(_image_name_pattern(image_name).search(content))
+            quoted_name = quote(image_name)
+            if not referenced and quoted_name != image_name:
+                referenced = bool(_image_name_pattern(quoted_name).search(content))
+            target.unlink()
+        except OSError:
+            logger.exception(f"Failed to delete image {target}")
+            self._send_json(500, {"error": "Unable to delete image"})
+            return
+
+        self._drop_site_image_copy(file_path, image_name)
+        logger.info(f"Deleted image {image_name} for {file_path}")
+        try:
+            self._notify_markdown_saved(file_path)
+        except Exception:
+            logger.exception("Failed to regenerate recipe after image deletion")
+            self._send_json(
+                500,
+                {
+                    "error": "Image deleted, but HTML regeneration failed",
+                    "images": self._list_recipe_images(file_path),
+                    "referenced": referenced,
+                },
+            )
+            return
+
+        self._send_json(200, {"success": True, "images": self._list_recipe_images(file_path), "referenced": referenced})
 
     def _handle_metadata_post(self, path: str) -> None:
         field_name = path.split("/")[-1]
