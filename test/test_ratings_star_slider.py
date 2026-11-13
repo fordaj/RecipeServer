@@ -33,7 +33,7 @@ def test_star_slider_covers_one_to_ten_without_reaching_zero():
 
 
 def test_star_slider_is_styled_as_an_interactive_control():
-    css = (ASSETS / "ratings.css").read_text(encoding="utf-8")
+    css = (ASSETS / "feedback.css").read_text(encoding="utf-8")
 
     assert ".recipe-rating__stars--slider" in css
     assert "cursor: pointer;" in css
@@ -49,17 +49,19 @@ def declaration_block(css: str, selector: str) -> str:
 def test_rating_fields_are_big_enough_that_ios_does_not_zoom_in():
     # iOS Safari zooms the page in when a focused field is smaller than 16
     # pixels, and it never zooms back out again.
-    css = (ASSETS / "ratings.css").read_text(encoding="utf-8")
+    css = (ASSETS / "feedback.css").read_text(encoding="utf-8")
 
     for selector in (
         ".recipe-rating__author-input",
-        ".recipe-rating-form__meta input",
         '.recipe-rating-form__meter input[type="text"]',
     ):
         assert "font-size: 1rem;" in declaration_block(css, selector), selector
 
 
 def test_comment_name_field_is_big_enough_that_ios_does_not_zoom_in():
-    css = (ASSETS / "comments.css").read_text(encoding="utf-8")
+    css = (ASSETS / "feedback.css").read_text(encoding="utf-8")
 
-    assert "font-size: 1rem;" in declaration_block(css, ".recipe-comment__meta input.recipe-comment__author-input")
+    # The shared underline-name-field rule is grouped across the two features.
+    grouped = css.split(".recipe-comment__author-input,", 1)[1].split("}", 1)[0]
+    assert ".recipe-rating__author-input" in grouped
+    assert "font-size: 1rem;" in grouped

@@ -2,6 +2,16 @@
   const root = document.querySelector("#recipe-ratings");
   if (!root) return;
 
+  // recipe-feedback.js is loaded before this file on recipe pages and is a
+  // hard dependency; fail loudly if it is missing instead of silently
+  // running with degraded helpers.
+  const feedback = window.RecipeFeedback;
+  if (!feedback) {
+    throw new Error("recipe-feedback.js must load before ratings.js");
+  }
+
+  const recipePath = feedback.getMarkdownPath();
+
   // ----- DOM references ----- //
   const form = root.querySelector("#recipe-rating-form");
   const addButton = root.querySelector(".recipe-ratings__add");
@@ -12,19 +22,12 @@
   const scoreValue = root.querySelector("#rating-score-value");
   const status = root.querySelector("#rating-status");
   const list = root.querySelector("#rating-list");
-  const helpers = window.RecipeFeedback || {};
-  const recipePath = (helpers.getMarkdownPath || getMarkdownPathFallback)();
 
   // Each star is worth two points, so every half star is worth one point and
   // the lowest score the slider can set is 1.
   const STAR_COUNT = 5;
   const MIN_SLIDER_SCORE = 1;
   const MAX_SLIDER_SCORE = 10;
-
-  function getMarkdownPathFallback() {
-    const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
-    return page.replace(/\.html$/i, ".md");
-  }
 
   // ----- Data helpers ----- //
   function normalizedName(name) {
@@ -34,39 +37,12 @@
       .toLowerCase();
   }
 
-  function createRatingId() {
-    return helpers.createId ? helpers.createId() : `rating-${Date.now()}`;
+  function fetchRatings() {
+    return feedback.fetchMetadata("ratings", recipePath);
   }
 
-  async function getRatings() {
-    if (helpers.fetchMetadata) {
-      return helpers.fetchMetadata("ratings", recipePath);
-    }
-    const params = new URLSearchParams({ path: recipePath });
-    const response = await fetch(`/api/metadata/ratings?${params}`);
-    if (!response.ok) {
-      throw new Error(`Failed to load ratings (HTTP ${response.status})`);
-    }
-    const data = await response.json();
-    if (!Array.isArray(data.value)) {
-      throw new Error("Invalid ratings response");
-    }
-    return data.value;
-  }
-
-  async function saveRatings(ratings) {
-    if (helpers.saveMetadata) {
-      return helpers.saveMetadata("ratings", recipePath, ratings);
-    }
-    const response = await fetch("/api/metadata/ratings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: recipePath, value: ratings }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.success !== true) {
-      throw new Error(result.error || `Unable to save ratings (HTTP ${response.status})`);
-    }
+  function saveRatings(ratings) {
+    return feedback.saveMetadata("ratings", recipePath, ratings);
   }
 
   // ----- Rating value parsing ----- //
@@ -202,25 +178,6 @@
   }
 
   // ----- Rendering ----- //
-  function getInitials(name) {
-    return helpers.getInitials
-      ? helpers.getInitials(name)
-      : String(name || "")
-          .slice(0, 2)
-          .toUpperCase();
-  }
-
-  function createDate(timestamp) {
-    if (helpers.createDateElement) {
-      return helpers.createDateElement(timestamp, "recipe-rating__date");
-    }
-    const dateElement = document.createElement("time");
-    dateElement.className = "recipe-rating__date";
-    if (timestamp) dateElement.dateTime = timestamp;
-    dateElement.textContent = String(timestamp || "");
-    return dateElement;
-  }
-
   function createStarMeter(rating) {
     const meter = document.createElement("span");
     meter.className = "recipe-rating__stars";
@@ -268,13 +225,13 @@
   function createRating(rating) {
     const article = document.createElement("article");
     article.className = "recipe-rating";
-    article.dataset.ratingId = rating.id;
+    article.dataset.feedbackId = rating.id;
 
     const name = (rating.name || "Anonymous").trim() || "Anonymous";
     const avatar = document.createElement("div");
     avatar.className = "recipe-rating__avatar";
     avatar.setAttribute("aria-hidden", "true");
-    avatar.textContent = getInitials(name);
+    avatar.textContent = feedback.getInitials(name);
 
     const content = document.createElement("div");
     content.className = "recipe-rating__content";
@@ -285,7 +242,10 @@
     const author = document.createElement("span");
     author.className = "recipe-rating__author";
     author.textContent = name;
-    meta.append(author, createDate(rating.updated || rating.created));
+    meta.append(
+      author,
+      feedback.createDateElement(rating.updated || rating.created, "recipe-rating__date"),
+    );
 
     const meter = createStarMeter(Number(rating.rating));
     const score = document.createElement("span");
@@ -312,27 +272,6 @@
     content.append(meta, meterLine);
     article.append(avatar, content);
     return article;
-  }
-
-  function renderAllRatings(ratings) {
-    const sort = helpers.sortByUpdatedDesc || ((items) => [...items]);
-    list.replaceChildren(...sort(ratings).map(createRating));
-    root.classList.toggle("is-empty", ratings.length === 0);
-    updateAverage(ratings);
-  }
-
-  // ----- Form controls ----- //
-  function setFormOpen(open) {
-    form.hidden = !open;
-    addButton.setAttribute("aria-expanded", String(open));
-    status.textContent = "";
-    if (open) authorInput.focus();
-  }
-
-  function setBusy(container, busy) {
-    container.querySelectorAll("button, input").forEach((element) => {
-      element.disabled = busy;
-    });
   }
 
   // ----- Edit form ----- //
@@ -391,92 +330,69 @@
     message.setAttribute("role", "status");
 
     editForm.append(nameInput, scoreLine, actions, message);
-    return { editForm, nameInput, scoreInput: editScoreInput, cancel, message };
+    return {
+      form: editForm,
+      nameInput,
+      scoreInput: editScoreInput,
+      cancel,
+      message,
+      focus: () => nameInput.focus(),
+    };
   }
 
-  function submitEditRating({
-    editForm,
-    article,
-    rating,
-    nameInput,
-    scoreInput: editScoreInput,
-    message,
-  }) {
-    editForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const name = nameInput.value.trim();
-      const scoreValue = validateRatingInput(editScoreInput);
+  const { renderAll } = feedback.createFeedbackList({
+    root,
+    list,
+    kind: "rating",
+    confirmDeleteMessage: "Remove this rating? This cannot be undone.",
+    fetchItems: fetchRatings,
+    saveItems: saveRatings,
+    createItem: createRating,
+    buildEditForm,
+    onRender: updateAverage,
+    submitEdit: async ({ item, controls }) => {
+      const name = controls.nameInput.value.trim();
+      const score = validateRatingInput(controls.scoreInput);
 
-      if (!name || scoreValue === null) {
-        editForm.reportValidity();
-        return;
+      if (!name || score === null) {
+        controls.form.reportValidity();
+        return null;
       }
 
-      setBusy(editForm, true);
-      try {
-        const latest = await getRatings();
-        const index = latest.findIndex((item) => item.id === rating.id);
-        if (index === -1) {
-          throw new Error("Rating no longer exists. Reload the page.");
-        }
-        if (
-          latest.some(
-            (item) => item.id !== rating.id && normalizedName(item.name) === normalizedName(name),
-          )
-        ) {
-          throw new Error("A rating from this name already exists.");
-        }
-
-        latest[index] = {
-          ...latest[index],
-          name,
-          rating: scoreValue,
-          updated: new Date().toISOString(),
-        };
-        await saveRatings(latest);
-        renderAllRatings(latest);
-      } catch (error) {
-        console.error("Unable to edit rating:", error);
-        setBusy(editForm, false);
-        message.textContent = error.message || "Unable to save this rating.";
-      }
-    });
-  }
-
-  function openEditForm(article, rating) {
-    const content = article.querySelector(".recipe-rating__content");
-    const controls = buildEditForm(rating);
-    content.replaceChildren(controls.editForm);
-
-    controls.cancel.addEventListener("click", () => article.replaceWith(createRating(rating)));
-    submitEditRating({ article, rating, ...controls });
-    controls.nameInput.focus();
-  }
-
-  // ----- Mutations ----- //
-  async function deleteRating(article) {
-    if (!window.confirm("Remove this rating? This cannot be undone.")) return;
-
-    setBusy(article, true);
-    try {
-      const ratings = await getRatings();
-      const index = ratings.findIndex((rating) => rating.id === article.dataset.ratingId);
+      const latest = await fetchRatings();
+      const index = latest.findIndex((entry) => entry.id === item.id);
       if (index === -1) {
-        throw new Error("Rating no longer exists.");
+        throw new Error("Rating no longer exists. Reload the page.");
       }
-      ratings.splice(index, 1);
-      await saveRatings(ratings);
-      renderAllRatings(ratings);
-    } catch (error) {
-      console.error("Unable to remove rating:", error);
-      setBusy(article, false);
-      window.alert(error.message || "Unable to remove this rating.");
-    }
+      if (
+        latest.some(
+          (entry) => entry.id !== item.id && normalizedName(entry.name) === normalizedName(name),
+        )
+      ) {
+        throw new Error("A rating from this name already exists.");
+      }
+
+      latest[index] = {
+        ...latest[index],
+        name,
+        rating: score,
+        updated: new Date().toISOString(),
+      };
+      return latest;
+    },
+  });
+
+  // ----- Form controls ----- //
+  function setFormOpen(open) {
+    form.hidden = !open;
+    addButton.setAttribute("aria-expanded", String(open));
+    status.textContent = "";
+    if (open) authorInput.focus();
   }
 
   async function loadRatings() {
     try {
-      renderAllRatings(await getRatings());
+      renderAll(await fetchRatings());
     } catch (error) {
       console.error("Unable to load ratings:", error);
       status.textContent = "Unable to load ratings.";
@@ -528,7 +444,7 @@
     saveButton.disabled = true;
     status.textContent = "Saving rating…";
     try {
-      const ratings = await getRatings();
+      const ratings = await fetchRatings();
       if (ratings.some((rating) => normalizedName(rating.name) === normalizedName(name))) {
         throw new Error("A rating from this name already exists. Edit that rating instead.");
       }
@@ -536,9 +452,15 @@
       const timestamp = new Date().toISOString();
       await saveRatings([
         ...ratings,
-        { name, created: timestamp, updated: timestamp, id: createRatingId(), rating: ratingValue },
+        {
+          name,
+          created: timestamp,
+          updated: timestamp,
+          id: feedback.createId(),
+          rating: ratingValue,
+        },
       ]);
-      renderAllRatings(await getRatings());
+      renderAll(await fetchRatings());
       form.reset();
       setFormOpen(false);
     } catch (error) {
@@ -546,28 +468,6 @@
       status.textContent = error.message || "Unable to save your rating. Please try again.";
     } finally {
       saveButton.disabled = false;
-    }
-  });
-
-  list.addEventListener("click", async (event) => {
-    const button = event.target.closest("button[data-action]");
-    if (!button || !list.contains(button)) return;
-
-    const article = button.closest(".recipe-rating");
-    if (!article) return;
-
-    if (button.dataset.action === "edit") {
-      try {
-        const ratings = await getRatings();
-        const rating = ratings.find((item) => item.id === article.dataset.ratingId);
-        if (!rating) throw new Error("Rating no longer exists. Reload the page.");
-        openEditForm(article, rating);
-      } catch (error) {
-        console.error("Unable to edit rating:", error);
-        window.alert(error.message || "Unable to edit this rating.");
-      }
-    } else if (button.dataset.action === "delete") {
-      await deleteRating(article);
     }
   });
 

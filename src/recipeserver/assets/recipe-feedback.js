@@ -95,6 +95,161 @@
     }
   }
 
+  // ----- Busy state and inline errors ----- //
+  // One busy-state convention for the feedback features: while an operation
+  // is in flight, every button, input, and textarea inside the container is
+  // disabled so it cannot be used twice.
+  function setBusy(container, busy) {
+    container.querySelectorAll("button, input, textarea").forEach((element) => {
+      element.disabled = busy;
+    });
+  }
+
+  // Errors are shown inline, next to the comment/rating or form they belong
+  // to, instead of with blocking alert() dialogs. Reuses the form's own
+  // status element when one is present.
+  function showInlineError(container, errorMessage, className) {
+    let message = container.querySelector(`.${className}`);
+    if (!message) {
+      message = document.createElement("p");
+      message.className = className;
+      message.setAttribute("role", "status");
+      container.append(message);
+    }
+    message.textContent = errorMessage;
+  }
+
+  // ----- Feedback list skeleton ----- //
+  // Shared CRUD wiring for the user-entry lists (comments, ratings): list
+  // click delegation, render-with-empty-toggle, confirm-then-delete, and the
+  // edit-form scaffold. Feature-specific rendering, validation, and inputs
+  // are supplied by the caller.
+  function createFeedbackList({
+    root,
+    list,
+    kind,
+    confirmDeleteMessage,
+    fetchItems,
+    saveItems,
+    createItem,
+    buildEditForm,
+    submitEdit,
+    onRender,
+  }) {
+    const contentSelector = `.recipe-${kind}__content`;
+    const statusClass = `recipe-${kind}__status`;
+    const noun = kind.charAt(0).toUpperCase() + kind.slice(1);
+
+    function articleContent(article) {
+      return article.querySelector(contentSelector) || article;
+    }
+
+    function renderAll(items) {
+      list.replaceChildren(...sortByUpdatedDesc(items).map((item) => createItem(item)));
+      root.classList.toggle("is-empty", items.length === 0);
+      if (onRender) {
+        onRender(items);
+      }
+    }
+
+    async function editItem(article) {
+      const itemId = article.dataset.feedbackId;
+      const items = await fetchItems();
+      const index = items.findIndex((item) => item.id === itemId);
+      if (index === -1) {
+        throw new Error(`${noun} no longer exists. Reload the page.`);
+      }
+
+      const item = items[index];
+      const content = articleContent(article);
+      const controls = buildEditForm(item);
+      content.replaceChildren(controls.form);
+
+      controls.cancel.addEventListener("click", () => {
+        article.replaceWith(createItem(item));
+      });
+
+      controls.form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        setBusy(article, true);
+        try {
+          const updated = await submitEdit({ item, index, items, controls });
+          if (updated == null) {
+            // Submit handler chose not to proceed (e.g. invalid input that
+            // was reported through reportValidity()).
+            setBusy(article, false);
+            return;
+          }
+          await saveItems(updated);
+          renderAll(updated);
+        } catch (error) {
+          console.error(`Unable to edit ${kind}:`, error);
+          setBusy(article, false);
+          showInlineError(
+            controls.form,
+            error.message || `Unable to save this ${kind}.`,
+            statusClass,
+          );
+        }
+      });
+
+      if (controls.focus) {
+        controls.focus();
+      }
+    }
+
+    async function deleteItem(article) {
+      if (!window.confirm(confirmDeleteMessage)) {
+        return;
+      }
+
+      setBusy(article, true);
+      try {
+        const items = await fetchItems();
+        const itemId = article.dataset.feedbackId;
+        const updated = items.filter((item) => item.id !== itemId);
+        if (updated.length === items.length) {
+          throw new Error(`${noun} no longer exists.`);
+        }
+        await saveItems(updated);
+        renderAll(updated);
+      } catch (error) {
+        console.error(`Unable to delete ${kind}:`, error);
+        setBusy(article, false);
+        showInlineError(
+          articleContent(article),
+          error.message || `Unable to delete this ${kind}.`,
+          statusClass,
+        );
+      }
+    }
+
+    list.addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button || !list.contains(button)) return;
+
+      const article = button.closest(`.recipe-${kind}`);
+      if (!article) return;
+
+      if (button.dataset.action === "edit") {
+        try {
+          await editItem(article);
+        } catch (error) {
+          console.error(`Unable to edit ${kind}:`, error);
+          showInlineError(
+            articleContent(article),
+            error.message || `Unable to edit this ${kind}.`,
+            statusClass,
+          );
+        }
+      } else if (button.dataset.action === "delete") {
+        await deleteItem(article);
+      }
+    });
+
+    return { renderAll, articleContent };
+  }
+
   window.RecipeFeedback = {
     getMarkdownPath,
     createId,
@@ -104,5 +259,8 @@
     sortByUpdatedDesc,
     fetchMetadata,
     saveMetadata,
+    setBusy,
+    showInlineError,
+    createFeedbackList,
   };
 })();

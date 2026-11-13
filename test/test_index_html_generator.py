@@ -549,7 +549,7 @@ def test_definitions_css_centralizes_theme_values():
     ):
         assert token in css
 
-    for asset in ("style.css", "index.css", "recipe-editor/recipe-editor.css", "comments.css", "ratings.css"):
+    for asset in ("style.css", "index.css", "recipe-editor/recipe-editor.css", "feedback.css"):
         component = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / asset).read_text(encoding="UTF-8")
         assert "@font-face" not in component
         assert ":root {" not in component

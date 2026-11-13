@@ -38,7 +38,7 @@ _RATING_FORM_BODY = f"""\
         </div>
         <div class="recipe-rating-form__content">
             <div class="recipe-rating-form__meta">
-                <input id="rating-author" type="text" placeholder="Your name" aria-label="Your name" maxlength="100" required />
+                <input id="rating-author" class="recipe-rating__author-input" type="text" placeholder="Your name" aria-label="Your name" maxlength="100" required />
             </div>
             <div class="recipe-rating__meter recipe-rating-form__meter">
                 <input id="rating-score" type="text" inputmode="decimal" maxlength="16" value="5" aria-label="Rating out of 10" required />
