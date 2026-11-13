@@ -377,9 +377,17 @@ class MarkdownToHTMLConverter:
             primary,
             soup,
             icon_path=CHEF_HAT_SVG,
-            class_name="recipe-overview__difficulty",
+            class_name="recipe-overview__makes",
             value=self._first_scalar(metadata.get("makes")),
             formatter=lambda value: f"x{value}",
+            tag_name="button",
+            attrs={
+                "type": "button",
+                "class": "recipe-overview__makes",
+                "aria-label": "Record that you made this recipe",
+                "title": "I made this!",
+            },
+            data_attrs=lambda value: {"makes": str(value)},
         )
         self._append_overview_icon_value(
             primary,
@@ -419,14 +427,23 @@ class MarkdownToHTMLConverter:
         class_name: str,
         value: object,
         formatter,
+        tag_name: str = "span",
+        attrs: dict[str, str] | None = None,
+        data_attrs: object = None,
     ) -> None:
         """Append an icon+text overview item when *value* is present."""
         if value is None or value == "" or value == []:
             return
 
-        item = soup.new_tag("span", attrs={"class": class_name})
+        item_attrs = dict(attrs) if attrs is not None else {"class": class_name}
+        item = soup.new_tag(tag_name, attrs=item_attrs)
+        if data_attrs is not None:
+            for name, attr_value in data_attrs(value).items():
+                item[f"data-{name}"] = attr_value
         self._append_svg_icon(item, icon_path)
-        item.append(formatter(value))
+        text = soup.new_tag("span", attrs={"class": "recipe-overview__value"})
+        text.string = formatter(value)
+        item.append(text)
         container.append(item)
 
     def _build_overview_secondary_row(self, metadata: dict, soup: BeautifulSoup) -> Tag:

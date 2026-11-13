@@ -360,6 +360,8 @@ const initRecipeIndex = async () => {
 
   // The List/Cards view choice is persisted alongside the zoom value.
   const RECIPE_VIEW_STORAGE_KEY = "recipe-view";
+  const SORT_STORAGE_KEY = "recipe-sort";
+  const DEFAULT_SORT = "edited:desc";
 
   const loadRecipeView = () => {
     try {
@@ -375,6 +377,28 @@ const initRecipeIndex = async () => {
       localStorage.setItem(RECIPE_VIEW_STORAGE_KEY, view === "cards" ? "cards" : "list");
     } catch {
       // Ignore storage errors; the in-page layout still updates.
+    }
+  };
+
+  const loadSort = () => {
+    if (!sort) return DEFAULT_SORT;
+    const options = Array.from(sort.options || []);
+    try {
+      const stored = localStorage.getItem(SORT_STORAGE_KEY);
+      if (stored && options.some((option) => option.value === stored)) {
+        return stored;
+      }
+    } catch {
+      // localStorage may be unavailable (e.g. private browsing).
+    }
+    return options.some((option) => option.value === sort.value) ? sort.value : DEFAULT_SORT;
+  };
+
+  const saveSort = (value) => {
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, value);
+    } catch {
+      // Ignore storage errors; the in-page sort still updates.
     }
   };
 
@@ -423,12 +447,37 @@ const initRecipeIndex = async () => {
       }
 
       for (const box of group.boxes) {
-        const countElement = box
-          .closest(".filter-menu__option")
-          ?.querySelector(".filter-menu__count");
-        if (countElement) countElement.textContent = String(counts.get(box.value) || 0);
+        const option = box.closest(".filter-menu__option");
+        const countValue = counts.get(box.value) || 0;
+        const countElement = option?.querySelector(".filter-menu__count");
+        if (countElement) countElement.textContent = String(countValue);
+        if (option) option.hidden = countValue === 0 && !box.checked;
       }
       if (group.allCount) group.allCount.textContent = String(matching.length);
+    }
+
+    // The review filter is separate from the metadata filter menus, but it
+    // should also hide reviewers who match none of the currently visible
+    // recipes.
+    if (reviewBoxes.length) {
+      const matching = getFilteredRecipes(query, selections);
+      const counts = new Map();
+      for (const recipe of matching) {
+        for (const key of JSON.parse(recipe.dataset.reviewers || "[]")) {
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+      }
+      for (const box of reviewBoxes) {
+        const option = box.closest(".filter-menu__option");
+        const countValue = counts.get(box.value) || 0;
+        const countElement = option?.querySelector(".filter-menu__count");
+        if (countElement) countElement.textContent = String(countValue);
+        if (option) option.hidden = countValue === 0 && !box.checked;
+      }
+      const reviewAllCount = reviewAll
+        ?.closest(".filter-menu__option")
+        ?.querySelector(".filter-menu__count");
+      if (reviewAllCount) reviewAllCount.textContent = String(matching.length);
     }
   };
 
@@ -501,9 +550,13 @@ const initRecipeIndex = async () => {
   };
 
   // ----- Event Wiring ----- //
-  [search, sort].forEach((control) =>
-    control.addEventListener(control === search ? "input" : "change", update),
-  );
+  if (search) search.addEventListener("input", update);
+  if (sort) {
+    sort.addEventListener("change", () => {
+      saveSort(sort.value);
+      update();
+    });
+  }
 
   filterMenus.forEach((group) => {
     if (group.allBox) {
@@ -702,6 +755,7 @@ const initRecipeIndex = async () => {
   }
 
   // ----- Initialization ----- //
+  if (sort) sort.value = loadSort();
   applyCardZoom(loadCardZoom());
   setView(loadRecipeView());
   setSelectionMode(false);

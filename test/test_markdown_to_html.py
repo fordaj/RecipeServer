@@ -120,8 +120,8 @@ Mix everything.
     overview = soup.select_one(".recipe-overview")
     assert overview is not None
     assert overview.select_one(".recipe-overview__rating").get_text(strip=True) == "★ 8.5/10"
+    assert overview.select_one(".recipe-overview__makes").get_text(strip=True) == "x4"
     assert [span.get_text(strip=True) for span in overview.select(".recipe-overview__difficulty")] == [
-        "x4",
         "3/10",
     ]
     assert overview.select_one(".recipe-overview__meals").get_text(" ", strip=True) == "Dinner"
