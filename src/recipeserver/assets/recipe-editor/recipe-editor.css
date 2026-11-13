@@ -378,6 +378,50 @@
 }
 
 /*
+ * "Paste from clipboard" button: reads images through the async Clipboard
+ * API so pasting works on mobile, where a file input cannot receive a paste.
+ * The same secondary-button look as the Auto-Generate buttons.
+ */
+.recipe-editor__paste-clipboard {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-self: start;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--food-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.recipe-editor__paste-clipboard:hover {
+  background: var(--hover-bg);
+}
+
+.recipe-editor__paste-clipboard:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-editor__paste-clipboard[hidden] {
+  display: none;
+}
+
+.recipe-editor__paste-clipboard-icon {
+  display: inline-flex;
+  width: 1rem;
+  height: 1rem;
+}
+
+.recipe-editor__paste-clipboard-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/*
  * Existing images: thumbnails of the files that sit next to the Markdown.
  * Each thumbnail is a toggle button that sets it as the hero; the main image
  * gets a food-color outline and a subtle MAIN badge in its upper-left corner.

@@ -13,6 +13,7 @@
   const MAKES_METADATA_API = "/api/metadata/makes";
   const METADATA_OPTIONS_API = "/api/metadata-options";
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
+  const CLIPBOARD_PASTE_ICON_URL = "/assets/clipboard-paste.svg";
   const EDITOR_ASSETS_BASE = "/assets/recipe-editor";
 
   // The pages that load this file also load these scripts before it (see
@@ -481,12 +482,40 @@ Try this
     return [...(list ?? [])].filter((file) => file.type.startsWith("image/"));
   }
 
+  const MIME_TYPE_EXTENSIONS = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/pjpeg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/bmp": "bmp",
+    "image/tiff": "tiff",
+    "image/svg+xml": "svg",
+    "image/avif": "avif",
+  };
+
+  function extensionForMimeType(type) {
+    const known = MIME_TYPE_EXTENSIONS[type];
+    if (known) return known;
+    const subtype = (type.split("/")[1] ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
+    return subtype || "png";
+  }
+
+  // The paste event carries files on desktop, but mobile browsers cannot
+  // paste an image through a file input (they open the native picker
+  // instead), so the dropzones offer an explicit button that reads the
+  // clipboard through the async Clipboard API.
+  function pastedFileName(type, index) {
+    return `pasted-image-${Date.now()}-${index + 1}.${extensionForMimeType(type)}`;
+  }
+
   // A picker wraps a multiple file input, its dashed dropzone, and the line
   // that lists the chosen files. Files can be chosen, dragged in, or pasted
   // from the clipboard, and they are appended so the upload order is kept.
   // `onChange` fires after every change to the input's file list (chosen,
-  // pasted, dropped, appended, or reset).
-  function createImagePicker({ input, dropzone, selected, isDisabled, onChange }) {
+  // pasted, dropped, appended, or reset). `onNotify` surfaces clipboard
+  // failures and confirmations; without it the picker stays silent.
+  function createImagePicker({ input, dropzone, selected, isDisabled, onChange, onNotify }) {
     function showSelected() {
       if (selected) {
         selected.textContent = [...input.files].map((file) => file.name).join(", ");
@@ -513,6 +542,69 @@ Try this
       append(pasted);
     }
 
+    // Reads images from the clipboard through the async Clipboard API. This
+    // is the only paste path that works on mobile, where a file input cannot
+    // receive a pasted image. Each clipboard item contributes its first
+    // image-typed payload, in clipboard order.
+    async function pasteFromClipboard() {
+      if (isDisabled()) return;
+      let items;
+      try {
+        items = await navigator.clipboard.read();
+      } catch (error) {
+        const denied = error?.name === "NotAllowedError";
+        onNotify?.(
+          denied
+            ? "Clipboard access was denied. Allow clipboard access and try again."
+            : "Could not read an image from the clipboard.",
+        );
+        return;
+      }
+      const files = [];
+      for (const item of items) {
+        const type = item.types.find((entry) => entry.startsWith("image/"));
+        if (!type) continue;
+        try {
+          const blob = await item.getType(type);
+          files.push(new File([blob], pastedFileName(type, files.length), { type }));
+        } catch {
+          // Skip an item whose type cannot be decoded; keep the others.
+        }
+      }
+      if (!files.length) {
+        onNotify?.("No image was found in the clipboard.");
+        return;
+      }
+      if (!append(files)) {
+        onNotify?.("This browser cannot stage clipboard images.");
+        return;
+      }
+      onNotify?.(
+        files.length === 1
+          ? `Added "${files[0].name}" from the clipboard.`
+          : `Added ${files.length} images from the clipboard.`,
+      );
+    }
+
+    // The button ships hidden and is revealed only when the async Clipboard
+    // API is available, so unsupported browsers see no dead control. The
+    // paste event above stays wired either way.
+    const pasteButton = dropzone?.querySelector(".recipe-editor__paste-clipboard") ?? null;
+    if (pasteButton && typeof navigator?.clipboard?.read === "function") {
+      pasteButton.hidden = false;
+      pasteButton.addEventListener("click", () => {
+        pasteFromClipboard().catch(() => {
+          onNotify?.("Could not read an image from the clipboard.");
+        });
+      });
+      const iconSlot = pasteButton.querySelector(".recipe-editor__paste-clipboard-icon");
+      if (iconSlot) {
+        RecipeIcons.loadSvgIcon(CLIPBOARD_PASTE_ICON_URL).then((svg) => {
+          iconSlot.innerHTML = svg;
+        });
+      }
+    }
+
     input.addEventListener("change", showSelected);
     input.addEventListener("paste", handlePaste);
 
@@ -534,10 +626,12 @@ Try this
       if (files.length) append(files);
     });
     // Clicking anywhere in the box opens the file picker; the native input
-    // and its label are left alone so the browser does not open it twice.
+    // and its label are left alone so the browser does not open it twice, and
+    // so is the "Paste from clipboard" button, which handles its own click.
     dropzone?.addEventListener("click", (event) => {
       if (isDisabled()) return;
       if (event.target === input || event.target.closest("label")) return;
+      if (event.target.closest(".recipe-editor__paste-clipboard")) return;
       input.click();
     });
 
@@ -1203,12 +1297,18 @@ Try this
       dropzone: refs.imageDropzone,
       isDisabled: () => refs.imageInput.disabled,
       onChange: () => refs.stagedChangeHandler?.(),
+      onNotify: (message) => {
+        refs.status.textContent = message;
+      },
     });
     refs.aiImages = createImagePicker({
       input: refs.aiImage,
       dropzone: refs.aiImageDropzone,
       selected: refs.aiImageSelected,
       isDisabled: () => refs.aiImage.disabled,
+      onNotify: (message) => {
+        refs.status.textContent = message;
+      },
     });
     return refs;
   }
