@@ -12,6 +12,19 @@
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
   const EDITOR_ASSETS_BASE = "/assets/recipe-editor";
 
+  // The pages that load this file also load these scripts before it (see
+  // index_html_generator.py and markdown_to_html.py). Destructure them once
+  // so the external dependencies are explicit.
+  const { RecipeAIProgress, RecipeMetadataPicker, RecipeIcons } = window;
+
+  // The "I made this!" celebration: a row of sparkles arcs outward from the
+  // button, staggered, then is removed together.
+  const SPARKLE_GLYPHS = ["✨", "⭐", "🎉", "💛"];
+  const SPARKLE_SPREAD_PX = 18;
+  const SPARKLE_STAGGER_MS = 60;
+  const SPARKLE_LIFETIME_MS = 1000;
+  const SPARKLE_CENTER_INDEX = (SPARKLE_GLYPHS.length - 1) / 2;
+
   const BULK_FIELD_LABELS = {
     contributor: "Contributor",
     createdOn: "Contribution Date",
@@ -424,26 +437,6 @@ Try this
     return Object.values(source).some((value) => value !== null) ? source : null;
   }
 
-  // ----- Icon loading ----- //
-
-  async function loadSvgIcon(url) {
-    // The chef-hat icon is loaded and inlined so it can inherit currentColor.
-    try {
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) return "";
-
-      const svg = new DOMParser().parseFromString(
-        await response.text(),
-        "image/svg+xml",
-      ).documentElement;
-      svg.setAttribute("aria-hidden", "true");
-      svg.setAttribute("focusable", "false");
-      return new XMLSerializer().serializeToString(svg);
-    } catch {
-      return "";
-    }
-  }
-
   // ----- Image pickers ----- //
 
   function clipboardImageFiles(event) {
@@ -583,8 +576,8 @@ Try this
   function finalizeDomRefs(refs) {
     refs.aiControls = [refs.aiText, refs.aiUrl, refs.aiTextButton, refs.aiUrlButton];
     refs.aiImageControls = [refs.aiImage, refs.aiImageButton];
-    refs.aiProgress = window.RecipeAIProgress.createProgress(refs.aiSection);
-    refs.pickers = window.RecipeMetadataPicker.createPickers(refs.dialog);
+    refs.aiProgress = RecipeAIProgress.createProgress(refs.aiSection);
+    refs.pickers = RecipeMetadataPicker.createPickers(refs.dialog);
     refs.recipeImages = createImagePicker({
       input: refs.imageInput,
       dropzone: refs.imageDropzone,
@@ -622,7 +615,9 @@ Try this
 
   // ----- UI helpers ----- //
 
-  function createUiActions(refs, state) {
+  function createUiActions(ctx) {
+    const { refs, state } = ctx;
+
     function setStatus(message) {
       refs.status.textContent = message;
     }
@@ -656,8 +651,9 @@ Try this
       if (!state.busy && refs.dialog.open) refs.dialog.close();
     }
 
-    function setBusy(value) {
-      state.busy = value;
+    // Busy rules per subsystem. The AI controls additionally require the
+    // configured model to be available, so their rule combines both.
+    function setDialogControlsBusy(value) {
       refs.saveButton.disabled = value;
       refs.cancelButton.disabled = value;
       refs.closeButton.disabled = value;
@@ -668,23 +664,38 @@ Try this
       refs.folderSelect.disabled = value;
       refs.newFolder.disabled = value;
       refs.imageInput.disabled = value;
+    }
 
+    function setMetadataBusy(value) {
       refs.form
         .querySelectorAll(".recipe-editor__metadata input, .recipe-editor__metadata select")
         .forEach((input) => {
           input.disabled = value;
         });
       refs.pickers.setDisabled(value);
+    }
+
+    function setBulkSaveButtonsBusy(value) {
       refs.bulkFieldSaves.forEach((button) => {
         button.disabled = value;
       });
+    }
 
+    function setAiControlsBusy(value) {
       refs.aiControls.forEach((control) => {
         control.disabled = value || !state.aiAvailable;
       });
       refs.aiImageControls.forEach((control) => {
         control.disabled = value || !state.aiImageAvailable;
       });
+    }
+
+    function setBusy(value) {
+      state.busy = value;
+      setDialogControlsBusy(value);
+      setMetadataBusy(value);
+      setBulkSaveButtonsBusy(value);
+      setAiControlsBusy(value);
     }
 
     return {
@@ -699,7 +710,9 @@ Try this
 
   // ----- AI helpers ----- //
 
-  function createAiActions(refs, state, ui) {
+  function createAiActions(ctx) {
+    const { refs, state, ui } = ctx;
+
     function setAiProgress(message) {
       refs.aiProgress.setStatus(message);
     }
@@ -810,9 +823,42 @@ Try this
     return { setAiProgress, setAiState, generateFromAi };
   }
 
+  // Plays the "I made this!" celebration on `element`: the element replays
+  // its CSS animation and a row of sparkles arcs inside `container`. Skipped
+  // entirely when the user prefers reduced motion.
+  function celebrate(element, container) {
+    element.classList.remove("is-celebrating");
+    // Restart the CSS animation on repeat clicks.
+    void element.offsetWidth;
+    element.classList.add("is-celebrating");
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const particles = SPARKLE_GLYPHS.map((glyph, index) => {
+      const particle = document.createElement("span");
+      particle.className = "recipe-editor__sparkle";
+      particle.textContent = glyph;
+      particle.setAttribute("aria-hidden", "true");
+      particle.style.setProperty(
+        "--sparkle-x",
+        `${(index - SPARKLE_CENTER_INDEX) * SPARKLE_SPREAD_PX}px`,
+      );
+      particle.style.setProperty("--sparkle-delay", `${index * SPARKLE_STAGGER_MS}ms`);
+      container.append(particle);
+      return particle;
+    });
+
+    window.setTimeout(() => {
+      particles.forEach((particle) => particle.remove());
+      element.classList.remove("is-celebrating");
+    }, SPARKLE_LIFETIME_MS);
+  }
+
   // ----- "Made this" helpers ----- //
 
-  function createMadeThisActions(refs, state, ui) {
+  function createMadeThisActions(ctx) {
+    const { refs, state, ui } = ctx;
+
     function updateMadeThisCount(makes) {
       refs.madeThisValue.textContent = makesCountLabel(makes);
       refs.madeThisCount.setAttribute("aria-label", `Made ${makes} times`);
@@ -836,32 +882,6 @@ Try this
       }
     }
 
-    function celebrateMadeThis() {
-      refs.madeThisButton.classList.remove("is-celebrating");
-      // Restart the CSS animation on repeat clicks.
-      void refs.madeThisButton.offsetWidth;
-      refs.madeThisButton.classList.add("is-celebrating");
-
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-      const sparkles = ["✨", "⭐", "🎉", "💛"];
-      const particles = sparkles.map((glyph, index) => {
-        const particle = document.createElement("span");
-        particle.className = "recipe-editor__sparkle";
-        particle.textContent = glyph;
-        particle.setAttribute("aria-hidden", "true");
-        particle.style.setProperty("--sparkle-x", `${(index - 1.5) * 18}px`);
-        particle.style.setProperty("--sparkle-delay", `${index * 60}ms`);
-        refs.header.append(particle);
-        return particle;
-      });
-
-      window.setTimeout(() => {
-        particles.forEach((particle) => particle.remove());
-        refs.madeThisButton.classList.remove("is-celebrating");
-      }, 1000);
-    }
-
     async function recordMadeThis() {
       if (state.busy || state.isCreating) return;
 
@@ -878,41 +898,34 @@ Try this
         savedToFile = true;
         syncMadeThisCount(makes);
         ui.setStatus(`🎉 Nice work! Your make was recorded — makes: ${makes}.`);
-        celebrateMadeThis();
+        celebrate(refs.madeThisButton, refs.header);
       } catch (error) {
-        handleMadeThisError(error, makes, savedToFile, syncMadeThisCount, celebrateMadeThis, ui);
+        handleMadeThisError(error, makes, savedToFile);
       } finally {
         ui.setBusy(false);
       }
     }
 
-    return { updateMadeThisCount, recordMadeThis };
-  }
+    function handleMadeThisError(error, makes, savedToFile) {
+      const message = error.message || "Unable to save your make.";
+      const savedButNotRefreshed = /saved, but/i.test(message);
 
-  function handleMadeThisError(
-    error,
-    makes,
-    savedToFile,
-    syncMadeThisCount,
-    celebrateMadeThis,
-    ui,
-  ) {
-    const message = error.message || "Unable to save your make.";
-    const savedButNotRefreshed = /saved, but/i.test(message);
+      if (savedButNotRefreshed && !savedToFile) {
+        // The file was written but regenerating the page failed: the make
+        // counts, even though the visible page is stale.
+        syncMadeThisCount(makes);
+        ui.setStatus(
+          `Saved your make (makes: ${makes}), but the page could not be refreshed. ` +
+            "Reload the page to see it.",
+        );
+        celebrate(refs.madeThisButton, refs.header);
+        return;
+      }
 
-    if (savedButNotRefreshed && !savedToFile) {
-      // The file was written but regenerating the page failed: the make
-      // counts, even though the visible page is stale.
-      syncMadeThisCount(makes);
-      ui.setStatus(
-        `Saved your make (makes: ${makes}), but the page could not be refreshed. ` +
-          "Reload the page to see it.",
-      );
-      celebrateMadeThis();
-      return;
+      ui.setStatus(`Couldn't record your make — ${message} Please try again.`);
     }
 
-    ui.setStatus(`Couldn't record your make — ${message} Please try again.`);
+    return { updateMadeThisCount, recordMadeThis };
   }
 
   // ----- Bulk editor helpers ----- //
@@ -983,7 +996,8 @@ Try this
     label.classList.add("recipe-editor__field-label", "is-mixed");
   }
 
-  function markMixedSourceFields(refs, state) {
+  function markMixedSourceFields(ctx) {
+    const { refs, state } = ctx;
     for (const subfield of ["author", "title", "format", "url"]) {
       const first = JSON.stringify(
         firstSource(state.bulkRecipes[0].metadata.source)[subfield] ?? null,
@@ -998,7 +1012,8 @@ Try this
     }
   }
 
-  function markMixedFields(refs, state) {
+  function markMixedFields(ctx) {
+    const { refs, state } = ctx;
     refs.mixedBadges.forEach((badge) => {
       badge.hidden = true;
     });
@@ -1006,7 +1021,7 @@ Try this
       element.classList.remove("is-mixed");
     });
     for (const field of Object.keys(BULK_FIELD_LABELS)) {
-      if (field === "source") markMixedSourceFields(refs, state);
+      if (field === "source") markMixedSourceFields(ctx);
       else if (isMixed(state.bulkRecipes, field)) showMixed(refs, field);
     }
     const ratingsDiffer =
@@ -1017,7 +1032,8 @@ Try this
     if (ratingsDiffer) showMixed(refs, "rating.name");
   }
 
-  async function saveBulkField(refs, state, ui, field) {
+  async function saveBulkField(ctx, field) {
+    const { refs, state, ui } = ctx;
     if (field === "rating") {
       const rating = readBulkRating(refs.form, ui.setStatus);
       if (!rating) return;
@@ -1037,14 +1053,15 @@ Try this
     window.location.reload();
   }
 
-  function setupBulkFieldButtons(refs, state, ui) {
+  function setupBulkFieldButtons(ctx) {
+    const { refs, state, ui } = ctx;
     refs.bulkFieldSaves.forEach((button) => {
       button.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
         if (state.busy || !state.isBulk) return;
         try {
-          await saveBulkField(refs, state, ui, button.dataset.field);
+          await saveBulkField(ctx, button.dataset.field);
         } catch (error) {
           ui.setStatus(error.message);
           ui.setBusy(false);
@@ -1053,19 +1070,41 @@ Try this
     });
   }
 
-  function createBulkActions(refs, state, ui) {
+  function createBulkActions(ctx) {
     return {
-      resetBulkFieldChrome: () => resetBulkFieldChrome(refs),
-      setBulkFieldChrome: (visible) => setBulkFieldChrome(refs, visible),
-      markMixedFields: () => markMixedFields(refs, state),
-      setupBulkFieldButtons: () => setupBulkFieldButtons(refs, state, ui),
-      readBulkRating: () => readBulkRating(refs.form, ui.setStatus),
+      resetBulkFieldChrome: () => resetBulkFieldChrome(ctx.refs),
+      setBulkFieldChrome: (visible) => setBulkFieldChrome(ctx.refs, visible),
+      markMixedFields: () => markMixedFields(ctx),
+      setupBulkFieldButtons: () => setupBulkFieldButtons(ctx),
+      readBulkRating: () => readBulkRating(ctx.refs.form, ctx.ui.setStatus),
     };
   }
 
   // ----- Session/open/save/delete flows ----- //
 
-  function resetCommonOpenState(refs, state, ui) {
+  // Shared reset for opening the dialog, used by both the single-recipe and
+  // the bulk path. Each helper sets one slice of the chrome.
+  function hideMadeThisControls(refs) {
+    refs.madeThisButton.hidden = true;
+    refs.madeThisCount.hidden = true;
+  }
+
+  function setDetailsVisibility(refs, { ratings, bulkList, files, markdown }) {
+    refs.ratingsDetails.hidden = !ratings;
+    refs.bulkList.hidden = !bulkList;
+    refs.filesDetails.hidden = !files;
+    refs.markdownDetails.hidden = !markdown;
+  }
+
+  function setActionLabels(refs, { heading, saveLabel, deleteLabel, locationVisible }) {
+    refs.heading.textContent = heading;
+    refs.saveButton.textContent = saveLabel;
+    refs.deleteButton.textContent = deleteLabel;
+    refs.location.hidden = !locationVisible;
+  }
+
+  function resetCommonOpenState(ctx) {
+    const { refs, state, ui } = ctx;
     state.activeButton = null;
     document.body.classList.add("recipe-editor-open");
     ui.lockBackgroundScroll();
@@ -1076,7 +1115,8 @@ Try this
     ui.setStatus("");
   }
 
-  function resetAiOpenState(refs, state) {
+  function resetAiOpenState(ctx) {
+    const { refs, state } = ctx;
     refs.aiSection.hidden = true;
     refs.aiDetails.hidden = true;
     refs.aiDetails.open = false;
@@ -1093,7 +1133,8 @@ Try this
   // The dropdown options come from the recipes that are already in the
   // library. They are read from the server on every open so a value that was
   // just added to another recipe shows up right away.
-  async function refreshMetadataOptions(refs) {
+  async function refreshMetadataOptions(ctx) {
+    const { refs } = ctx;
     try {
       const options = await requestMetadataOptions();
       Object.entries(options).forEach(([field, values]) => {
@@ -1104,33 +1145,32 @@ Try this
     }
   }
 
-  async function openBulkEditor(refs, state, ui, bulk, paths) {
+  async function openBulkEditor(ctx, paths) {
+    const { refs, state, ui, bulk } = ctx;
     if (state.busy || !paths?.length) return;
     state.isBulk = true;
     state.isCreating = false;
     state.bulkPaths = [...paths];
     state.markdownPath = "";
-    resetCommonOpenState(refs, state, ui);
-    refs.heading.textContent = `Bulk Edit Recipes (${state.bulkPaths.length} selected)`;
-    refs.bulkList.hidden = false;
+    resetCommonOpenState(ctx);
+    setActionLabels(refs, {
+      heading: `Bulk Edit Recipes (${state.bulkPaths.length} selected)`,
+      saveLabel: "Save All",
+      deleteLabel: `Delete ${state.bulkPaths.length} Recipes`,
+      locationVisible: false,
+    });
+    setDetailsVisibility(refs, { ratings: true, bulkList: true, files: false, markdown: false });
     refs.bulkList.textContent = state.bulkPaths.join(", ");
-    refs.filesDetails.hidden = true;
-    refs.aiDetails.hidden = true;
-    refs.markdownDetails.hidden = true;
-    refs.ratingsDetails.hidden = false;
     refs.ratingsDetails.open = true;
+    refs.aiDetails.hidden = true;
+    refs.deleteButton.hidden = false;
+    hideMadeThisControls(refs);
     bulk.resetBulkFieldChrome();
     bulk.setBulkFieldChrome(true);
-    refs.madeThisButton.hidden = true;
-    refs.madeThisCount.hidden = true;
-    refs.location.hidden = true;
-    refs.saveButton.textContent = "Save All";
-    refs.deleteButton.hidden = false;
-    refs.deleteButton.textContent = `Delete ${state.bulkPaths.length} Recipes`;
     ui.setStatus("Loading recipes…");
     ui.setBusy(true);
     try {
-      await refreshMetadataOptions(refs);
+      await refreshMetadataOptions(ctx);
       state.bulkRecipes = await requestBulkEditor(state.bulkPaths);
       populateMetadata(refs, state.bulkRecipes[0].metadata);
       refs.form.elements.namedItem("rating.name").value = "";
@@ -1144,10 +1184,10 @@ Try this
     }
   }
 
-  async function loadCreateMode(refs, ui, ai) {
+  async function loadCreateMode(ctx) {
+    const { refs, ui, ai } = ctx;
     refs.deleteButton.hidden = true;
-    refs.madeThisButton.hidden = true;
-    refs.madeThisCount.hidden = true;
+    hideMadeThisControls(refs);
     ui.setStatus("Loading folders…");
     const folders = await requestRecipeFolders();
     refs.folderSelect.replaceChildren(
@@ -1165,22 +1205,20 @@ Try this
     refs.textarea.value = NEW_RECIPE_TEMPLATE;
     try {
       const status = await requestAiStatus();
-      ai.setAiState(
-        Boolean(status.configured),
-        Boolean(status.available),
-        status.image_configured === undefined
-          ? Boolean(status.configured)
-          : Boolean(status.image_configured),
-        status.image_available === undefined
-          ? Boolean(status.available)
-          : Boolean(status.image_available),
-      );
+      const configured = Boolean(status.configured);
+      const available = Boolean(status.available);
+      const imageConfigured =
+        status.image_configured === undefined ? configured : Boolean(status.image_configured);
+      const imageAvailable =
+        status.image_available === undefined ? available : Boolean(status.image_available);
+      ai.setAiState(configured, available, imageConfigured, imageAvailable);
     } catch {
       ai.setAiState(false, false);
     }
   }
 
-  async function loadEditMode(refs, state, madeThis) {
+  async function loadEditMode(ctx) {
+    const { refs, state, madeThis } = ctx;
     state.markdownPath = getMarkdownPath();
     const result = await requestEditor(state.markdownPath);
     state.originalContent = result.content;
@@ -1193,7 +1231,8 @@ Try this
     refs.madeThisCount.hidden = false;
   }
 
-  function prepareEditorOpen(refs, state, madeThis, bulk, mode) {
+  function prepareEditorOpen(ctx, mode) {
+    const { refs, state, madeThis, bulk } = ctx;
     state.activeButton = mode === "create" ? state.createButton : state.editButton;
     state.isCreating = mode === "create";
     state.isBulk = false;
@@ -1201,32 +1240,31 @@ Try this
     state.bulkRecipes = [];
     state.markdownPath = "";
     bulk.resetBulkFieldChrome();
-    refs.ratingsDetails.hidden = true;
-    refs.bulkList.hidden = true;
-    refs.filesDetails.hidden = false;
-    refs.markdownDetails.hidden = false;
-    refs.deleteButton.textContent = "Delete";
-    refs.heading.textContent = state.isCreating ? "Create Recipe" : "Edit Recipe";
-    refs.madeThisButton.hidden = true;
-    refs.madeThisCount.hidden = true;
+    setDetailsVisibility(refs, { ratings: false, bulkList: false, files: true, markdown: true });
+    refs.markdownDetails.open = false;
+    setActionLabels(refs, {
+      heading: state.isCreating ? "Create Recipe" : "Edit Recipe",
+      saveLabel: state.isCreating ? "Create" : "Save",
+      deleteLabel: "Delete",
+      locationVisible: state.isCreating,
+    });
+    hideMadeThisControls(refs);
     madeThis.updateMadeThisCount(0);
     refs.madeThisButton.textContent = "I made this!";
-    refs.markdownDetails.open = false;
-    refs.saveButton.textContent = state.isCreating ? "Create" : "Save";
-    refs.location.hidden = !state.isCreating;
     refs.recipeImages.reset();
   }
 
-  async function openEditor(refs, state, ui, ai, madeThis, bulk, mode) {
+  async function openEditor(ctx, mode) {
+    const { refs, state, ui } = ctx;
     if (state.busy) return;
-    prepareEditorOpen(refs, state, madeThis, bulk, mode);
-    resetCommonOpenState(refs, state, ui);
-    resetAiOpenState(refs, state);
+    prepareEditorOpen(ctx, mode);
+    resetCommonOpenState(ctx);
+    resetAiOpenState(ctx);
     ui.setBusy(true);
     try {
-      await refreshMetadataOptions(refs);
-      if (state.isCreating) await loadCreateMode(refs, ui, ai);
-      else await loadEditMode(refs, state, madeThis);
+      await refreshMetadataOptions(ctx);
+      if (state.isCreating) await loadCreateMode(ctx);
+      else await loadEditMode(ctx);
       ui.setStatus("");
     } catch (error) {
       ui.setStatus(error.message);
@@ -1249,7 +1287,8 @@ Try this
     );
   }
 
-  async function submitBulkSave(refs, state, ui, bulk, metadata) {
+  async function submitBulkSave(ctx, metadata) {
+    const { refs, state, ui, bulk } = ctx;
     const ratingName = refs.form.elements.namedItem("rating.name")?.value.trim();
     const ratingScore = refs.form.elements.namedItem("rating.score")?.value.trim();
     let rating = null;
@@ -1264,8 +1303,9 @@ Try this
     return true;
   }
 
-  async function submitEditorSave(refs, state, ui, bulk, metadata, content, images) {
-    if (state.isBulk) return submitBulkSave(refs, state, ui, bulk, metadata);
+  async function submitEditorSave(ctx, metadata, content, images) {
+    const { refs, state, ui } = ctx;
+    if (state.isBulk) return submitBulkSave(ctx, metadata);
     if (state.isCreating) {
       let folder =
         refs.folderMode.value === "new" ? refs.newFolder.value.trim() : refs.folderSelect.value;
@@ -1281,7 +1321,8 @@ Try this
     return true;
   }
 
-  async function handleSubmit(refs, state, ui, bulk, event) {
+  async function handleSubmit(ctx, event) {
+    const { refs, state, ui } = ctx;
     event.preventDefault();
     if (state.busy) return;
     let metadata;
@@ -1303,7 +1344,7 @@ Try this
       state.isCreating ? "Creating recipe…" : state.isBulk ? "Saving recipes…" : "Saving recipe…",
     );
     try {
-      const completed = await submitEditorSave(refs, state, ui, bulk, metadata, content, images);
+      const completed = await submitEditorSave(ctx, metadata, content, images);
       if (!completed) return;
       ui.setStatus(state.isCreating ? "Created! Reloading…" : "Saved! Reloading…");
       window.location.reload();
@@ -1313,30 +1354,34 @@ Try this
     }
   }
 
-  async function handleDelete(refs, state, ui) {
+  // The two delete paths (bulk and single recipe) differ only in the confirm
+  // text, the endpoint, and the redirect message.
+  function deletePlan(state) {
+    return state.isBulk
+      ? {
+          question: `Delete ${state.bulkPaths.length} selected recipes? This cannot be undone.`,
+          pendingStatus: "Deleting recipes…",
+          doneStatus: "Recipes deleted! Redirecting to the index…",
+          execute: () => requestBulkDelete(state.bulkPaths),
+        }
+      : {
+          question: "Are you sure you want to delete this recipe? This action cannot be undone.",
+          pendingStatus: "Deleting recipe…",
+          doneStatus: "Recipe deleted! Redirecting to the index…",
+          execute: () => deleteRecipe(state.markdownPath),
+        };
+  }
+
+  async function handleDelete(ctx) {
+    const { state, ui } = ctx;
     if (state.busy) return;
-    if (state.isBulk) {
-      if (!confirm(`Delete ${state.bulkPaths.length} selected recipes? This cannot be undone.`))
-        return;
-      try {
-        ui.setBusy(true);
-        ui.setStatus("Deleting recipes…");
-        await requestBulkDelete(state.bulkPaths);
-        ui.setStatus("Recipes deleted! Redirecting to the index…");
-        window.location.href = "/index.html";
-      } catch (error) {
-        ui.setStatus(error.message);
-        ui.setBusy(false);
-      }
-      return;
-    }
-    if (!confirm("Are you sure you want to delete this recipe? This action cannot be undone."))
-      return;
+    const plan = deletePlan(state);
+    if (!confirm(plan.question)) return;
     try {
       ui.setBusy(true);
-      ui.setStatus("Deleting recipe…");
-      await deleteRecipe(state.markdownPath);
-      ui.setStatus("Recipe deleted! Redirecting to the index…");
+      ui.setStatus(plan.pendingStatus);
+      await plan.execute();
+      ui.setStatus(plan.doneStatus);
       window.location.href = "/index.html";
     } catch (error) {
       ui.setStatus(error.message);
@@ -1344,18 +1389,19 @@ Try this
     }
   }
 
-  function createSessionActions(refs, state, ui, ai, madeThis, bulk) {
+  function createSessionActions(ctx) {
     return {
-      openBulkEditor: (paths) => openBulkEditor(refs, state, ui, bulk, paths),
-      openEditor: (mode) => openEditor(refs, state, ui, ai, madeThis, bulk, mode),
-      handleSubmit: (event) => handleSubmit(refs, state, ui, bulk, event),
-      handleDelete: () => handleDelete(refs, state, ui),
+      openBulkEditor: (paths) => openBulkEditor(ctx, paths),
+      openEditor: (mode) => openEditor(ctx, mode),
+      handleSubmit: (event) => handleSubmit(ctx, event),
+      handleDelete: () => handleDelete(ctx),
     };
   }
 
   // ----- Event registration ----- //
 
-  function registerDialogDismissListeners(refs, ui, state) {
+  function registerDialogDismissListeners(ctx) {
+    const { refs, state, ui } = ctx;
     let pointerDownTarget = null;
 
     refs.dialog.addEventListener("close", () => {
@@ -1379,7 +1425,8 @@ Try this
     });
   }
 
-  function registerControlListeners(refs, state, ui, ai, madeThis, session) {
+  function registerControlListeners(ctx) {
+    const { refs, state, ui, ai, madeThis, session } = ctx;
     const { madeThisButton, markdownDetails, textarea } = refs;
     const { recordMadeThis } = madeThis;
 
@@ -1416,9 +1463,9 @@ Try this
     refs.deleteButton.addEventListener("click", session.handleDelete);
   }
 
-  function registerListeners(refs, state, ui, ai, madeThis, session) {
-    registerDialogDismissListeners(refs, ui, state);
-    registerControlListeners(refs, state, ui, ai, madeThis, session);
+  function registerListeners(ctx) {
+    registerDialogDismissListeners(ctx);
+    registerControlListeners(ctx);
   }
 
   function initPageMadeThis() {
@@ -1428,31 +1475,6 @@ Try this
     let busy = false;
     const markdownPath = getMarkdownPath();
     const valueElement = button.querySelector(".recipe-overview__value");
-
-    function celebrate() {
-      button.classList.remove("is-celebrating");
-      void button.offsetWidth;
-      button.classList.add("is-celebrating");
-
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-
-      const sparkles = ["✨", "⭐", "🎉", "💛"];
-      const particles = sparkles.map((glyph, index) => {
-        const particle = document.createElement("span");
-        particle.className = "recipe-editor__sparkle";
-        particle.textContent = glyph;
-        particle.setAttribute("aria-hidden", "true");
-        particle.style.setProperty("--sparkle-x", `${(index - 1.5) * 18}px`);
-        particle.style.setProperty("--sparkle-delay", `${index * 60}ms`);
-        button.append(particle);
-        return particle;
-      });
-
-      window.setTimeout(() => {
-        particles.forEach((particle) => particle.remove());
-        button.classList.remove("is-celebrating");
-      }, 1000);
-    }
 
     button.addEventListener("click", async () => {
       if (busy) return;
@@ -1465,7 +1487,7 @@ Try this
         await saveMakes(markdownPath, makes);
         button.dataset.makes = String(makes);
         if (valueElement) valueElement.textContent = makesCountLabel(makes);
-        celebrate();
+        celebrate(button, button);
       } catch (error) {
         // Keep the page responsive even if the save fails.
         console.error(error);
@@ -1486,25 +1508,32 @@ Try this
     if (!editButton && !createButton) return;
 
     const dialog = await createEditor();
-    const refs = finalizeDomRefs(collectDomRefs(dialog));
-    const state = createState(editButton, createButton);
 
-    if (refs.makesIcon) {
-      refs.makesIcon.innerHTML = await loadSvgIcon(CHEF_HAT_ICON_URL);
+    // The collaborators are bundled into a single context object that is
+    // threaded through the flows below, instead of passing each of them
+    // positionally.
+    const ctx = {
+      refs: finalizeDomRefs(collectDomRefs(dialog)),
+      state: createState(editButton, createButton),
+    };
+
+    if (ctx.refs.makesIcon) {
+      // The chef-hat icon is inlined so it can inherit currentColor.
+      ctx.refs.makesIcon.innerHTML = await RecipeIcons.loadSvgIcon(CHEF_HAT_ICON_URL);
     }
 
-    const ui = createUiActions(refs, state);
-    const ai = createAiActions(refs, state, ui);
-    const madeThis = createMadeThisActions(refs, state, ui);
-    const bulk = createBulkActions(refs, state, ui);
-    const session = createSessionActions(refs, state, ui, ai, madeThis, bulk);
+    ctx.ui = createUiActions(ctx);
+    ctx.ai = createAiActions(ctx);
+    ctx.madeThis = createMadeThisActions(ctx);
+    ctx.bulk = createBulkActions(ctx);
+    ctx.session = createSessionActions(ctx);
 
-    bulk.setupBulkFieldButtons();
-    bulk.resetBulkFieldChrome();
+    ctx.bulk.setupBulkFieldButtons();
+    ctx.bulk.resetBulkFieldChrome();
     document.addEventListener("bulk-edit", (event) => {
-      session.openBulkEditor(event.detail?.paths);
+      ctx.session.openBulkEditor(event.detail?.paths);
     });
-    registerListeners(refs, state, ui, ai, madeThis, session);
+    registerListeners(ctx);
   }
 
   if (document.readyState === "loading") {

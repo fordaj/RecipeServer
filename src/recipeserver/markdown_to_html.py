@@ -93,6 +93,7 @@ PULL_DOWN_PAGE_REFRESH_CSS = "/assets/pull-down-page-refresh.css"
 RATINGS_JS = "/assets/ratings.js"
 RECIPE_FEEDBACK_JS = "/assets/recipe-feedback.js"
 TIME_JS = "/assets/time.js"
+ICONS_JS = "/assets/icons.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 
@@ -922,6 +923,7 @@ class MarkdownToHTMLConverter:
                 {comments_html}
             </main>
             <script defer src="{TIME_JS}"></script>
+            <script defer src="{ICONS_JS}"></script>
             <script defer src="{RECIPE_JS}"></script>
             <script defer src="{RECIPE_SCALER_JS}"></script>
             <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
