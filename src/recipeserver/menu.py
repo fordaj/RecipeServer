@@ -11,10 +11,11 @@ relative`` page header, for the top-left anchoring in ``menu.css``).
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+
+from ._version import versioned_asset_url
 
 FILE_PATH = Path(__file__)
 ASSETS_DIR = FILE_PATH.parent / "assets"
@@ -27,16 +28,8 @@ SETTINGS_SVG = ASSETS_DIR / "settings.svg"
 FILE_DATABASE_SVG = ASSETS_DIR / "file-database.svg"
 FILE_CODE_CORNER_SVG = ASSETS_DIR / "file-code-corner.svg"
 
-
-def _versioned_asset_url(url: str) -> str:
-    """Append a content hash so browsers pick up changed assets."""
-    asset_path = FILE_PATH.parent / "assets" / Path(url).name
-    digest = hashlib.sha1(asset_path.read_bytes()).hexdigest()[:10]
-    return f"{url}?v={digest}"
-
-
-MENU_CSS_URL = _versioned_asset_url(MENU_CSS_PATH)
-MENU_JS_URL = _versioned_asset_url(MENU_JS_PATH)
+MENU_CSS_URL = versioned_asset_url(MENU_CSS_PATH)
+MENU_JS_URL = versioned_asset_url(MENU_JS_PATH)
 
 
 def _menu_icon_html(icon_path: Path, class_name: str) -> str:
