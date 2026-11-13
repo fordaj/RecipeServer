@@ -7,6 +7,9 @@
   const RECIPE_FOLDERS_API = "/api/recipe-folders";
   const AI_STATUS_API = "/api/ai-status";
   const AI_RECIPE_API = "/api/ai-recipe";
+  const RECIPE_IMAGES_RENAME_API = "/api/recipe-images/rename";
+  const RECIPE_IMAGES_UPLOAD_API = "/api/recipe-images/upload";
+  const RECIPE_IMAGES_DELETE_API = "/api/recipe-images/delete";
   const MAKES_METADATA_API = "/api/metadata/makes";
   const METADATA_OPTIONS_API = "/api/metadata-options";
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
@@ -194,6 +197,32 @@ Try this
     const url = new URL(RECIPE_API, window.location.origin);
     url.searchParams.set("path", path);
     return fetchJson(url, { method: "DELETE", cache: "no-store" });
+  }
+
+  async function requestImageRename(path, from, to) {
+    return fetchJson(new URL(RECIPE_IMAGES_RENAME_API, window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, from, to }),
+    });
+  }
+
+  async function requestImageDelete(path, name) {
+    return fetchJson(new URL(RECIPE_IMAGES_DELETE_API, window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, name }),
+    });
+  }
+
+  async function requestImageUpload(path, file) {
+    const requestBody = createRequestBody({ path }, [file]);
+    return fetchJson(new URL(RECIPE_IMAGES_UPLOAD_API, window.location.origin), {
+      method: "POST",
+      cache: "no-store",
+      headers: requestBody.headers ?? {},
+      body: requestBody.body,
+    });
   }
 
   async function getMakes(path) {
@@ -455,10 +484,14 @@ Try this
   // A picker wraps a multiple file input, its dashed dropzone, and the line
   // that lists the chosen files. Files can be chosen, dragged in, or pasted
   // from the clipboard, and they are appended so the upload order is kept.
-  function createImagePicker({ input, dropzone, selected, isDisabled }) {
+  // `onChange` fires after every change to the input's file list (chosen,
+  // pasted, dropped, appended, or reset).
+  function createImagePicker({ input, dropzone, selected, isDisabled, onChange }) {
     function showSelected() {
-      if (!selected) return;
-      selected.textContent = [...input.files].map((file) => file.name).join(", ");
+      if (selected) {
+        selected.textContent = [...input.files].map((file) => file.name).join(", ");
+      }
+      onChange?.();
     }
 
     function append(files) {
@@ -517,6 +550,590 @@ Try this
     return { append, handlePaste, reset, showSelected };
   }
 
+  // ----- Existing images and main image ----- //
+  //
+  // The Files section lists the images that sit next to the recipe Markdown
+  // (edit mode only) and offers two controls on top of them:
+  //
+  // - A "Main image" dropdown that reports the first image link in the
+  //   Markdown — the image the recipe page renders as its hero. Picking a
+  //   different option rewrites that first link; "None" removes it.
+  // - An inline rename field per image. Renaming renames the file on the
+  //   server and updates every reference to it (including the hero), so a
+  //   pasted image with a generated name can get a sensible one.
+  //
+  // Both controls edit the Markdown \textarea contents; they never touch the
+  // file on disk by themselves (except rename, which the server applies
+  // immediately because it changes the directory listing).
+
+  const MARKDOWN_IMAGE_PATTERN = /(!\[[^\]]*\]\()(\s*)(<[^>\n]*>|[^)\s>]+)((?:\s+"[^"]*")?\s*\))/g;
+  const HTML_IMAGE_PATTERN = /(<img\b[^>]*?\bsrc\s*=\s*["'])([^"']+)(["'])/gi;
+  const CLIENT_IMAGE_EXTENSIONS = new Set([
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".tiff",
+    ".tif",
+    ".svg",
+    ".avif",
+  ]);
+
+  function safeDecode(text) {
+    try {
+      return decodeURIComponent(text);
+    } catch {
+      return text;
+    }
+  }
+
+  function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function stemOf(name) {
+    return name.replace(/\.[^.]+$/, "");
+  }
+
+  function basenameOf(src) {
+    const clean = String(src)
+      .split(/[?#]/)[0]
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">");
+    const segments = clean.split("/").filter(Boolean);
+    return segments.length ? safeDecode(segments[segments.length - 1]) : "";
+  }
+
+  // Root-absolute paths point at the site copy of an image; anything with a
+  // scheme (http:, data:, ...) is an external reference, not a local file.
+  function isExternalSrc(src) {
+    return /^[a-z][a-z0-9+.-]*:/i.test(src);
+  }
+
+  // Strips the angle brackets from a Markdown src token, if present.
+  function parseMarkdownSrc(raw) {
+    if (raw.startsWith("<") && raw.endsWith(">")) return raw.slice(1, -1);
+    return raw;
+  }
+
+  // Locates the first image in the document, whether it is written as a
+  // Markdown image or an HTML <img> tag. The returned span covers the whole
+  // image (for removal) and the src within it (for rewriting).
+  function findFirstImageReference(content) {
+    let best = null;
+    const consider = (spanStart, spanEnd, srcStart, srcEnd, src, kind) => {
+      if (best && spanStart >= best.spanStart) return;
+      best = { spanStart, spanEnd, srcStart, srcEnd, src, kind };
+    };
+
+    MARKDOWN_IMAGE_PATTERN.lastIndex = 0;
+    let match;
+    while ((match = MARKDOWN_IMAGE_PATTERN.exec(content))) {
+      const srcStart = match.index + match[1].length + match[2].length;
+      consider(
+        match.index,
+        match.index + match[0].length,
+        srcStart,
+        srcStart + match[3].length,
+        parseMarkdownSrc(match[3]),
+        "markdown",
+      );
+    }
+
+    HTML_IMAGE_PATTERN.lastIndex = 0;
+    while ((match = HTML_IMAGE_PATTERN.exec(content))) {
+      const srcStart = match.index + match[1].length;
+      consider(
+        match.index,
+        match.index + match[0].length,
+        srcStart,
+        srcStart + match[2].length,
+        match[2],
+        "html",
+      );
+    }
+
+    return best;
+  }
+
+  function needsAngleBrackets(name) {
+    return /[\s<>()]/.test(name);
+  }
+
+  function markdownSrcFor(name) {
+    return needsAngleBrackets(name) ? `<${name}>` : name;
+  }
+
+  function htmlSrcFor(name) {
+    return name.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  }
+
+  function replacementForSrc(name, kind) {
+    return kind === "html" ? htmlSrcFor(name) : markdownSrcFor(name);
+  }
+
+  // Replaces every reference to `source` that is not glued to more filename
+  // characters. Mirrors the server-side rewrite used by the rename endpoint.
+  function renameOccurrences(content, source, target) {
+    const pattern = new RegExp(`(^|[^A-Za-z0-9_.-])${escapeRegExp(source)}(?![A-Za-z0-9_.-])`, "g");
+    let updated = content.replace(pattern, (_match, prefix) => prefix + target);
+    const quoted = encodeURIComponent(source);
+    if (quoted !== source) {
+      const quotedPattern = new RegExp(
+        `(^|[^A-Za-z0-9_.-])${escapeRegExp(quoted)}(?![A-Za-z0-9_.-])`,
+        "g",
+      );
+      updated = updated.replace(
+        quotedPattern,
+        (_match, prefix) => prefix + encodeURIComponent(target),
+      );
+    }
+    return updated;
+  }
+
+  // Removes the image's whole span; when the image sits alone on its line the
+  // line goes with it so no blank scaffolding is left behind.
+  function removeImageSpan(content, first) {
+    const lineStart = content.lastIndexOf("\n", first.spanStart - 1) + 1;
+    const lineEndIndex = content.indexOf("\n", first.spanEnd);
+    const lineEnd = lineEndIndex === -1 ? content.length : lineEndIndex;
+    const before = content.slice(lineStart, first.spanStart);
+    const after = content.slice(first.spanEnd, lineEnd);
+    if (/^\s*$/.test(before + after)) {
+      const removeEnd =
+        lineEnd < content.length && content[lineEnd] === "\n" ? lineEnd + 1 : lineEnd;
+      return content.slice(0, lineStart) + content.slice(removeEnd);
+    }
+    return content.slice(0, first.spanStart) + content.slice(first.spanEnd);
+  }
+
+  function insertImageIntoMarkdown(content, name) {
+    const image = `![${stemOf(name)}](${markdownSrcFor(name)})`;
+    const heading = /^#[^\n]*$/m.exec(content);
+    if (heading) {
+      const insertAt = heading.index + heading[0].length;
+      return `${content.slice(0, insertAt)}\n\n${image}${content.slice(insertAt)}`;
+    }
+    return `${image}\n\n${content}`;
+  }
+
+  // Computes which image (if any) is currently the main image: the first
+  // image link in the Markdown, as long as it points at a staged or
+  // existing image. Returns the image's filename, or "".
+  function currentMainImageName(refs, state, content) {
+    const first = findFirstImageReference(content);
+    if (!first || isExternalSrc(first.src)) return "";
+    const basename = basenameOf(first.src);
+    const known =
+      state.existingImages.some((image) => image.name === basename) ||
+      [...(refs.imageInput.files ?? [])].some((file) => file.name === basename);
+    return known ? basename : "";
+  }
+
+  // Points the first image link at `name` (inserting one after the first
+  // heading when the Markdown has none). When `remove` is true the first
+  // image link is deleted instead. Returns the textarea's new content.
+  function writeMainImage(content, first, name, remove) {
+    if (remove) {
+      return first ? removeImageSpan(content, first) : content;
+    }
+    if (!first) {
+      return insertImageIntoMarkdown(content, name);
+    }
+    const replacement = replacementForSrc(name, first.kind);
+    return content.slice(0, first.srcStart) + replacement + content.slice(first.srcEnd);
+  }
+
+  // Clicking a thumbnail toggles that image as the main image: the first
+  // image link in the Markdown is rewritten to point at it (or inserted when
+  // there is none). Clicking the current main image removes the link, which
+  // is how the hero is cleared.
+  function setMainImage(ctx, name) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    const content = refs.textarea.value;
+    const first = findFirstImageReference(content);
+    const isMain = currentMainImageName(refs, state, content) === name;
+
+    refs.textarea.value = writeMainImage(content, first, name, isMain);
+    updateMainImageUi(ctx);
+    ui.setStatus(isMain ? `Removed the main image (${name}).` : `"${name}" is now the main image.`);
+  }
+
+  // After a delete, check that the main image is still available. If the
+  // deleted file was the main image, fall back to the first image in the
+  // folder (the list is alphabetical); when no images remain, remove the
+  // dangling first image link. Mutates the Markdown buffer; the disk file is
+  // updated by the server-side half of this check.
+  function applyMainImageFallback(ctx, deletedName, remainingImages) {
+    const { refs, state } = ctx;
+    const content = refs.textarea.value;
+    const first = findFirstImageReference(content);
+    if (!first || isExternalSrc(first.src) || basenameOf(first.src) !== deletedName) return null;
+    if (remainingImages.length) {
+      const target = remainingImages[0].name;
+      refs.textarea.value = writeMainImage(content, first, target, false);
+      return { replaced: target };
+    }
+    refs.textarea.value = writeMainImage(content, first, deletedName, true);
+    return { removed: true };
+  }
+
+  function updateMainImageUi(ctx) {
+    const { refs, state } = ctx;
+    const selected = currentMainImageName(refs, state, refs.textarea.value);
+    const toggles = [
+      ...refs.imageList.querySelectorAll(".recipe-editor__image-main"),
+      ...refs.stagedList.querySelectorAll(".recipe-editor__image-main"),
+    ];
+    toggles.forEach((button) => {
+      const isMain = button.dataset.name === selected;
+      button.classList.toggle("is-main", isMain);
+      button.setAttribute("aria-pressed", String(isMain));
+      button.title = isMain ? "Remove as main image" : "Set as main image";
+    });
+  }
+
+  function isRenameCandidate(value) {
+    const name = value.trim();
+    if (!name || /[\\/<>:"|?*]/.test(name)) return false;
+    const dot = name.lastIndexOf(".");
+    if (dot <= 0) return false;
+    return CLIENT_IMAGE_EXTENSIONS.has(name.slice(dot).toLowerCase());
+  }
+
+  function refreshExistingImageControls(ctx) {
+    const { refs, state } = ctx;
+    refs.imageList.querySelectorAll(".recipe-editor__image-main").forEach((button) => {
+      button.disabled = state.busy;
+    });
+    refs.imageList.querySelectorAll(".recipe-editor__image-item").forEach((item) => {
+      const input = item.querySelector(".recipe-editor__image-name");
+      const button = item.querySelector(".recipe-editor__image-rename");
+      input.disabled = state.busy;
+      button.disabled =
+        state.busy ||
+        input.value.trim() === input.dataset.original ||
+        !isRenameCandidate(input.value);
+    });
+    refs.imageList.querySelectorAll(".recipe-editor__image-remove").forEach((button) => {
+      button.disabled = state.busy;
+    });
+    refs.stagedList.querySelectorAll("button").forEach((button) => {
+      button.disabled = state.busy;
+    });
+  }
+
+  // Shared toggle button for the main image: a thumbnail with a subtle MAIN
+  // badge in its upper-left corner; toggling it rewrites the hero link in the
+  // Markdown (see setMainImage).
+  function createMainToggle(ctx, name, thumbSrc) {
+    const mainButton = document.createElement("button");
+    mainButton.type = "button";
+    mainButton.className = "recipe-editor__image-main";
+    mainButton.dataset.name = name;
+    mainButton.setAttribute("aria-label", `Set ${name} as the main image`);
+    mainButton.setAttribute("aria-pressed", "false");
+    mainButton.title = "Set as main image";
+
+    const thumb = document.createElement("img");
+    thumb.className = "recipe-editor__image-thumb";
+    thumb.src = thumbSrc;
+    thumb.alt = "";
+    thumb.loading = "lazy";
+
+    const badge = document.createElement("span");
+    badge.className = "recipe-editor__main-badge";
+    badge.textContent = "MAIN";
+    badge.setAttribute("aria-hidden", "true");
+
+    mainButton.append(thumb, badge);
+    mainButton.addEventListener("click", () => setMainImage(ctx, name));
+    return mainButton;
+  }
+
+  // Rename field: the text input with a small Rename button attached inside
+  // the right edge of the field. `onSubmit` receives the trimmed new name; it
+  // is wired to the server rename for existing images and to a client-side
+  // rename of the staged File for new ones.
+  function createRenameControls(ctx, name, onSubmit) {
+    const { state } = ctx;
+
+    const field = document.createElement("span");
+    field.className = "recipe-editor__rename-field";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "recipe-editor__image-name";
+    input.value = name;
+    input.spellcheck = false;
+    input.dataset.original = name;
+    input.setAttribute("aria-label", `Rename ${name}`);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "recipe-editor__image-rename";
+    button.textContent = "Rename";
+    button.disabled = true;
+
+    const syncButton = () => {
+      button.disabled =
+        state.busy || input.value.trim() === name || !isRenameCandidate(input.value);
+    };
+    const submit = () => {
+      if (button.disabled) return;
+      onSubmit(input.value.trim(), input, button);
+    };
+    input.addEventListener("input", syncButton);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        // Rename, and keep the dialog's implicit submission (the form is
+        // method="dialog") from closing or saving the recipe.
+        event.preventDefault();
+        event.stopPropagation();
+        submit();
+      }
+    });
+    button.addEventListener("click", submit);
+    field.append(input, button);
+    return field;
+  }
+
+  function createImageRow(ctx, image) {
+    const mainButton = createMainToggle(ctx, image.name, image.url);
+    const field = createRenameControls(ctx, image.name, (newName, inputEl, buttonEl) =>
+      renameExistingImage(ctx, image.name, inputEl, buttonEl),
+    );
+
+    const item = document.createElement("li");
+    item.className = "recipe-editor__image-item";
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "recipe-editor__image-remove";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Delete ${image.name}`);
+    remove.addEventListener("click", () => deleteExistingImage(ctx, image.name, remove));
+
+    item.append(mainButton, field, remove);
+    return item;
+  }
+
+  function createEmptyImageRow(message) {
+    const item = document.createElement("li");
+    item.className = "recipe-editor__image-empty";
+    item.textContent = message;
+    return item;
+  }
+
+  function renderExistingImages(ctx) {
+    const { refs, state } = ctx;
+    const images = Array.isArray(state.existingImages) ? state.existingImages : [];
+    refs.imageList.replaceChildren(
+      ...(images.length
+        ? images.map((image) => createImageRow(ctx, image))
+        : [createEmptyImageRow("No images in this folder yet.")]),
+    );
+    updateMainImageUi(ctx);
+    refreshExistingImageControls(ctx);
+  }
+
+  function resetExistingImages(ctx) {
+    const { refs, state } = ctx;
+    state.existingImages = [];
+    revokeStagedUrls(state);
+    refs.existingImagesBlock.hidden = true;
+    refs.imageList.replaceChildren();
+    refs.stagedList.hidden = true;
+    refs.stagedList.replaceChildren();
+  }
+
+  function revokeStagedUrls(state) {
+    for (const url of state.stagedUrls) URL.revokeObjectURL(url);
+    state.stagedUrls = [];
+  }
+
+  function setInputFiles(input, files) {
+    if (typeof DataTransfer === "undefined") return false;
+    const transfer = new DataTransfer();
+    files.forEach((file) => transfer.items.add(file));
+    input.files = transfer.files;
+    return true;
+  }
+
+  function replaceStagedFile(input, target, replacement) {
+    return setInputFiles(
+      input,
+      [...input.files].map((file) => (file === target ? replacement : file)),
+    );
+  }
+
+  function removeStagedFile(input, fileToRemove) {
+    return setInputFiles(
+      input,
+      [...input.files].filter((file) => file !== fileToRemove),
+    );
+  }
+
+  // Renames a staged (not yet uploaded) File in place and fixes Markdown
+  // references to the old name, mirroring the server-side rename for
+  // images that are already in the folder.
+  function renameStagedImage(ctx, file, newName) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    if (!isRenameCandidate(newName)) {
+      ui.setStatus(
+        "Enter a file name with an image extension (jpg, png, svg, ...) and no path characters.",
+      );
+      return;
+    }
+    const renamed = new File([file], newName, { type: file.type, lastModified: file.lastModified });
+    if (!replaceStagedFile(refs.imageInput, file, renamed)) {
+      ui.setStatus("Renaming staged images is not supported in this browser.");
+      return;
+    }
+    refs.textarea.value = renameOccurrences(refs.textarea.value, file.name, newName);
+    renderStagedImages(ctx);
+    ui.setStatus(`Renamed "${file.name}" to "${newName}".`);
+  }
+
+  function createStagedRow(ctx, file) {
+    const { state } = ctx;
+    const item = document.createElement("li");
+    item.className = "recipe-editor__image-item recipe-editor__staged-item";
+
+    const url = URL.createObjectURL(file);
+    state.stagedUrls.push(url);
+    const mainButton = createMainToggle(ctx, file.name, url);
+
+    const field = createRenameControls(ctx, file.name, (newName) =>
+      renameStagedImage(ctx, file, newName),
+    );
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "recipe-editor__image-remove";
+    remove.textContent = "×";
+    remove.setAttribute("aria-label", `Discard staged image ${file.name}`);
+    remove.addEventListener("click", () => removeStagedImage(ctx, file));
+
+    const row = [mainButton, field];
+    if (!state.isCreating) {
+      const upload = document.createElement("button");
+      upload.type = "button";
+      upload.className = "recipe-editor__image-upload";
+      upload.textContent = "Upload";
+      upload.setAttribute("aria-label", `Upload ${file.name} to the folder`);
+      upload.addEventListener("click", () => uploadStagedImage(ctx, file));
+      row.push(upload);
+    }
+    row.push(remove);
+
+    item.append(...row);
+    return item;
+  }
+
+  // Re-renders the staged list from the input's file list. In Create mode
+  // staged images are saved with the recipe; in Edit Recipe they can also be
+  // uploaded one at a time with the Upload button.
+  function renderStagedImages(ctx) {
+    const { refs, state } = ctx;
+    const files = [...(refs.imageInput.files ?? [])];
+    revokeStagedUrls(state);
+    refs.stagedList.hidden = files.length === 0;
+    refs.stagedList.replaceChildren(...files.map((file) => createStagedRow(ctx, file)));
+    updateMainImageUi(ctx);
+    refreshExistingImageControls(ctx);
+  }
+
+  function removeStagedImage(ctx, file) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    removeStagedFile(refs.imageInput, file);
+    renderStagedImages(ctx);
+    ui.setStatus(`Discarded staged image "${file.name}".`);
+  }
+
+  async function uploadStagedImage(ctx, file) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    ui.setBusy(true);
+    ui.setStatus(`Uploading "${file.name}"...`);
+    try {
+      const result = await requestImageUpload(state.markdownPath, file);
+      removeStagedFile(refs.imageInput, file);
+      state.existingImages = Array.isArray(result.images) ? result.images : state.existingImages;
+      renderStagedImages(ctx);
+      renderExistingImages(ctx);
+      ui.setStatus(`Saved "${file.name}" to the folder.`);
+    } catch (error) {
+      ui.setStatus(error.message);
+    } finally {
+      ui.setBusy(false);
+    }
+  }
+
+  async function deleteExistingImage(ctx, imageName, button) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    if (!confirm(`Delete "${imageName}" from the folder? This cannot be undone.`)) return;
+    ui.setBusy(true);
+    ui.setStatus(`Deleting "${imageName}"...`);
+    try {
+      const result = await requestImageDelete(state.markdownPath, imageName);
+      const remaining = Array.isArray(result.images) ? result.images : [];
+      state.existingImages = remaining;
+      // The server has already fallen back the on-disk Markdown; do the same
+      // to the buffer so the user sees the change.
+      const fallback = applyMainImageFallback(ctx, imageName, remaining);
+      renderExistingImages(ctx);
+      let message = `Deleted "${imageName}".`;
+      if (fallback?.replaced) {
+        message += ` Main image is now "${fallback.replaced}".`;
+      } else if (fallback?.removed) {
+        message += " The main image was removed because no images remain.";
+      } else if (result.referenced) {
+        message += ` The Markdown still references "${imageName}" — edit the page to fix.`;
+      }
+      ui.setStatus(message);
+    } catch (error) {
+      ui.setStatus(error.message);
+      button.disabled = false;
+    } finally {
+      ui.setBusy(false);
+    }
+  }
+
+  async function renameExistingImage(ctx, oldName, input, button) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    const newName = input.value.trim();
+    if (newName === oldName) return;
+    if (!isRenameCandidate(newName)) {
+      ui.setStatus(
+        "Enter a file name with an image extension (jpg, png, svg, ...) and no path characters.",
+      );
+      return;
+    }
+    ui.setBusy(true);
+    ui.setStatus(`Renaming "${oldName}"...`);
+    try {
+      const result = await requestImageRename(state.markdownPath, oldName, newName);
+      refs.textarea.value = renameOccurrences(refs.textarea.value, oldName, newName);
+      state.existingImages = Array.isArray(result.images) ? result.images : [];
+      renderExistingImages(ctx);
+      ui.setStatus(`Renamed "${oldName}" to "${newName}".`);
+    } catch (error) {
+      ui.setStatus(error.message);
+      button.disabled = false;
+    } finally {
+      ui.setBusy(false);
+    }
+  }
+
   // ----- Initialize: DOM refs and state ----- //
 
   function collectDomRefs(dialog) {
@@ -544,9 +1161,11 @@ Try this
       newFolder: dialog.querySelector(".recipe-editor__new-folder"),
       imageInput: dialog.querySelector("#recipe-editor-images"),
       imageDropzone: dialog.querySelector(".recipe-editor__recipe-images"),
-      selectedImages: dialog.querySelector(
-        ".recipe-editor__recipe-images .recipe-editor__images-selected",
-      ),
+      stagedList: dialog.querySelector(".recipe-editor__staged-images"),
+      imagesHelpEdit: dialog.querySelector(".recipe-editor__images-help--edit"),
+      imagesHelpCreate: dialog.querySelector(".recipe-editor__images-help--create"),
+      existingImagesBlock: dialog.querySelector(".recipe-editor__existing-images"),
+      imageList: dialog.querySelector(".recipe-editor__image-list"),
       aiSection: dialog.querySelector(".recipe-editor__ai"),
       aiDetails: dialog.querySelector(".recipe-editor__ai-details"),
       aiStatus: dialog.querySelector(".recipe-editor__ai-status"),
@@ -573,16 +1192,17 @@ Try this
     };
   }
 
-  function finalizeDomRefs(refs) {
+  function finalizeDomRefs(refs, state) {
     refs.aiControls = [refs.aiText, refs.aiUrl, refs.aiTextButton, refs.aiUrlButton];
     refs.aiImageControls = [refs.aiImage, refs.aiImageButton];
     refs.aiProgress = RecipeAIProgress.createProgress(refs.aiSection);
     refs.pickers = RecipeMetadataPicker.createPickers(refs.dialog);
+    refs.stagedChangeHandler = null;
     refs.recipeImages = createImagePicker({
       input: refs.imageInput,
       dropzone: refs.imageDropzone,
-      selected: refs.selectedImages,
       isDisabled: () => refs.imageInput.disabled,
+      onChange: () => refs.stagedChangeHandler?.(),
     });
     refs.aiImages = createImagePicker({
       input: refs.aiImage,
@@ -607,6 +1227,8 @@ Try this
       isBulk: false,
       bulkPaths: [],
       bulkRecipes: [],
+      existingImages: [],
+      stagedUrls: [],
       aiAvailable: false,
       aiImageAvailable: false,
       aiAbortController: null,
@@ -696,6 +1318,7 @@ Try this
       setMetadataBusy(value);
       setBulkSaveButtonsBusy(value);
       setAiControlsBusy(value);
+      refreshExistingImageControls(ctx);
     }
 
     return {
@@ -1160,6 +1783,7 @@ Try this
       locationVisible: false,
     });
     setDetailsVisibility(refs, { ratings: true, bulkList: true, files: false, markdown: false });
+    refs.existingImagesBlock.hidden = true;
     refs.bulkList.textContent = state.bulkPaths.join(", ");
     refs.ratingsDetails.open = true;
     refs.aiDetails.hidden = true;
@@ -1226,6 +1850,9 @@ Try this
     populateMetadata(refs, result.metadata);
     state.originalMetadata = JSON.stringify(readMetadata(refs));
     madeThis.updateMadeThisCount(normalizeMakes(result.metadata.makes));
+    state.existingImages = Array.isArray(result.images) ? result.images : [];
+    renderExistingImages(ctx);
+    refs.existingImagesBlock.hidden = false;
     refs.deleteButton.hidden = false;
     refs.madeThisButton.hidden = false;
     refs.madeThisCount.hidden = false;
@@ -1252,6 +1879,9 @@ Try this
     madeThis.updateMadeThisCount(0);
     refs.madeThisButton.textContent = "I made this!";
     refs.recipeImages.reset();
+    refs.imagesHelpEdit.hidden = state.isCreating;
+    refs.imagesHelpCreate.hidden = !state.isCreating;
+    resetExistingImages(ctx);
   }
 
   async function openEditor(ctx, mode) {
@@ -1436,6 +2066,10 @@ Try this
       state.createButton.addEventListener("click", () => session.openEditor("create"));
 
     refs.folderMode.addEventListener("change", ui.updateFolderControls);
+    textarea.addEventListener("input", () => {
+      if (state.isCreating) return;
+      updateMainImageUi(ctx);
+    });
 
     // Pasting anywhere in the dialog adds the image to the recipe images.
     // The AI image picker handles its own paste first and marks it handled.
@@ -1508,13 +2142,14 @@ Try this
     if (!editButton && !createButton) return;
 
     const dialog = await createEditor();
+    const state = createState(editButton, createButton);
 
     // The collaborators are bundled into a single context object that is
     // threaded through the flows below, instead of passing each of them
     // positionally.
     const ctx = {
-      refs: finalizeDomRefs(collectDomRefs(dialog)),
-      state: createState(editButton, createButton),
+      refs: finalizeDomRefs(collectDomRefs(dialog), state),
+      state,
     };
 
     if (ctx.refs.makesIcon) {
@@ -1530,6 +2165,11 @@ Try this
 
     ctx.bulk.setupBulkFieldButtons();
     ctx.bulk.resetBulkFieldChrome();
+
+    // The staged-images refresh runs with the assembled context so the
+    // rows it creates reach the UI collaborators (status, busy state).
+    ctx.refs.stagedChangeHandler = () => renderStagedImages(ctx);
+
     document.addEventListener("bulk-edit", (event) => {
       ctx.session.openBulkEditor(event.detail?.paths);
     });
