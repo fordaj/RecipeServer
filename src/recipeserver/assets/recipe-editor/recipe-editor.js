@@ -856,11 +856,15 @@ Try this
     return mainButton;
   }
 
-  // Shared rename field + button pair. `onSubmit` receives the trimmed new
-  // name; it is wired to the server rename for existing images and to a
-  // client-side rename of the staged File for new ones.
+  // Rename field: the text input with a small Rename button attached inside
+  // the right edge of the field. `onSubmit` receives the trimmed new name; it
+  // is wired to the server rename for existing images and to a client-side
+  // rename of the staged File for new ones.
   function createRenameControls(ctx, name, onSubmit) {
     const { state } = ctx;
+
+    const field = document.createElement("span");
+    field.className = "recipe-editor__rename-field";
 
     const input = document.createElement("input");
     input.type = "text";
@@ -887,17 +891,21 @@ Try this
     input.addEventListener("input", syncButton);
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
+        // Rename, and keep the dialog's implicit submission (the form is
+        // method="dialog") from closing or saving the recipe.
         event.preventDefault();
+        event.stopPropagation();
         submit();
       }
     });
     button.addEventListener("click", submit);
-    return [input, button];
+    field.append(input, button);
+    return field;
   }
 
   function createImageRow(ctx, image) {
     const mainButton = createMainToggle(ctx, image.name, image.url);
-    const [input, button] = createRenameControls(ctx, image.name, (newName, inputEl, buttonEl) =>
+    const field = createRenameControls(ctx, image.name, (newName, inputEl, buttonEl) =>
       renameExistingImage(ctx, image.name, inputEl, buttonEl),
     );
 
@@ -910,7 +918,7 @@ Try this
     remove.setAttribute("aria-label", `Delete ${image.name}`);
     remove.addEventListener("click", () => deleteExistingImage(ctx, image.name, remove));
 
-    item.append(mainButton, input, button, remove);
+    item.append(mainButton, field, remove);
     return item;
   }
 
@@ -1001,7 +1009,7 @@ Try this
     state.stagedUrls.push(url);
     const mainButton = createMainToggle(ctx, file.name, url);
 
-    const [input, renameButton] = createRenameControls(ctx, file.name, (newName) =>
+    const field = createRenameControls(ctx, file.name, (newName) =>
       renameStagedImage(ctx, file, newName),
     );
 
@@ -1012,7 +1020,7 @@ Try this
     remove.setAttribute("aria-label", `Discard staged image ${file.name}`);
     remove.addEventListener("click", () => removeStagedImage(ctx, file));
 
-    const row = [mainButton, input, renameButton];
+    const row = [mainButton, field];
     if (!state.isCreating) {
       const upload = document.createElement("button");
       upload.type = "button";

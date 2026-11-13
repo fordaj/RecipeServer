@@ -112,15 +112,14 @@ def test_rename_endpoint_is_registered_and_images_are_listed():
     assert "_fallback_main_image" in server
 
 
-def test_main_image_styles_keep_fields_at_least_16px():
+def test_image_name_field_keeps_16px_text():
     css = (ASSETS / "recipe-editor.css").read_text(encoding="utf-8")
 
-    for selector in (
-        ".recipe-editor__image-name",
-        ".recipe-editor__image-rename",
-    ):
-        block = css.split(f"{selector} {{")[1].split("}")[0]
-        assert "2.5rem" in block or "1rem" in block
+    block = css.split(".recipe-editor__image-name {")[1].split("}")[0]
+    assert "font-size: 1rem" in block
+    # The field itself stays 2.5rem tall.
+    field_block = css.split(".recipe-editor__rename-field {")[1].split("}")[0]
+    assert "height: 2.5rem" in field_block
 
     assert ".recipe-editor__existing-images[hidden]" in css
     assert "object-fit: cover" in css

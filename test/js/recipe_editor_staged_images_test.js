@@ -245,13 +245,24 @@ function mainButton(row) {
   );
   assert.equal(toggle.getAttribute("aria-pressed"), "true");
 
-  // Renaming the staged file renames it in the input and in the Markdown.
+  // Renaming the staged file with Enter in the field renames it in the input
+  // and in the Markdown (without saving or closing the dialog).
   const renameInput = stagedRow.querySelector(".recipe-editor__image-name");
   const renameButton = stagedRow.querySelector(".recipe-editor__image-rename");
   renameInput.value = "hero.jpg";
   renameInput.dispatchEvent({ type: "input", target: renameInput });
   assert.equal(renameButton.disabled, false);
-  renameButton.click();
+  let defaultPrevented = false;
+  renameInput.dispatchEvent({
+    type: "keydown",
+    key: "Enter",
+    target: renameInput,
+    preventDefault() {
+      defaultPrevented = true;
+    },
+    stopPropagation() {},
+  });
+  assert.equal(defaultPrevented, true);
   assert.equal(
     refs.textarea.value,
     "# New Recipe\n\n![Alt Text](hero.jpg)\n\n## Ingredients\n\n- carrots\n",

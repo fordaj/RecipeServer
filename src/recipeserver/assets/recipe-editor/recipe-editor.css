@@ -462,7 +462,7 @@
 
 .recipe-editor__image-item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.75rem;
   min-width: 0;
@@ -481,39 +481,60 @@
   background: var(--hover-bg);
 }
 
-.recipe-editor__image-name {
+/*
+ * The Rename field is a composite control: a text input with a small Rename
+ * button attached to its right edge, all inside the same 2.5rem border.
+ */
+.recipe-editor__rename-field {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   width: 100%;
   min-width: 0;
   height: 2.5rem;
   box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
+  padding: 0.25rem 0.25rem 0.25rem 0.65rem;
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--input-bg);
+}
+
+.recipe-editor__rename-field:focus-within {
+  outline: 2px solid var(--food-color);
+  border-color: var(--food-color);
+}
+
+.recipe-editor__image-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--text-color);
   font: inherit;
   font-size: 1rem;
 }
 
 .recipe-editor__image-name:focus-visible {
-  outline: 2px solid var(--food-color);
-  border-color: var(--food-color);
+  outline: none;
 }
 
-/* Same size as the delete (X) button, styled like the Cancel button. */
+/* Small button attached to the inside of the Rename field. */
 .recipe-editor__image-rename {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 2.5rem;
-  padding: 0 1rem;
+  height: 1.75rem;
+  padding: 0 0.5rem;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--card-bg);
   color: var(--food-color);
   font: inherit;
-  font-size: 0.9rem;
-  line-height: 1.4;
+  font-size: 0.75rem;
+  line-height: 1;
   cursor: pointer;
 }
 
