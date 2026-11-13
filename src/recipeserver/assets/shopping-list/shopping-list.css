@@ -34,10 +34,20 @@
   box-sizing: border-box;
 
   padding: 1rem;
+  overflow: hidden;
+}
+
+.shopping-list__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
 }
 
 .shopping-list__header,
@@ -213,13 +223,18 @@
 
 .shopping-list__ingredients {
   margin: 0;
-  padding-left: 1.25rem;
+  padding-left: 0;
+  list-style: none;
   font-size: 0.95rem;
   overflow-wrap: anywhere;
 }
 
 .shopping-list__ingredients li {
   margin-bottom: 0.15rem;
+}
+
+.shopping-list__ingredients .task-list-item {
+  list-style: none;
 }
 
 .shopping-list__ingredients .quantity {
@@ -251,20 +266,24 @@
 
 /* ---------- Checklist checkboxes ---------- */
 
+.shopping-list__ingredients .shopping-list__item {
+  align-items: center;
+}
+
 .shopping-list__ingredients input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
 
-  width: 1.1em;
-  height: 1.1em;
-  margin-right: 0.45rem;
+  width: 1.2em;
+  height: 1.2em;
+  margin: 0 0.45rem 0 0;
   border: 2px solid var(--food-color);
   border-radius: 3px;
   background-color: transparent;
 
   display: inline-grid;
   place-content: center;
-  vertical-align: middle;
+  vertical-align: -0.15em;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -290,6 +309,7 @@
 
 .shopping-list__ingredients li:has(input[type="checkbox"]:checked) {
   text-decoration: line-through;
+  font-style: italic;
   opacity: 0.65;
 }
 
@@ -297,13 +317,11 @@
 
 .shopping-list__footer {
   justify-content: flex-end;
-  margin-top: auto;
+  flex: 0 0 auto;
+  margin-top: 0;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border-color);
   background: var(--card-bg);
-  position: sticky;
-  bottom: 0;
-  z-index: 1;
 }
 
 .shopping-list__footer button {

@@ -250,7 +250,6 @@ body > a:hover {
 }
 
 .recipe ol ol {
-  margin-top: 0.08in;
   list-style-type: lower-alpha;
 }
 
@@ -264,11 +263,22 @@ body > a:hover {
 
 /* ---------- Ingredients ---------- */
 
-.recipe ul {
+.recipe > ul {
   background: var(--card-bg);
   padding: 1.5rem 1.5rem 1.5rem 3rem;
   border-radius: 10px;
   box-shadow: var(--card-shadow);
+}
+
+/* Nested lists stay plain inside the parent list. */
+.recipe li > ul,
+.recipe li > ol {
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* Strikethrough and italicize checked items */
@@ -293,7 +303,7 @@ input[type="checkbox"] {
 
   display: inline-grid;
   place-content: center;
-  vertical-align: middle;
+  vertical-align: -0.15em;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -382,10 +392,11 @@ input[type="checkbox"]:focus-visible {
   font-weight: 400;
 }
 
-/* Meals, difficulty, cuisine, status, categories, tags, and archived */
+/* Meals, difficulty, makes, cuisine, status, categories, tags, and archived */
 
 .recipe-overview__meals,
 .recipe-overview__difficulty,
+.recipe-overview__makes,
 .recipe-overview__cuisine,
 .recipe-overview__status,
 .recipe-overview__categories,
@@ -394,11 +405,42 @@ input[type="checkbox"]:focus-visible {
   display: inline;
 }
 
+.recipe-overview__makes {
+  position: relative;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.recipe-overview__makes:hover,
+.recipe-overview__makes:focus-visible {
+  color: var(--food-color);
+}
+
+.recipe-overview__makes:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.recipe-overview__makes.is-celebrating {
+  animation: recipe-editor-made-this-pop 500ms ease;
+}
+
+.recipe-overview__makes .recipe-editor__sparkle {
+  top: -0.5rem;
+  right: -0.25rem;
+}
+
 /* Keep the icon separated from its values without adding gaps between
    comma-separated values (text nodes become flex items when the group is
    displayed as a flex container). */
 .recipe-overview__meals > svg,
 .recipe-overview__difficulty > svg,
+.recipe-overview__makes > svg,
 .recipe-overview__cuisine > svg,
 .recipe-overview__status > svg,
 .recipe-overview__categories > svg,
