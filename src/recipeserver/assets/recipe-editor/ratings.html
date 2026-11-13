@@ -1,31 +1,11 @@
 <details class="recipe-editor__details recipe-editor__ratings-details" hidden>
   <summary>Ratings</summary>
-  <fieldset class="recipe-editor__metadata recipe-editor__bulk-rating">
-    <label>
-      Rating name
-      <span class="recipe-editor__mixed" hidden>* MIXED</span>
-      <span class="recipe-editor__field-control">
-        <input name="rating.name" type="text" placeholder="Andy Ford" />
-        <button
-          type="button"
-          class="recipe-editor__bulk-field-save"
-          data-field="rating"
-          aria-label="Save rating to all selected recipes"
-          hidden
-        >
-          Save
-        </button>
-      </span>
-    </label>
-    <label>
-      Rating score (0-10)
-      <span class="recipe-editor__field-control">
-        <input name="rating.score" type="number" step="any" min="0" max="10" placeholder="8" />
-      </span>
-    </label>
-    <p class="recipe-editor__bulk-help">
-      Saving adds this named rating to every selected recipe, overriding any existing rating with
-      the same name. Use the Save button inside the rating field to save only the rating.
-    </p>
-  </fieldset>
+  <fieldset
+    class="recipe-editor__metadata recipe-editor__bulk-rating"
+    data-field-group="ratings"
+  ></fieldset>
+  <p class="recipe-editor__bulk-help">
+    Saving adds this named rating to every selected recipe, overriding any existing rating with the
+    same name. Use the Save button inside the rating field to save only the rating.
+  </p>
 </details>

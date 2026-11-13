@@ -19,6 +19,7 @@ DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 RECIPE_JS = "/assets/recipe.js"
 RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
 RECIPE_EDITOR_JS = "/assets/recipe-editor/recipe-editor.js"
+FIELDS_JS = "/assets/recipe-editor/fields.js"
 RECIPE_EDITOR_CSS = "/assets/recipe-editor/recipe-editor.css"
 METADATA_PICKER_JS = "/assets/recipe-editor/metadata-picker.js"
 AI_PROGRESS_JS = "/assets/recipe-editor/ai-progress.js"
@@ -125,6 +126,7 @@ def build_recipe_html(
         <script defer src="{RATINGS_JS}"></script>
         <script defer src="{METADATA_PICKER_JS}"></script>
         <script defer src="{AI_PROGRESS_JS}"></script>
+        <script defer src="{FIELDS_JS}"></script>
         <script defer src="{RECIPE_EDITOR_JS}"></script>
     </body>
     </html>

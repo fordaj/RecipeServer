@@ -168,9 +168,10 @@ def test_archived_overview_icon_has_spacing_and_checkbox_uses_default_size():
 
 def test_recipe_editor_has_archived_checkbox():
     base = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "recipe-editor"
-    markup = (base / "details.html").read_text(encoding="UTF-8")
+    markup = (base / "fields.js").read_text(encoding="UTF-8")
     script = (base / "recipe-editor.js").read_text(encoding="UTF-8")
-    assert 'name="archived" type="checkbox"' in markup
-    assert 'data-field="archived"' in markup
+    assert 'label: "Archived"' in markup
+    assert 'field: "archived"' in markup
+    assert "checkbox: true" in markup
     assert 'form.elements.namedItem("archived").checked = metadata.archived === true' in script
     assert 'archived: Boolean(refs.form.elements.namedItem("archived")?.checked)' in script

@@ -105,6 +105,8 @@ Try this
     dialog.id = EDITOR_ID;
     dialog.className = "recipe-editor-dialog";
     dialog.innerHTML = await loadEditorMarkup();
+    // Build the metadata/source/rating field scaffolds from their descriptors.
+    window.RecipeEditorFields.buildFieldGroups(dialog);
     document.body.append(dialog);
     return dialog;
   }
