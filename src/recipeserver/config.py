@@ -3,11 +3,11 @@ import json
 from copy import deepcopy
 import re
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from platformdirs import user_data_path
 from tkinter import Tk, filedialog
-from typing import Optional
 from urllib.parse import urlsplit
 
 from ._logger import logger
@@ -43,17 +43,15 @@ def _known_legacy_setting_keys() -> set[str]:
     return _known_toml_keys() - {SOURCE_DIRECTORY_KEY}
 
 
-def _normalize_model_endpoint(value: str, *, strict: bool = True) -> str:
+def _normalize_model_endpoint(value: str) -> str:
     endpoint = value.strip()
     if not endpoint:
         return ""
     if "://" not in endpoint:
         endpoint = f"http://{endpoint}"
-    if not strict:
-        return endpoint
     parts = urlsplit(endpoint)
     if parts.scheme not in ("http", "https") or not parts.netloc:
-        raise ValueError("Local model endpoint must be a valid http:// or https:// endpoint " "(or left blank to disable AI recipe creation).")
+        raise ValueError("Local model endpoint must be a valid http:// or https:// endpoint (or left blank to disable AI recipe creation).")
     return endpoint
 
 
@@ -82,19 +80,77 @@ def _normalize_server_port(value: str) -> int:
     return port
 
 
+# Field validators. Each one normalizes one raw string from the editor UI or
+# the TOML file and returns the value to store, or raises ``ValueError`` with
+# a user-facing message. ``label`` is the field's display name, used in the
+# message. A blank value falls back to the field's documented default where
+# one exists.
+
+
+def _validate_recipe_server_name(value: str, _label: str) -> str:
+    return value.strip() or DEFAULT_RECIPE_SERVER_NAME
+
+
+def _validate_source_directory(value: str, label: str) -> str:
+    text = value.strip()
+    if not text:
+        raise ValueError(f"{label} is required and must be an existing directory.")
+    candidate = Path(text).expanduser()
+    if not candidate.is_dir():
+        raise ValueError(f"{label} must be an existing directory.")
+    return str(candidate.resolve())
+
+
+def _validate_model_endpoint(value: str, label: str) -> str:
+    try:
+        return _normalize_model_endpoint(value)
+    except ValueError:
+        raise ValueError(f"{label} must be a valid http:// or https:// endpoint (or left blank to disable AI recipe creation).") from None
+
+
+def _validate_model_name(value: str, label: str) -> str:
+    name = value.strip()
+    if len(name) > _MAX_MODEL_NAME_LENGTH:
+        raise ValueError(f"{label} must be at most {_MAX_MODEL_NAME_LENGTH} characters.")
+    return name
+
+
+def _validate_server_port(value: str, label: str) -> str:
+    text = value.strip()
+    if not text:
+        return str(DEFAULT_SERVER_PORT)
+    try:
+        return str(_normalize_server_port(text))
+    except ValueError:
+        raise ValueError(f"{label} must be a whole number between 1 and 65535.") from None
+
+
+def _validate_food_color(value: str, label: str) -> str:
+    text = value.strip()
+    if not text:
+        return DEFAULT_FOOD_COLOR
+    try:
+        return _normalize_food_color(text)
+    except ValueError:
+        raise ValueError(f"{label} must be a hex string such as #8d5542.") from None
+
+
 @dataclass(frozen=True)
 class ConfigField:
     """One editable configuration value.
 
-    Add a field by appending an entry to ``CONFIG_FIELDS`` and applying the
-    value in :meth:`Configuration.apply_config_values`. The server exposes
-    these specs to the configuration editor UI, so no client code changes
-    are needed for new fields.
+    Add a field by appending one entry to ``CONFIG_FIELDS``. The validator
+    normalizes and checks the value; the editor field specs, value loading,
+    and TOML serialization are all derived from the same list, so no other
+    sites need to know about the new field. The server exposes these specs
+    to the configuration editor UI, so no client code changes are needed for
+    new fields.
     """
 
     key: str
     label: str
     help_text: str
+    validate: Callable[[str, str], str]
     input_type: str = "text"  # "text", "url", "path", or "number"
     placeholder: str = ""
     required: bool = False
@@ -105,6 +161,7 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         RECIPE_SERVER_NAME_KEY,
         "Server name",
         "Shown as the site title. Blank falls back to 'My Recipe Server'.",
+        _validate_recipe_server_name,
         placeholder=DEFAULT_RECIPE_SERVER_NAME,
         required=True,
     ),
@@ -112,6 +169,7 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         SOURCE_DIRECTORY_KEY,
         "Recipes directory",
         "Must be an existing directory. The site is rebuilt from this folder on save.",
+        _validate_source_directory,
         input_type="path",
         placeholder="/path/to/recipes",
         required=True,
@@ -119,7 +177,8 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
     ConfigField(
         MODEL_ENDPOINT_KEY,
         "Local model endpoint",
-        "Ollama server endpoint, for example http://localhost:11434. " "Leave blank to disable AI recipe creation. A scheme is added if omitted.",
+        "Ollama server endpoint, for example http://localhost:11434. Leave blank to disable AI recipe creation. A scheme is added if omitted.",
+        _validate_model_endpoint,
         input_type="url",
         placeholder="http://localhost:11434",
     ),
@@ -127,18 +186,21 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         ALL_PURPOSE_MODEL_NAME_KEY,
         "All-purpose model name",
         "Leave blank to auto-detect from the endpoint.",
+        _validate_model_name,
         placeholder="llama3.2",
     ),
     ConfigField(
         IMAGE_ANALYSIS_MODEL_KEY,
         "Image analysis model name",
         "Used for From Images recipe creation. Leave blank to auto-detect from the endpoint.",
+        _validate_model_name,
         placeholder="llava3",
     ),
     ConfigField(
         SERVER_PORT_KEY,
         "Server port",
         "Port the local server listens on. Takes effect the next time the app starts.",
+        _validate_server_port,
         input_type="number",
         placeholder=str(DEFAULT_SERVER_PORT),
         required=True,
@@ -146,12 +208,15 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
     ConfigField(
         FOOD_COLOR_KEY,
         "Food color",
-        "Accent color used across the site, as a hex string such as #8d5542. "
-        "Blank falls back to the recommended default. Recipes with a photo "
-        "still derive their own accent from that photo.",
+        "Accent color used across the site, as a hex string such as #8d5542."
+        " Blank falls back to the recommended default. Recipes with a photo"
+        " still derive their own accent from that photo.",
+        _validate_food_color,
         placeholder=DEFAULT_FOOD_COLOR,
     ),
 )
+
+_CONFIG_FIELDS_BY_KEY = {field.key: field for field in CONFIG_FIELDS}
 
 
 def _validate_config_value(key: str, value: str) -> str:
@@ -160,48 +225,10 @@ def _validate_config_value(key: str, value: str) -> str:
     Returns the value to store. Raises ``ValueError`` with a user-facing
     message when the value is not acceptable.
     """
-    label = next((field.label for field in CONFIG_FIELDS if field.key == key), key)
-
-    if key == RECIPE_SERVER_NAME_KEY:
-        return value.strip() or DEFAULT_RECIPE_SERVER_NAME
-
-    if key == SOURCE_DIRECTORY_KEY:
-        candidate = Path(value.strip()).expanduser()
-        if not value.strip():
-            raise ValueError(f"{label} is required and must be an existing directory.")
-        if not candidate.is_dir():
-            raise ValueError(f"{label} must be an existing directory.")
-        return str(candidate.resolve())
-
-    if key == MODEL_ENDPOINT_KEY:
-        try:
-            return _normalize_model_endpoint(value)
-        except ValueError:
-            raise ValueError(f"{label} must be a valid http:// or https:// endpoint " "(or left blank to disable AI recipe creation).") from None
-
-    if key == SERVER_PORT_KEY:
-        if not value.strip():
-            return str(DEFAULT_SERVER_PORT)
-        try:
-            return str(_normalize_server_port(value))
-        except ValueError:
-            raise ValueError(f"{label} must be a whole number between 1 and 65535.") from None
-
-    if key == FOOD_COLOR_KEY:
-        if not value.strip():
-            return DEFAULT_FOOD_COLOR
-        try:
-            return _normalize_food_color(value)
-        except ValueError:
-            raise ValueError(f"{label} must be a hex string such as #8d5542.") from None
-
-    if key in (ALL_PURPOSE_MODEL_NAME_KEY, IMAGE_ANALYSIS_MODEL_KEY):
-        name = value.strip()
-        if len(name) > _MAX_MODEL_NAME_LENGTH:
-            raise ValueError(f"{label} must be at most {_MAX_MODEL_NAME_LENGTH} characters.")
-        return name
-
-    raise ValueError(f"Unknown configuration key: {key}")
+    field = _CONFIG_FIELDS_BY_KEY.get(key)
+    if field is None:
+        raise ValueError(f"Unknown configuration key: {key}")
+    return field.validate(value, field.label)
 
 
 def _toml_string(value: str) -> str:
@@ -214,17 +241,36 @@ def _toml_string(value: str) -> str:
 
 
 class Configuration:
+    """Mutable access to the recipe-server configuration.
+
+    Setter policy: assignment never raises. Text values are stripped; a
+    blank value falls back to the field's documented default. Typed fields
+    (``server_port``, ``food_color``) validate their input; an invalid
+    non-blank value falls back to the field's default with a logged warning.
+    Model-name setters strip whitespace and otherwise accept any text
+    (blank means auto-detect), matching the validators used for
+    user-supplied edits.
+    """
+
     def __init__(self):
-        self.source_directory: Path = Path()
+        self._source_directory: Path = Path()
         self.model_endpoint: str = ""
         self._all_purpose_model_name: str = ""
-        self.image_analysis_model: str = ""
+        self._image_analysis_model: str = ""
         self._recipe_server_name: str = DEFAULT_RECIPE_SERVER_NAME
         self._server_port: int = DEFAULT_SERVER_PORT
         self._food_color: str = DEFAULT_FOOD_COLOR
         self.new_recipe_prompt: str = ""
         self.new_recipe_from_image_prompt: str = ""
-        self._config_file: Optional[Path] = None
+        self._config_file: Path | None = None
+
+    @property
+    def source_directory(self) -> Path:
+        return self._source_directory
+
+    @source_directory.setter
+    def source_directory(self, value) -> None:
+        self._source_directory = value if isinstance(value, Path) else Path(value)
 
     @property
     def all_purpose_model_name(self) -> str:
@@ -232,7 +278,7 @@ class Configuration:
 
     @all_purpose_model_name.setter
     def all_purpose_model_name(self, value: str) -> None:
-        self._all_purpose_model_name = value
+        self._all_purpose_model_name = str(value).strip()
 
     @property
     def model_name(self) -> str:
@@ -241,7 +287,15 @@ class Configuration:
 
     @model_name.setter
     def model_name(self, value: str) -> None:
-        self._all_purpose_model_name = value
+        self._all_purpose_model_name = str(value).strip()
+
+    @property
+    def image_analysis_model(self) -> str:
+        return self._image_analysis_model
+
+    @image_analysis_model.setter
+    def image_analysis_model(self, value: str) -> None:
+        self._image_analysis_model = str(value).strip()
 
     @property
     def recipe_server_name(self) -> str:
@@ -268,6 +322,7 @@ class Configuration:
         try:
             self._server_port = _normalize_server_port(str(value))
         except ValueError:
+            logger.warning(f"Ignoring invalid {SERVER_PORT_KEY} value {value!r}; using default port {DEFAULT_SERVER_PORT}")
             self._server_port = DEFAULT_SERVER_PORT
 
     @property
@@ -279,6 +334,7 @@ class Configuration:
         try:
             self._food_color = _normalize_food_color(str(value))
         except ValueError:
+            logger.warning(f"Ignoring invalid {FOOD_COLOR_KEY} value {value!r}; using default food color {DEFAULT_FOOD_COLOR}")
             self._food_color = DEFAULT_FOOD_COLOR
 
     @property
@@ -318,7 +374,7 @@ class Configuration:
 
         return data_dir / CONFIG_FILENAME
 
-    def _resolve_config_file(self, optional_config_path: Optional[Path] = None) -> Path:
+    def _resolve_config_file(self, optional_config_path: Path | None = None) -> Path:
         """Pick the config file to use, migrating the legacy file if needed.
 
         An explicitly passed path is always used as-is. Otherwise the TOML
@@ -358,13 +414,7 @@ class Configuration:
 
     def get_config_values(self) -> dict[str, str]:
         """Current values of every editable configuration field."""
-        values: dict[str, str] = {}
-        for field in CONFIG_FIELDS:
-            if field.key == SOURCE_DIRECTORY_KEY:
-                values[field.key] = str(self.source_directory)
-            else:
-                values[field.key] = str(getattr(self, field.key))
-        return values
+        return {field.key: str(getattr(self, field.key)) for field in CONFIG_FIELDS}
 
     def apply_config_values(self, values: dict) -> list[str]:
         """Validate and apply edited values, then persist them.
@@ -375,11 +425,8 @@ class Configuration:
         if not isinstance(values, dict):
             raise ValueError("Expected an object of configuration values.")
 
-        known_keys = {field.key for field in CONFIG_FIELDS}
         normalized: dict[str, str] = {}
         for key, value in values.items():
-            if key not in known_keys:
-                raise ValueError(f"Unknown configuration key: {key}")
             if value is None:
                 value = ""
             if not isinstance(value, str):
@@ -388,10 +435,7 @@ class Configuration:
 
         before = deepcopy(self.get_config_values())
         for key, value in normalized.items():
-            if key == SOURCE_DIRECTORY_KEY:
-                self.source_directory = Path(value)
-            else:
-                setattr(self, key, value)
+            setattr(self, key, value)
 
         self._write_config(self._config_file or self._resolve_config_file())
 
@@ -417,6 +461,8 @@ class Configuration:
         settings: dict[str, str] = {}
         known_keys = _known_toml_keys()
         for key, value in data.items():
+            # server_port is written as a TOML string but hand-edited files
+            # often contain a bare integer; accept both and normalize to text.
             if key == SERVER_PORT_KEY and isinstance(value, int) and not isinstance(value, bool):
                 settings[key] = str(value)
                 continue
@@ -454,12 +500,18 @@ class Configuration:
     def _prompt_user(prompt: str) -> str:
         try:
             return input(prompt).strip()
+        # PEP 758: parentheses around multiple exception types are optional on Python 3.14+.
         except EOFError, KeyboardInterrupt:
             return ""
 
     def get_model_settings_from_user(self) -> None:
-        """Optionally ask for an Ollama server endpoint."""
-        print("Optionally configure a local AI model so recipes can be created " "from text, a URL, or an image.")
+        """Optionally ask for an Ollama server endpoint.
+
+        The typed endpoint is validated like any other value: an invalid
+        answer is logged and AI recipe creation is disabled (treated as a
+        blank answer) rather than stored.
+        """
+        logger.info("Optionally configure a local AI model so recipes can be created from text, a URL, or an image.")
 
         endpoint = self._prompt_user("Ollama endpoint (for example http://localhost:11434). Press Enter to skip: ")
         if not endpoint:
@@ -469,13 +521,20 @@ class Configuration:
             self.image_analysis_model = ""
             return
 
-        self.model_endpoint = _normalize_model_endpoint(endpoint, strict=False)
+        try:
+            self.model_endpoint = _normalize_model_endpoint(endpoint)
+        except ValueError:
+            logger.warning(f"Ignoring invalid endpoint {endpoint!r}; AI recipe creation is disabled")
+            self.model_endpoint = ""
+            self.all_purpose_model_name = ""
+            self.image_analysis_model = ""
+            return
         self.all_purpose_model_name = self._prompt_user("All-purpose model name (press Enter to auto-detect from the endpoint): ")
         self.image_analysis_model = self._prompt_user("Image analysis model name (press Enter to auto-detect from the endpoint): ")
         logger.info(
-            f"Configured local model endpoint: {self.model_endpoint} "
-            f"(all-purpose model: {self.all_purpose_model_name or 'auto-detect'}, "
-            f"image analysis model: {self.image_analysis_model or 'auto-detect'})"
+            f"Configured local model endpoint: {self.model_endpoint}"
+            f" (all-purpose model: {self.all_purpose_model_name or 'auto-detect'},"
+            f" image analysis model: {self.image_analysis_model or 'auto-detect'})"
         )
 
     @staticmethod
@@ -504,33 +563,36 @@ class Configuration:
         return prompt
 
     def _write_config(self, config_file: Path) -> None:
+        # Values round-trip through get_config_values(), which stringifies
+        # every field; server_port therefore persists as a TOML string,
+        # matching the historical on-disk format.
+        values = self.get_config_values()
         lines = [
             "# RecipeServer configuration.",
             "# Edit through the Configuration dialog in the app, or by hand here.",
-            f"{SOURCE_DIRECTORY_KEY} = {_toml_string(str(self.source_directory))}",
-            f"{MODEL_ENDPOINT_KEY} = {_toml_string(self.model_endpoint)}",
-            f"{ALL_PURPOSE_MODEL_NAME_KEY} = {_toml_string(self.all_purpose_model_name)}",
-            f"{IMAGE_ANALYSIS_MODEL_KEY} = {_toml_string(self.image_analysis_model)}",
-            f"{RECIPE_SERVER_NAME_KEY} = {_toml_string(self.recipe_server_name)}",
-            f"{SERVER_PORT_KEY} = {_toml_string(str(self.server_port))}",
-            f"{FOOD_COLOR_KEY} = {_toml_string(self.food_color)}",
+            *(f"{key} = {_toml_string(value)}" for key, value in values.items()),
         ]
 
         logger.debug(
-            f"Saving configuration to {config_file} "
-            f"(source={self.source_directory}, endpoint={self.model_endpoint or '(none)'}, "
-            f"all-purpose model={self.all_purpose_model_name or '(auto)'}, "
-            f"image analysis model={self.image_analysis_model or '(auto)'}, "
-            f"server name={self.recipe_server_name!r}, "
-            f"port={self.server_port}, food color={self.food_color})"
+            f"Saving configuration to {config_file}"
+            f" (source={self.source_directory}, endpoint={self.model_endpoint or '(none)'},"
+            f" all-purpose model={self.all_purpose_model_name or '(auto)'},"
+            f" image analysis model={self.image_analysis_model or '(auto)'},"
+            f" server name={self.recipe_server_name!r},"
+            f" port={self.server_port}, food color={self.food_color})"
         )
+        config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
 
     def _read_and_parse_config(self, config_file: Path) -> tuple[str, dict[str, str]]:
-        config_file.parent.mkdir(parents=True, exist_ok=True)
+        """Read and parse the config file without modifying it.
+
+        A missing file yields blank settings (defaults apply); the file is
+        written by :meth:`_write_config` at the end of the startup flow.
+        """
         if not config_file.exists():
-            logger.debug(f"Creating {config_file}")
-            config_file.touch()
+            logger.debug(f"No configuration file at {config_file}; using defaults")
+            return "", {}
 
         logger.debug(f"Reading {config_file}")
         config_contents = config_file.read_text(encoding="UTF-8").strip()
@@ -547,7 +609,7 @@ class Configuration:
         source_directory = Path(config_source).expanduser() if config_source else Path()
         if not config_source or not source_directory.is_dir():
             logger.warning(f"Recipe source directory is missing or invalid: {config_source!r}")
-            print("Recipes directory not found, please select from the file dialogue")
+            logger.info("Recipes directory not found, please select from the file dialogue")
             source_directory = self.get_source_dir_from_user()
         resolved_source_directory = source_directory.resolve()
         logger.info(f"Using recipe source directory: {resolved_source_directory}")
@@ -562,35 +624,13 @@ class Configuration:
             self.recipe_server_name = server_name_value
         logger.debug(f"Configured recipe server name: {self.recipe_server_name!r}")
 
+        # The setters normalize and validate; an invalid saved value falls
+        # back to the default with a logged warning.
         if SERVER_PORT_KEY in settings:
-            try:
-                validated_port = _normalize_server_port(settings[SERVER_PORT_KEY])
-                self.server_port = validated_port
-            except ValueError:
-                logger.warning(
-                    "Ignoring invalid %s value %r; using default port %s",
-                    SERVER_PORT_KEY,
-                    settings[SERVER_PORT_KEY],
-                    DEFAULT_SERVER_PORT,
-                )
-                self.server_port = DEFAULT_SERVER_PORT
+            self.server_port = settings[SERVER_PORT_KEY]
         if FOOD_COLOR_KEY in settings:
-            try:
-                validated_color = _normalize_food_color(settings[FOOD_COLOR_KEY])
-                self.food_color = validated_color
-            except ValueError:
-                logger.warning(
-                    "Ignoring invalid %s value %r; using default food color %s",
-                    FOOD_COLOR_KEY,
-                    settings[FOOD_COLOR_KEY],
-                    DEFAULT_FOOD_COLOR,
-                )
-                self.food_color = DEFAULT_FOOD_COLOR
-        logger.debug(
-            "Configured server port: %s, food color: %s",
-            self.server_port,
-            self.food_color,
-        )
+            self.food_color = settings[FOOD_COLOR_KEY]
+        logger.debug(f"Configured server port: {self.server_port}, food color: {self.food_color}")
 
         if MODEL_ENDPOINT_KEY in settings:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")
@@ -599,9 +639,9 @@ class Configuration:
             self.all_purpose_model_name = settings.get(ALL_PURPOSE_MODEL_NAME_KEY, "")
             self.image_analysis_model = settings.get(IMAGE_ANALYSIS_MODEL_KEY, "")
             logger.info(
-                f"Using configured local model endpoint: {self.model_endpoint or '(none)'} "
-                f"(all-purpose model: {self.all_purpose_model_name or 'auto-detect'}, "
-                f"image analysis model: {self.image_analysis_model or 'auto-detect'})"
+                f"Using configured local model endpoint: {self.model_endpoint or '(none)'}"
+                f" (all-purpose model: {self.all_purpose_model_name or 'auto-detect'},"
+                f" image analysis model: {self.image_analysis_model or 'auto-detect'})"
             )
             return
 
@@ -623,7 +663,7 @@ class Configuration:
         self._write_config(write_file)
         return write_file
 
-    def handle_configuration(self, optional_config_path: Optional[Path] = None):
+    def handle_configuration(self, optional_config_path: Path | None = None):
         config_file = self._resolve_config_file(optional_config_path)
         config_source, settings = self._read_and_parse_config(config_file)
 
@@ -632,10 +672,10 @@ class Configuration:
 
         self.load_new_recipe_prompt()
         logger.info(
-            f"AI recipe creation is {'enabled' if self.ai_configured else 'disabled'} "
-            f"(endpoint={'set' if self.model_endpoint else 'missing'}, "
-            f"prompt={'set' if self.new_recipe_prompt else 'missing'}, "
-            f"image prompt={'set' if self.new_recipe_from_image_prompt else 'missing'})"
+            f"AI recipe creation is {'enabled' if self.ai_configured else 'disabled'}"
+            f" (endpoint={'set' if self.model_endpoint else 'missing'},"
+            f" prompt={'set' if self.new_recipe_prompt else 'missing'},"
+            f" image prompt={'set' if self.new_recipe_from_image_prompt else 'missing'})"
         )
 
         self._config_file = self._persist_configuration(config_file)
