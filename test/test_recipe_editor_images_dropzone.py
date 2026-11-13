@@ -1,6 +1,11 @@
+import shutil
+import subprocess
 from pathlib import Path
 
+import pytest
+
 BASE = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "recipe-editor"
+CLIPBOARD_PASTE_TEST = Path(__file__).parent / "js" / "clipboard_paste_test.js"
 
 
 def test_images_dropzone_styling_and_behaviour():
@@ -53,3 +58,40 @@ def test_ai_image_picker_reuses_the_images_dropzone():
 
     # The dropzone styling is not duplicated for the AI picker.
     assert ".recipe-editor__ai-images" not in css
+
+
+def test_images_dropzones_have_a_paste_from_clipboard_button():
+    files_markup = (BASE / "files.html").read_text(encoding="UTF-8")
+    ai_markup = (BASE / "ai.html").read_text(encoding="UTF-8")
+    css = (BASE / "recipe-editor.css").read_text(encoding="UTF-8")
+    script = (BASE / "recipe-editor.js").read_text(encoding="UTF-8")
+    icon = BASE.parent / "clipboard-paste.svg"
+
+    # Both dropzones carry a "Paste from clipboard" button that starts hidden
+    # and is revealed only when the async Clipboard API is available.
+    for markup in (files_markup, ai_markup):
+        assert 'class="recipe-editor__paste-clipboard" hidden' in markup
+        assert "Paste from clipboard" in markup
+        assert "recipe-editor__paste-clipboard-icon" in markup
+
+    # The button reads the clipboard through the async Clipboard API, stages
+    # the image files, and keeps the dropzone click from opening the picker.
+    assert "navigator.clipboard.read" in script
+    assert ".recipe-editor__paste-clipboard" in script
+    assert icon.is_file()
+
+    # The button is styled as a secondary action and hides when [hidden].
+    assert ".recipe-editor__paste-clipboard {" in css
+    assert ".recipe-editor__paste-clipboard[hidden]" in css
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_paste_from_clipboard_stages_clipboard_images():
+    result = subprocess.run(
+        [shutil.which("node"), str(CLIPBOARD_PASTE_TEST)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "clipboard paste checks passed" in result.stdout
