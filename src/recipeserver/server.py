@@ -26,7 +26,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
 from pathlib import Path, PureWindowsPath
 from threading import Thread
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 import frontmatter
 from PIL import Image, UnidentifiedImageError
@@ -404,6 +404,40 @@ def _validate_ratings(value: object) -> list[dict]:
     return validated
 
 
+# ----- image listing and renaming helpers -----------------------------------
+# The editor lets people see the images that sit next to a recipe Markdown
+# file, rename them, and promote one to the first image link in the Markdown
+# (the recipe page hero). These helpers keep the rules in one place.
+
+
+def _image_name_pattern(name: str) -> re.Pattern:
+    """Match ``name`` only when it is not glued to more filename characters.
+
+    A plain substring replace would corrupt references such as
+    ``chocolate-cake.png`` when renaming ``cake.png``.
+    """
+    return re.compile(r"(^|[^A-Za-z0-9_.-])" + re.escape(name) + r"(?![A-Za-z0-9_.-])")
+
+
+def _replace_image_reference(content: str, source: str, target: str) -> str:
+    updated = _image_name_pattern(source).sub(lambda match: match.group(1) + target, content)
+    quoted_source = quote(source)
+    if quoted_source != source:
+        updated = _image_name_pattern(quoted_source).sub(lambda match: match.group(1) + quote(target), updated)
+    return updated
+
+
+def _validate_image_name(name: str, *, field: str) -> str:
+    """Validate a bare image filename (no directories) for the rename API."""
+    try:
+        RecipeRequestHandler._validate_image_filename(name)
+    except ValueError as exc:
+        raise ValueError(f"{field}: {exc}") from exc
+    if Path(name).suffix.lower() not in IMAGE_EXTENSIONS:
+        raise ValueError(f"{field} must keep a supported image extension ({', '.join(sorted(IMAGE_EXTENSIONS))})")
+    return name
+
+
 # ---------------------------------------------------------------------------
 # Request handler
 # ---------------------------------------------------------------------------
@@ -493,6 +527,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/ai-recipe": self._handle_ai_recipe,
             "/api/recipe": self._handle_recipe_create,
             "/api/recipe-editor": self._handle_recipe_editor_post,
+            "/api/recipe-images/rename": self._handle_recipe_images_rename_post,
             "/api/markdown": self._handle_markdown_post,
         }
 
@@ -627,8 +662,35 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         self._send_json(
             200,
-            {"metadata": _editor_metadata(recipe_post.metadata), "content": recipe_post.content},
+            {
+                "metadata": _editor_metadata(recipe_post.metadata),
+                "content": recipe_post.content,
+                "images": self._list_recipe_images(file_path),
+            },
         )
+
+    def _list_recipe_images(self, file_path: Path) -> list[dict]:
+        """Return the images sitting next to a recipe Markdown file.
+
+        Each entry carries the bare filename and a root-absolute URL that
+        points at the copy in the generated site, which is what the editor
+        page uses for thumbnails.
+        """
+        try:
+            entries = sorted(file_path.parent.iterdir(), key=lambda item: item.name)
+        except OSError:
+            return []
+
+        relative_dir = file_path.parent.relative_to(self.source_directory)
+        segments = [*relative_dir.parts, "placeholder"]
+        images = []
+        for entry in entries:
+            if not entry.is_file() or entry.suffix.lower() not in IMAGE_EXTENSIONS:
+                continue
+            segments[-1] = entry.name
+            url = "/" + "/".join(quote(segment) for segment in segments)
+            images.append({"name": entry.name, "url": url})
+        return images
 
     def _handle_bulk_editor_get(self, parsed) -> None:
         try:
@@ -988,6 +1050,89 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         except Exception:
             self._remove_uploaded_images(written_images)
             raise
+
+    def _handle_recipe_images_rename_post(self) -> None:
+        """Rename one of the images that sit next to a recipe Markdown file.
+
+        The Markdown on disk is rewritten so references to the old filename
+        point at the new one, the stale copy in the generated site is dropped,
+        and the recipe is regenerated so the hero and index stay in sync.
+        """
+        try:
+            payload = self._read_json_payload()
+            path = payload.get("path")
+            from_name = payload.get("from")
+            to_name = payload.get("to")
+            if not isinstance(path, str) or not isinstance(from_name, str) or not isinstance(to_name, str):
+                raise ValueError("Expected string fields: path, from, to")
+            file_path = self._resolve_markdown_path(path)
+            if not file_path.is_file():
+                self._send_json(404, {"error": "Markdown file not found"})
+                return
+            source_name = _validate_image_name(from_name, field="from")
+            target_name = _validate_image_name(to_name, field="to")
+            if source_name == target_name:
+                raise ValueError("Enter a different name to rename the image")
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        directory = file_path.parent
+        source_path = directory / source_name
+        target_path = directory / target_name
+        if not source_path.is_file():
+            self._send_json(404, {"error": f"Image not found: {source_name}"})
+            return
+        same_name = source_name.casefold() == target_name.casefold()
+        if not same_name and target_path.exists():
+            self._send_json(409, {"error": f"An image named {target_name} already exists"})
+            return
+
+        try:
+            source_path.rename(target_path)
+        except OSError:
+            logger.exception(f"Failed to rename image {source_path} to {target_path}")
+            self._send_json(500, {"error": "Unable to rename image"})
+            return
+
+        try:
+            content = file_path.read_text(encoding="utf-8")
+            updated = _replace_image_reference(content, source_name, target_name)
+            if updated != content:
+                file_path.write_text(updated, encoding="utf-8", newline="")
+        except OSError:
+            # Best-effort rollback so the Markdown never points at a missing file.
+            try:
+                target_path.rename(source_path)
+            except OSError:
+                logger.exception(f"Failed to roll back image rename of {target_path}")
+            logger.exception(f"Failed to update Markdown references after renaming {source_path}")
+            self._send_json(500, {"error": "Unable to update Markdown references; the image was not renamed"})
+            return
+
+        # Drop the stale copy in the generated site so the old URL stops working.
+        try:
+            relative_dir = file_path.parent.relative_to(self.source_directory)
+            stale = Path(self.directory).resolve() / relative_dir / source_name
+            stale.unlink(missing_ok=True)
+        except OSError:
+            logger.warning(f"Unable to remove stale image copy for {source_name}")
+
+        logger.info(f"Renamed image {source_name} to {target_name} for {file_path}")
+        try:
+            self._notify_markdown_saved(file_path)
+        except Exception:
+            logger.exception("Failed to regenerate recipe after image rename")
+            self._send_json(
+                500,
+                {"error": "Image renamed, but HTML regeneration failed", "images": self._list_recipe_images(file_path)},
+            )
+            return
+
+        self._send_json(200, {"success": True, "images": self._list_recipe_images(file_path)})
 
     def _handle_metadata_post(self, path: str) -> None:
         field_name = path.split("/")[-1]

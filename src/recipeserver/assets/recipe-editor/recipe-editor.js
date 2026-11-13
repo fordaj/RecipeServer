@@ -7,6 +7,7 @@
   const RECIPE_FOLDERS_API = "/api/recipe-folders";
   const AI_STATUS_API = "/api/ai-status";
   const AI_RECIPE_API = "/api/ai-recipe";
+  const RECIPE_IMAGES_RENAME_API = "/api/recipe-images/rename";
   const MAKES_METADATA_API = "/api/metadata/makes";
   const METADATA_OPTIONS_API = "/api/metadata-options";
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
@@ -194,6 +195,14 @@ Try this
     const url = new URL(RECIPE_API, window.location.origin);
     url.searchParams.set("path", path);
     return fetchJson(url, { method: "DELETE", cache: "no-store" });
+  }
+
+  async function requestImageRename(path, from, to) {
+    return fetchJson(new URL(RECIPE_IMAGES_RENAME_API, window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path, from, to }),
+    });
   }
 
   async function getMakes(path) {
@@ -517,6 +526,333 @@ Try this
     return { append, handlePaste, reset, showSelected };
   }
 
+  // ----- Existing images and main image ----- //
+  //
+  // The Files section lists the images that sit next to the recipe Markdown
+  // (edit mode only) and offers two controls on top of them:
+  //
+  // - A "Main image" dropdown that reports the first image link in the
+  //   Markdown — the image the recipe page renders as its hero. Picking a
+  //   different option rewrites that first link; "None" removes it.
+  // - An inline rename field per image. Renaming renames the file on the
+  //   server and updates every reference to it (including the hero), so a
+  //   pasted image with a generated name can get a sensible one.
+  //
+  // Both controls edit the Markdown \textarea contents; they never touch the
+  // file on disk by themselves (except rename, which the server applies
+  // immediately because it changes the directory listing).
+
+  const MARKDOWN_IMAGE_PATTERN = /(!\[[^\]]*\]\()(\s*)(<[^>\n]*>|[^)\s>]+)((?:\s+"[^"]*")?\s*\))/g;
+  const HTML_IMAGE_PATTERN = /(<img\b[^>]*?\bsrc\s*=\s*["'])([^"']+)(["'])/gi;
+  const CLIENT_IMAGE_EXTENSIONS = new Set([
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".bmp",
+    ".tiff",
+    ".tif",
+    ".svg",
+    ".avif",
+  ]);
+
+  function safeDecode(text) {
+    try {
+      return decodeURIComponent(text);
+    } catch {
+      return text;
+    }
+  }
+
+  function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function stemOf(name) {
+    return name.replace(/\.[^.]+$/, "");
+  }
+
+  function basenameOf(src) {
+    const clean = String(src)
+      .split(/[?#]/)[0]
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">");
+    const segments = clean.split("/").filter(Boolean);
+    return segments.length ? safeDecode(segments[segments.length - 1]) : "";
+  }
+
+  // Root-absolute paths point at the site copy of an image; anything with a
+  // scheme (http:, data:, ...) is an external reference, not a local file.
+  function isExternalSrc(src) {
+    return /^[a-z][a-z0-9+.-]*:/i.test(src);
+  }
+
+  // Strips the angle brackets from a Markdown src token, if present.
+  function parseMarkdownSrc(raw) {
+    if (raw.startsWith("<") && raw.endsWith(">")) return raw.slice(1, -1);
+    return raw;
+  }
+
+  // Locates the first image in the document, whether it is written as a
+  // Markdown image or an HTML <img> tag. The returned span covers the whole
+  // image (for removal) and the src within it (for rewriting).
+  function findFirstImageReference(content) {
+    let best = null;
+    const consider = (spanStart, spanEnd, srcStart, srcEnd, src, kind) => {
+      if (best && spanStart >= best.spanStart) return;
+      best = { spanStart, spanEnd, srcStart, srcEnd, src, kind };
+    };
+
+    MARKDOWN_IMAGE_PATTERN.lastIndex = 0;
+    let match;
+    while ((match = MARKDOWN_IMAGE_PATTERN.exec(content))) {
+      const srcStart = match.index + match[1].length + match[2].length;
+      consider(
+        match.index,
+        match.index + match[0].length,
+        srcStart,
+        srcStart + match[3].length,
+        parseMarkdownSrc(match[3]),
+        "markdown",
+      );
+    }
+
+    HTML_IMAGE_PATTERN.lastIndex = 0;
+    while ((match = HTML_IMAGE_PATTERN.exec(content))) {
+      const srcStart = match.index + match[1].length;
+      consider(
+        match.index,
+        match.index + match[0].length,
+        srcStart,
+        srcStart + match[2].length,
+        match[2],
+        "html",
+      );
+    }
+
+    return best;
+  }
+
+  function needsAngleBrackets(name) {
+    return /[\s<>()]/.test(name);
+  }
+
+  function markdownSrcFor(name) {
+    return needsAngleBrackets(name) ? `<${name}>` : name;
+  }
+
+  function htmlSrcFor(name) {
+    return name.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+  }
+
+  function replacementForSrc(name, kind) {
+    return kind === "html" ? htmlSrcFor(name) : markdownSrcFor(name);
+  }
+
+  // Replaces every reference to `source` that is not glued to more filename
+  // characters. Mirrors the server-side rewrite used by the rename endpoint.
+  function renameOccurrences(content, source, target) {
+    const pattern = new RegExp(`(^|[^A-Za-z0-9_.-])${escapeRegExp(source)}(?![A-Za-z0-9_.-])`, "g");
+    let updated = content.replace(pattern, (_match, prefix) => prefix + target);
+    const quoted = encodeURIComponent(source);
+    if (quoted !== source) {
+      const quotedPattern = new RegExp(
+        `(^|[^A-Za-z0-9_.-])${escapeRegExp(quoted)}(?![A-Za-z0-9_.-])`,
+        "g",
+      );
+      updated = updated.replace(
+        quotedPattern,
+        (_match, prefix) => prefix + encodeURIComponent(target),
+      );
+    }
+    return updated;
+  }
+
+  // Removes the image's whole span; when the image sits alone on its line the
+  // line goes with it so no blank scaffolding is left behind.
+  function removeImageSpan(content, first) {
+    const lineStart = content.lastIndexOf("\n", first.spanStart - 1) + 1;
+    const lineEndIndex = content.indexOf("\n", first.spanEnd);
+    const lineEnd = lineEndIndex === -1 ? content.length : lineEndIndex;
+    const before = content.slice(lineStart, first.spanStart);
+    const after = content.slice(first.spanEnd, lineEnd);
+    if (/^\s*$/.test(before + after)) {
+      const removeEnd =
+        lineEnd < content.length && content[lineEnd] === "\n" ? lineEnd + 1 : lineEnd;
+      return content.slice(0, lineStart) + content.slice(removeEnd);
+    }
+    return content.slice(0, first.spanStart) + content.slice(first.spanEnd);
+  }
+
+  function insertImageIntoMarkdown(content, name) {
+    const image = `![${stemOf(name)}](${markdownSrcFor(name)})`;
+    const heading = /^#[^\n]*$/m.exec(content);
+    if (heading) {
+      const insertAt = heading.index + heading[0].length;
+      return `${content.slice(0, insertAt)}\n\n${image}${content.slice(insertAt)}`;
+    }
+    return `${image}\n\n${content}`;
+  }
+
+  function applyMainImageSelection(ctx) {
+    const { refs } = ctx;
+    const selected = refs.mainImageSelect.value;
+    const content = refs.textarea.value;
+    const first = findFirstImageReference(content);
+
+    if (!selected) {
+      if (first) refs.textarea.value = removeImageSpan(content, first);
+    } else if (!first) {
+      refs.textarea.value = insertImageIntoMarkdown(content, selected);
+    } else {
+      const replacement = replacementForSrc(selected, first.kind);
+      refs.textarea.value =
+        content.slice(0, first.srcStart) + replacement + content.slice(first.srcEnd);
+    }
+    updateMainImageUi(ctx);
+  }
+
+  function updateMainImageUi(ctx) {
+    const { refs, state } = ctx;
+    const content = refs.textarea.value;
+    const first = findFirstImageReference(content);
+    let selected = "";
+    if (first && !isExternalSrc(first.src)) {
+      const basename = basenameOf(first.src);
+      if (state.existingImages.some((image) => image.name === basename)) selected = basename;
+    }
+    refs.mainImageSelect.value = selected;
+    const previewImage = state.existingImages.find((image) => image.name === selected);
+    refs.mainImagePreview.hidden = !previewImage;
+    if (previewImage) refs.mainImagePreview.src = previewImage.url;
+  }
+
+  function isRenameCandidate(value) {
+    const name = value.trim();
+    if (!name || /[\\/<>:"|?*]/.test(name)) return false;
+    const dot = name.lastIndexOf(".");
+    if (dot <= 0) return false;
+    return CLIENT_IMAGE_EXTENSIONS.has(name.slice(dot).toLowerCase());
+  }
+
+  function refreshExistingImageControls(ctx) {
+    const { refs, state } = ctx;
+    refs.mainImageSelect.disabled = state.busy;
+    refs.imageList.querySelectorAll(".recipe-editor__image-item").forEach((item) => {
+      const input = item.querySelector(".recipe-editor__image-name");
+      const button = item.querySelector(".recipe-editor__image-rename");
+      input.disabled = state.busy;
+      button.disabled =
+        state.busy ||
+        input.value.trim() === input.dataset.original ||
+        !isRenameCandidate(input.value);
+    });
+  }
+
+  function createImageRow(ctx, image) {
+    const { state } = ctx;
+    const item = document.createElement("li");
+    item.className = "recipe-editor__image-item";
+
+    const thumb = document.createElement("img");
+    thumb.className = "recipe-editor__image-thumb";
+    thumb.src = image.url;
+    thumb.alt = "";
+    thumb.loading = "lazy";
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "recipe-editor__image-name";
+    input.value = image.name;
+    input.spellcheck = false;
+    input.dataset.original = image.name;
+    input.setAttribute("aria-label", `Rename ${image.name}`);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "recipe-editor__image-rename";
+    button.textContent = "Rename";
+    button.disabled = true;
+
+    const syncButton = () => {
+      button.disabled =
+        state.busy || input.value.trim() === image.name || !isRenameCandidate(input.value);
+    };
+    input.addEventListener("input", syncButton);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        if (!button.disabled) renameExistingImage(ctx, image.name, input, button);
+      }
+    });
+    button.addEventListener("click", () => renameExistingImage(ctx, image.name, input, button));
+
+    item.append(thumb, input, button);
+    return item;
+  }
+
+  function createEmptyImageRow(message) {
+    const item = document.createElement("li");
+    item.className = "recipe-editor__image-empty";
+    item.textContent = message;
+    return item;
+  }
+
+  function renderExistingImages(ctx) {
+    const { refs, state } = ctx;
+    const images = Array.isArray(state.existingImages) ? state.existingImages : [];
+    refs.mainImageSelect.replaceChildren(
+      new Option("None", ""),
+      ...images.map((image) => new Option(image.name, image.name)),
+    );
+    refs.imageList.replaceChildren(
+      ...(images.length
+        ? images.map((image) => createImageRow(ctx, image))
+        : [createEmptyImageRow("No images in this folder yet.")]),
+    );
+    updateMainImageUi(ctx);
+    refreshExistingImageControls(ctx);
+  }
+
+  function resetExistingImages(ctx) {
+    const { refs, state } = ctx;
+    state.existingImages = [];
+    refs.existingImagesBlock.hidden = true;
+    refs.mainImageSelect.replaceChildren(new Option("None", ""));
+    refs.mainImagePreview.hidden = true;
+    refs.imageList.replaceChildren();
+  }
+
+  async function renameExistingImage(ctx, oldName, input, button) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    const newName = input.value.trim();
+    if (newName === oldName) return;
+    if (!isRenameCandidate(newName)) {
+      ui.setStatus(
+        "Enter a file name with an image extension (jpg, png, svg, ...) and no path characters.",
+      );
+      return;
+    }
+    ui.setBusy(true);
+    ui.setStatus(`Renaming "${oldName}"...`);
+    try {
+      const result = await requestImageRename(state.markdownPath, oldName, newName);
+      refs.textarea.value = renameOccurrences(refs.textarea.value, oldName, newName);
+      state.existingImages = Array.isArray(result.images) ? result.images : [];
+      renderExistingImages(ctx);
+      ui.setStatus(`Renamed "${oldName}" to "${newName}".`);
+    } catch (error) {
+      ui.setStatus(error.message);
+      button.disabled = false;
+    } finally {
+      ui.setBusy(false);
+    }
+  }
+
   // ----- Initialize: DOM refs and state ----- //
 
   function collectDomRefs(dialog) {
@@ -547,6 +883,10 @@ Try this
       selectedImages: dialog.querySelector(
         ".recipe-editor__recipe-images .recipe-editor__images-selected",
       ),
+      existingImagesBlock: dialog.querySelector(".recipe-editor__existing-images"),
+      mainImageSelect: dialog.querySelector(".recipe-editor__main-image-select"),
+      mainImagePreview: dialog.querySelector(".recipe-editor__main-image-preview"),
+      imageList: dialog.querySelector(".recipe-editor__image-list"),
       aiSection: dialog.querySelector(".recipe-editor__ai"),
       aiDetails: dialog.querySelector(".recipe-editor__ai-details"),
       aiStatus: dialog.querySelector(".recipe-editor__ai-status"),
@@ -607,6 +947,7 @@ Try this
       isBulk: false,
       bulkPaths: [],
       bulkRecipes: [],
+      existingImages: [],
       aiAvailable: false,
       aiImageAvailable: false,
       aiAbortController: null,
@@ -696,6 +1037,7 @@ Try this
       setMetadataBusy(value);
       setBulkSaveButtonsBusy(value);
       setAiControlsBusy(value);
+      refreshExistingImageControls(ctx);
     }
 
     return {
@@ -1160,6 +1502,7 @@ Try this
       locationVisible: false,
     });
     setDetailsVisibility(refs, { ratings: true, bulkList: true, files: false, markdown: false });
+    refs.existingImagesBlock.hidden = true;
     refs.bulkList.textContent = state.bulkPaths.join(", ");
     refs.ratingsDetails.open = true;
     refs.aiDetails.hidden = true;
@@ -1226,6 +1569,9 @@ Try this
     populateMetadata(refs, result.metadata);
     state.originalMetadata = JSON.stringify(readMetadata(refs));
     madeThis.updateMadeThisCount(normalizeMakes(result.metadata.makes));
+    state.existingImages = Array.isArray(result.images) ? result.images : [];
+    renderExistingImages(ctx);
+    refs.existingImagesBlock.hidden = false;
     refs.deleteButton.hidden = false;
     refs.madeThisButton.hidden = false;
     refs.madeThisCount.hidden = false;
@@ -1252,6 +1598,7 @@ Try this
     madeThis.updateMadeThisCount(0);
     refs.madeThisButton.textContent = "I made this!";
     refs.recipeImages.reset();
+    resetExistingImages(ctx);
   }
 
   async function openEditor(ctx, mode) {
@@ -1436,6 +1783,14 @@ Try this
       state.createButton.addEventListener("click", () => session.openEditor("create"));
 
     refs.folderMode.addEventListener("change", ui.updateFolderControls);
+    refs.mainImageSelect.addEventListener("change", () => {
+      if (state.busy) return;
+      applyMainImageSelection(ctx);
+    });
+    textarea.addEventListener("input", () => {
+      if (state.isCreating) return;
+      updateMainImageUi(ctx);
+    });
 
     // Pasting anywhere in the dialog adds the image to the recipe images.
     // The AI image picker handles its own paste first and marks it handled.

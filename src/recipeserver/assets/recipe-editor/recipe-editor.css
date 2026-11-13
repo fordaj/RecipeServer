@@ -386,6 +386,146 @@
 }
 
 /*
+ * Existing images: thumbnails of the files that sit next to the Markdown,
+ * a dropdown that picks which one is the hero, and an inline rename field
+ * per image.
+ */
+.recipe-editor__existing-images {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.recipe-editor__existing-images[hidden] {
+  display: none;
+}
+
+.recipe-editor__existing-images > label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.recipe-editor__main-image {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.recipe-editor__main-image-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 2.5rem;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.recipe-editor__main-image-select:focus-visible {
+  outline: 2px solid var(--food-color);
+  border-color: var(--food-color);
+}
+
+.recipe-editor__main-image-preview {
+  flex: 0 0 auto;
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--hover-bg);
+}
+
+.recipe-editor__main-image-help {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.recipe-editor__image-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-editor__image-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.recipe-editor__image-thumb {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--hover-bg);
+}
+
+.recipe-editor__image-name {
+  width: 100%;
+  min-width: 0;
+  height: 2.5rem;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.recipe-editor__image-name:focus-visible {
+  outline: 2px solid var(--food-color);
+  border-color: var(--food-color);
+}
+
+.recipe-editor__image-rename {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--hover-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.recipe-editor__image-rename:hover:not(:disabled) {
+  border-color: var(--food-color);
+}
+
+.recipe-editor__image-rename:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.recipe-editor__image-rename:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.recipe-editor__image-empty {
+  padding: 0.5rem;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+/*
  * The AI images picker reuses this dropzone, so its file input keeps the
  * plain native look instead of the bordered text-field styling that the
  * other Auto-Generate inputs use.

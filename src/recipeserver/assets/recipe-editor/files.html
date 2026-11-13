@@ -21,6 +21,21 @@
       </label>
     </div>
 
+    <div class="recipe-editor__existing-images" hidden>
+      <label for="recipe-editor-main-image">Main image</label>
+      <div class="recipe-editor__main-image">
+        <select id="recipe-editor-main-image" class="recipe-editor__main-image-select">
+          <option value="">None</option>
+        </select>
+        <img class="recipe-editor__main-image-preview" alt="" hidden />
+      </div>
+      <p class="recipe-editor__main-image-help">
+        Chooses the hero image at the top of the recipe page. It reports the first image link in the
+        Markdown; changing it rewrites that link. Every image in this folder is an option.
+      </p>
+      <ul class="recipe-editor__image-list" aria-label="Images in this folder"></ul>
+    </div>
+
     <div class="recipe-editor__images recipe-editor__recipe-images">
       <label for="recipe-editor-images">Recipe images</label>
       <input
