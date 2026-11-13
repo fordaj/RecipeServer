@@ -818,19 +818,19 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         except (ai_recipe.ModelUnavailable, ai_recipe.ModelRequestError, ai_recipe.SourceFetchError, ValueError) as exc:
             logger.warning(f"AI recipe generation failed: {exc}")
             try:
-                send_event({"type": "error", "state": ai_recipe.STATUS_ERROR, "message": str(exc)})
+                send_event({"type": ai_recipe.EVENT_ERROR, "state": ai_recipe.STATUS_ERROR, "message": str(exc)})
             except _StreamClosed:
                 pass
         except Exception:
             logger.exception("Failed to generate a recipe with the local model")
             try:
-                send_event({"type": "error", "state": ai_recipe.STATUS_ERROR, "message": "Unable to generate recipe"})
+                send_event({"type": ai_recipe.EVENT_ERROR, "state": ai_recipe.STATUS_ERROR, "message": "Unable to generate recipe"})
             except _StreamClosed:
                 pass
         else:
             logger.info(f"AI recipe generation succeeded ({len(result.get('content', ''))} characters of Markdown)")
             try:
-                send_event({"type": "result", "result": result})
+                send_event({"type": ai_recipe.EVENT_RESULT, "result": result})
             except _StreamClosed:
                 logger.debug("AI result was not delivered because the browser closed the stream")
 
