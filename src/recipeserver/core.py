@@ -1,31 +1,37 @@
+import argparse
+import os
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from .image_handler import IMAGE_EXTENSIONS
-from .markdown_to_html import MarkdownToHTMLConverter
-from .index_html_generator import IndexHTMLGenerator, Recipe
+from shutil import copy2, copytree, rmtree
+from threading import Event, Lock
+
 from ._logger import logger, LogLevel
 from .config import Configuration
+from .image_handler import IMAGE_EXTENSIONS
+from .index_html_generator import IndexHTMLGenerator, Recipe
+from .markdown_to_html import MarkdownToHTMLConverter
 from .server import Server
 from .tray import Tray
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock, Event
-from shutil import rmtree, copytree, copy2
-import time, sys, os, argparse
 
+# Recipe conversion is mostly I/O (reading Markdown, copying images) with some
+# CPU-bound rendering, so even a low-core machine benefits from a floor of
+# DEFAULT_WORKERS threads; MAX_WORKERS caps thread growth on large machines.
 DEFAULT_WORKERS = 8
 MAX_WORKERS = 16
 
+# How often the non-macOS shutdown path checks whether the tray asked to quit.
+QUIT_POLL_INTERVAL_SECONDS = 0.25
+
 
 def get_worker_count() -> int:
-
     cpu_count = os.process_cpu_count() or 1
 
     return min(
         MAX_WORKERS,
         max(DEFAULT_WORKERS, cpu_count),
     )
-
-
-NUM_WORKERS = get_worker_count()
 
 
 class Core:
@@ -146,8 +152,10 @@ class Core:
 
         self._recipes.clear()
 
+        worker_count = 0
         if markdown_files:
-            with ThreadPoolExecutor(max_workers=min(NUM_WORKERS, len(markdown_files))) as executor:
+            worker_count = min(get_worker_count(), len(markdown_files))
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
                 futures = {executor.submit(self.convert_recipe, markdown): markdown for markdown in markdown_files}
 
                 for future in as_completed(futures):
@@ -167,7 +175,7 @@ class Core:
 
         self._update_index()
 
-        logger.info(f"Regenerated site with {NUM_WORKERS} workers " f"in {time.perf_counter() - start:.1f}s")
+        logger.info(f"Regenerated site with {worker_count} workers in {time.perf_counter() - start:.1f}s")
 
 
 def parse_args():
@@ -187,30 +195,31 @@ def parse_args():
 
 
 def main(cfg: Configuration):
-    # Read the prompt requirements fresh on every app run so edits take effect.
-    load_prompt = getattr(cfg, "load_new_recipe_prompt", None)
-    if callable(load_prompt):
-        load_prompt()
-
     core = Core(cfg)
     core.regen()
 
-    server_kwargs = {"on_markdown_saved": core.on_markdown_save, "on_config_saved": core.on_config_save}
-    if hasattr(core, "on_recipes_deleted"):
-        server_kwargs["on_recipes_deleted"] = core.on_recipes_deleted
-    server = Server(cfg, **server_kwargs)
+    server = Server(
+        cfg,
+        on_markdown_saved=core.on_markdown_save,
+        on_config_saved=core.on_config_save,
+        on_recipes_deleted=core.on_recipes_deleted,
+    )
     server.start()
 
     shutdown_event = Event()
     tray = Tray(server, on_quit=shutdown_event.set)
 
     try:
-        if sys.platform == "darwin":  # Mac requires tray.run() to work at all and is KeyboardInterrupt-able
-            tray.run()  # TODO: KeyboardInterrupt isn't caught on Mac either!
-        else:  # Windows won't handle KeyboardInterrupts properly unless you run detached
+        if sys.platform == "darwin":
+            # macOS requires the tray icon to run on the main thread, so run()
+            # blocks here until the tray quits; Ctrl+C raises KeyboardInterrupt.
+            tray.run()
+        else:
+            # Detach the tray so this thread stays free to notice a quit request;
+            # Windows does not deliver KeyboardInterrupt reliably in this state.
             tray.run_detached()
 
-            while not shutdown_event.wait(0.25):
+            while not shutdown_event.wait(QUIT_POLL_INTERVAL_SECONDS):
                 pass
 
     except KeyboardInterrupt:
