@@ -5,7 +5,7 @@
     <div class="recipe-editor__location" hidden>
       <label>
         Folder
-        <select class="recipe-editor__folder-mode" aria-label="Folder location">
+        <select class="recipe-editor__folder-mode field-input" aria-label="Folder location">
           <option value="title">Use recipe title (recommended)</option>
           <option value="existing">Existing folder</option>
           <option value="new">New folder</option>
@@ -13,11 +13,15 @@
       </label>
       <label class="recipe-editor__existing-folder">
         Choose folder
-        <select class="recipe-editor__folder-select"></select>
+        <select class="recipe-editor__folder-select field-input"></select>
       </label>
       <label class="recipe-editor__folder-path" hidden>
         New folder path
-        <input type="text" class="recipe-editor__new-folder" placeholder="Desserts/Chocolate" />
+        <input
+          type="text"
+          class="recipe-editor__new-folder field-input"
+          placeholder="Desserts/Chocolate"
+        />
       </label>
     </div>
 

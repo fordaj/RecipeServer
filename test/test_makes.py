@@ -229,14 +229,16 @@ def test_recipe_editor_made_this_increments_via_metadata_api_with_feedback():
 
 
 def test_recipe_editor_made_this_css_has_sparkle_animation_and_reduced_motion():
-    css = _asset("recipe-editor.css")
+    editor = _asset("recipe-editor.css")
+    css = _asset("dialog-shell.css")
 
-    assert ".recipe-editor__made-this" in css
+    # The celebration lives in the shared dialog shell, loaded on both pages.
+    assert ".recipe-editor__made-this" in editor
     assert ".recipe-editor__made-this.is-celebrating" in css
     assert "@keyframes recipe-editor-sparkle" in css
     assert "@keyframes recipe-editor-made-this-pop" in css
     assert ".recipe-editor__sparkle" in css
-    assert ".recipe-editor__made-this[hidden]" in css
+    assert ".recipe-editor__made-this[hidden]" in editor
 
     reduced = css.split("@media (prefers-reduced-motion: reduce)")[1]
     assert ".recipe-editor__made-this.is-celebrating" in reduced
@@ -246,20 +248,22 @@ def test_recipe_editor_made_this_css_has_sparkle_animation_and_reduced_motion():
 
 def test_recipe_editor_made_this_css_matches_save_button():
     css = _asset("recipe-editor.css")
+    shell = _asset("dialog-shell.css")
 
     made_this = css.split(".recipe-editor__made-this {")[1].split("}")[0]
-    save = css.split(".recipe-editor__footer .recipe-editor__save {")[1].split("}")[0]
+    made_this_fill = shell.split(".recipe-editor__made-this,\n")[1].split("}")[0]
+    save_fill = shell.split(".recipe-editor__footer .recipe-editor__save,\n")[1].split("}")[0]
 
     # Same filled look as Save: less round than a pill, food-colored fill.
     assert "border-radius: 6px" in made_this
     assert "999px" not in made_this
-    assert "background: var(--food-color)" in made_this
-    assert "color: var(--page-bg)" in made_this
+    assert "background: var(--food-color)" in made_this_fill
+    assert "background: var(--food-color)" in save_fill
+    assert "color: var(--page-bg)" in made_this_fill
+    assert "color: var(--page-bg)" in save_fill
     assert "border: 1px solid var(--food-color)" in made_this
-    assert "background: var(--food-color)" in save
-    assert "color: var(--page-bg)" in save
 
-    hover = css.split(".recipe-editor__made-this:hover:not(:disabled) {")[1].split("}")[0]
+    hover = shell.split(".recipe-editor__made-this:hover:not(:disabled),\n")[1].split("}")[0]
     assert "var(--food-color-hover)" in hover
 
     # Only Lato Regular (400) is loaded, so a heavier weight would be
@@ -282,5 +286,8 @@ def test_recipe_editor_makes_count_css_matches_overview():
 def test_recipe_editor_markdown_details_css():
     css = _asset("recipe-editor.css")
 
-    assert ".recipe-editor__markdown-details .recipe-editor__markdown-label" in css
+    # The label is a block with breathing room above it; the details keep
+    # their own top margin on the source editor.
+    label = css.split(".recipe-editor__markdown-label {")[1].split("}")[0]
+    assert "margin: 0.5rem 0 0" in label
     assert ".recipe-editor__markdown-details .recipe-editor__source" in css

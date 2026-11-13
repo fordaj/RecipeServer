@@ -403,10 +403,6 @@ input[type="checkbox"]:focus-visible {
   border-radius: 4px;
 }
 
-.recipe-overview__makes.is-celebrating {
-  animation: recipe-editor-made-this-pop 500ms ease;
-}
-
 .recipe-overview__makes .recipe-editor__sparkle {
   top: -0.5rem;
   right: -0.25rem;

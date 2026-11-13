@@ -1,130 +1,26 @@
 /* ---------- Configuration editor dialog ---------- */
+/* The dialog shell (box, backdrop, rows, close button, pinned footer, filled
+   Save button, field inputs) lives in dialog-shell.css, shared with the
+   recipe editor and shopping-list dialogs. */
 
+/* Dialog size is a legitimate deviation from the other two dialogs. */
 .config-editor-dialog {
   width: min(640px, calc(100% - 2rem));
   height: min(85dvh, 720px);
-  max-width: none;
-  max-height: none;
-  padding: 0;
-  box-sizing: border-box;
-
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--card-bg);
-  color: var(--text-color);
-
-  overflow: hidden;
-}
-
-.config-editor-dialog::backdrop {
-  background: var(--dialog-backdrop);
 }
 
 /* ---------- Editor layout ---------- */
 
 .config-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  box-sizing: border-box;
-
   padding: 1rem;
   overflow: hidden;
 }
 
-/* ---------- Header and footer ---------- */
-
-.config-editor__header,
-.config-editor__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex: 0 0 auto;
-}
-
-.config-editor__header {
-  position: relative;
-}
-
-.config-editor__header h2 {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.config-editor__close {
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 4px;
-  padding: 0.2rem 0.5rem;
-  background: transparent;
-  color: var(--text-color);
-  font-size: 1.75rem;
-  cursor: pointer;
-}
-
-.config-editor__close:hover {
-  background: var(--hover-bg);
-}
-
-.config-editor__close:focus-visible,
-.config-editor__footer button:focus-visible {
-  outline: 2px solid var(--food-color);
-}
+/* ---------- Close button ---------- */
 
 .config-editor__close:disabled {
   opacity: 0.6;
   cursor: wait;
-}
-
-/* The footer is pinned at the bottom of the dialog (header pinned at the
-   top) so Save and Cancel stay reachable while fields scroll. Its opaque
-   background hides any text scrolling beneath it. */
-.config-editor__footer {
-  flex: 0 0 auto;
-  justify-content: flex-end;
-  background: var(--card-bg);
-  border-top: 1px solid var(--border-color);
-  padding-top: 0.75rem;
-}
-
-.config-editor__footer button {
-  padding: 0.65rem 1rem;
-
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--card-bg);
-  color: var(--food-color);
-
-  cursor: pointer;
-}
-
-.config-editor__footer button:hover:not(:disabled) {
-  background: var(--hover-bg);
-}
-
-.config-editor__footer button:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
-.config-editor__footer .config-editor__save {
-  border-color: var(--food-color);
-  background: var(--food-color);
-  color: var(--page-bg);
-}
-
-.config-editor__footer .config-editor__save:hover:not(:disabled) {
-  border-color: var(--food-color-hover);
-  background: var(--food-color-hover);
-  color: var(--page-bg);
 }
 
 /* ---------- Fields ---------- */
@@ -137,7 +33,6 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 .config-editor__field {
@@ -157,24 +52,6 @@
 .config-editor__field label .config-editor__required {
   color: var(--danger-color);
   font-size: 0.85rem;
-}
-
-/* Mirrors .recipe-editor__metadata input: width/min-width pin the control
-   to its track so it cannot bleed past the dialog on mobile. */
-.config-editor__field input {
-  width: 100%;
-  min-width: 0;
-  height: 2.5rem;
-  box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--input-bg);
-  color: var(--text-color);
-
-  font: inherit;
-  font-size: 1rem;
 }
 
 .config-editor__field input:focus {
@@ -209,10 +86,8 @@
 
 /* ---------- Status ---------- */
 
+/* The shared shell provides the layout; validation messages are red here. */
 .config-editor__status {
-  flex: 0 0 auto;
-  min-height: 1.2em;
-  margin: 0;
   color: var(--danger-color);
 }
 

@@ -143,6 +143,7 @@
     if (descriptor.select) {
       const select = document.createElement("select");
       select.setAttribute("name", descriptor.select.name);
+      select.setAttribute("class", "field-input");
       const empty = document.createElement("option");
       empty.value = "";
       empty.textContent = "Select format";
@@ -159,6 +160,7 @@
     for (const [key, value] of Object.entries(descriptor.input)) {
       input.setAttribute(key, value);
     }
+    input.setAttribute("class", "field-input");
     return input;
   }
 

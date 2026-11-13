@@ -353,11 +353,12 @@ def test_shopping_list_copies_the_markdown_to_the_clipboard():
 
 
 def test_shopping_list_styles_the_done_button_like_the_save_button():
-    css = (SHOPPING_LIST_ASSETS / "shopping-list.css").read_text(encoding="UTF-8")
+    # The shared dialog shell carries the filled Save/Done/CTA fill for all three dialogs.
+    css = (SHOPPING_LIST_ASSETS.parent / "dialog-shell.css").read_text(encoding="UTF-8")
 
-    done_rule = css.split(".shopping-list__footer .shopping-list__done {")[1].split("}")[0]
-    assert "background: var(--food-color)" in done_rule
-    assert "color: var(--page-bg)" in done_rule
+    assert ".shopping-list__footer .shopping-list__done" in css
+    assert "background: var(--food-color)" in css
+    assert "color: var(--page-bg)" in css
 
 
 def test_shopping_list_lays_the_recipes_out_as_a_grid_of_rows():

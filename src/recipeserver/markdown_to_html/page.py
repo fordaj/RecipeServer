@@ -17,6 +17,7 @@ RECIPE_SCALER_HTML = ASSETS_DIR / "recipe-scaler.html"
 CSS_PATH = "/assets/style.css"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 BASE_CSS_PATH = "/assets/base.css"
+DIALOG_SHELL_CSS_PATH = "/assets/dialog-shell.css"
 RECIPE_JS = "/assets/recipe.js"
 RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
 RECIPE_EDITOR_JS = "/assets/recipe-editor/recipe-editor.js"
@@ -98,6 +99,7 @@ def build_recipe_html(
         <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
         <link rel="stylesheet" href="{DEFINITIONS_CSS_PATH}">
         <link rel="stylesheet" href="{BASE_CSS_PATH}">
+        <link rel="stylesheet" href="{DIALOG_SHELL_CSS_PATH}">
         <link rel="stylesheet" href="{CSS_PATH}">
         <link rel="stylesheet" href="{RECIPE_SCALER_CSS}">
         <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">

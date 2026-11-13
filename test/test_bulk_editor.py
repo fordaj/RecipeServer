@@ -164,12 +164,14 @@ def test_bulk_mixed_and_save_live_inside_field_labels_hidden_by_default():
     assert ".recipe-editor__mixed[hidden]" in css
     assert ".recipe-editor__bulk-field-save[hidden]" in css
     assert ".recipe-editor__field-control" in css
-    # Little Save buttons use the same filled styling as the main Save button.
-    bulk_save = css.split(".recipe-editor__bulk-field-save {")[1].split("}")[0]
-    assert "background: var(--food-color)" in bulk_save and "color: var(--page-bg)" in bulk_save
-    assert "background: var(--card-bg)" not in bulk_save
-    bulk_hover = css.split(".recipe-editor__bulk-field-save:hover:not(:disabled) {")[1].split("}")[0]
-    assert "var(--food-color-hover)" in bulk_hover
+    # Little Save buttons use the same filled styling as the main Save button
+    # (shared dialog shell carries the fill).
+    shell = (base.parent / "dialog-shell.css").read_text(encoding="UTF-8")
+    assert ".recipe-editor__bulk-field-save" in shell
+    assert "background: var(--food-color)" in shell
+    assert "color: var(--page-bg)" in shell
+    assert ".recipe-editor__bulk-field-save:hover:not(:disabled)" in shell
+    assert "var(--food-color-hover)" in shell
 
 
 def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):

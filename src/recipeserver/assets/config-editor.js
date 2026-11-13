@@ -62,7 +62,7 @@ function buildFields(fields, values) {
       label.append(element("span", "config-editor__required", "required"));
     }
 
-    const input = element("input");
+    const input = element("input", "field-input");
     input.id = inputId;
     input.name = field.key;
     input.spellcheck = false;
