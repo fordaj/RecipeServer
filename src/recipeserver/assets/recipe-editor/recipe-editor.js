@@ -1045,11 +1045,6 @@ Try this
     revokeStagedUrls(state);
     refs.stagedList.hidden = files.length === 0;
     refs.stagedList.replaceChildren(...files.map((file) => createStagedRow(ctx, file)));
-    refs.selectedImages.textContent = files.length
-      ? state.isCreating
-        ? `${files.length} image(s) staged — they'll be saved with the recipe.`
-        : `${files.length} image(s) staged for upload.`
-      : "";
     updateMainImageUi(ctx);
     refreshExistingImageControls(ctx);
   }
@@ -1166,9 +1161,6 @@ Try this
       newFolder: dialog.querySelector(".recipe-editor__new-folder"),
       imageInput: dialog.querySelector("#recipe-editor-images"),
       imageDropzone: dialog.querySelector(".recipe-editor__recipe-images"),
-      selectedImages: dialog.querySelector(
-        ".recipe-editor__recipe-images .recipe-editor__images-selected",
-      ),
       stagedList: dialog.querySelector(".recipe-editor__staged-images"),
       imagesHelpEdit: dialog.querySelector(".recipe-editor__images-help--edit"),
       imagesHelpCreate: dialog.querySelector(".recipe-editor__images-help--create"),
@@ -1209,7 +1201,6 @@ Try this
     refs.recipeImages = createImagePicker({
       input: refs.imageInput,
       dropzone: refs.imageDropzone,
-      selected: refs.selectedImages,
       isDisabled: () => refs.imageInput.disabled,
       onChange: () => refs.stagedChangeHandler?.(),
     });

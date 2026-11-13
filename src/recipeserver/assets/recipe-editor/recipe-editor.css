@@ -370,19 +370,11 @@
   outline-offset: 2px;
 }
 
-.recipe-editor__images-help,
-.recipe-editor__images-selected {
+.recipe-editor__images-help {
   margin: 0;
   font-size: 0.85rem;
   overflow-wrap: anywhere;
-}
-
-.recipe-editor__images-help {
   color: var(--muted-color);
-}
-
-.recipe-editor__images-selected:empty {
-  display: none;
 }
 
 /*

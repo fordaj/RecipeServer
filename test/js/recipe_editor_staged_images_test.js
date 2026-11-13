@@ -110,14 +110,13 @@ function element(tagName, className) {
 const refs = {
   imageInput: element("input"),
   stagedList: element("ul"),
-  selectedImages: element("p"),
   existingImagesBlock: element("div"),
   imageList: element("ul"),
   textarea: element("textarea"),
   stagedChangeHandler: null,
 };
 refs.textarea.value = "# Soup\n\n![Hero](keep.jpg)\n";
-document.body.append(refs.imageInput, refs.stagedList, refs.imageList, refs.selectedImages);
+document.body.append(refs.imageInput, refs.stagedList, refs.imageList);
 
 const state = {
   isCreating: false,
@@ -152,7 +151,6 @@ function mainButton(row) {
   refs.stagedChangeHandler();
   assert.equal(refs.stagedList.hidden, false);
   assert.equal(refs.stagedList.childNodes.length, 2);
-  assert.equal(refs.selectedImages.textContent, "2 image(s) staged for upload.");
 
   // Existing image rows carry a MAIN toggle button and mark the hero.
   state.existingImages = [{ name: "keep.jpg", url: "/Dinner/keep.jpg" }];
@@ -172,7 +170,6 @@ function mainButton(row) {
     ["another.png"],
   );
   assert.equal(fetchCalls[0].file, "saved.png");
-  assert.equal(refs.selectedImages.textContent, "1 image(s) staged for upload.");
   assert.ok(statuses.some((message) => message.includes('Saved "saved.png"')));
 
   // The X on a staged row discards it without a confirm.
