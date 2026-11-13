@@ -1,3 +1,7 @@
+// Loaded before this file on the index page; destructured once so the
+// external dependency is explicit.
+const { RecipeIcons } = window;
+
 const initRecipeIndex = async () => {
   const list = document.querySelector("#recipe-list");
   if (!list) return;
@@ -219,24 +223,11 @@ const initRecipeIndex = async () => {
   };
 
   // ----- Rating Warning Icon ----- //
-  // The warning icon lives in assets/warning.svg; load it once and
-  // inline it so it can inherit the chip's colour via currentColor.
-  let ratingWarningIcon = "";
-  try {
-    const response = await fetch("/assets/warning.svg", { cache: "no-store" });
-    if (response.ok) {
-      const svg = new DOMParser().parseFromString(
-        await response.text(),
-        "image/svg+xml",
-      ).documentElement;
-      svg.setAttribute("class", "recipe-icon");
-      svg.setAttribute("aria-hidden", "true");
-      svg.setAttribute("focusable", "false");
-      ratingWarningIcon = new XMLSerializer().serializeToString(svg);
-    }
-  } catch {
-    ratingWarningIcon = "";
-  }
+  // The warning icon lives in assets/warning.svg; it is inlined so it can
+  // inherit the chip's colour via currentColor.
+  const ratingWarningIcon = await RecipeIcons.loadSvgIcon("/assets/warning.svg", {
+    class: "recipe-icon",
+  });
 
   const ratingWarningMessage = (reviewers) => {
     if (!reviewers) return "Missing ratings";

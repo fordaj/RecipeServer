@@ -9,6 +9,10 @@
   const LIST_ICON_URL = "/assets/list.svg";
   const COPY_ICON_URL = "/assets/copy.svg";
 
+  // Loaded before this file on the index page; destructured once so the
+  // external dependency is explicit.
+  const { RecipeIcons } = window;
+
   let dialog = null;
   let state = null;
   let scalerMarkup = "";
@@ -36,28 +40,11 @@
 
   // The icons are fetched and inlined so they inherit the colour of the
   // button they sit in through currentColor.
-  async function loadSvgIcon(url) {
-    try {
-      const response = await fetch(url, { cache: "no-store" });
-      if (!response.ok) return "";
-
-      const svg = new DOMParser().parseFromString(
-        await response.text(),
-        "image/svg+xml",
-      ).documentElement;
-      svg.setAttribute("aria-hidden", "true");
-      svg.setAttribute("focusable", "false");
-      return new XMLSerializer().serializeToString(svg);
-    } catch {
-      return "";
-    }
-  }
-
   async function loadIcons(element) {
     const [printer, list, copy] = await Promise.all([
-      loadSvgIcon(PRINTER_ICON_URL),
-      loadSvgIcon(LIST_ICON_URL),
-      loadSvgIcon(COPY_ICON_URL),
+      RecipeIcons.loadSvgIcon(PRINTER_ICON_URL),
+      RecipeIcons.loadSvgIcon(LIST_ICON_URL),
+      RecipeIcons.loadSvgIcon(COPY_ICON_URL),
     ]);
 
     const icons = { ".shopping-list__print": printer, ".shopping-list__download": list };
