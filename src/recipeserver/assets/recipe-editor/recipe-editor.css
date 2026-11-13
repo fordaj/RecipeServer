@@ -370,19 +370,249 @@
   outline-offset: 2px;
 }
 
-.recipe-editor__images-help,
-.recipe-editor__images-selected {
+.recipe-editor__images-help {
   margin: 0;
   font-size: 0.85rem;
   overflow-wrap: anywhere;
-}
-
-.recipe-editor__images-help {
   color: var(--muted-color);
 }
 
-.recipe-editor__images-selected:empty {
+/*
+ * Existing images: thumbnails of the files that sit next to the Markdown.
+ * Each thumbnail is a toggle button that sets it as the hero; the main image
+ * gets a food-color outline and a subtle MAIN badge in its upper-left corner.
+ */
+.recipe-editor__existing-images {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.recipe-editor__existing-images[hidden] {
   display: none;
+}
+
+.recipe-editor__existing-images > span {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.recipe-editor__image-main {
+  position: relative;
+  display: block;
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.recipe-editor__image-main:hover {
+  border-color: var(--muted-color);
+}
+
+.recipe-editor__image-main:focus-visible {
+  outline: 2px solid var(--food-color);
+  border-color: var(--food-color);
+}
+
+.recipe-editor__image-main.is-main {
+  border-color: var(--food-color);
+}
+
+.recipe-editor__image-main:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.recipe-editor__main-badge {
+  display: none;
+}
+
+.recipe-editor__image-main.is-main .recipe-editor__main-badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  display: block;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: var(--food-color);
+  color: var(--page-bg);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.recipe-editor__image-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-editor__image-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.recipe-editor__image-thumb {
+  display: block;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--hover-bg);
+}
+
+/*
+ * The Rename field is a composite control: a text input with a small Rename
+ * button attached to its right edge, all inside the same 2.5rem border.
+ */
+.recipe-editor__rename-field {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  min-width: 0;
+  height: 2.5rem;
+  box-sizing: border-box;
+  padding: 0.25rem 0.25rem 0.25rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+}
+
+.recipe-editor__rename-field:focus-within {
+  outline: 2px solid var(--food-color);
+  border-color: var(--food-color);
+}
+
+.recipe-editor__image-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.recipe-editor__image-name:focus-visible {
+  outline: none;
+}
+
+/* Small button attached to the inside of the Rename field. */
+.recipe-editor__image-rename {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--card-bg);
+  color: var(--food-color);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.recipe-editor__image-rename:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.recipe-editor__image-upload:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+}
+
+.recipe-editor__image-rename:focus-visible,
+.recipe-editor__image-upload:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.recipe-editor__image-rename:disabled,
+.recipe-editor__image-upload:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* Same filled style as the main Save button (.recipe-editor__save). */
+.recipe-editor__image-upload {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--food-color);
+  border-radius: 6px;
+  background: var(--food-color);
+  color: var(--page-bg);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.recipe-editor__image-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--hover-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.recipe-editor__image-remove:hover:not(:disabled) {
+  border-color: var(--danger-color);
+  color: var(--danger-color);
+}
+
+.recipe-editor__image-remove:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.recipe-editor__image-remove:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.recipe-editor__staged-images {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recipe-editor__staged-images[hidden] {
+  display: none;
+}
+
+.recipe-editor__image-empty {
+  padding: 0.5rem;
+  color: var(--muted-color);
+  font-size: 0.85rem;
 }
 
 /*

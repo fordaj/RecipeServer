@@ -41,6 +41,7 @@ def test_ai_image_picker_reuses_the_images_dropzone():
     assert "multiple" in markup
     assert "paste them from your clipboard" in markup
     assert "Each image is transcribed in the order it is added." in markup
+    # The AI picker keeps its comma-joined name line (it has no staged rows).
     assert "recipe-editor__images-selected" in markup
 
     # Both pickers come from the shared helper so paste and drag-and-drop
