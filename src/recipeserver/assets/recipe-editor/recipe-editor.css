@@ -428,7 +428,7 @@
 }
 
 .recipe-editor__image-main:disabled {
-  cursor: wait;
+  cursor: default;
   opacity: 0.6;
 }
 
@@ -473,6 +473,7 @@
 }
 
 .recipe-editor__image-thumb {
+  display: block;
   width: 3.5rem;
   height: 3.5rem;
   border-radius: 6px;
@@ -499,20 +500,25 @@
   border-color: var(--food-color);
 }
 
+/* Same size as the delete (X) button, styled like the Cancel button. */
 .recipe-editor__image-rename {
-  min-height: 2.5rem;
-  padding: 0.5rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding: 0 1rem;
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: var(--hover-bg);
-  color: var(--text-color);
+  background: var(--card-bg);
+  color: var(--food-color);
   font: inherit;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
   cursor: pointer;
 }
 
 .recipe-editor__image-rename:hover:not(:disabled) {
-  border-color: var(--food-color);
+  background: var(--hover-bg);
 }
 
 .recipe-editor__image-upload:hover:not(:disabled) {
@@ -527,7 +533,7 @@
 
 .recipe-editor__image-rename:disabled,
 .recipe-editor__image-upload:disabled {
-  cursor: wait;
+  cursor: default;
   opacity: 0.6;
 }
 
