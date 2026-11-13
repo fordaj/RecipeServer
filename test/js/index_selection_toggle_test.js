@@ -11,6 +11,7 @@ const path = require("node:path");
 const { createDocument } = require("./dom_stub.js");
 
 const INDEX_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "index.js");
+const ICONS_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "icons.js");
 
 function element(document, tagName, attributes = {}) {
   const node = document.createElement(tagName);
@@ -134,6 +135,7 @@ async function main() {
     setItem: (key, value) => store.set(key, String(value)),
   };
 
+  require(ICONS_JS);
   require(INDEX_JS);
   document.dispatchEvent({ type: "DOMContentLoaded" });
   await tick();
