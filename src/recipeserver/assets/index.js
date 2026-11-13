@@ -704,15 +704,7 @@ const deleteSelectedRecipes = async (ctx) => {
     return;
   ctx.bulkDelete.disabled = true;
   try {
-    const response = await fetch(new URL("/api/bulk-delete", window.location.origin), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paths }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.success !== true) {
-      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
-    }
+    await window.RecipeDialogs.postBulkDelete(paths);
     window.location.reload();
   } catch (error) {
     alert(error.message || "Unable to delete selected recipes.");

@@ -37,6 +37,8 @@ ICONS_JS_PATH = "/assets/icons.js"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 BASE_CSS_PATH = "/assets/base.css"
 DIALOG_SHELL_CSS_PATH = "/assets/dialog-shell.css"
+DIALOGS_JS_PATH = "/assets/dialogs.js"
+RECIPE_FEEDBACK_JS_PATH = "/assets/recipe-feedback.js"
 INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor/recipe-editor.css"
@@ -800,6 +802,8 @@ class IndexHTMLGenerator:
             "definitions_css": DEFINITIONS_CSS_PATH,
             "base_css": BASE_CSS_PATH,
             "dialog_shell_css": DIALOG_SHELL_CSS_PATH,
+            "dialogs_js": DIALOGS_JS_PATH,
+            "recipe_feedback_js": RECIPE_FEEDBACK_JS_PATH,
             "index_css": INDEX_CSS_PATH,
             "index_js": INDEX_JS_PATH,
             "icons_js": ICONS_JS_PATH,
@@ -846,10 +850,12 @@ class IndexHTMLGenerator:
     <link rel="stylesheet" href="{urls['pull_down_page_refresh_css']}">
     <script src="{MENU_JS_URL}" defer></script>
     <script src="{urls['icons_js']}" defer></script>
+    <script src="{urls['dialogs_js']}" defer></script>
     <script src="{urls['index_js']}" defer></script>
     <script src="{urls['metadata_picker_js']}" defer></script>
     <script src="{urls['ai_progress_js']}" defer></script>
     <script src="{urls['fields_js']}" defer></script>
+    <script src="{urls['recipe_feedback_js']}" defer></script>
     <script src="{urls['recipe_editor_js']}" defer></script>
     <script src="{urls['recipe_scaler_js']}" defer></script>
     <script src="{urls['shopping_list_js']}" defer></script>

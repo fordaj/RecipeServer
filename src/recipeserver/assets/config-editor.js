@@ -196,20 +196,8 @@ function createEditorDialog() {
   dialog.addEventListener("cancel", (event) => {
     if (state.busy) event.preventDefault();
   });
-  // BEGIN Close dialogue if a full click cycle occurs outside of dialogue
-  let pointerDownTarget = null;
-
-  dialog.addEventListener("pointerdown", (event) => {
-    pointerDownTarget = event.target;
-  });
-
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog && pointerDownTarget === dialog) {
-      closeEditor();
-    }
-    pointerDownTarget = null;
-  });
-  // END Close dialogue if a full click cycle occurs outside of dialogue
+  // Click outside the dialog (a full press on the backdrop) closes it.
+  window.RecipeDialogs.installClickOutsideClose(dialog, closeEditor);
 }
 
 function initialize() {

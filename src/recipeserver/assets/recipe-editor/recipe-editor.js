@@ -2,7 +2,6 @@
   const EDITOR_ID = "recipe-markdown-editor";
   const RECIPE_EDITOR_API = "/api/recipe-editor";
   const BULK_EDITOR_API = "/api/bulk-editor";
-  const BULK_DELETE_API = "/api/bulk-delete";
   const RECIPE_API = "/api/recipe";
   const RECIPE_FOLDERS_API = "/api/recipe-folders";
   const AI_STATUS_API = "/api/ai-status";
@@ -18,7 +17,8 @@
   // The pages that load this file also load these scripts before it (see
   // index_html_generator.py and markdown_to_html.py). Destructure them once
   // so the external dependencies are explicit.
-  const { RecipeAIProgress, RecipeMetadataPicker, RecipeIcons } = window;
+  const { RecipeAIProgress, RecipeMetadataPicker, RecipeIcons, RecipeFeedback, RecipeDialogs } =
+    window;
 
   // The "I made this!" celebration: a row of sparkles arcs outward from the
   // button, staggered, then is removed together.
@@ -113,11 +113,6 @@ Try this
 
   // ----- Path and fetch helpers ----- //
 
-  function getMarkdownPath() {
-    const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
-    return page.replace(/\.html$/i, ".md");
-  }
-
   async function fetchJson(url, options = {}) {
     const response = await fetch(url, options);
     const result = await response.json().catch(() => ({}));
@@ -156,14 +151,6 @@ Try this
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paths, ...payload }),
-    });
-  }
-
-  async function requestBulkDelete(paths) {
-    return fetchJson(new URL(BULK_DELETE_API, window.location.origin), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paths }),
     });
   }
 
@@ -1139,7 +1126,7 @@ Try this
   // ----- Initialize: DOM refs and state ----- //
 
   function collectDomRefs(dialog) {
-    return {
+    const refs = {
       dialog,
       form: dialog.querySelector("form"),
       textarea: dialog.querySelector(".recipe-editor__source"),
@@ -1182,19 +1169,13 @@ Try this
       aiUrlButton: dialog.querySelector(".recipe-editor__ai-generate-url"),
       aiImageButton: dialog.querySelector(".recipe-editor__ai-generate-image"),
       aiCancelButton: dialog.querySelector(".recipe-editor__ai-cancel"),
-      aiControls: null,
-      aiImageControls: null,
-      aiProgress: null,
       bulkFieldSaves: [...dialog.querySelectorAll(".recipe-editor__bulk-field-save")],
       mixedBadges: [...dialog.querySelectorAll(".recipe-editor__mixed")],
       ratingsDetails: dialog.querySelector(".recipe-editor__ratings-details"),
       bulkList: dialog.querySelector(".recipe-editor__bulk-list"),
       filesDetails: dialog.querySelector(".recipe-editor__details"),
-      pickers: null,
     };
-  }
 
-  function finalizeDomRefs(refs, state) {
     refs.aiControls = [refs.aiText, refs.aiUrl, refs.aiTextButton, refs.aiUrlButton];
     refs.aiImageControls = [refs.aiImage, refs.aiImageButton];
     refs.aiProgress = RecipeAIProgress.createProgress(refs.aiSection);
@@ -1481,6 +1462,31 @@ Try this
 
   // ----- "Made this" helpers ----- //
 
+  // One write path for the recipe page button and the editor dialog: read
+  // the current makes count, add one, and save it back. When the request
+  // fails after the file was already written (e.g. the page could not be
+  // regenerated) the error carries the attempted count so the UI can
+  // reflect it.
+  async function recordMake(path) {
+    const makes = (await getMakes(path)) + 1;
+    try {
+      await saveMakes(path, makes);
+    } catch (error) {
+      error.makes = makes;
+      throw error;
+    }
+    return makes;
+  }
+
+  // One error shape for both call sites: the message to show and whether
+  // the make was saved despite the error (leaving the page stale).
+  function madeThisError(error) {
+    const message = error.message || "Unable to save your make.";
+    const savedButNotRefreshed = /saved, but/i.test(message);
+    const makes = Number.isFinite(error.makes) ? error.makes : null;
+    return { message, savedButNotRefreshed, makes };
+  }
+
   function createMadeThisActions(ctx) {
     const { refs, state, ui } = ctx;
 
@@ -1513,29 +1519,22 @@ Try this
       ui.setBusy(true);
       ui.setStatus("Recording your make…");
 
-      let makes = 0;
-      let savedToFile = false;
-      const path = state.markdownPath;
-
       try {
-        makes = (await getMakes(path)) + 1;
-        await saveMakes(path, makes);
-        savedToFile = true;
+        const makes = await recordMake(state.markdownPath);
         syncMadeThisCount(makes);
         ui.setStatus(`🎉 Nice work! Your make was recorded — makes: ${makes}.`);
         celebrate(refs.madeThisButton, refs.header);
       } catch (error) {
-        handleMadeThisError(error, makes, savedToFile);
+        handleMadeThisError(error);
       } finally {
         ui.setBusy(false);
       }
     }
 
-    function handleMadeThisError(error, makes, savedToFile) {
-      const message = error.message || "Unable to save your make.";
-      const savedButNotRefreshed = /saved, but/i.test(message);
+    function handleMadeThisError(error) {
+      const { message, savedButNotRefreshed, makes } = madeThisError(error);
 
-      if (savedButNotRefreshed && !savedToFile) {
+      if (savedButNotRefreshed && makes != null) {
         // The file was written but regenerating the page failed: the make
         // counts, even though the visible page is stale.
         syncMadeThisCount(makes);
@@ -1581,30 +1580,29 @@ Try this
     return { name, rating: score };
   }
 
-  function resetBulkFieldChrome(refs) {
+  function hideMixedBadges(refs) {
     // MIXED spans and per-field Save buttons live inside their labels,
-    // hidden by default; bulk mode reveals them.
+    // hidden by default; bulk mode reveals them selectively.
     refs.mixedBadges.forEach((badge) => {
       badge.hidden = true;
     });
-    refs.bulkFieldSaves.forEach((button) => {
-      button.hidden = true;
-    });
-    refs.dialog.classList.remove("is-bulk");
     refs.dialog.querySelectorAll("label.is-mixed").forEach((element) => {
       element.classList.remove("is-mixed");
     });
   }
 
+  // The single show/hide path for the bulk-edit chrome: the per-field Save
+  // buttons and the dialog's is-bulk class.
   function setBulkFieldChrome(refs, visible) {
     refs.bulkFieldSaves.forEach((button) => {
       button.hidden = !visible;
     });
     refs.dialog.classList.toggle("is-bulk", visible);
-    if (!visible)
-      refs.mixedBadges.forEach((badge) => {
-        badge.hidden = true;
-      });
+  }
+
+  function resetBulkFieldChrome(refs) {
+    hideMixedBadges(refs);
+    setBulkFieldChrome(refs, false);
   }
 
   function findFieldLabel(refs, field) {
@@ -1621,40 +1619,42 @@ Try this
     label.classList.add("recipe-editor__field-label", "is-mixed");
   }
 
-  function markMixedSourceFields(ctx) {
-    const { refs, state } = ctx;
+  function mixedSourceFields(bulkRecipes) {
+    if (!bulkRecipes.length) return [];
+    const mixed = [];
     for (const subfield of ["author", "title", "format", "url"]) {
-      const first = JSON.stringify(
-        firstSource(state.bulkRecipes[0].metadata.source)[subfield] ?? null,
-      );
-      const mixed =
-        state.bulkRecipes.length > 1 &&
-        state.bulkRecipes.some(
+      const first = JSON.stringify(firstSource(bulkRecipes[0].metadata.source)[subfield] ?? null);
+      const differs =
+        bulkRecipes.length > 1 &&
+        bulkRecipes.some(
           (recipe) =>
             JSON.stringify(firstSource(recipe.metadata.source)[subfield] ?? null) !== first,
         );
-      if (mixed) showMixed(refs, `source.${subfield}`);
+      if (differs) mixed.push(`source.${subfield}`);
     }
+    return mixed;
   }
 
-  function markMixedFields(ctx) {
-    const { refs, state } = ctx;
-    refs.mixedBadges.forEach((badge) => {
-      badge.hidden = true;
+  function ratingsDiffer(bulkRecipes) {
+    return (
+      bulkRecipes.length > 1 &&
+      bulkRecipes.some(
+        (recipe) => JSON.stringify(recipe.ratings) !== JSON.stringify(bulkRecipes[0].ratings),
+      )
+    );
+  }
+
+  // Show exactly the MIXED badges for fields whose values differ across the
+  // selection; every other badge stays hidden. Called after the shared
+  // chrome enters bulk mode.
+  function markMixedFields(refs, bulkRecipes) {
+    hideMixedBadges(refs);
+    const mixed = Object.keys(BULK_FIELD_LABELS).flatMap((field) => {
+      if (field === "source") return mixedSourceFields(bulkRecipes);
+      return isMixed(bulkRecipes, field) ? [field] : [];
     });
-    refs.dialog.querySelectorAll("label.is-mixed").forEach((element) => {
-      element.classList.remove("is-mixed");
-    });
-    for (const field of Object.keys(BULK_FIELD_LABELS)) {
-      if (field === "source") markMixedSourceFields(ctx);
-      else if (isMixed(state.bulkRecipes, field)) showMixed(refs, field);
-    }
-    const ratingsDiffer =
-      state.bulkRecipes.length > 1 &&
-      state.bulkRecipes.some(
-        (recipe) => JSON.stringify(recipe.ratings) !== JSON.stringify(state.bulkRecipes[0].ratings),
-      );
-    if (ratingsDiffer) showMixed(refs, "rating.name");
+    if (ratingsDiffer(bulkRecipes)) mixed.push("rating.name");
+    for (const field of mixed) showMixed(refs, field);
   }
 
   async function saveBulkField(ctx, field) {
@@ -1699,7 +1699,7 @@ Try this
     return {
       resetBulkFieldChrome: () => resetBulkFieldChrome(ctx.refs),
       setBulkFieldChrome: (visible) => setBulkFieldChrome(ctx.refs, visible),
-      markMixedFields: () => markMixedFields(ctx),
+      markMixedFields: () => markMixedFields(ctx.refs, ctx.state.bulkRecipes),
       setupBulkFieldButtons: () => setupBulkFieldButtons(ctx),
       readBulkRating: () => readBulkRating(ctx.refs.form, ctx.ui.setStatus),
     };
@@ -1845,7 +1845,7 @@ Try this
 
   async function loadEditMode(ctx) {
     const { refs, state, madeThis } = ctx;
-    state.markdownPath = getMarkdownPath();
+    state.markdownPath = RecipeFeedback.getMarkdownPath();
     const result = await requestEditor(state.markdownPath);
     state.originalContent = result.content;
     refs.textarea.value = result.content;
@@ -1994,7 +1994,7 @@ Try this
           question: `Delete ${state.bulkPaths.length} selected recipes? This cannot be undone.`,
           pendingStatus: "Deleting recipes…",
           doneStatus: "Recipes deleted! Redirecting to the index…",
-          execute: () => requestBulkDelete(state.bulkPaths),
+          execute: () => RecipeDialogs.postBulkDelete(state.bulkPaths),
         }
       : {
           question: "Are you sure you want to delete this recipe? This action cannot be undone.",
@@ -2034,23 +2034,14 @@ Try this
 
   function registerDialogDismissListeners(ctx) {
     const { refs, state, ui } = ctx;
-    let pointerDownTarget = null;
 
     refs.dialog.addEventListener("close", () => {
       document.body.classList.remove("recipe-editor-open");
       ui.unlockBackgroundScroll();
     });
 
-    // Close dialogue if a full click cycle occurs outside of dialogue.
-    refs.dialog.addEventListener("pointerdown", (event) => {
-      pointerDownTarget = event.target;
-    });
-    refs.dialog.addEventListener("click", (event) => {
-      if (event.target === refs.dialog && pointerDownTarget === refs.dialog) {
-        ui.closeEditor();
-      }
-      pointerDownTarget = null;
-    });
+    // Click outside the dialog (a full press on the backdrop) closes it.
+    RecipeDialogs.installClickOutsideClose(refs.dialog, ui.closeEditor);
 
     refs.dialog.addEventListener("cancel", (event) => {
       if (state.busy) event.preventDefault();
@@ -2109,7 +2100,7 @@ Try this
     if (!button) return;
 
     let busy = false;
-    const markdownPath = getMarkdownPath();
+    const markdownPath = RecipeFeedback.getMarkdownPath();
     const valueElement = button.querySelector(".recipe-overview__value");
 
     button.addEventListener("click", async () => {
@@ -2118,15 +2109,20 @@ Try this
       button.disabled = true;
 
       try {
-        const current = normalizeMakes(button.dataset.makes);
-        const makes = (await getMakes(markdownPath)) + 1;
-        await saveMakes(markdownPath, makes);
+        const makes = await recordMake(markdownPath);
         button.dataset.makes = String(makes);
         if (valueElement) valueElement.textContent = makesCountLabel(makes);
         celebrate(button, button);
       } catch (error) {
-        // Keep the page responsive even if the save fails.
-        console.error(error);
+        const { message, savedButNotRefreshed, makes } = madeThisError(error);
+        if (savedButNotRefreshed && makes != null) {
+          // The file was written but the page is stale; the make still counts.
+          button.dataset.makes = String(makes);
+          if (valueElement) valueElement.textContent = makesCountLabel(makes);
+          celebrate(button, button);
+          return;
+        }
+        console.error("Unable to record your make:", message);
       } finally {
         button.disabled = false;
         busy = false;
@@ -2150,7 +2146,7 @@ Try this
     // threaded through the flows below, instead of passing each of them
     // positionally.
     const ctx = {
-      refs: finalizeDomRefs(collectDomRefs(dialog), state),
+      refs: collectDomRefs(dialog),
       state,
     };
 

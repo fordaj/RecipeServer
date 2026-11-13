@@ -18,6 +18,7 @@ CSS_PATH = "/assets/style.css"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 BASE_CSS_PATH = "/assets/base.css"
 DIALOG_SHELL_CSS_PATH = "/assets/dialog-shell.css"
+DIALOGS_JS_PATH = "/assets/dialogs.js"
 RECIPE_JS = "/assets/recipe.js"
 RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
 RECIPE_EDITOR_JS = "/assets/recipe-editor/recipe-editor.js"
@@ -131,6 +132,7 @@ def build_recipe_html(
         <script defer src="{METADATA_PICKER_JS}"></script>
         <script defer src="{AI_PROGRESS_JS}"></script>
         <script defer src="{FIELDS_JS}"></script>
+        <script defer src="{DIALOGS_JS_PATH}"></script>
         <script defer src="{RECIPE_EDITOR_JS}"></script>
     </body>
     </html>
