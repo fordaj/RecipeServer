@@ -1,0 +1,93 @@
+/*
+ * Pull-to-refresh indicator.
+ *
+ * The indicator element is created by pull-down-page-refresh.js, which also
+ * sets the spans' hidden vertical offset (INDICATOR_HIDDEN_OFFSET_PX); only
+ * the static styling lives here. Colors come from definitions.css theme
+ * tokens so light and dark mode are both handled by the shared variables.
+ */
+
+#pull-to-refresh {
+  position: fixed;
+  /* Above page chrome (menu, toolbars). The editor and configuration dialogs
+     are native <dialog> elements and render in the top layer, so they cover
+     this regardless of its z-index. */
+  z-index: 9999;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 0;
+
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+
+  background: transparent;
+  color: var(--text-color);
+  font: 14px sans-serif;
+
+  transform: translateY(0);
+  transition: none;
+  pointer-events: none;
+}
+
+#pull-to-refresh.ptr-active {
+  transition: none;
+}
+
+#pull-to-refresh > span {
+  position: relative;
+}
+
+#pull-to-refresh .ptr-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 40px;
+  height: 40px;
+
+  padding: 0;
+  margin-right: 8px;
+
+  background: color-mix(in srgb, var(--card-bg) 96%, transparent);
+  border-radius: 50%;
+
+  box-shadow: var(--card-shadow);
+
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+#pull-to-refresh .ptr-text {
+  display: inline-block;
+
+  padding: 10px 16px;
+
+  background: color-mix(in srgb, var(--card-bg) 96%, transparent);
+  border-radius: 24px;
+
+  box-shadow: var(--card-shadow);
+
+  font-size: 14px;
+  line-height: 20px;
+}
+
+#pull-to-refresh.ptr-loading .ptr-arrow {
+  animation: ptr-spin 0.7s linear infinite;
+}
+
+@keyframes ptr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #pull-to-refresh,
+  #pull-to-refresh .ptr-arrow {
+    transition: none !important;
+    animation: none !important;
+  }
+}
