@@ -378,6 +378,30 @@ const initRecipeIndex = async () => {
     }
   };
 
+  // The last chosen sort is persisted per device.
+  const SORT_STORAGE_KEY = "recipe-sort";
+
+  const loadSort = () => {
+    try {
+      const stored = localStorage.getItem(SORT_STORAGE_KEY);
+      const options = sort.options ? [...sort.options] : null;
+      if (stored && (options === null || options.some((option) => option.value === stored))) {
+        return stored;
+      }
+    } catch {
+      // localStorage may be unavailable (e.g. private browsing).
+    }
+    return "edited:desc";
+  };
+
+  const saveSort = (value) => {
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, value);
+    } catch {
+      // Ignore storage errors; the in-page layout still updates.
+    }
+  };
+
   // ----- Filter, Sort, and Render ----- //
   const isArchivedVisible = (recipe) =>
     !showArchived || showArchived.checked || recipe.dataset.archived !== "true";
@@ -423,10 +447,11 @@ const initRecipeIndex = async () => {
       }
 
       for (const box of group.boxes) {
-        const countElement = box
-          .closest(".filter-menu__option")
-          ?.querySelector(".filter-menu__count");
-        if (countElement) countElement.textContent = String(counts.get(box.value) || 0);
+        const option = box.closest(".filter-menu__option");
+        const countElement = option?.querySelector(".filter-menu__count");
+        const countValue = counts.get(box.value) || 0;
+        if (countElement) countElement.textContent = String(countValue);
+        if (option) option.hidden = countValue === 0;
       }
       if (group.allCount) group.allCount.textContent = String(matching.length);
     }
@@ -501,9 +526,14 @@ const initRecipeIndex = async () => {
   };
 
   // ----- Event Wiring ----- //
-  [search, sort].forEach((control) =>
-    control.addEventListener(control === search ? "input" : "change", update),
-  );
+  if (sort) {
+    sort.value = loadSort();
+    sort.addEventListener("change", () => {
+      saveSort(sort.value);
+      update();
+    });
+  }
+  if (search) search.addEventListener("input", update);
 
   filterMenus.forEach((group) => {
     if (group.allBox) {

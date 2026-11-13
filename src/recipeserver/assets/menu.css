@@ -57,6 +57,10 @@
 }
 
 .sandwich-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+
   padding: 0.5rem 0.6rem;
   border: 0;
   border-radius: 5px;
@@ -69,8 +73,19 @@
   cursor: pointer;
 }
 
+.sandwich-menu__item-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex: 0 0 auto;
+  color: var(--muted-color);
+}
+
 .sandwich-menu__item:hover {
   background: var(--hover-bg);
+}
+
+.sandwich-menu__item:hover .sandwich-menu__item-icon {
+  color: var(--food-color);
 }
 
 .sandwich-menu__item:focus-visible {

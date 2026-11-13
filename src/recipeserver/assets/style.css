@@ -250,7 +250,7 @@ body > a:hover {
 }
 
 .recipe ol ol {
-  margin-top: 0.08in;
+  margin-top: 0;
   list-style-type: lower-alpha;
 }
 
@@ -264,11 +264,24 @@ body > a:hover {
 
 /* ---------- Ingredients ---------- */
 
-.recipe ul {
+.recipe > ul {
   background: var(--card-bg);
   padding: 1.5rem 1.5rem 1.5rem 3rem;
   border-radius: 10px;
   box-shadow: var(--card-shadow);
+}
+
+/* Nested lists carry no vertical padding of their own. */
+.recipe ul ul,
+.recipe ul ol,
+.recipe ol ul,
+.recipe ol ol {
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 /* Strikethrough and italicize checked items */
@@ -293,7 +306,7 @@ input[type="checkbox"] {
 
   display: inline-grid;
   place-content: center;
-  vertical-align: middle;
+  vertical-align: baseline;
   cursor: pointer;
   flex-shrink: 0;
 }

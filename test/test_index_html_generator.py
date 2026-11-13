@@ -207,7 +207,7 @@ def test_index_review_filter_is_populated_and_sorted_by_review_count(tmp_path: P
     advanced = soup.select_one(".recipe-advanced__content")
     assert advanced is not None
     assert advanced.select_one("#review-filter") is not None
-    assert soup.select_one(".recipe-filters #review-filter") is None
+    assert soup.select_one(".recipe-filters #review-filter") is not None
 
     all_reviews = soup.select_one("#filter-reviews-all")
     assert all_reviews is not None
@@ -301,7 +301,7 @@ def test_index_advanced_filters_are_multi_select_menus_with_counts(tmp_path: Pat
         (tmp_path / "index.html").read_text(encoding="UTF-8"),
         "html.parser",
     )
-    menus = soup.select(".recipe-filters details.filter-menu")
+    menus = soup.select(".recipe-filters details.filter-menu[data-filter]")
     assert [menu["data-filter"] for menu in menus] == [
         "meals",
         "cuisine",

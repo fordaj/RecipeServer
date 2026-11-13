@@ -1380,7 +1380,7 @@ Try this
   }
 
   function registerControlListeners(refs, state, ui, ai, madeThis, session) {
-    const { madeThisButton, markdownDetails, textarea } = refs;
+    const { madeThisButton, madeThisCount, markdownDetails, textarea } = refs;
     const { recordMadeThis } = madeThis;
 
     if (state.editButton)
@@ -1397,6 +1397,7 @@ Try this
     refs.cancelButton.addEventListener("click", ui.closeEditor);
     refs.closeButton.addEventListener("click", ui.closeEditor);
     madeThisButton.addEventListener("click", recordMadeThis);
+    if (madeThisCount) madeThisCount.addEventListener("click", recordMadeThis);
 
     // A required control inside a closed <details> is not focusable, which
     // would silently block submission. Only require it while it is visible.
