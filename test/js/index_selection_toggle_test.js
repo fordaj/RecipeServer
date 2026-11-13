@@ -12,16 +12,6 @@ const { createDocument } = require("./dom_stub.js");
 
 const INDEX_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "index.js");
 
-const FILTER_IDS = [
-  "filter-meal",
-  "filter-cuisine",
-  "filter-status",
-  "filter-category",
-  "filter-tag",
-  "filter-contributor",
-  "filter-source-title",
-];
-
 function element(document, tagName, attributes = {}) {
   const node = document.createElement(tagName);
   for (const [name, value] of Object.entries(attributes)) {
@@ -38,11 +28,6 @@ function buildPage(document) {
   const count = element(document, "p", { id: "recipe-count" });
   const clearFilters = element(document, "button", { id: "clear-filters" });
   const metadataStatus = element(document, "input", { id: "metadata-status" });
-  const filters = FILTER_IDS.map((id) => {
-    const select = element(document, "select", { id });
-    select.value = "";
-    return select;
-  });
 
   const selectAllLabel = element(document, "label", {
     class: "select-all-control",
@@ -110,16 +95,7 @@ function buildPage(document) {
     recipes.push({ recipe, box, selectLabel });
   }
 
-  document.body.append(
-    search,
-    sort,
-    count,
-    clearFilters,
-    metadataStatus,
-    ...filters,
-    bulkControls,
-    list,
-  );
+  document.body.append(search, sort, count, clearFilters, metadataStatus, bulkControls, list);
 
   return {
     list,

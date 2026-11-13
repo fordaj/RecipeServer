@@ -1,6 +1,7 @@
 import hashlib
 import html
 import json
+from dataclasses import dataclass
 from datetime import date, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -88,8 +89,28 @@ _DETAIL_ICON_URLS = {
 # Maximum number of reviewers shown in the review filter.
 MAX_REVIEW_FILTER_OPTIONS = 30
 
+# The multi-select filters in the Advanced section, in display order:
+# (filter key, summary label, icon, control id, legend, "All" label).
+FILTER_FIELDS = (
+    ("meals", "Meals", UTENSILS_SVG, "filter-meal", "Filter by meal", "All meals"),
+    ("cuisine", "Cuisine", PIN_SVG, "filter-cuisine", "Filter by cuisine", "All cuisines"),
+    ("status", "Status", INFO_SVG, "filter-status", "Filter by status", "All statuses"),
+    ("categories", "Categories", COOKING_POT_SVG, "filter-category", "Filter by category", "All categories"),
+    ("tags", "Tags", TAG_SVG, "filter-tag", "Filter by tag", "All tags"),
+    ("contributors", "Contributors", QUILL_SVG, "filter-contributor", "Filter by contributor", "All contributors"),
+    ("sourceTitles", "Source Titles", BOOK_SVG, "filter-source-title", "Filter by source title", "All source titles"),
+)
+
 # Source formats that show an explicit title in the card details.
 TITLED_SOURCE_FORMATS = {"website", "book"}
+
+
+@dataclass
+class FilterValue:
+    """A filter option's display label and the number of recipes that use it."""
+
+    label: str
+    count: int = 0
 
 
 @lru_cache(maxsize=None)
@@ -382,7 +403,7 @@ class IndexHTMLGenerator:
 
         return str(metadata.get("title") or slug_to_title(html_path.parent.name))
 
-    def _build_recipe_item(self, recipe: Recipe, filter_values: dict[str, set[str]]) -> str:
+    def _build_recipe_item(self, recipe: Recipe, filter_values: dict[str, dict[str, FilterValue]]) -> str:
         metadata = recipe.metadata
         html_path = recipe.html_file
         metadata_warnings = lint_recipe_metadata(metadata)
@@ -396,6 +417,8 @@ class IndexHTMLGenerator:
         hero_image = get_first_image_in_dir(html_path.parent) if html_path.parent.is_dir() else None
         hero_url = "/" + hero_image.relative_to(self.cfg.site_directory).as_posix() if hero_image else ""
 
+        archived = metadata.get("archived") is True
+
         # ----- Collect filterable metadata values ----- #
         meals = self.collect_metadata_values(metadata, "meals")
         categories = self.collect_metadata_values(metadata, "categories", "category")
@@ -407,13 +430,18 @@ class IndexHTMLGenerator:
         sources = self._sources(metadata)
         source_titles = [source_title for source in sources if (source_title := self._source_title(source))]
 
-        filter_values["meals"].update(meals)
-        filter_values["categories"].update(categories)
-        filter_values["tags"].update(tags)
-        filter_values["cuisine"].update(cuisine)
-        filter_values["status"].update(status)
-        filter_values["contributors"].update(contributors)
-        filter_values["source_titles"].update(source_titles)
+        # Archived recipes are hidden by default, so they do not add to the
+        # visible option counts until "Show Archived" is turned on in the browser.
+        for key, values in (
+            ("meals", meals),
+            ("categories", categories),
+            ("tags", tags),
+            ("cuisine", cuisine),
+            ("status", status),
+            ("contributors", contributors),
+            ("sourceTitles", source_titles),
+        ):
+            self._record_filter_values(filter_values[key], values, count=not archived)
 
         # ----- Compute sort and search attributes ----- #
         search_text = " ".join([title, *meals, *categories, *tags, *cuisine, *status, *contributors, *source_titles])
@@ -425,7 +453,6 @@ class IndexHTMLGenerator:
         difficulty = metadata.get("difficulty")
         makes_value = str(makes) if isinstance(makes, (int, float)) else ""
         difficulty_value = str(difficulty) if isinstance(difficulty, (int, float)) else ""
-        archived = metadata.get("archived") is True
 
         parsed_contribution = parse_metadata_datetime(metadata.get("createdOn"))
         contribution_date = parsed_contribution.date() if parsed_contribution else None
@@ -599,10 +626,80 @@ class IndexHTMLGenerator:
         return [(key, count, reviewer_names[key]) for key, count in ranked[:MAX_REVIEW_FILTER_OPTIONS]]
 
     @staticmethod
-    def _build_select_options_html(values: set[str]) -> str:
-        return "\n".join(
-            f'<option value="{html.escape(value.lower(), quote=True)}">' f"{html.escape(value)}</option>"
-            for value in sorted(values, key=str.casefold)
+    def _record_filter_values(
+        entries: dict[str, FilterValue],
+        values: list[str],
+        *,
+        count: bool = True,
+    ) -> None:
+        """Add a recipe's values to one filter's option list.
+
+        Values are keyed by their lower-cased form because the browser filters
+        on lower-cased ``data-*`` attributes. The first spelling seen becomes
+        the label, so ``Dinner`` and ``dinner`` share one option.
+        """
+        seen: set[str] = set()
+        for value in values:
+            key = value.lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            entry = entries.setdefault(key, FilterValue(label=value))
+            if count:
+                entry.count += 1
+
+    @staticmethod
+    def _build_filter_options_html(
+        entries: dict[str, FilterValue],
+        *,
+        control_id: str,
+        all_label: str,
+        total_count: int,
+    ) -> str:
+        options = [
+            '<label class="filter-menu__option filter-menu__option--all">'
+            f'<input type="checkbox" class="filter-option-all" id="{control_id}-all" checked>'
+            f"<span>{html.escape(all_label)}</span>"
+            f'<span class="filter-menu__count">{total_count}</span>'
+            "</label>"
+        ]
+        for key, entry in sorted(entries.items(), key=lambda item: item[1].label.casefold()):
+            options.append(
+                '<label class="filter-menu__option">'
+                f'<input type="checkbox" class="filter-option" value="{html.escape(key, quote=True)}">'
+                f"<span>{html.escape(entry.label)}</span>"
+                f'<span class="filter-menu__count">{entry.count}</span>'
+                "</label>"
+            )
+        return "\n".join(options)
+
+    @classmethod
+    def _build_filter_menu_html(
+        cls,
+        field: tuple[str, str, Path, str, str, str],
+        entries: dict[str, FilterValue],
+        *,
+        total_count: int,
+    ) -> str:
+        key, label, icon_path, control_id, legend, all_label = field
+        options_html = cls._build_filter_options_html(
+            entries,
+            control_id=control_id,
+            all_label=all_label,
+            total_count=total_count,
+        )
+        return (
+            f'<details class="filter-control filter-menu" id="{control_id}"'
+            f' data-filter="{key}" data-filter-label="{html.escape(label, quote=True)}">'
+            "<summary>"
+            f"{cls._inline_svg(icon_path)}"
+            f'<span class="filter-menu__label" id="{control_id}-label">{html.escape(label)}: All</span>'
+            "</summary>"
+            f'<fieldset class="filter-menu__menu">'
+            f'<legend class="visually-hidden">{html.escape(legend)}</legend>'
+            f"{options_html}"
+            "</fieldset>"
+            "</details>"
         )
 
     @staticmethod
@@ -612,11 +709,11 @@ class IndexHTMLGenerator:
         options: list[str] = []
         for key, count, display_name in reviewer_entries:
             options.append(
-                '<label class="review-filter__option">'
+                '<label class="filter-menu__option">'
                 '<input type="checkbox" class="filter-reviews"'
                 f' value="{html.escape(key, quote=True)}">'
                 f"<span>{html.escape(display_name)}</span>"
-                f'<span class="review-filter__count">{count}</span>'
+                f'<span class="filter-menu__count">{count}</span>'
                 "</label>"
             )
         return "\n".join(options)
@@ -636,7 +733,7 @@ class IndexHTMLGenerator:
         self,
         *,
         recipe_items_html: str,
-        filter_values: dict[str, set[str]],
+        filter_values: dict[str, dict[str, FilterValue]],
         reviewer_options_html: str,
     ) -> str:
         server_name_html = html.escape(self._server_name())
@@ -657,13 +754,11 @@ class IndexHTMLGenerator:
                 }}
             </style>
             """)
-        meal_options = self._build_select_options_html(filter_values["meals"])
-        cuisine_options = self._build_select_options_html(filter_values["cuisine"])
-        status_options = self._build_select_options_html(filter_values["status"])
-        category_options = self._build_select_options_html(filter_values["categories"])
-        tag_options = self._build_select_options_html(filter_values["tags"])
-        contributor_options = self._build_select_options_html(filter_values["contributors"])
-        source_title_options = self._build_select_options_html(filter_values["source_titles"])
+        review_filter_icon = self._inline_svg(USER_SVG)
+        total_count = sum(1 for recipe in self.recipes if recipe.metadata.get("archived") is not True)
+        filter_menus_html = "\n".join(
+            self._build_filter_menu_html(field, filter_values[field[0]], total_count=total_count) for field in FILTER_FIELDS
+        )
 
         definitions_css_url = _versioned_asset_url(DEFINITIONS_CSS_PATH)
         index_css_url = _versioned_asset_url(INDEX_CSS_PATH)
@@ -749,73 +844,18 @@ class IndexHTMLGenerator:
                                             <option value="edited:asc">Last edit: oldest first</option>
                                         </select>
                                     </label>
-
-                                    <label class="filter-control">
-                                        {self._inline_svg(UTENSILS_SVG)}
-                                        <select id="filter-meal" aria-label="Filter by meal">
-                                            <option value="">All meals</option>
-                                            {meal_options}
-                                        </select>
-                                    </label>
-
-                                    <label class="filter-control">
-                                        {self._inline_svg(PIN_SVG)}
-                                        <select id="filter-cuisine" aria-label="Filter by cuisine">
-                                            <option value="">All cuisines</option>
-                                            {cuisine_options}
-                                        </select>
-                                    </label>
-
-                                    <label class="filter-control">
-                                        {self._inline_svg(INFO_SVG)}
-                                        <select id="filter-status" aria-label="Filter by status">
-                                            <option value="">All statuses</option>
-                                            {status_options}
-                                        </select>
-                                    </label>
-
-                                    <label class="filter-control">
-                                        {self._inline_svg(COOKING_POT_SVG)}
-                                        <select id="filter-category" aria-label="Filter by category">
-                                            <option value="">All categories</option>
-                                            {category_options}
-                                        </select>
-                                    </label>
-
-                                    <label class="filter-control">
-                                        {self._inline_svg(TAG_SVG)}
-                                        <select id="filter-tag" aria-label="Filter by tag">
-                                            <option value="">All tags</option>
-                                            {tag_options}
-                                        </select>
-                                    </label>
-
-                                    <label class="filter-control">
-                                        {self._inline_svg(QUILL_SVG)}
-                                        <select id="filter-contributor" aria-label="Filter by contributor">
-                                            <option value="">All contributors</option>
-                                            {contributor_options}
-                                        </select>
-                                    </label>
-
-                                    <label class="filter-control">
-                                        {self._inline_svg(BOOK_SVG)}
-                                        <select id="filter-source-title" aria-label="Filter by source title">
-                                            <option value="">All source titles</option>
-                                            {source_title_options}
-                                        </select>
-                                    </label>
+                                    {filter_menus_html}
                                 </div>
 
-                                <details class="filter-control review-filter" id="review-filter">
+                                <details class="filter-control filter-menu review-filter" id="review-filter">
                                     <summary>
-                                        {self._inline_svg(USER_SVG)}
-                                        <span id="review-filter-label">Filter Reviews: All</span>
+                                        {review_filter_icon}
+                                        <span class="filter-menu__label" id="review-filter-label">Filter Reviews: All</span>
                                     </summary>
 
-                                    <fieldset class="review-filter__menu">
+                                    <fieldset class="filter-menu__menu">
                                         <legend class="visually-hidden">Filter Reviews</legend>
-                                        <label class="review-filter__option">
+                                        <label class="filter-menu__option filter-menu__option--all">
                                             <input type="checkbox" id="filter-reviews-all" checked>
                                             <span>All reviews</span>
                                         </label>
@@ -915,15 +955,7 @@ class IndexHTMLGenerator:
 
     def convert(self) -> None:
         """Generate index.html from the collected recipes."""
-        filter_values: dict[str, set[str]] = {
-            "meals": set(),
-            "categories": set(),
-            "tags": set(),
-            "cuisine": set(),
-            "status": set(),
-            "contributors": set(),
-            "source_titles": set(),
-        }
+        filter_values: dict[str, dict[str, FilterValue]] = {field[0]: {} for field in FILTER_FIELDS}
 
         reviewer_entries = self._aggregate_reviewers()
         recipe_items = [self._build_recipe_item(recipe, filter_values) for recipe in self.recipes]

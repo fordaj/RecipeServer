@@ -173,7 +173,7 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     index_script = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js").read_text(encoding="UTF-8")
     assert 'list.classList.toggle("card-view", isCards)' in index_script
     assert "setView(loadRecipeView())" in index_script
-    assert 'filterControls.forEach(([, control]) => (control.value = ""))' in index_script
+    assert "group.boxes.forEach((box) => (box.checked = false))" in index_script
     assert 'id="clear-filters" type="button" hidden' in page
     assert 'data-title="Cinnamon &quot;Rolls&quot;"' in page
     assert 'data-date="2024-06-15"' in page
@@ -215,7 +215,7 @@ def test_index_review_filter_is_populated_and_sorted_by_review_count(tmp_path: P
 
     options = soup.select("#review-filter .filter-reviews")
     assert [option["value"] for option in options] == ["avery", "blair", "casey", "dana"]
-    assert [option.parent.select_one(".review-filter__count").get_text(strip=True) for option in options] == ["3", "2", "1", "1"]
+    assert [option.parent.select_one(".filter-menu__count").get_text(strip=True) for option in options] == ["3", "2", "1", "1"]
     assert [option.parent.select_one("span").get_text(strip=True) for option in options] == [
         "Avery",
         "Blair",
@@ -254,6 +254,94 @@ def test_index_review_filter_keeps_only_the_top_30_reviewers(tmp_path: Path):
     assert options[0]["value"] == "reviewer 01"
     assert options[-1]["value"] == "reviewer 30"
     assert all(option["value"] != "reviewer 31" for option in options)
+
+
+def test_index_advanced_filters_are_multi_select_menus_with_counts(tmp_path: Path):
+    recipes = {
+        "alpha": {
+            "meals": ["Breakfast"],
+            "categories": ["Baking"],
+            "tags": ["Cinnamon"],
+            "cuisine": ["American"],
+            "status": "Published",
+            "contributor": "Avery",
+            "source": [{"format": "book", "title": "The Baking Book"}],
+        },
+        "beta": {
+            "meals": ["breakfast", "Brunch"],
+            "categories": ["Baking"],
+            "tags": ["Cinnamon"],
+            "cuisine": ["American"],
+            "status": "Published",
+            "contributor": "Avery",
+            "source": [{"format": "website", "title": "Family Baking"}],
+        },
+        "gamma": {
+            "meals": ["Dinner"],
+            "categories": ["Dinner"],
+            "tags": ["Spicy"],
+            "cuisine": ["Thai"],
+            "status": "Draft",
+            "contributor": "Blair",
+            "archived": True,
+            "source": [{"format": "book", "title": "The Baking Book"}],
+        },
+    }
+
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    for slug, metadata in recipes.items():
+        recipe_path = tmp_path / slug / "index.html"
+        recipe_path.parent.mkdir()
+        recipe_path.write_text(f"<h1>{slug.title()}</h1>", encoding="UTF-8")
+        generator.add(Recipe(metadata, recipe_path))
+
+    generator.convert()
+
+    soup = BeautifulSoup(
+        (tmp_path / "index.html").read_text(encoding="UTF-8"),
+        "html.parser",
+    )
+    menus = soup.select(".recipe-filters details.filter-menu")
+    assert [menu["data-filter"] for menu in menus] == [
+        "meals",
+        "cuisine",
+        "status",
+        "categories",
+        "tags",
+        "contributors",
+        "sourceTitles",
+    ]
+    assert soup.select_one(".recipe-filters select#filter-meal") is None
+
+    for menu in menus:
+        summary = menu.select_one("summary .filter-menu__label")
+        assert summary is not None
+        assert summary.get_text(strip=True).endswith(": All")
+        all_box = menu.select_one(".filter-menu__option--all .filter-option-all")
+        assert all_box is not None
+        assert all_box.has_attr("checked")
+
+    def option_counts(control_id: str) -> dict[str, int]:
+        menu = soup.select_one(f"#{control_id}")
+        return {
+            option["value"]: int(option.parent.select_one(".filter-menu__count").get_text(strip=True)) for option in menu.select(".filter-option")
+        }
+
+    # Breakfast/dinner collapse case variants into one option. Archived
+    # recipes stay in the menu but do not add to the visible count.
+    assert option_counts("filter-meal") == {"breakfast": 2, "brunch": 1, "dinner": 0}
+    assert option_counts("filter-cuisine") == {"american": 2, "thai": 0}
+    assert option_counts("filter-status") == {"published": 2, "draft": 0}
+    assert option_counts("filter-category") == {"baking": 2, "dinner": 0}
+    assert option_counts("filter-tag") == {"cinnamon": 2, "spicy": 0}
+    assert option_counts("filter-contributor") == {"avery": 2, "blair": 0}
+    assert option_counts("filter-source-title") == {"family baking": 1, "the baking book": 1}
+
+    meal_menu = soup.select_one("#filter-meal")
+    assert meal_menu.select_one(".filter-menu__option--all .filter-menu__count").get_text(strip=True) == "2"
+    labels = [option.parent.get_text(" ", strip=True) for option in meal_menu.select(".filter-option")]
+    # The first spelling wins and options are sorted by label.
+    assert labels == ["Breakfast 2", "Brunch 1", "Dinner 0"]
 
 
 def test_unrated_recipes_remain_sortable(tmp_path: Path):
@@ -495,11 +583,15 @@ def test_index_defaults_recipe_server_name(tmp_path: Path):
 def test_review_filter_shares_filter_control_select_styling():
     css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
 
-    assert ".recipe-toolbar .filter-control select,\n.review-filter summary" in css
+    assert ".recipe-toolbar .filter-control select,\n.filter-menu summary" in css
     assert ".recipe-advanced > summary" in css
     assert ".recipe-advanced summary" not in css
-    # The review filter behaves like the other filter controls.
-    assert ".review-filter {\n  display: flex;" in css
+    # The review filter and the Advanced filters share one menu component.
+    assert ".filter-menu {\n  position: relative;" in css
+    assert ".filter-menu__menu {" in css
+    assert ".filter-menu__menu--right {\n  left: auto;\n  right: 0;\n}" in css
+    assert ".filter-menu__option {" in css
+    assert ".filter-menu__count {" in css
     assert "transform: translateY(-50%)" in css
     assert ".filter-control svg" in css
 

@@ -154,7 +154,7 @@ a {
 }
 
 .recipe-toolbar .filter-control select,
-.review-filter summary {
+.filter-menu summary {
   width: 100%;
   padding: 0.7rem 1.8rem 0.7rem 2.1rem;
   border: 1px solid var(--border-color);
@@ -175,9 +175,10 @@ a {
   appearance: none;
 }
 
-/* Multi-select review filter */
+/* Multi-select filter menus (Advanced filters and reviews) */
 
-.review-filter {
+.filter-menu {
+  position: relative;
   display: flex;
   align-items: center;
   min-width: 0;
@@ -188,7 +189,7 @@ a {
   max-width: 24rem;
 }
 
-.review-filter summary {
+.filter-menu summary {
   display: flex;
   flex: 1 1 auto;
   align-items: center;
@@ -197,28 +198,29 @@ a {
   list-style: none;
 }
 
-.review-filter summary::-webkit-details-marker {
+.filter-menu summary::-webkit-details-marker {
   display: none;
 }
 
-.review-filter summary span {
+.filter-menu summary .filter-menu__label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.review-filter[open] summary,
-.review-filter summary:focus-visible {
+.filter-menu[open] summary,
+.filter-menu summary:focus-visible {
   outline: 2px solid var(--food-color);
   border-color: var(--food-color);
 }
 
-.review-filter__menu {
+.filter-menu__menu {
   position: absolute;
   z-index: 20;
   top: calc(100% + 0.35rem);
   left: 0;
   width: max(100%, 14rem);
+  max-width: calc(100vw - 2rem);
   max-height: 18rem;
   overflow-y: auto;
   margin: 0;
@@ -229,7 +231,13 @@ a {
   box-shadow: var(--hover-shadow);
 }
 
-.review-filter__option {
+/* Menus near the right edge open leftwards so they stay on screen. */
+.filter-menu__menu--right {
+  left: auto;
+  right: 0;
+}
+
+.filter-menu__option {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -241,11 +249,11 @@ a {
   cursor: pointer;
 }
 
-.review-filter__option:hover {
+.filter-menu__option:hover {
   background: var(--hover-bg);
 }
 
-.review-filter__option input {
+.filter-menu__option input {
   width: 1rem;
   height: 1rem;
   margin: 0;
@@ -257,7 +265,7 @@ a {
   cursor: pointer;
 }
 
-.review-filter__count {
+.filter-menu__count {
   margin-left: auto;
   color: var(--muted-color);
   font-size: 0.75rem;
