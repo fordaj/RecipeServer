@@ -14,6 +14,17 @@ from collections.abc import Iterable
 from datetime import date, datetime, time, timezone
 
 
+def as_list(value: object) -> list:
+    """Return metadata values as a list, accepting scalar strings."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, (tuple, set)):
+        return list(value)
+    return [value]
+
+
 def json_default(value: object) -> str:
     """Serialize YAML/date values that the JSON encoder does not understand."""
     if isinstance(value, (date, datetime)):

@@ -13,7 +13,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
-from recipeserver.markdown_to_html import MarkdownToHTMLConverter
+from recipeserver.markdown_to_html.overview import build_recipe_overview
 from recipeserver.server import (
     RecipeRequestHandler,
     _editor_metadata,
@@ -131,8 +131,7 @@ def test_editor_save_persists_archived(archived_server):
 
 
 def test_recipe_page_overview_shows_archived_only_when_true():
-    converter = MarkdownToHTMLConverter(SimpleNamespace())
-    archived = converter._build_recipe_overview(
+    archived = build_recipe_overview(
         {"archived": True, "meals": ["Dinner"], "cuisine": ["Thai"]},
         BeautifulSoup("", "html.parser"),
     )
@@ -150,7 +149,7 @@ def test_recipe_page_overview_shows_archived_only_when_true():
     rows = [child.get("class", [""])[0] for child in archived.find_all("div", recursive=False)]
     assert rows == ["recipe-overview__primary", "recipe-overview__secondary", "recipe-overview__tertiary"]
 
-    active = converter._build_recipe_overview({"archived": False}, BeautifulSoup("", "html.parser"))
+    active = build_recipe_overview({"archived": False}, BeautifulSoup("", "html.parser"))
     assert active is None or active.select_one(".recipe-overview__archived") is None
 
 
