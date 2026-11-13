@@ -52,6 +52,7 @@ RECIPE_SCALER_CSS_PATH = "/assets/recipe-scaler.css"
 RECIPE_SCALER_JS_PATH = "/assets/recipe-scaler.js"
 CONFIG_EDITOR_CSS_PATH = "/assets/config-editor.css"
 CONFIG_EDITOR_JS_PATH = "/assets/config-editor.js"
+PULL_DOWN_PAGE_REFRESH_CSS_PATH = "/assets/pull-down-page-refresh.css"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 
@@ -773,6 +774,7 @@ class IndexHTMLGenerator:
         recipe_scaler_js_url = _versioned_asset_url(RECIPE_SCALER_JS_PATH)
         config_editor_css_url = _versioned_asset_url(CONFIG_EDITOR_CSS_PATH)
         config_editor_js_url = _versioned_asset_url(CONFIG_EDITOR_JS_PATH)
+        pull_down_page_refresh_css_url = _versioned_asset_url(PULL_DOWN_PAGE_REFRESH_CSS_PATH)
         return dedent(f"""\
             <!DOCTYPE html>
             <html lang="en">
@@ -789,6 +791,7 @@ class IndexHTMLGenerator:
                 <link rel="stylesheet" href="{recipe_scaler_css_url}">
                 <link rel="stylesheet" href="{shopping_list_css_url}">
                 <link rel="stylesheet" href="{config_editor_css_url}">
+                <link rel="stylesheet" href="{pull_down_page_refresh_css_url}">
                 <script src="{MENU_JS_URL}" defer></script>
                 <script src="{index_js_url}" defer></script>
                 <script src="{metadata_picker_js_url}" defer></script>

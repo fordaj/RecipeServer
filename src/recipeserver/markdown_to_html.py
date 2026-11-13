@@ -89,6 +89,7 @@ RECIPE_SCALER_JS = "/assets/recipe-scaler.js"
 COMMENTS_CSS = "/assets/comments.css"
 COMMENTS_JS = "/assets/comments.js"
 RATINGS_CSS = "/assets/ratings.css"
+PULL_DOWN_PAGE_REFRESH_CSS = "/assets/pull-down-page-refresh.css"
 RATINGS_JS = "/assets/ratings.js"
 RECIPE_FEEDBACK_JS = "/assets/recipe-feedback.js"
 TIME_JS = "/assets/time.js"
@@ -904,6 +905,7 @@ class MarkdownToHTMLConverter:
             <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">
             <link rel="stylesheet" href="{COMMENTS_CSS}">
             <link rel="stylesheet" href="{RATINGS_CSS}">
+            <link rel="stylesheet" href="{PULL_DOWN_PAGE_REFRESH_CSS}">
             {self.get_doc_specific_overrides()}
             {KATEX}
         </head>
