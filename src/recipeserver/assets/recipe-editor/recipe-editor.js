@@ -545,9 +545,16 @@ Try this
     // Reads images from the clipboard through the async Clipboard API. This
     // is the only paste path that works on mobile, where a file input cannot
     // receive a pasted image. Each clipboard item contributes its first
-    // image-typed payload, in clipboard order.
+    // image-typed payload, in clipboard order. The API requires a secure
+    // context (HTTPS or localhost), so plain-HTTP connections cannot use it.
     async function pasteFromClipboard() {
       if (isDisabled()) return;
+      if (typeof navigator?.clipboard?.read !== "function") {
+        onNotify?.(
+          "Clipboard paste is not available in this browser or over this connection. A secure connection (HTTPS or localhost) is required.",
+        );
+        return;
+      }
       let items;
       try {
         items = await navigator.clipboard.read();
@@ -586,12 +593,11 @@ Try this
       );
     }
 
-    // The button ships hidden and is revealed only when the async Clipboard
-    // API is available, so unsupported browsers see no dead control. The
-    // paste event above stays wired either way.
+    // The button is always visible; where the async Clipboard API is missing
+    // (mostly plain-HTTP connections, where it is not exposed at all), the
+    // click reports the limitation instead of hiding the control.
     const pasteButton = dropzone?.querySelector(".recipe-editor__paste-clipboard") ?? null;
-    if (pasteButton && typeof navigator?.clipboard?.read === "function") {
-      pasteButton.hidden = false;
+    if (pasteButton) {
       pasteButton.addEventListener("click", () => {
         pasteFromClipboard().catch(() => {
           onNotify?.("Could not read an image from the clipboard.");

@@ -93,7 +93,6 @@ function buildDropzone() {
     input.clicked = true;
   };
   const button = element("button", "recipe-editor__paste-clipboard");
-  button.hidden = true;
   const icon = element("span", "recipe-editor__paste-clipboard-icon");
   button.append(icon);
   dropzone.append(input, button);
@@ -126,7 +125,8 @@ async function tick(times = 6) {
 }
 
 (async () => {
-  // The button stays hidden when the async Clipboard API is unavailable.
+  // The button is always visible; without the async Clipboard API a click
+  // reports the limitation instead of staging anything.
   setClipboardRead(null);
   {
     const { dropzone, input, button } = buildDropzone();
@@ -137,12 +137,14 @@ async function tick(times = 6) {
       isDisabled: () => false,
       onNotify: notify,
     });
-    assert.equal(button.hidden, true);
-    assert.deepEqual(messages, []);
+    button.click();
+    await tick();
+    assert.equal(input.files.length, 0);
+    assert.match(messages[0], /not available/);
   }
 
-  // The button is revealed when the API exists, and clicking it stages the
-  // clipboard image instead of opening the native file picker.
+  // With the API available, clicking the button stages the clipboard image
+  // instead of opening the native file picker.
   setClipboardRead(async () => [clipboardItem("image/png", "png-bytes")]);
   {
     const { dropzone, input, button } = buildDropzone();
@@ -157,7 +159,6 @@ async function tick(times = 6) {
       },
       onNotify: notify,
     });
-    assert.equal(button.hidden, false);
 
     button.click();
     await tick();

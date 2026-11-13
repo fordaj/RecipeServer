@@ -67,10 +67,11 @@ def test_images_dropzones_have_a_paste_from_clipboard_button():
     script = (BASE / "recipe-editor.js").read_text(encoding="UTF-8")
     icon = BASE.parent / "clipboard-paste.svg"
 
-    # Both dropzones carry a "Paste from clipboard" button that starts hidden
-    # and is revealed only when the async Clipboard API is available.
+    # Both dropzones carry a "Paste from clipboard" button. It is always
+    # visible; where the async Clipboard API is missing a click reports the
+    # limitation instead of hiding the control.
     for markup in (files_markup, ai_markup):
-        assert 'class="recipe-editor__paste-clipboard" hidden' in markup
+        assert 'class="recipe-editor__paste-clipboard"' in markup
         assert "Paste from clipboard" in markup
         assert "recipe-editor__paste-clipboard-icon" in markup
 
@@ -80,9 +81,8 @@ def test_images_dropzones_have_a_paste_from_clipboard_button():
     assert ".recipe-editor__paste-clipboard" in script
     assert icon.is_file()
 
-    # The button is styled as a secondary action and hides when [hidden].
+    # The button is styled as a secondary action.
     assert ".recipe-editor__paste-clipboard {" in css
-    assert ".recipe-editor__paste-clipboard[hidden]" in css
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")

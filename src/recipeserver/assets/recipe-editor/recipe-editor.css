@@ -406,10 +406,6 @@
   outline-offset: 2px;
 }
 
-.recipe-editor__paste-clipboard[hidden] {
-  display: none;
-}
-
 .recipe-editor__paste-clipboard-icon {
   display: inline-flex;
   width: 1rem;
