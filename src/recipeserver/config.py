@@ -29,6 +29,7 @@ DEFAULT_SERVER_PORT = 8000
 DEFAULT_FOOD_COLOR = "#8d5542"
 NEW_RECIPE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipePrompt.md"
 NEW_RECIPE_FROM_IMAGE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipeFromImagePrompt.md"
+FIND_ONE_FOR_ME_PROMPT_PATH = Path(__file__).resolve().parent / "FindOneForMePrompt.md"
 _MAX_MODEL_NAME_LENGTH = 256
 _LEGACY_SETTING_KEYS = {MODEL_NAME_KEY, SERVER_NAME_KEY}
 _LEGACY_KEY_MAPPING = {MODEL_NAME_KEY: ALL_PURPOSE_MODEL_NAME_KEY, SERVER_NAME_KEY: RECIPE_SERVER_NAME_KEY}
@@ -223,6 +224,7 @@ class Configuration:
         self._food_color: str = DEFAULT_FOOD_COLOR
         self.new_recipe_prompt: str = ""
         self.new_recipe_from_image_prompt: str = ""
+        self.find_one_for_me_prompt: str = ""
         self._config_file: Optional[Path] = None
 
     @property
@@ -478,15 +480,15 @@ class Configuration:
         )
 
     @staticmethod
-    def _load_prompt_file(path: Path) -> str:
+    def _load_prompt_file(path: Path, label: str = "new recipe prompt") -> str:
         """Load a prompt file fresh so edits apply on the next run."""
         try:
             prompt = path.read_text(encoding="UTF-8").strip()
         except OSError:
-            logger.exception(f"Failed to read new recipe prompt: {path}")
+            logger.exception(f"Failed to read {label}: {path}")
             prompt = ""
 
-        logger.info(f"Loaded new recipe prompt from {path} ({len(prompt)} characters)")
+        logger.info(f"Loaded {label} from {path} ({len(prompt)} characters)")
         return prompt
 
     def load_new_recipe_prompt(self) -> str:
@@ -494,12 +496,19 @@ class Configuration:
         prompt = self._load_prompt_file(NEW_RECIPE_PROMPT_PATH)
         self.new_recipe_prompt = prompt
         self.load_new_recipe_from_image_prompt()
+        self.load_find_one_for_me_prompt()
         return prompt
 
     def load_new_recipe_from_image_prompt(self) -> str:
         """Load the image transcription prompt fresh so edits apply on the next run."""
-        prompt = self._load_prompt_file(NEW_RECIPE_FROM_IMAGE_PROMPT_PATH)
+        prompt = self._load_prompt_file(NEW_RECIPE_FROM_IMAGE_PROMPT_PATH, "new recipe from image prompt")
         self.new_recipe_from_image_prompt = prompt
+        return prompt
+
+    def load_find_one_for_me_prompt(self) -> str:
+        """Load the find-an-image prompt fresh so edits apply on the next run."""
+        prompt = self._load_prompt_file(FIND_ONE_FOR_ME_PROMPT_PATH, "find one for me prompt")
+        self.find_one_for_me_prompt = prompt
         return prompt
 
     def _write_config(self, config_file: Path) -> None:
@@ -634,7 +643,8 @@ class Configuration:
             f"AI recipe creation is {'enabled' if self.ai_configured else 'disabled'} "
             f"(endpoint={'set' if self.model_endpoint else 'missing'}, "
             f"prompt={'set' if self.new_recipe_prompt else 'missing'}, "
-            f"image prompt={'set' if self.new_recipe_from_image_prompt else 'missing'})"
+            f"image prompt={'set' if self.new_recipe_from_image_prompt else 'missing'}, "
+            f"find image prompt={'set' if self.find_one_for_me_prompt else 'missing'})"
         )
 
         self._config_file = self._persist_configuration(config_file)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import random
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ from bs4 import BeautifulSoup
 from PIL import Image, UnidentifiedImageError
 
 from ._logger import logger
+from .image_download import DownloadedImage, ImageDownloadError, download_image
+from .image_search import SEARCH_RESULT_LIMIT, ImageCandidate, ImageSearchError, search_images
 
 MODEL_TIMEOUT_SECONDS = 120
 AVAILABILITY_TIMEOUT_SECONDS = 3
@@ -111,6 +114,12 @@ class SourceFetchError(RuntimeError):
 MODEL_PROBE_ERRORS = (HTTPError, URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError)
 
 
+# How long an image search query may be before we refuse the request.
+MAX_QUERY_CHARS = 300
+# Stage label used for the find-an-image model call in logs.
+IMAGE_SEARCH_STAGE = "image search"
+
+
 @dataclass(frozen=True)
 class AIConfigView:
     """Typed snapshot of AI-related configuration values."""
@@ -120,6 +129,7 @@ class AIConfigView:
     image_analysis_model: str
     new_recipe_prompt: str
     new_recipe_from_image_prompt: str
+    find_one_for_me_prompt: str = ""
 
     @property
     def is_configured(self) -> bool:
@@ -149,6 +159,7 @@ def resolve_ai_config(config: object | None) -> AIConfigView:
         image_analysis_model=_read_config_text(config, "image_analysis_model"),
         new_recipe_prompt=_read_config_text(config, "new_recipe_prompt"),
         new_recipe_from_image_prompt=_read_config_text(config, "new_recipe_from_image_prompt"),
+        find_one_for_me_prompt=_read_config_text(config, "find_one_for_me_prompt"),
     )
 
 
@@ -1262,3 +1273,207 @@ def generate_recipe(
 
     result = _stream_recipe_draft(resolved, all_purpose_model_name, input_type, user_message, event_callback)
     return _build_generation_result(result, input_type, all_purpose_model_name, input_value, title, event_callback)
+
+
+# ----- Find One For Me ----- #
+
+
+def _strip_code_fence(text: str) -> str:
+    """Remove a wrapping ``` fence from model output, if one is present."""
+    stripped = text.strip()
+    fence = re.match(r"^```[a-zA-Z]*\s*\n(?P<body>.*)\n```\s*$", stripped, re.DOTALL)
+    return fence.group("body").strip() if fence else stripped
+
+
+def _substitute_prompt_title(prompt: str, recipe_title: str) -> str:
+    """Keep the recipe title as the only runtime input to the prompt."""
+    return prompt.replace("{{recipe_title}}", recipe_title)
+
+
+def _find_image_user_message(query: str, candidates: list[ImageCandidate]) -> str:
+    lines = [
+        f"Search query: {query}",
+        "",
+        "Candidate images from a web search (listed in random order):",
+    ]
+    for index, candidate in enumerate(candidates, start=1):
+        size = f"{candidate.width}x{candidate.height}" if candidate.width and candidate.height else "unknown"
+        lines.append(
+            f"{index}. URL: {candidate.url}\n"
+            f"   Source: {candidate.source_url or 'unknown'}\n"
+            f"   Title: {candidate.title or 'unknown'}\n"
+            f"   Attribution: {candidate.attribution or 'unknown'}\n"
+            f"   License: {candidate.license or 'unknown'}\n"
+            f"   Size: {size}"
+        )
+    lines += [
+        "",
+        "Randomly select one suitable image for this recipe from the candidates above.",
+        "Reply with only the JSON object described in the system prompt.",
+        "Use one of the listed URLs verbatim; never invent an image URL.",
+    ]
+    return "\n".join(lines)
+
+
+def _parse_json_object(text: str) -> dict[str, Any]:
+    stripped = _strip_code_fence(text)
+    try:
+        payload = json.loads(stripped)
+    except json.JSONDecodeError:
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start == -1 or end <= start:
+            raise ModelRequestError("The model returned an unreadable image selection") from None
+        try:
+            payload = json.loads(stripped[start : end + 1])
+        except json.JSONDecodeError as exc:
+            raise ModelRequestError("The model returned an unreadable image selection") from exc
+
+    if not isinstance(payload, dict):
+        raise ModelRequestError("The model returned an unreadable image selection")
+    return payload
+
+
+def _parse_image_selection(output: str, candidates: list[ImageCandidate]) -> tuple[ImageCandidate, dict[str, Any]]:
+    """Validate the model's pick against the search candidates.
+
+    The model may only choose a URL that the search actually returned; this is
+    what keeps it from fabricating image URLs and source information. Model
+    output fills in description/attribution when present, otherwise the search
+    provider's own metadata is kept.
+    """
+    payload = _parse_json_object(output)
+
+    url = payload.get("image_url")
+    if url is None:
+        raise ImageSearchError("No suitable image was found for this recipe")
+    if not isinstance(url, str) or not url.strip():
+        raise ModelRequestError("The model returned an invalid image URL")
+    url = url.strip()
+
+    by_url = {candidate.url: candidate for candidate in candidates}
+    candidate = by_url.get(url)
+    if candidate is None:
+        logger.warning(f"Model selected a URL that was not among the {len(candidates)} search candidates: {url!r}")
+        raise ModelRequestError("The model returned an image URL that was not in the search results")
+
+    def _text(field: str) -> str | None:
+        value = payload.get(field)
+        return value.strip() if isinstance(value, str) and value.strip() else None
+
+    details = {
+        "source_url": _text("source_url") or candidate.source_url or None,
+        "attribution": _text("attribution") or candidate.attribution or None,
+        "description": _text("description") or candidate.title or None,
+    }
+    return candidate, details
+
+
+# How many candidates to try, in order, before giving up. The model's pick
+# comes first; the rest are tried at random because any search-provided
+# candidate is a real image, and this keeps the click useful when the chosen
+# host rate-limits or the URL fails.
+MAX_DOWNLOAD_ATTEMPTS = 4
+
+
+def _candidate_details(candidate: ImageCandidate) -> dict[str, Any]:
+    return {
+        "source_url": candidate.source_url or None,
+        "attribution": candidate.attribution or None,
+        "description": candidate.title or None,
+    }
+
+
+def _download_with_fallback(
+    model_candidate: ImageCandidate,
+    model_details: dict[str, Any],
+    shuffled_candidates: list[ImageCandidate],
+) -> tuple[DownloadedImage, ImageCandidate, dict[str, Any]]:
+    attempts = [model_candidate]
+    attempts.extend(candidate for candidate in shuffled_candidates if candidate is not model_candidate)
+    attempts = attempts[:MAX_DOWNLOAD_ATTEMPTS]
+
+    last_error: ImageDownloadError | None = None
+    for index, candidate in enumerate(attempts):
+        try:
+            downloaded = download_image(candidate.url)
+        except ImageDownloadError as exc:
+            remaining = len(attempts) - index - 1
+            logger.warning(
+                f"Candidate image {candidate.url} failed to download: {exc}"
+                + (f" ({remaining} alternative(s) left)" if remaining else " (no alternatives left)")
+            )
+            last_error = exc
+            continue
+
+        if candidate is model_candidate:
+            return downloaded, candidate, model_details
+        logger.info(f"Model-selected image was unusable; fell back to another search result: {candidate.url}")
+        return downloaded, candidate, _candidate_details(candidate)
+
+    raise ImageDownloadError(f"Unable to download any of the {len(attempts)} candidate images (the last error was: {last_error})")
+
+
+def _filename_slug(title: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    return slug[:60].strip("-") or "recipe-image"
+
+
+def find_recipe_image(config: object, query: str) -> dict[str, Any]:
+    """Find a suitable, randomly selected image for ``query``.
+
+    ``query`` is the search text typed into the editor's "Find One For Me"
+    field (the recipe title by default). Searches the web for candidate
+    images, asks the configured all-purpose model to evaluate them (with the
+    query kept as the runtime input to FindOneForMePrompt.md), and downloads
+    the selected image. Raises ModelUnavailable when AI is not configured,
+    ImageSearchError when no suitable image is found, ModelRequestError when
+    the model responds badly, and ImageDownloadError when the image cannot be
+    retrieved (after trying a few alternative search results).
+    """
+    query = (query or "").strip()
+    if not query:
+        raise ValueError("Expected a non-empty search query")
+    if len(query) > MAX_QUERY_CHARS:
+        raise ValueError(f"The search query is too long (maximum {MAX_QUERY_CHARS} characters)")
+
+    resolved = resolve_ai_config(config)
+    if not resolved.endpoint:
+        raise ModelUnavailable("The local model is not configured")
+    if not resolved.find_one_for_me_prompt:
+        raise ModelUnavailable("FindOneForMePrompt.md is missing or empty")
+    model_name = _require_model_name(
+        resolved.endpoint,
+        resolved.all_purpose_model_name,
+        "Could not determine a model name. Configure all_purpose_model_name in recipe-server-cfg.toml.",
+    )
+
+    prompt = _substitute_prompt_title(resolved.find_one_for_me_prompt, query)
+    candidates = search_images(query, limit=SEARCH_RESULT_LIMIT)
+
+    # Shuffle the listing so the model cannot favor the search provider's
+    # ordering; each click also performs a fresh search, so repeated clicks
+    # surface new candidates and a new random pick.
+    shuffled = list(candidates)
+    random.shuffle(shuffled)
+    user_message = _find_image_user_message(query, shuffled)
+    logger.info(f"Finding an image for {query!r} with local model '{model_name}' ({len(shuffled)} candidates)")
+    output = _chat(resolved.endpoint, model_name, prompt, user_message, stage=IMAGE_SEARCH_STAGE)
+
+    candidate, details = _parse_image_selection(output, candidates)
+    downloaded, candidate, details = _download_with_fallback(candidate, details, shuffled)
+    filename = f"{_filename_slug(query)}{downloaded.extension}"
+    logger.info(
+        f"Found image for {query!r}: {candidate.url} (filename={filename}, source={details['source_url']!r}, attribution={details['attribution']!r})"
+    )
+
+    return {
+        "filename": filename,
+        "mime_type": downloaded.mime_type,
+        "data_base64": base64.b64encode(downloaded.content).decode("ascii"),
+        "source_url": details["source_url"],
+        "attribution": details["attribution"],
+        "description": details["description"],
+        "width": candidate.width,
+        "height": candidate.height,
+    }
