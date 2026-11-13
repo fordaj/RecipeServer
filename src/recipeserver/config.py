@@ -25,6 +25,7 @@ CONFIG_FILENAME = "recipe-server-cfg.toml"
 LEGACY_CONFIG_FILENAME = "config.txt"
 DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
 DEFAULT_SERVER_PORT = 8000
+MAX_PORT = 65535
 # Matches the --food-color default in assets/definitions.css.
 DEFAULT_FOOD_COLOR = "#8d5542"
 NEW_RECIPE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipePrompt.md"
@@ -76,7 +77,7 @@ def _normalize_server_port(value: str) -> int:
     if not text.isdigit():
         raise ValueError("Server port must be a whole number between 1 and 65535.")
     port = int(text)
-    if not 1 <= port <= 65535:
+    if not 1 <= port <= MAX_PORT:
         raise ValueError("Server port must be between 1 and 65535.")
     return port
 
