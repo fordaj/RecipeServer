@@ -37,6 +37,7 @@ FILE_PATH = Path(__file__)
 ASSETS_DIR = FILE_PATH.parent / "assets"
 
 TIME_JS_PATH = "/assets/time.js"
+ICONS_JS_PATH = "/assets/icons.js"
 
 # ----- Asset paths and URLs ----- #
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
@@ -764,6 +765,7 @@ class IndexHTMLGenerator:
         definitions_css_url = _versioned_asset_url(DEFINITIONS_CSS_PATH)
         index_css_url = _versioned_asset_url(INDEX_CSS_PATH)
         index_js_url = _versioned_asset_url(INDEX_JS_PATH)
+        icons_js_url = _versioned_asset_url(ICONS_JS_PATH)
         recipe_editor_css_url = _versioned_asset_url(RECIPE_EDITOR_CSS_PATH)
         recipe_editor_js_url = _versioned_asset_url(RECIPE_EDITOR_JS_PATH)
         metadata_picker_js_url = _versioned_asset_url(METADATA_PICKER_JS_PATH)
@@ -793,6 +795,7 @@ class IndexHTMLGenerator:
                 <link rel="stylesheet" href="{config_editor_css_url}">
                 <link rel="stylesheet" href="{pull_down_page_refresh_css_url}">
                 <script src="{MENU_JS_URL}" defer></script>
+                <script src="{icons_js_url}" defer></script>
                 <script src="{index_js_url}" defer></script>
                 <script src="{metadata_picker_js_url}" defer></script>
                 <script src="{ai_progress_js_url}" defer></script>

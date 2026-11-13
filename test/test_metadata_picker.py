@@ -44,7 +44,7 @@ def test_editor_reads_the_dropdown_options_from_the_api():
     script = (EDITOR_ASSETS / "recipe-editor.js").read_text(encoding="utf-8")
 
     assert 'const METADATA_OPTIONS_API = "/api/metadata-options"' in script
-    assert "await refreshMetadataOptions(refs)" in script
+    assert "await refreshMetadataOptions(ctx)" in script
     assert "refs.pickers.setValues(field, metadataValues(metadata[field]))" in script
     assert "refs.pickers.values(field)" in script
 
