@@ -5,15 +5,16 @@ const initRecipeIndex = async () => {
   // ----- DOM References ----- //
   const recipes = [...list.querySelectorAll(".recipe")];
   const search = document.querySelector("#recipe-search");
-  const filterControls = [
-    ["meals", document.querySelector("#filter-meal")],
-    ["cuisine", document.querySelector("#filter-cuisine")],
-    ["status", document.querySelector("#filter-status")],
-    ["categories", document.querySelector("#filter-category")],
-    ["tags", document.querySelector("#filter-tag")],
-    ["contributors", document.querySelector("#filter-contributor")],
-    ["sourceTitles", document.querySelector("#filter-source-title")],
-  ];
+  const filterMenus = [...document.querySelectorAll(".filter-menu[data-filter]")].map((menu) => ({
+    menu,
+    datasetKey: menu.dataset.filter,
+    labelBase: menu.dataset.filterLabel || "",
+    label: menu.querySelector(".filter-menu__label"),
+    allBox: menu.querySelector(".filter-option-all"),
+    allCount: menu.querySelector(".filter-menu__option--all .filter-menu__count"),
+    boxes: [...menu.querySelectorAll(".filter-option")],
+  }));
+  const allFilterMenus = [...document.querySelectorAll(".filter-menu")];
   const sort = document.querySelector("#sort-recipes");
   const count = document.querySelector("#recipe-count");
   const clearFilters = document.querySelector("#clear-filters");
@@ -128,6 +129,42 @@ const initRecipeIndex = async () => {
   // ----- Filter and Sort Helpers ----- //
   const getDatasetValues = (recipe, datasetKey) =>
     JSON.parse(recipe.dataset[datasetKey] || "[]").map((value) => value.toLowerCase());
+
+  // Index the filterable values once so every update and count pass can
+  // reuse them instead of parsing the data attributes repeatedly.
+  const filterDatasetKeys = [...new Set(filterMenus.map((group) => group.datasetKey))];
+  const recipeFilterValues = new Map(
+    recipes.map((recipe) => [
+      recipe,
+      Object.fromEntries(
+        filterDatasetKeys.map((key) => [key, new Set(getDatasetValues(recipe, key))]),
+      ),
+    ]),
+  );
+
+  const getFilterSelection = (group) => {
+    const selected = group.boxes.filter((box) => box.checked).map((box) => box.value);
+    return selected.length ? new Set(selected) : null;
+  };
+
+  const getFilterSelections = () =>
+    new Map(filterMenus.map((group) => [group, getFilterSelection(group)]));
+
+  const recipeMatchesQuery = (recipe, query) =>
+    !query || recipe.dataset.search.toLowerCase().includes(query);
+
+  const recipeMatchesGroup = (recipe, group, selection) => {
+    if (!selection) return true;
+    const values = recipeFilterValues.get(recipe)?.[group.datasetKey];
+    if (!values) return false;
+    for (const value of selection) {
+      if (values.has(value)) return true;
+    }
+    return false;
+  };
+
+  const recipeMatchesGroups = (recipe, groups, selections) =>
+    groups.every((group) => recipeMatchesGroup(recipe, group, selections.get(group)));
 
   const compareTitle = (leftRecipe, rightRecipe) =>
     leftRecipe.dataset.title.localeCompare(rightRecipe.dataset.title, undefined, {
@@ -345,16 +382,71 @@ const initRecipeIndex = async () => {
   const isArchivedVisible = (recipe) =>
     !showArchived || showArchived.checked || recipe.dataset.archived !== "true";
 
-  const getFilteredRecipes = (query) =>
+  const getFilteredRecipes = (query, selections) =>
     recipes.filter(
       (recipe) =>
         isArchivedVisible(recipe) &&
-        recipe.dataset.search.toLowerCase().includes(query) &&
-        filterControls.every(
-          ([datasetKey, control]) =>
-            !control.value || getDatasetValues(recipe, datasetKey).includes(control.value),
-        ),
+        recipeMatchesQuery(recipe, query) &&
+        recipeMatchesGroups(recipe, filterMenus, selections),
     );
+
+  const updateFilterLabels = () => {
+    for (const group of filterMenus) {
+      if (!group.label) continue;
+      const selected = group.boxes.filter((box) => box.checked).length;
+      const state = selected ? `${selected} selected` : "All";
+      group.label.textContent = `${group.labelBase}: ${state}`;
+    }
+  };
+
+  // Each option shows how many recipes would match it. The counts ignore the
+  // group's own selection so the other values stay useful while several are
+  // picked, but they respect the search, archived toggle, and other filters.
+  const updateFilterCounts = (query, selections) => {
+    for (const group of filterMenus) {
+      const matching = recipes.filter(
+        (recipe) =>
+          isArchivedVisible(recipe) &&
+          recipeMatchesQuery(recipe, query) &&
+          recipeMatchesGroups(
+            recipe,
+            filterMenus.filter((item) => item !== group),
+            selections,
+          ),
+      );
+
+      const counts = new Map();
+      for (const recipe of matching) {
+        for (const value of recipeFilterValues.get(recipe)?.[group.datasetKey] ?? []) {
+          counts.set(value, (counts.get(value) || 0) + 1);
+        }
+      }
+
+      for (const box of group.boxes) {
+        const countElement = box
+          .closest(".filter-menu__option")
+          ?.querySelector(".filter-menu__count");
+        if (countElement) countElement.textContent = String(counts.get(box.value) || 0);
+      }
+      if (group.allCount) group.allCount.textContent = String(matching.length);
+    }
+  };
+
+  // A dropdown in a right-hand grid column can otherwise extend past the
+  // viewport on narrow screens. Right-align it only when it would overflow.
+  const alignFilterMenu = (menu) => {
+    const fieldset = menu.querySelector(".filter-menu__menu");
+    if (!fieldset) return;
+    fieldset.classList.remove("filter-menu__menu--right");
+    if (!menu.open) return;
+
+    const rect = fieldset.getBoundingClientRect();
+    const viewportWidth =
+      window.innerWidth || document.documentElement?.clientWidth || rect.right + 16;
+    if (rect.right > viewportWidth - 8) {
+      fieldset.classList.add("filter-menu__menu--right");
+    }
+  };
 
   const sortVisibleRecipes = (visible, sortValue) => {
     const [sortKey, sortDirection] = sortValue.split(":");
@@ -394,21 +486,48 @@ const initRecipeIndex = async () => {
     applyReviewFilter(reviewers);
     updateReviewLabel(reviewers);
 
+    const selections = getFilterSelections();
     const isFiltering =
       query !== "" ||
       reviewers !== null ||
       Boolean(showArchived?.checked) ||
-      filterControls.some(([, control]) => control.value !== "");
-    const visible = getFilteredRecipes(query);
+      [...selections.values()].some((selection) => selection !== null);
+    updateFilterLabels();
+    updateFilterCounts(query, selections);
+    const visible = getFilteredRecipes(query, selections);
     sortVisibleRecipes(visible, sort.value);
     renderRecipeList(visible, isFiltering);
     updateBulkControls();
   };
 
   // ----- Event Wiring ----- //
-  [search, ...filterControls.map(([, control]) => control), sort].forEach((control) =>
+  [search, sort].forEach((control) =>
     control.addEventListener(control === search ? "input" : "change", update),
   );
+
+  filterMenus.forEach((group) => {
+    if (group.allBox) {
+      group.allBox.addEventListener("change", () => {
+        if (group.allBox.checked) {
+          group.boxes.forEach((box) => (box.checked = false));
+        } else if (!group.boxes.some((box) => box.checked)) {
+          // An empty selection means "all", so keep the All option in sync.
+          group.allBox.checked = true;
+        }
+        update();
+      });
+    }
+
+    group.boxes.forEach((box) =>
+      box.addEventListener("change", () => {
+        if (box.checked && group.allBox) group.allBox.checked = false;
+        if (group.allBox && !group.boxes.some((item) => item.checked)) {
+          group.allBox.checked = true;
+        }
+        update();
+      }),
+    );
+  });
 
   if (reviewAll) {
     reviewAll.addEventListener("change", () => {
@@ -427,10 +546,18 @@ const initRecipeIndex = async () => {
     }),
   );
 
-  if (reviewFilter) {
+  if (allFilterMenus.length) {
+    for (const menu of allFilterMenus) {
+      menu.addEventListener("toggle", () => alignFilterMenu(menu));
+    }
     document.addEventListener("click", (event) => {
-      if (reviewFilter.open && !reviewFilter.contains(event.target)) {
-        reviewFilter.open = false;
+      for (const menu of allFilterMenus) {
+        if (menu.open && !menu.contains(event.target)) menu.open = false;
+      }
+    });
+    window.addEventListener?.("resize", () => {
+      for (const menu of allFilterMenus) {
+        if (menu.open) alignFilterMenu(menu);
       }
     });
   }
@@ -441,7 +568,10 @@ const initRecipeIndex = async () => {
 
   clearFilters.addEventListener("click", () => {
     search.value = "";
-    filterControls.forEach(([, control]) => (control.value = ""));
+    filterMenus.forEach((group) => {
+      group.boxes.forEach((box) => (box.checked = false));
+      if (group.allBox) group.allBox.checked = true;
+    });
     if (showArchived) showArchived.checked = false;
     if (reviewAll) reviewAll.checked = true;
     reviewBoxes.forEach((box) => (box.checked = false));
