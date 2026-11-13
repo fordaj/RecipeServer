@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from datetime import date
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import base64
@@ -42,12 +43,30 @@ categories: Baking
 - [ ] `1/2 cup` butter
 ```"""
 
+MODEL_OUTPUT_WITH_CREATED_ON = """```markdown
+---
+meals:
+  - Dessert
+categories: Baking
+createdOn: 2020-05-01
+---
+
+# Brownies
+
+![Brownies](image.png)
+
+## Ingredients
+
+- [ ] `1/2 cup` butter
+```"""
+
 MODEL_NAMES = (
     "test-model",
     "vision-model",
     "reasoning-model",
     "parts-model",
     "thinking-model",
+    "dated-model",
 )
 
 # Ollama reports timings in nanoseconds.
@@ -156,6 +175,9 @@ class FakeOllamaAPIHandler(BaseHTTPRequestHandler):
                 "thinking": "Considering the ingredients.",
             }
             done_reason = "stop"
+        elif model == "dated-model":
+            message = {"role": "assistant", "content": MODEL_OUTPUT_WITH_CREATED_ON}
+            done_reason = "stop"
         else:
             message = {"role": "assistant", "content": MODEL_OUTPUT}
             done_reason = "stop"
@@ -206,6 +228,8 @@ class FakeOllamaAPIHandler(BaseHTTPRequestHandler):
 
         if model == "vision-model":
             content = "Brownies: 1 cup sugar, 2 eggs, 1/2 cup butter."
+        elif model == "dated-model":
+            content = MODEL_OUTPUT_WITH_CREATED_ON
         else:
             content = MODEL_OUTPUT
 
@@ -416,6 +440,36 @@ def test_ai_status_and_generation_from_text(tmp_path):
         "content": "ONLY reply with the markdown file.",
     }
     assert "Recipe text:\n1 cup sugar and 2 eggs" in payload["messages"][1]["content"]
+
+
+def test_ai_generation_defaults_created_on_to_today(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    with running_model_api() as (model_url, _model_state):
+        with running_recipe_server(source, config_for(model_url)) as base_url:
+            status, result = request_json(
+                f"{base_url}/api/ai-recipe",
+                {"inputType": "text", "input": "1 cup sugar and 2 eggs"},
+            )
+
+    assert status == 200
+    assert result["metadata"]["createdOn"] == date.today().isoformat()
+
+
+def test_ai_generation_keeps_model_supplied_created_on(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    with running_model_api() as (model_url, _model_state):
+        with running_recipe_server(source, config_for(model_url, all_purpose_model_name="dated-model")) as base_url:
+            status, result = request_json(
+                f"{base_url}/api/ai-recipe",
+                {"inputType": "text", "input": "1 cup sugar and 2 eggs"},
+            )
+
+    assert status == 200
+    assert result["metadata"]["createdOn"] == "2020-05-01"
 
 
 def test_ai_generation_streams_normalized_sse_events(tmp_path):
