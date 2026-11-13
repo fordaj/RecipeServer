@@ -1421,9 +1421,66 @@ Try this
     registerControlListeners(refs, state, ui, ai, madeThis, session);
   }
 
+  function initPageMadeThis() {
+    const button = document.querySelector(".recipe-overview__makes");
+    if (!button) return;
+
+    let busy = false;
+    const markdownPath = getMarkdownPath();
+    const valueElement = button.querySelector(".recipe-overview__value");
+
+    function celebrate() {
+      button.classList.remove("is-celebrating");
+      void button.offsetWidth;
+      button.classList.add("is-celebrating");
+
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+      const sparkles = ["✨", "⭐", "🎉", "💛"];
+      const particles = sparkles.map((glyph, index) => {
+        const particle = document.createElement("span");
+        particle.className = "recipe-editor__sparkle";
+        particle.textContent = glyph;
+        particle.setAttribute("aria-hidden", "true");
+        particle.style.setProperty("--sparkle-x", `${(index - 1.5) * 18}px`);
+        particle.style.setProperty("--sparkle-delay", `${index * 60}ms`);
+        button.append(particle);
+        return particle;
+      });
+
+      window.setTimeout(() => {
+        particles.forEach((particle) => particle.remove());
+        button.classList.remove("is-celebrating");
+      }, 1000);
+    }
+
+    button.addEventListener("click", async () => {
+      if (busy) return;
+      busy = true;
+      button.disabled = true;
+
+      try {
+        const current = normalizeMakes(button.dataset.makes);
+        const makes = (await getMakes(markdownPath)) + 1;
+        await saveMakes(markdownPath, makes);
+        button.dataset.makes = String(makes);
+        if (valueElement) valueElement.textContent = makesCountLabel(makes);
+        celebrate();
+      } catch (error) {
+        // Keep the page responsive even if the save fails.
+        console.error(error);
+      } finally {
+        button.disabled = false;
+        busy = false;
+      }
+    });
+  }
+
   // ----- Bootstrap ----- //
 
   async function initialize() {
+    initPageMadeThis();
+
     const editButton = document.querySelector("#edit-recipe");
     const createButton = document.querySelector("#create-recipe");
     if (!editButton && !createButton) return;

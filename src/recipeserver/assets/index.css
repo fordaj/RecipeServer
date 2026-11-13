@@ -184,9 +184,8 @@ a {
   min-width: 0;
 }
 
-.recipe-advanced__content .review-filter {
-  flex: 1 1 16rem;
-  max-width: 24rem;
+.recipe-filters .review-filter {
+  min-width: 0;
 }
 
 .filter-menu summary {

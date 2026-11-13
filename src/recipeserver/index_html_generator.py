@@ -830,6 +830,8 @@ class IndexHTMLGenerator:
                                     <label class="filter-control">
                                         {self._inline_svg(UP_DOWN_ARROW_SVG)}
                                         <select id="sort-recipes" aria-label="Sort recipes">
+                                            <option value="edited:desc">Last Edited (Newest First)</option>
+                                            <option value="edited:asc">Last Edited (Oldest First)</option>
                                             <option value="title:asc">Name: A–Z</option>
                                             <option value="title:desc">Name: Z–A</option>
                                             <option value="rating:desc">Highest rated</option>
@@ -840,28 +842,26 @@ class IndexHTMLGenerator:
                                             <option value="difficulty:desc">Hardest first</option>
                                             <option value="date:desc">Contribution date: newest first</option>
                                             <option value="date:asc">Contribution date: oldest first</option>
-                                            <option value="edited:desc">Last edit: newest first</option>
-                                            <option value="edited:asc">Last edit: oldest first</option>
                                         </select>
                                     </label>
                                     {filter_menus_html}
+                                    <details class="filter-control filter-menu review-filter" id="review-filter">
+                                        <summary>
+                                            {review_filter_icon}
+                                            <span class="filter-menu__label" id="review-filter-label">Filter Reviews: All</span>
+                                        </summary>
+
+                                        <fieldset class="filter-menu__menu">
+                                            <legend class="visually-hidden">Filter Reviews</legend>
+                                            <label class="filter-menu__option filter-menu__option--all">
+                                                <input type="checkbox" id="filter-reviews-all" checked>
+                                                <span>All reviews</span>
+                                                <span class="filter-menu__count"></span>
+                                            </label>
+                                            {reviewer_options_html}
+                                        </fieldset>
+                                    </details>
                                 </div>
-
-                                <details class="filter-control filter-menu review-filter" id="review-filter">
-                                    <summary>
-                                        {review_filter_icon}
-                                        <span class="filter-menu__label" id="review-filter-label">Filter Reviews: All</span>
-                                    </summary>
-
-                                    <fieldset class="filter-menu__menu">
-                                        <legend class="visually-hidden">Filter Reviews</legend>
-                                        <label class="filter-menu__option filter-menu__option--all">
-                                            <input type="checkbox" id="filter-reviews-all" checked>
-                                            <span>All reviews</span>
-                                        </label>
-                                        {reviewer_options_html}
-                                    </fieldset>
-                                </details>
 
                                 <label class="metadata-status-toggle">
                                     <input
