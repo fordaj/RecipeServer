@@ -63,6 +63,7 @@
 }
 
 .recipe-editor__makes-count {
+  cursor: pointer;
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
