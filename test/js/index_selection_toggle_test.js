@@ -29,6 +29,14 @@ function buildPage(document) {
   const count = element(document, "p", { id: "recipe-count" });
   const clearFilters = element(document, "button", { id: "clear-filters" });
   const metadataStatus = element(document, "input", { id: "metadata-status" });
+  const showArchived = element(document, "input", { id: "show-archived" });
+  showArchived.checked = false;
+  const cardZoom = element(document, "input", { id: "card-zoom" });
+  cardZoom.value = "280";
+  const reviewLabel = element(document, "span", { id: "review-filter-label" });
+  reviewLabel.textContent = "Filter Reviews: All";
+  const reviewAll = element(document, "input", { type: "checkbox", id: "filter-reviews-all" });
+  reviewAll.checked = true;
 
   const selectAllLabel = element(document, "label", {
     class: "select-all-control",
@@ -96,7 +104,19 @@ function buildPage(document) {
     recipes.push({ recipe, box, selectLabel });
   }
 
-  document.body.append(search, sort, count, clearFilters, metadataStatus, bulkControls, list);
+  document.body.append(
+    search,
+    sort,
+    count,
+    clearFilters,
+    metadataStatus,
+    showArchived,
+    cardZoom,
+    reviewLabel,
+    reviewAll,
+    bulkControls,
+    list,
+  );
 
   return {
     list,

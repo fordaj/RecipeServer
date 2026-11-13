@@ -99,7 +99,7 @@ def test_index_marks_archived_and_has_unchecked_show_archived(tmp_path):
 
     index_script = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.js").read_text(encoding="UTF-8")
     assert 'recipe.dataset.archived !== "true"' in index_script
-    assert 'showArchived.addEventListener("change", update)' in index_script
+    assert 'ctx.showArchived.addEventListener("change", () => update(ctx))' in index_script
 
 
 def test_archived_metadata_api_defaults_false_and_validates(archived_server):
