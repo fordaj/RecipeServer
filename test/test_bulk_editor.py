@@ -232,7 +232,8 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     # no longer wired up.
     assert 'document.querySelector("#bulk-selection-toggle")' in index_js
     assert 'document.querySelectorAll("#bulk-controls [data-selection-only]")' in index_js
-    assert 'selectionToggle.addEventListener("click", () => setSelectionMode(!selectionModeEnabled))' in index_js
+    assert 'selectionToggle.addEventListener("click", () =>' in index_js
+    assert "setSelectionMode(ctx, !ctx.selectionModeEnabled)" in index_js
     assert 'selectionToggleLabel.textContent = enabled ? "Cancel" : "Select"' in index_js
     assert "#bulk-selection-mode" not in index_js
     # Plain click toggles (no separate Ctrl behavior) and Ctrl+Shift
@@ -243,14 +244,14 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert "applyMultiSelect" in index_js
     assert "visible.slice(start, end + 1)" in index_js
     # Range adds without clearing, plain click toggles without clearing.
-    range_block = index_js.split("const isRangeClick")[1].split("updateBulkControls();")[0]
+    range_block = index_js.split("const isRangeClick")[1].split("updateBulkControls(ctx);")[0]
     assert "selectBoxes.forEach" not in range_block
     # A click on the checkbox keeps the state the browser already toggled.
     assert "targetBox.checked = checked ?? !targetBox.checked" in index_js
-    assert "selectBoxes.forEach" not in index_js.split("const applyMultiSelect")[1].split("updateBulkControls();")[0]
+    assert "selectBoxes.forEach" not in index_js.split("const applyMultiSelect")[1].split("updateBulkControls(ctx);")[0]
     # The click on the checkbox must not be cancelled, or the browser would
     # restore the state it toggled.
-    checkbox_block = index_js.split("selectBoxes.forEach((box)")[1].split("});")[0]
+    checkbox_block = index_js.split("selectBoxes.forEach((box) => {")[1].split("});")[0]
     assert "event.preventDefault()" not in checkbox_block
     # The selection control has its own handler, so the card handler must
     # leave it alone instead of toggling the recipe a second time.
@@ -259,7 +260,7 @@ def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):
     assert 'list.addEventListener("mousedown"' in index_js and "event.shiftKey" in index_js
     # Select All selects/deselects recipes in view and stays synced.
     assert 'document.querySelector("#select-all")' in index_js
-    assert "selectAll.indeterminate" in index_js and "visibleRecipes()" in index_js
+    assert "selectAll.indeterminate" in index_js and "visibleRecipes(ctx)" in index_js
     box = soup.select_one(".recipe-select__checkbox")
     assert box is not None and box["data-path"] == "soup/recipe.md"
     assert soup.select_one("#recipe-list .recipe")["data-path"] == "soup/recipe.md"

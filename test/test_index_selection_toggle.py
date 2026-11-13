@@ -25,5 +25,6 @@ def test_selection_mode_is_a_button_in_the_bulk_controls():
     # The Selection Mode checkbox is replaced by a Select/Cancel button.
     assert "#bulk-selection-mode" not in script
     assert 'document.querySelector("#bulk-selection-toggle")' in script
-    assert 'selectionToggle.addEventListener("click", () => setSelectionMode(!selectionModeEnabled))' in script
+    assert 'selectionToggle.addEventListener("click", () =>' in script
+    assert "setSelectionMode(ctx, !ctx.selectionModeEnabled)" in script
     assert 'selectionToggleLabel.textContent = enabled ? "Cancel" : "Select"' in script

@@ -124,6 +124,49 @@ function buildPage(document) {
     ],
   });
 
+  const reviewLabel = element(document, "span", { id: "review-filter-label" });
+  reviewLabel.textContent = "Filter Reviews: All";
+  const reviewAll = element(document, "input", { type: "checkbox", id: "filter-reviews-all" });
+  reviewAll.checked = true;
+
+  const cardZoom = element(document, "input", { id: "card-zoom" });
+  cardZoom.value = "280";
+
+  const toggleLabel = element(document, "span", { "data-selection-label": "" });
+  toggleLabel.textContent = "Select";
+  const selectionToggle = element(document, "button", { id: "bulk-selection-toggle" });
+  selectionToggle.append(toggleLabel);
+
+  const selectAll = element(document, "input", { type: "checkbox", id: "select-all" });
+  const clearSelections = element(document, "button", {
+    id: "clear-selections",
+    "data-selection-only": "",
+  });
+  const bulkDelete = element(document, "button", {
+    id: "bulk-delete",
+    "data-selection-only": "",
+  });
+  const shoppingList = element(document, "button", {
+    id: "shopping-list",
+    "data-selection-only": "",
+  });
+  const bulkEdit = element(document, "button", { id: "bulk-edit", "data-selection-only": "" });
+  const bulkCount = element(document, "span", {
+    id: "bulk-selection-count",
+    "data-selection-only": "",
+  });
+  bulkCount.textContent = "0 selected";
+  const bulkControls = element(document, "div", { id: "bulk-controls" });
+  bulkControls.append(
+    selectAll,
+    clearSelections,
+    bulkDelete,
+    shoppingList,
+    bulkEdit,
+    bulkCount,
+    selectionToggle,
+  );
+
   const recipes = [
     buildRecipe(document, { title: "Alpha", meals: ["Breakfast"], categories: ["Baking"] }),
     buildRecipe(document, {
@@ -149,6 +192,10 @@ function buildPage(document) {
     clearFilters,
     metadataStatus,
     showArchived,
+    reviewLabel,
+    reviewAll,
+    cardZoom,
+    bulkControls,
     meals.menu,
     categories.menu,
     list,
