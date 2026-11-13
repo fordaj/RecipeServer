@@ -2,51 +2,36 @@
 
 All three blocks end the ``<main>`` element. They share the "·" separator
 plus ``<time>`` construction used for human-readable timestamps, factored
-into ``_append_meta_time``.
+into ``recipe_utils.meta_time_html``.
 """
 
 from bs4 import BeautifulSoup, Tag
 
 from .._version import PACKAGE_VERSION
-from ..recipe_utils import display_date, is_date_only, parse_metadata_datetime
+from ..recipe_utils import meta_time_html
+from ..sources import normalize_sources, source_format, source_icon_key, source_title
 from .icons import AI_SVG, BOOK_SVG, LINK_SVG, QUILL_SVG, TAG_SVG, USER_SVG, append_svg_icon
 
-_META_SEPARATOR = "·"
-_SEPARATOR_CLASS = "recipe-meta__separator"
+_SOURCE_ICONS = {"website": LINK_SVG, "book": BOOK_SVG, "ai": AI_SVG, "user": USER_SVG}
 
 
 def _append_meta_time(label: Tag, soup: BeautifulSoup, raw_value: object, *, text_prefix: str = "") -> None:
-    """Append "· <time>" to *label* when *raw_value* parses as a datetime.
+    """Append "· <time>" to *label* when *raw_value* parses as a datetime."""
+    fragment = meta_time_html(raw_value, text_prefix)
+    if fragment:
+        label.append(BeautifulSoup(fragment, "html.parser"))
 
-    Date-only values render as a bare calendar date. Timestamps render in
-    browser-local time via ``data-local-time``; *text_prefix* (for example
-    ``"Edited "``) is prepended to the displayed text and emitted as
-    ``data-time-prefix`` so the browser-side script can rebuild the label.
-    """
-    parsed = parse_metadata_datetime(raw_value)
-    if parsed is None:
-        return
 
-    separator = soup.new_tag("span", attrs={"class": _SEPARATOR_CLASS})
-    separator.string = _META_SEPARATOR
-    label.append(separator)
-
-    if is_date_only(raw_value):
-        time_attrs = {"datetime": parsed.date().isoformat()}
-    else:
-        time_attrs = {"datetime": parsed.isoformat(), "data-local-time": "true"}
-        if text_prefix:
-            time_attrs["data-time-prefix"] = text_prefix
-
-    time_element = soup.new_tag("time", attrs=time_attrs)
-    time_element.string = f"{text_prefix}{display_date(parsed)}"
-    label.append(time_element)
+def _append_to_main(soup: BeautifulSoup, node: Tag | None) -> None:
+    main = soup.find("main", class_="recipe")
+    if node is not None and main is not None:
+        main.append(node)
 
 
 # ----- Contributor ----- #
 
 
-def build_recipe_contributor(metadata: dict, soup: BeautifulSoup) -> Tag | None:
+def _build_contributor(metadata: dict, soup: BeautifulSoup) -> Tag | None:
     contributor = metadata.get("contributor", "")
 
     if isinstance(contributor, (list, tuple)):
@@ -78,35 +63,19 @@ def build_recipe_contributor(metadata: dict, soup: BeautifulSoup) -> Tag | None:
 
 
 def inject_recipe_contributor(soup: BeautifulSoup, metadata: dict) -> None:
-    main = soup.find("main", class_="recipe")
-    if main is None:
-        return
-
-    contributor = build_recipe_contributor(metadata, soup)
-    if contributor:
-        main.append(contributor)
+    _append_to_main(soup, _build_contributor(metadata, soup))
 
 
 # ----- Sources ----- #
 
 
-def build_recipe_sources(metadata: dict, soup: BeautifulSoup) -> Tag | None:
-    sources = metadata.get("source")
-
-    if isinstance(sources, dict):
-        sources = [sources]
-    elif not isinstance(sources, list):
-        sources = []
-
+def _build_sources(metadata: dict, soup: BeautifulSoup) -> Tag | None:
     container = soup.new_tag(
         "div",
         attrs={"class": "recipe-sources"},
     )
 
-    for source in sources:
-        if not isinstance(source, dict):
-            continue
-
+    for source in normalize_sources(metadata):
         item = _build_source_item(source, soup)
         if item is not None:
             container.append(item)
@@ -115,20 +84,10 @@ def build_recipe_sources(metadata: dict, soup: BeautifulSoup) -> Tag | None:
 
 
 def _build_source_item(source: dict, soup: BeautifulSoup) -> Tag | None:
-    source_format = str(source.get("format") or "").lower()
-    title = str(source.get("title") or "").strip()
+    fmt = source_format(source)
+    title = source_title(source)
     author = str(source.get("author") or "").strip()
     url = str(source.get("url") or "").strip()
-
-    if source_format == "website":
-        title = title or str(source.get("company") or "").strip()
-        icon = LINK_SVG
-    elif source_format == "book":
-        icon = BOOK_SVG
-    elif source_format == "ai":
-        icon = AI_SVG
-    else:
-        icon = USER_SVG
 
     if not title:
         return None
@@ -138,9 +97,9 @@ def _build_source_item(source: dict, soup: BeautifulSoup) -> Tag | None:
         attrs={"class": "recipe-sources__item"},
     )
 
-    append_svg_icon(item, icon)
+    append_svg_icon(item, _SOURCE_ICONS[source_icon_key(fmt)])
 
-    if source_format == "website" and url:
+    if fmt == "website" and url:
         label = soup.new_tag(
             "a",
             href=url,
@@ -177,19 +136,13 @@ def _build_source_author(author: str, soup: BeautifulSoup) -> Tag:
 
 
 def inject_recipe_sources(soup: BeautifulSoup, metadata: dict) -> None:
-    main = soup.find("main", class_="recipe")
-    if main is None:
-        return
-
-    sources = build_recipe_sources(metadata, soup)
-    if sources:
-        main.append(sources)
+    _append_to_main(soup, _build_sources(metadata, soup))
 
 
 # ----- Version ----- #
 
 
-def build_recipe_version(metadata: dict, soup: BeautifulSoup) -> Tag:
+def _build_version(metadata: dict, soup: BeautifulSoup) -> Tag:
     version_element = soup.new_tag(
         "div",
         attrs={"class": "recipe-version recipe-extras"},
@@ -208,9 +161,4 @@ def build_recipe_version(metadata: dict, soup: BeautifulSoup) -> Tag:
 
 
 def inject_recipe_version(soup: BeautifulSoup, metadata: dict) -> None:
-    main = soup.find("main", class_="recipe")
-    if main is None:
-        return
-
-    version_element = build_recipe_version(metadata, soup)
-    main.append(version_element)
+    _append_to_main(soup, _build_version(metadata, soup))

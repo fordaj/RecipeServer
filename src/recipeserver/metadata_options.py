@@ -14,6 +14,7 @@ from pathlib import Path
 import frontmatter
 
 from ._logger import logger
+from .recipe_utils import read_categories
 
 # Fields the editor fills from a dropdown. Multi-value fields hold a list of
 # values; single-value fields hold exactly one.
@@ -25,9 +26,9 @@ OPTION_FIELDS = (*MULTI_VALUE_FIELDS, *SINGLE_VALUE_FIELDS)
 def _field_values(metadata: dict, field: str) -> list[str]:
     """Return the non-empty values one recipe stores for a single field."""
     value = metadata.get(field)
-    if field == "categories" and not value:
+    if field == "categories":
         # Older recipes may use the singular field name.
-        value = metadata.get("category")
+        value = read_categories(metadata)
 
     if value is None:
         return []

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, Tag
 
-from ..recipe_utils import as_list, iter_valid_rating_entries
+from ..recipe_utils import as_list, iter_valid_rating_entries, read_categories
 from .icons import (
     ARCHIVE_SVG,
     CHEF_HAT_SVG,
@@ -153,11 +153,9 @@ def _build_secondary_row(metadata: dict, soup: BeautifulSoup) -> Tag:
     secondary = soup.new_tag("div", attrs={"class": "recipe-overview__secondary"})
 
     for key, icon_path in _DETAIL_ICONS.items():
-        values = as_list(metadata.get(key))
+        values = as_list(read_categories(metadata)) if key == "categories" else as_list(metadata.get(key))
         if key == "status":
             values = values[:1]
-        if key == "categories" and not values:
-            values = as_list(metadata.get("category"))
         if not values:
             continue
 

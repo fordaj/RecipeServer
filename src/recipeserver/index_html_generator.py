@@ -19,13 +19,13 @@ from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
 from .recipe_utils import (
-    display_date,
-    is_date_only,
     iter_valid_rating_entries,
+    meta_time_html,
     normalize_reviewer_name,
     parse_metadata_datetime,
     slug_to_title,
 )
+from .sources import TITLED_SOURCE_FORMATS, normalize_sources, source_format, source_icon_key, source_title
 
 FILE_PATH = Path(__file__)
 ASSETS_DIR = FILE_PATH.parent / "assets"
@@ -117,8 +117,8 @@ FILTER_FIELDS = (
     FilterField("sourceTitles", "Source Titles", BOOK_SVG, "filter-source-title", "Filter by source title", "All source titles"),
 )
 
-# Source formats that show an explicit title in the card details.
-TITLED_SOURCE_FORMATS = {"website", "book"}
+# Index cards show an explicit "Source" detail only for TITLED_SOURCE_FORMATS.
+_SOURCE_ICON_PATHS = {"website": LINK_SVG, "book": BOOK_SVG, "ai": AI_SVG, "user": USER_SVG}
 
 
 @dataclass
@@ -235,35 +235,16 @@ class IndexHTMLGenerator:
     def _version_footer_html(self) -> str:
         latest, latest_raw = self._latest_updated_on()
         icon = self._svg_icon(TAG_SVG)
-        label_parts = [f"v{VERSION}"]
+        label = f"v{VERSION}"
         if latest is not None:
-            if is_date_only(latest_raw):
-                time_attrs = f'datetime="{html.escape(latest.date().isoformat(), quote=True)}"'
-            else:
-                time_attrs = f'datetime="{html.escape(latest.isoformat(), quote=True)}" data-local-time="true" data-time-prefix="Edited "'
-            label_parts.append(
-                f'<span class="recipe-meta__separator" aria-hidden="true">·</span>'
-                f"<time {time_attrs}>Edited {html.escape(display_date(latest))}</time>"
-            )
-        label = "".join(label_parts)
+            label += meta_time_html(latest_raw, "Edited ") or ""
         return f'<footer class="recipe-version" aria-label="App version">{icon}<span>{label}</span></footer>'
 
     @staticmethod
-    def _sources(metadata: dict) -> list[dict]:
-        sources = metadata.get("source", [])
-        if isinstance(sources, dict):
-            sources = [sources]
-        if not isinstance(sources, list):
-            return []
-        return [source for source in sources if isinstance(source, dict)]
-
-    @staticmethod
     def _source_title(source: dict) -> str:
-        source_format = str(source.get("format", "")).lower()
-        if source_format not in TITLED_SOURCE_FORMATS:
+        if source_format(source) not in TITLED_SOURCE_FORMATS:
             return ""
-        title = source.get("title") or (source.get("company") if source_format == "website" else "")
-        return str(title or "").strip()
+        return source_title(source)
 
     @staticmethod
     def _warning_for(warnings_by_field: dict[str, dict], *fields: str) -> dict | None:
@@ -291,16 +272,6 @@ class IndexHTMLGenerator:
         icon["aria-hidden"] = "true"
         icon["focusable"] = "false"
         return str(icon)
-
-    @staticmethod
-    def _source_icon(source_format: str) -> Path:
-        if source_format == "website":
-            return LINK_SVG
-        if source_format == "book":
-            return BOOK_SVG
-        if source_format == "ai":
-            return AI_SVG
-        return USER_SVG
 
     # ----- Card detail fragments ----- #
 
@@ -409,20 +380,20 @@ class IndexHTMLGenerator:
 
     @classmethod
     def _source_detail_html(cls, source: dict) -> str:
-        source_format = str(source.get("format", "")).lower()
+        fmt = source_format(source)
         title = cls._source_title(source)
         if not title:
             return ""
 
         content = html.escape(title)
-        if source_format == "website":
+        if fmt == "website":
             url = str(source.get("url") or "").strip()
             parsed_url = urlsplit(url)
             is_http_url = parsed_url.scheme.lower() in {"http", "https"} and parsed_url.netloc
             if is_http_url:
                 content = f'<a href="{html.escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">{content}</a>'
 
-        return cls._metadata_detail_html(cls._source_icon(source_format), "Source", content)
+        return cls._metadata_detail_html(_SOURCE_ICON_PATHS[source_icon_key(fmt)], "Source", content)
 
     # ----- Per-recipe data ----- #
 
@@ -500,7 +471,7 @@ class IndexHTMLGenerator:
         archived = metadata.get("archived") is True
 
         # ----- Filters and filter option counts ----- #
-        sources = self._sources(metadata)
+        sources = normalize_sources(metadata)
         collected = self._collect_filter_values(metadata, sources)
         self._record_filter_counts(filter_values, collected, archived=archived)
 

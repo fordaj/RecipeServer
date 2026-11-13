@@ -20,6 +20,14 @@ from bs4 import BeautifulSoup
 from PIL import Image, UnidentifiedImageError
 
 from ._logger import logger
+from ._version import PACKAGE_VERSION
+from .recipe_utils import (
+    SOURCE_FORMAT_LABELS,
+    clean_source_fields,
+    collapse_status,
+    normalize_legacy_category,
+    normalize_source_dict,
+)
 
 MODEL_TIMEOUT_SECONDS = 120
 AVAILABILITY_TIMEOUT_SECONDS = 3
@@ -32,7 +40,7 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 # reasoning before producing the answer, so it needs headroom beyond the
 # length of the recipe itself.
 MAX_MODEL_TOKENS = 8192
-USER_AGENT = "RecipeServer/0.1"
+USER_AGENT = f"RecipeServer/{PACKAGE_VERSION}"
 # Low temperature: the model should follow the prompt's format, not improvise.
 MODEL_TEMPERATURE = 0.2
 # How much of an HTTP error body to read for diagnostics.
@@ -80,14 +88,6 @@ IMAGE_MIME_TYPES = {
 }
 
 LIST_FIELDS = ("tags", "cuisine", "categories", "meals")
-SOURCE_FIELDS = ("author", "title", "format", "url")
-# Canonical labels for the source format, keyed by its lower-cased spelling.
-SOURCE_FORMAT_LABELS = {
-    "website": "Website",
-    "ai": "AI",
-    "book": "Book",
-    "other": "Other",
-}
 
 _CODE_FENCE_RE = re.compile(
     r"^\s*```(?:markdown|md)?\s*\n(?P<body>.*)\n```\s*$",
@@ -485,7 +485,14 @@ def image_base64(image_filename: str, image_bytes: bytes) -> str:
 
 
 def _content_text(content: object) -> str:
-    """Flatten a chat message content value (string or list of parts)."""
+    """Flatten a chat message content value to text.
+
+    Ollama's native ``/api/chat`` sends ``content`` as a plain string, so the
+    common path is one isinstance check. The OpenAI-style list-of-parts shape
+    is kept because a test pins it and it costs nothing to tolerate: a
+    misconfigured proxy that returns parts-shaped content would otherwise
+    produce an unusable empty draft.
+    """
     if isinstance(content, str):
         return content
     if not isinstance(content, list):
@@ -508,6 +515,28 @@ THINKING_START_PATTERN = re.compile(r"<think\b[^>]*>", re.IGNORECASE)
 THINKING_END_PATTERN = re.compile(r"</think\s*>", re.IGNORECASE)
 
 
+def _partial_tag_index(text: str, markers: tuple[str, ...]) -> int | None:
+    """Index where a trailing, possibly incomplete tag starts, or None.
+
+    Streaming can split a tag across chunks. The text after the last ``<``
+    is held back when it could still grow into one of ``markers``.
+    """
+    index = text.rfind("<")
+    if index == -1:
+        return None
+
+    suffix = text[index:].lower()
+    for marker in markers:
+        # The suffix is the opening of the tag, e.g. "<thi" for "<think".
+        is_tag_opening = marker.startswith(suffix)
+        # The tag name is complete but its attributes or closing bracket
+        # are still streaming, e.g. '<think type="x"' without ">".
+        is_unfinished_tag = suffix.startswith(marker) and ">" not in suffix
+        if is_tag_opening or is_unfinished_tag:
+            return index
+    return None
+
+
 class _ThinkingStreamFilter:
     """Split streamed text into answer text and embedded thinking text.
 
@@ -528,29 +557,7 @@ class _ThinkingStreamFilter:
     def finish(self) -> tuple[str, str]:
         return self._drain(final=True)
 
-    @staticmethod
-    def _partial_tag_index(text: str, markers: tuple[str, ...]) -> int | None:
-        """Index where a trailing, possibly incomplete tag starts, or None.
-
-        Streaming can split a tag across chunks. The text after the last ``<``
-        is held back when it could still grow into one of ``markers``.
-        """
-        index = text.rfind("<")
-        if index == -1:
-            return None
-
-        suffix = text[index:].lower()
-        for marker in markers:
-            # The suffix is the opening of the tag, e.g. "<thi" for "<think".
-            is_tag_opening = marker.startswith(suffix)
-            # The tag name is complete but its attributes or closing bracket
-            # are still streaming, e.g. '<think type="x"' without ">".
-            is_unfinished_tag = suffix.startswith(marker) and ">" not in suffix
-            if is_tag_opening or is_unfinished_tag:
-                return index
-        return None
-
-    def _flush_without_match(self, sink: list[str], hold_markers: tuple[str, ...], final: bool) -> None:
+    def _flush_tail(self, sink: list[str], hold_markers: tuple[str, ...], final: bool) -> None:
         """Move pending text with no complete tag into ``sink``.
 
         A trailing partial tag is kept in ``self._pending`` so it can be
@@ -561,7 +568,7 @@ class _ThinkingStreamFilter:
             self._pending = ""
             return
 
-        hold = self._partial_tag_index(self._pending, hold_markers)
+        hold = _partial_tag_index(self._pending, hold_markers)
         if hold is None:
             sink.append(self._pending)
             self._pending = ""
@@ -569,59 +576,39 @@ class _ThinkingStreamFilter:
             sink.append(self._pending[:hold])
             self._pending = self._pending[hold:]
 
-    def _drain_thinking(self, thinking: list[str], final: bool) -> bool:
-        """Drain one step while inside a reasoning block.
-
-        Returns True when a complete end tag was consumed and draining may
-        continue, False when the remaining text was flushed or held back.
-        """
-        end_match = THINKING_END_PATTERN.search(self._pending)
-        if end_match:
-            thinking.append(self._pending[: end_match.start()])
-            self._pending = self._pending[end_match.end() :]
-            self._in_thinking = False
-            return True
-
-        self._flush_without_match(thinking, ("</think",), final)
-        return False
-
-    def _drain_content(self, content: list[str], thinking: list[str], final: bool) -> bool:
-        """Drain one step while outside a reasoning block.
-
-        An unmatched closing tag means the model emitted reasoning without an
-        opening tag: the text before it is treated as thinking. Otherwise a
-        complete opening tag starts a reasoning block. Returns True when a tag
-        was consumed and draining may continue, False when the remaining text
-        was flushed or held back.
-        """
-        start_match = THINKING_START_PATTERN.search(self._pending)
-        end_match = THINKING_END_PATTERN.search(self._pending)
-
-        if end_match and (start_match is None or end_match.start() < start_match.start()):
-            thinking.append(self._pending[: end_match.start()])
-            self._pending = self._pending[end_match.end() :]
-            return True
-
-        if start_match:
-            content.append(self._pending[: start_match.start()])
-            self._pending = self._pending[start_match.end() :]
-            self._in_thinking = True
-            return True
-
-        self._flush_without_match(content, ("<think", "</think"), final)
-        return False
-
     def _drain(self, final: bool) -> tuple[str, str]:
         content: list[str] = []
         thinking: list[str] = []
 
         while self._pending:
             if self._in_thinking:
-                keep_draining = self._drain_thinking(thinking, final)
-            else:
-                keep_draining = self._drain_content(content, thinking, final)
-            if not keep_draining:
+                end_match = THINKING_END_PATTERN.search(self._pending)
+                if end_match:
+                    thinking.append(self._pending[: end_match.start()])
+                    self._pending = self._pending[end_match.end() :]
+                    self._in_thinking = False
+                    continue
+                self._flush_tail(thinking, ("</think",), final)
                 break
+
+            start_match = THINKING_START_PATTERN.search(self._pending)
+            end_match = THINKING_END_PATTERN.search(self._pending)
+
+            # An unmatched closing tag means the model emitted reasoning
+            # without an opening tag: the text before it is treated as thinking.
+            if end_match and (start_match is None or end_match.start() < start_match.start()):
+                thinking.append(self._pending[: end_match.start()])
+                self._pending = self._pending[end_match.end() :]
+                continue
+
+            if start_match:
+                content.append(self._pending[: start_match.start()])
+                self._pending = self._pending[start_match.end() :]
+                self._in_thinking = True
+                continue
+
+            self._flush_tail(content, ("<think", "</think"), final)
+            break
 
         return "".join(content), "".join(thinking)
 
@@ -711,13 +698,24 @@ def _raise_model_error(payload: dict[str, Any]) -> None:
         raise ModelRequestError(f"The model returned an error: {error}")
 
 
-def _parse_chat_payload(payload: object) -> ChatResult:
+def _extract_chat_message(payload: object) -> dict[str, Any] | None:
+    """Validate a chat payload and return its message dict, or ``None``.
+
+    Raises ``ModelRequestError`` when the payload itself is unusable (not a
+    dict, or carrying an ``error``). A missing or non-dict ``message`` is
+    reported as ``None`` so streaming callers can skip it while the
+    non-streaming caller can raise.
+    """
     if not isinstance(payload, dict):
         raise ModelRequestError("The model returned an invalid response")
     _raise_model_error(payload)
-
     message = payload.get("message")
-    if not isinstance(message, dict):
+    return message if isinstance(message, dict) else None
+
+
+def _parse_chat_payload(payload: object) -> ChatResult:
+    message = _extract_chat_message(payload)
+    if message is None:
         raise ModelRequestError("The model returned a response without a message")
 
     content = _content_text(message.get("content"))
@@ -760,13 +758,9 @@ def _read_chat_stream(
         except json.JSONDecodeError as exc:
             raise ModelRequestError("The model returned invalid JSON") from exc
 
-        if not isinstance(payload, dict):
-            raise ModelRequestError("The model returned an invalid response")
-        _raise_model_error(payload)
-
-        message = payload.get("message")
-        thinking_delta = _content_text(message.get("thinking")) if isinstance(message, dict) else ""
-        content_delta = _content_text(message.get("content")) if isinstance(message, dict) else ""
+        message = _extract_chat_message(payload)
+        thinking_delta = _content_text(message.get("thinking")) if message else ""
+        content_delta = _content_text(message.get("content")) if message else ""
 
         if thinking_delta:
             thinking_parts.append(thinking_delta)
@@ -911,13 +905,6 @@ def _chat(
     return _ollama_chat(endpoint, model_name, prompt, user_message, stage=stage, stream=False, images=images).content
 
 
-def _normalize_legacy_category(normalized: dict[str, Any]) -> None:
-    """Fold the legacy singular ``category`` into ``categories``."""
-    legacy_category = normalized.pop("category", None)
-    if normalized.get("categories") is None and legacy_category is not None:
-        normalized["categories"] = legacy_category
-
-
 def _normalize_list_fields(normalized: dict[str, Any]) -> None:
     """Split comma-separated strings into lists for the multi-value fields."""
     for field in LIST_FIELDS:
@@ -926,34 +913,12 @@ def _normalize_list_fields(normalized: dict[str, Any]) -> None:
             normalized[field] = [item.strip() for item in value.split(",") if item.strip()]
 
 
-def _normalize_status(normalized: dict[str, Any]) -> None:
-    """Collapse ``status`` to a single string, or None when it is not usable."""
-    status = normalized.get("status")
-    if isinstance(status, list):
-        normalized["status"] = next((item.strip() for item in status if isinstance(item, str) and item.strip()), None)
-    elif status is not None and not isinstance(status, str):
-        normalized["status"] = None
-    elif isinstance(status, str):
-        normalized["status"] = status.strip() or None
-
-
-def _clean_source_value(value: object) -> str | None:
-    return (value.strip() or None) if isinstance(value, str) else None
-
-
 def _normalize_source(normalized: dict[str, Any]) -> None:
     """Rebuild ``source`` as a dict of known fields with cleaned values."""
-    source = normalized.get("source")
-    if isinstance(source, list):
-        source = next((item for item in source if isinstance(item, dict)), None)
-    if not isinstance(source, dict):
+    source = normalize_source_dict(normalized.get("source"))
+    if source is None:
         return
-
-    cleaned = {field: _clean_source_value(source.get(field)) for field in SOURCE_FIELDS}
-    source_format = cleaned["format"]
-    if isinstance(source_format, str):
-        cleaned["format"] = SOURCE_FORMAT_LABELS.get(source_format.casefold(), source_format)
-    normalized["source"] = cleaned
+    normalized["source"] = clean_source_fields(source, format_labels=SOURCE_FORMAT_LABELS)
 
 
 def _normalize_metadata(metadata: object) -> dict[str, Any]:
@@ -961,9 +926,9 @@ def _normalize_metadata(metadata: object) -> dict[str, Any]:
         return {}
 
     normalized = dict(metadata)
-    _normalize_legacy_category(normalized)
+    normalize_legacy_category(normalized)
     _normalize_list_fields(normalized)
-    _normalize_status(normalized)
+    normalized["status"] = collapse_status(normalized.get("status"))
     _normalize_source(normalized)
     return normalized
 
@@ -1181,17 +1146,17 @@ def _require_image_model_name(resolved: AIConfigView, input_type: str) -> str:
     )
 
 
-class _ProgressEmitter:
-    """Emit status events, skipping repeats of the current state."""
+def _make_progress_emitter(event_callback: EventCallback | None) -> Callable[[str, str], None]:
+    """Return an emit function that skips repeats of the current state."""
+    last_state: str | None = None
 
-    def __init__(self, event_callback: EventCallback | None) -> None:
-        self._event_callback = event_callback
-        self._last_state: str | None = None
+    def emit(state: str, message: str) -> None:
+        nonlocal last_state
+        if state != last_state:
+            last_state = state
+            _emit_status(event_callback, state, message)
 
-    def emit(self, state: str, message: str) -> None:
-        if state != self._last_state:
-            self._last_state = state
-            _emit_status(self._event_callback, state, message)
+    return emit
 
 
 def _stream_recipe_draft(
@@ -1202,10 +1167,10 @@ def _stream_recipe_draft(
     event_callback: EventCallback | None,
 ) -> ChatResult:
     loaded = _report_model_loading(event_callback, resolved.endpoint, model_name)
-    progress = _ProgressEmitter(event_callback)
+    progress = _make_progress_emitter(event_callback)
     generating_message = f"Generating recipe with {model_name}..."
     if loaded is not False:
-        progress.emit(STATUS_GENERATING, generating_message)
+        progress(STATUS_GENERATING, generating_message)
 
     stage = "recipe drafting" if input_type == "image" else "recipe generation"
     return _ollama_chat(
@@ -1215,8 +1180,8 @@ def _stream_recipe_draft(
         user_message,
         stage=stage,
         stream=event_callback is not None,
-        on_thinking=lambda _text: progress.emit(STATUS_THINKING, "Thinking..."),
-        on_content=lambda _text: progress.emit(STATUS_GENERATING, generating_message),
+        on_thinking=lambda _text: progress(STATUS_THINKING, "Thinking..."),
+        on_content=lambda _text: progress(STATUS_GENERATING, generating_message),
     )
 
 
