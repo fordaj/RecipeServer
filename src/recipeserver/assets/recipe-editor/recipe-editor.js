@@ -721,37 +721,74 @@ Try this
     return `${image}\n\n${content}`;
   }
 
-  function applyMainImageSelection(ctx) {
-    const { refs } = ctx;
-    const selected = refs.mainImageSelect.value;
+  // Computes which folder image (if any) is currently the main image: the
+  // first image link in the Markdown, as long as it points at a file in the
+  // folder. Returns the image's filename, or "".
+  function currentMainImageName(state, content) {
+    const first = findFirstImageReference(content);
+    if (!first || isExternalSrc(first.src)) return "";
+    const basename = basenameOf(first.src);
+    return state.existingImages.some((image) => image.name === basename) ? basename : "";
+  }
+
+  // Points the first image link at `name` (inserting one after the first
+  // heading when the Markdown has none). When `remove` is true the first
+  // image link is deleted instead. Returns the textarea's new content.
+  function writeMainImage(content, first, name, remove) {
+    if (remove) {
+      return first ? removeImageSpan(content, first) : content;
+    }
+    if (!first) {
+      return insertImageIntoMarkdown(content, name);
+    }
+    const replacement = replacementForSrc(name, first.kind);
+    return content.slice(0, first.srcStart) + replacement + content.slice(first.srcEnd);
+  }
+
+  // Clicking a thumbnail toggles that image as the main image: the first
+  // image link in the Markdown is rewritten to point at it (or inserted when
+  // there is none). Clicking the current main image removes the link, which
+  // is how the hero is cleared.
+  function setMainImage(ctx, name) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
     const content = refs.textarea.value;
     const first = findFirstImageReference(content);
+    const isMain = currentMainImageName(state, content) === name;
 
-    if (!selected) {
-      if (first) refs.textarea.value = removeImageSpan(content, first);
-    } else if (!first) {
-      refs.textarea.value = insertImageIntoMarkdown(content, selected);
-    } else {
-      const replacement = replacementForSrc(selected, first.kind);
-      refs.textarea.value =
-        content.slice(0, first.srcStart) + replacement + content.slice(first.srcEnd);
-    }
+    refs.textarea.value = writeMainImage(content, first, name, isMain);
     updateMainImageUi(ctx);
+    ui.setStatus(isMain ? `Removed the main image (${name}).` : `"${name}" is now the main image.`);
+  }
+
+  // After a delete, check that the main image is still available. If the
+  // deleted file was the main image, fall back to the first image in the
+  // folder (the list is alphabetical); when no images remain, remove the
+  // dangling first image link. Mutates the Markdown buffer; the disk file is
+  // updated by the server-side half of this check.
+  function applyMainImageFallback(ctx, deletedName, remainingImages) {
+    const { refs, state } = ctx;
+    const content = refs.textarea.value;
+    const first = findFirstImageReference(content);
+    if (!first || isExternalSrc(first.src) || basenameOf(first.src) !== deletedName) return null;
+    if (remainingImages.length) {
+      const target = remainingImages[0].name;
+      refs.textarea.value = writeMainImage(content, first, target, false);
+      return { replaced: target };
+    }
+    refs.textarea.value = writeMainImage(content, first, deletedName, true);
+    return { removed: true };
   }
 
   function updateMainImageUi(ctx) {
     const { refs, state } = ctx;
-    const content = refs.textarea.value;
-    const first = findFirstImageReference(content);
-    let selected = "";
-    if (first && !isExternalSrc(first.src)) {
-      const basename = basenameOf(first.src);
-      if (state.existingImages.some((image) => image.name === basename)) selected = basename;
-    }
-    refs.mainImageSelect.value = selected;
-    const previewImage = state.existingImages.find((image) => image.name === selected);
-    refs.mainImagePreview.hidden = !previewImage;
-    if (previewImage) refs.mainImagePreview.src = previewImage.url;
+    const selected = currentMainImageName(state, refs.textarea.value);
+    refs.imageList.querySelectorAll(".recipe-editor__image-main").forEach((button) => {
+      const isMain = button.dataset.name === selected;
+      button.classList.toggle("is-main", isMain);
+      button.setAttribute("aria-pressed", String(isMain));
+      button.title = isMain ? "Remove as main image" : "Set as main image";
+    });
   }
 
   function isRenameCandidate(value) {
@@ -764,7 +801,9 @@ Try this
 
   function refreshExistingImageControls(ctx) {
     const { refs, state } = ctx;
-    refs.mainImageSelect.disabled = state.busy;
+    refs.imageList.querySelectorAll(".recipe-editor__image-main").forEach((button) => {
+      button.disabled = state.busy;
+    });
     refs.imageList.querySelectorAll(".recipe-editor__image-item").forEach((item) => {
       const input = item.querySelector(".recipe-editor__image-name");
       const button = item.querySelector(".recipe-editor__image-rename");
@@ -792,6 +831,21 @@ Try this
     thumb.src = image.url;
     thumb.alt = "";
     thumb.loading = "lazy";
+
+    const badge = document.createElement("span");
+    badge.className = "recipe-editor__main-badge";
+    badge.textContent = "MAIN";
+    badge.setAttribute("aria-hidden", "true");
+
+    const mainButton = document.createElement("button");
+    mainButton.type = "button";
+    mainButton.className = "recipe-editor__image-main";
+    mainButton.dataset.name = image.name;
+    mainButton.setAttribute("aria-label", `Set ${image.name} as the main image`);
+    mainButton.setAttribute("aria-pressed", "false");
+    mainButton.title = "Set as main image";
+    mainButton.append(thumb, badge);
+    mainButton.addEventListener("click", () => setMainImage(ctx, image.name));
 
     const input = document.createElement("input");
     input.type = "text";
@@ -827,7 +881,7 @@ Try this
     remove.setAttribute("aria-label", `Delete ${image.name}`);
     remove.addEventListener("click", () => deleteExistingImage(ctx, image.name, remove));
 
-    item.append(thumb, input, button, remove);
+    item.append(mainButton, input, button, remove);
     return item;
   }
 
@@ -841,10 +895,6 @@ Try this
   function renderExistingImages(ctx) {
     const { refs, state } = ctx;
     const images = Array.isArray(state.existingImages) ? state.existingImages : [];
-    refs.mainImageSelect.replaceChildren(
-      new Option("None", ""),
-      ...images.map((image) => new Option(image.name, image.name)),
-    );
     refs.imageList.replaceChildren(
       ...(images.length
         ? images.map((image) => createImageRow(ctx, image))
@@ -859,8 +909,6 @@ Try this
     state.existingImages = [];
     revokeStagedUrls(state);
     refs.existingImagesBlock.hidden = true;
-    refs.mainImageSelect.replaceChildren(new Option("None", ""));
-    refs.mainImagePreview.hidden = true;
     refs.imageList.replaceChildren();
     refs.stagedList.hidden = true;
     refs.stagedList.replaceChildren();
@@ -971,12 +1019,21 @@ Try this
     ui.setStatus(`Deleting "${imageName}"...`);
     try {
       const result = await requestImageDelete(state.markdownPath, imageName);
-      state.existingImages = Array.isArray(result.images) ? result.images : [];
+      const remaining = Array.isArray(result.images) ? result.images : [];
+      state.existingImages = remaining;
+      // The server has already fallen back the on-disk Markdown; do the same
+      // to the buffer so the user sees the change.
+      const fallback = applyMainImageFallback(ctx, imageName, remaining);
       renderExistingImages(ctx);
-      const note = result.referenced
-        ? ` The Markdown still references "${imageName}" — edit the page to fix.`
-        : "";
-      ui.setStatus(`Deleted "${imageName}".${note}`);
+      let message = `Deleted "${imageName}".`;
+      if (fallback?.replaced) {
+        message += ` Main image is now "${fallback.replaced}".`;
+      } else if (fallback?.removed) {
+        message += " The main image was removed because no images remain.";
+      } else if (result.referenced) {
+        message += ` The Markdown still references "${imageName}" — edit the page to fix.`;
+      }
+      ui.setStatus(message);
     } catch (error) {
       ui.setStatus(error.message);
       button.disabled = false;
@@ -1044,8 +1101,6 @@ Try this
       ),
       stagedList: dialog.querySelector(".recipe-editor__staged-images"),
       existingImagesBlock: dialog.querySelector(".recipe-editor__existing-images"),
-      mainImageSelect: dialog.querySelector(".recipe-editor__main-image-select"),
-      mainImagePreview: dialog.querySelector(".recipe-editor__main-image-preview"),
       imageList: dialog.querySelector(".recipe-editor__image-list"),
       aiSection: dialog.querySelector(".recipe-editor__ai"),
       aiDetails: dialog.querySelector(".recipe-editor__ai-details"),
@@ -1946,10 +2001,6 @@ Try this
       state.createButton.addEventListener("click", () => session.openEditor("create"));
 
     refs.folderMode.addEventListener("change", ui.updateFolderControls);
-    refs.mainImageSelect.addEventListener("change", () => {
-      if (state.busy) return;
-      applyMainImageSelection(ctx);
-    });
     textarea.addEventListener("input", () => {
       if (state.isCreating) return;
       updateMainImageUi(ctx);

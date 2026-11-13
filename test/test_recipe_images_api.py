@@ -258,9 +258,106 @@ def test_delete_removes_file_and_reports_markdown_reference(tmp_path: Path):
     assert body_response["referenced"] is True
     assert [image["name"] for image in body_response["images"]] == ["keep.png"]
     assert not (source / "IMG_1.png").exists()
-    # The Markdown is left untouched; only the reference flag is reported.
-    assert "![Hero](IMG_1.png)" in recipe.read_text(encoding="utf-8")
+    # The hero (first image link) is fallen back to the alphabetically-first
+    # remaining image, and the rest of the Markdown is left alone.
+    updated = recipe.read_text(encoding="utf-8")
+    assert "![Hero](keep.png)" in updated
+    assert "IMG_1.png" not in updated
+    assert "![Body](keep.png)" in updated
     assert saved_paths == [recipe.resolve()]
+
+
+def test_delete_falls_back_to_alphabetically_first_remaining_image(tmp_path: Path):
+    source = tmp_path / "recipes"
+    body = "# Soup\n\n![Hero](z.png)\n\n![Body](b.png)\n"
+    recipe = _make_recipe(source, body=body)
+    for name in ("a.png", "b.png", "z.png"):
+        _write_png(source / name)
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, _ = request_json(
+            f"{base_url}/api/recipe-images/delete",
+            {"path": "recipe.md", "name": "z.png"},
+        )
+
+    assert status == 200
+    text = recipe.read_text(encoding="utf-8")
+    assert "![Hero](a.png)" in text
+    assert "![Body](b.png)" in text
+
+
+def test_delete_removes_dangling_main_image_link_when_none_remain(tmp_path: Path):
+    source = tmp_path / "recipes"
+    body = "# Soup\n\n![Hero](only.png)\n\n## Ingredients\n\n- carrots\n"
+    recipe = _make_recipe(source, body=body)
+    _write_png(source / "only.png")
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, _ = request_json(
+            f"{base_url}/api/recipe-images/delete",
+            {"path": "recipe.md", "name": "only.png"},
+        )
+
+    assert status == 200
+    text = recipe.read_text(encoding="utf-8")
+    assert "![Hero](only.png)" not in text
+    assert "## Ingredients" in text
+
+
+def test_delete_leaves_external_main_image_untouched(tmp_path: Path):
+    source = tmp_path / "recipes"
+    body = "# Soup\n\n![Hero](https://example.com/hero.jpg)\n\n![Body](keep.png)\n"
+    recipe = _make_recipe(source, body=body)
+    _write_png(source / "keep.png")
+
+    with running_recipe_server(source) as (base_url, _, _):
+        before = recipe.read_text(encoding="utf-8")
+        status, body_response = request_json(
+            f"{base_url}/api/recipe-images/delete",
+            {"path": "recipe.md", "name": "keep.png"},
+        )
+
+    assert status == 200
+    assert body_response["referenced"] is True
+    assert recipe.read_text(encoding="utf-8") == before
+
+
+def test_delete_leaves_main_image_alone_when_another_image_is_deleted(tmp_path: Path):
+    source = tmp_path / "recipes"
+    body = "# Soup\n\n![Hero](keep.png)\n\n![Body](gone.png)\n"
+    recipe = _make_recipe(source, body=body)
+    _write_png(source / "keep.png")
+    _write_png(source / "gone.png")
+
+    with running_recipe_server(source) as (base_url, _, _):
+        before = recipe.read_text(encoding="utf-8")
+        status, _ = request_json(
+            f"{base_url}/api/recipe-images/delete",
+            {"path": "recipe.md", "name": "gone.png"},
+        )
+
+    assert status == 200
+    # The hero is keep.png, which still exists; only the body image link dangles.
+    assert recipe.read_text(encoding="utf-8") == before
+
+
+def test_delete_falls_back_for_html_img_hero(tmp_path: Path):
+    source = tmp_path / "recipes"
+    body = '# Soup\n\n<img src="z.png" alt="Hero">\n\n![Body](a.png)\n'
+    recipe = _make_recipe(source, body=body)
+    _write_png(source / "a.png")
+    _write_png(source / "z.png")
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, _ = request_json(
+            f"{base_url}/api/recipe-images/delete",
+            {"path": "recipe.md", "name": "z.png"},
+        )
+
+    assert status == 200
+    text = recipe.read_text(encoding="utf-8")
+    assert '<img src="a.png" alt="Hero">' in text
+    assert "z.png" not in text
 
 
 def test_delete_unreferenced_image_reports_false(tmp_path: Path):

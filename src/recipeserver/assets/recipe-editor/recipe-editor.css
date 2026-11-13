@@ -386,9 +386,9 @@
 }
 
 /*
- * Existing images: thumbnails of the files that sit next to the Markdown,
- * a dropdown that picks which one is the hero, and an inline rename field
- * per image.
+ * Existing images: thumbnails of the files that sit next to the Markdown.
+ * Each thumbnail is a toggle button that sets it as the hero; the main image
+ * gets a food-color outline and a subtle MAIN badge in its upper-left corner.
  */
 .recipe-editor__existing-images {
   display: grid;
@@ -399,52 +399,57 @@
   display: none;
 }
 
-.recipe-editor__existing-images > label {
+.recipe-editor__existing-images > span {
   font-size: 0.95rem;
   font-weight: 600;
 }
 
-.recipe-editor__main-image {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-width: 0;
+.recipe-editor__image-main {
+  position: relative;
+  display: block;
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
 }
 
-.recipe-editor__main-image-select {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: 2.5rem;
-  box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--input-bg);
-  color: var(--text-color);
-  font: inherit;
-  font-size: 1rem;
+.recipe-editor__image-main:hover {
+  border-color: var(--muted-color);
 }
 
-.recipe-editor__main-image-select:focus-visible {
+.recipe-editor__image-main:focus-visible {
   outline: 2px solid var(--food-color);
   border-color: var(--food-color);
 }
 
-.recipe-editor__main-image-preview {
-  flex: 0 0 auto;
-  width: 3.5rem;
-  height: 3.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  object-fit: cover;
-  background: var(--hover-bg);
+.recipe-editor__image-main.is-main {
+  border-color: var(--food-color);
 }
 
-.recipe-editor__main-image-help {
-  margin: 0;
-  color: var(--muted-color);
-  font-size: 0.85rem;
-  overflow-wrap: anywhere;
+.recipe-editor__image-main:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.recipe-editor__main-badge {
+  display: none;
+}
+
+.recipe-editor__image-main.is-main .recipe-editor__main-badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  display: block;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: var(--food-color);
+  color: var(--page-bg);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  pointer-events: none;
 }
 
 .recipe-editor__image-list {

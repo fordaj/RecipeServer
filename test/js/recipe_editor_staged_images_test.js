@@ -4,7 +4,7 @@
 // section is loaded from recipe-editor.js into the DOM stub, wired the way
 // initialize() wires it (the picker's onChange goes through
 // refs.stagedChangeHandler with the fully assembled context), and the
-// staged-upload and delete flows are driven from clicks.
+// staged-upload, delete, and main-image flows are driven from clicks.
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -84,7 +84,14 @@ global.requestImageUpload = async (path, file) => {
 };
 global.requestImageDelete = async (path, name) => {
   fetchCalls.push({ path, name });
-  return { success: true, images: [], referenced: false };
+  if (name === "keep.jpg") {
+    return { success: true, images: [], referenced: true };
+  }
+  return {
+    success: true,
+    images: [{ name: "keep.jpg", url: "/Dinner/keep.jpg" }],
+    referenced: false,
+  };
 };
 
 const moduleInstance = new module.constructor();
@@ -105,8 +112,6 @@ const refs = {
   stagedList: element("ul"),
   selectedImages: element("p"),
   existingImagesBlock: element("div"),
-  mainImageSelect: element("select"),
-  mainImagePreview: element("img"),
   imageList: element("ul"),
   textarea: element("textarea"),
   stagedChangeHandler: null,
@@ -137,6 +142,10 @@ async function tick(times = 4) {
   }
 }
 
+function mainButton(row) {
+  return row.querySelector(".recipe-editor__image-main");
+}
+
 (async () => {
   // Two images are staged; rows appear when the refresh runs.
   refs.imageInput.files = [{ name: "saved.png" }, { name: "another.png" }];
@@ -145,9 +154,14 @@ async function tick(times = 4) {
   assert.equal(refs.stagedList.childNodes.length, 2);
   assert.equal(refs.selectedImages.textContent, "2 image(s) staged for upload.");
 
+  // Existing image rows carry a MAIN toggle button and mark the hero.
+  state.existingImages = [{ name: "keep.jpg", url: "/Dinner/keep.jpg" }];
   renderExistingImages(ctx);
   assert.equal(refs.imageList.childNodes.length, 1);
-  assert.equal(refs.mainImageSelect.value, "keep.jpg");
+  const keepButton = mainButton(refs.imageList.childNodes[0]);
+  assert.equal(keepButton.getAttribute("aria-pressed"), "true");
+  assert.ok(keepButton.classList.contains("is-main"));
+  assert.ok(keepButton.querySelector(".recipe-editor__main-badge"));
 
   // Uploading a staged image saves it, refreshes the UI, and removes it
   // from the pending-upload list.
@@ -170,13 +184,36 @@ async function tick(times = 4) {
   assert.equal(refs.stagedList.hidden, true);
   assert.equal(confirms.length, 1);
 
-  // The X on an uploaded row deletes it after a confirm.
+  // Deleting the hero falls back to the alphabetically-first remaining
+  // image (none remain here, so the dangling link is removed).
   refs.imageList.childNodes[0].querySelector(".recipe-editor__image-remove").click();
   await tick();
   assert.equal(fetchCalls[1].name, "keep.jpg");
   assert.equal(refs.imageList.childNodes.length, 1); // empty-state row
   assert.equal(confirms.length, 2);
+  assert.equal(refs.textarea.value.includes("![Hero](keep.jpg)"), false);
   assert.ok(statuses.some((message) => message.includes('Deleted "keep.jpg"')));
+
+  // Mark a new hero by clicking its thumbnail's main-image toggle.
+  state.existingImages = [
+    { name: "a.jpg", url: "/Dinner/a.jpg" },
+    { name: "b.jpg", url: "/Dinner/b.jpg" },
+  ];
+  refs.textarea.value = "# Soup\n\n![Hero](a.jpg)\n";
+  renderExistingImages(ctx);
+  const bButton = mainButton(refs.imageList.childNodes[1]);
+  const aButton = mainButton(refs.imageList.childNodes[0]);
+  assert.equal(aButton.getAttribute("aria-pressed"), "true");
+  assert.equal(bButton.getAttribute("aria-pressed"), "false");
+  bButton.click();
+  assert.equal(refs.textarea.value, "# Soup\n\n![Hero](b.jpg)\n");
+  assert.equal(bButton.getAttribute("aria-pressed"), "true");
+  assert.equal(aButton.getAttribute("aria-pressed"), "false");
+
+  // Clicking the current main image clears the hero again.
+  bButton.click();
+  assert.equal(refs.textarea.value.includes("![Hero]"), false);
+  assert.equal(bButton.getAttribute("aria-pressed"), "false");
 
   console.log("staged images flow checks passed");
   process.exit(0);
