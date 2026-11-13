@@ -721,14 +721,17 @@ Try this
     return `${image}\n\n${content}`;
   }
 
-  // Computes which folder image (if any) is currently the main image: the
-  // first image link in the Markdown, as long as it points at a file in the
-  // folder. Returns the image's filename, or "".
-  function currentMainImageName(state, content) {
+  // Computes which image (if any) is currently the main image: the first
+  // image link in the Markdown, as long as it points at a staged or
+  // existing image. Returns the image's filename, or "".
+  function currentMainImageName(refs, state, content) {
     const first = findFirstImageReference(content);
     if (!first || isExternalSrc(first.src)) return "";
     const basename = basenameOf(first.src);
-    return state.existingImages.some((image) => image.name === basename) ? basename : "";
+    const known =
+      state.existingImages.some((image) => image.name === basename) ||
+      [...(refs.imageInput.files ?? [])].some((file) => file.name === basename);
+    return known ? basename : "";
   }
 
   // Points the first image link at `name` (inserting one after the first
@@ -754,7 +757,7 @@ Try this
     if (state.busy) return;
     const content = refs.textarea.value;
     const first = findFirstImageReference(content);
-    const isMain = currentMainImageName(state, content) === name;
+    const isMain = currentMainImageName(refs, state, content) === name;
 
     refs.textarea.value = writeMainImage(content, first, name, isMain);
     updateMainImageUi(ctx);
@@ -782,8 +785,12 @@ Try this
 
   function updateMainImageUi(ctx) {
     const { refs, state } = ctx;
-    const selected = currentMainImageName(state, refs.textarea.value);
-    refs.imageList.querySelectorAll(".recipe-editor__image-main").forEach((button) => {
+    const selected = currentMainImageName(refs, state, refs.textarea.value);
+    const toggles = [
+      ...refs.imageList.querySelectorAll(".recipe-editor__image-main"),
+      ...refs.stagedList.querySelectorAll(".recipe-editor__image-main"),
+    ];
+    toggles.forEach((button) => {
       const isMain = button.dataset.name === selected;
       button.classList.toggle("is-main", isMain);
       button.setAttribute("aria-pressed", String(isMain));
@@ -821,14 +828,21 @@ Try this
     });
   }
 
-  function createImageRow(ctx, image) {
-    const { state } = ctx;
-    const item = document.createElement("li");
-    item.className = "recipe-editor__image-item";
+  // Shared toggle button for the main image: a thumbnail with a subtle MAIN
+  // badge in its upper-left corner; toggling it rewrites the hero link in the
+  // Markdown (see setMainImage).
+  function createMainToggle(ctx, name, thumbSrc) {
+    const mainButton = document.createElement("button");
+    mainButton.type = "button";
+    mainButton.className = "recipe-editor__image-main";
+    mainButton.dataset.name = name;
+    mainButton.setAttribute("aria-label", `Set ${name} as the main image`);
+    mainButton.setAttribute("aria-pressed", "false");
+    mainButton.title = "Set as main image";
 
     const thumb = document.createElement("img");
     thumb.className = "recipe-editor__image-thumb";
-    thumb.src = image.url;
+    thumb.src = thumbSrc;
     thumb.alt = "";
     thumb.loading = "lazy";
 
@@ -837,23 +851,24 @@ Try this
     badge.textContent = "MAIN";
     badge.setAttribute("aria-hidden", "true");
 
-    const mainButton = document.createElement("button");
-    mainButton.type = "button";
-    mainButton.className = "recipe-editor__image-main";
-    mainButton.dataset.name = image.name;
-    mainButton.setAttribute("aria-label", `Set ${image.name} as the main image`);
-    mainButton.setAttribute("aria-pressed", "false");
-    mainButton.title = "Set as main image";
     mainButton.append(thumb, badge);
-    mainButton.addEventListener("click", () => setMainImage(ctx, image.name));
+    mainButton.addEventListener("click", () => setMainImage(ctx, name));
+    return mainButton;
+  }
+
+  // Shared rename field + button pair. `onSubmit` receives the trimmed new
+  // name; it is wired to the server rename for existing images and to a
+  // client-side rename of the staged File for new ones.
+  function createRenameControls(ctx, name, onSubmit) {
+    const { state } = ctx;
 
     const input = document.createElement("input");
     input.type = "text";
     input.className = "recipe-editor__image-name";
-    input.value = image.name;
+    input.value = name;
     input.spellcheck = false;
-    input.dataset.original = image.name;
-    input.setAttribute("aria-label", `Rename ${image.name}`);
+    input.dataset.original = name;
+    input.setAttribute("aria-label", `Rename ${name}`);
 
     const button = document.createElement("button");
     button.type = "button";
@@ -863,17 +878,31 @@ Try this
 
     const syncButton = () => {
       button.disabled =
-        state.busy || input.value.trim() === image.name || !isRenameCandidate(input.value);
+        state.busy || input.value.trim() === name || !isRenameCandidate(input.value);
+    };
+    const submit = () => {
+      if (button.disabled) return;
+      onSubmit(input.value.trim(), input, button);
     };
     input.addEventListener("input", syncButton);
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        if (!button.disabled) renameExistingImage(ctx, image.name, input, button);
+        submit();
       }
     });
-    button.addEventListener("click", () => renameExistingImage(ctx, image.name, input, button));
+    button.addEventListener("click", submit);
+    return [input, button];
+  }
 
+  function createImageRow(ctx, image) {
+    const mainButton = createMainToggle(ctx, image.name, image.url);
+    const [input, button] = createRenameControls(ctx, image.name, (newName, inputEl, buttonEl) =>
+      renameExistingImage(ctx, image.name, inputEl, buttonEl),
+    );
+
+    const item = document.createElement("li");
+    item.className = "recipe-editor__image-item";
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "recipe-editor__image-remove";
@@ -919,13 +948,48 @@ Try this
     state.stagedUrls = [];
   }
 
-  function removeStagedFile(input, fileToRemove) {
-    if (typeof DataTransfer === "undefined") return;
+  function setInputFiles(input, files) {
+    if (typeof DataTransfer === "undefined") return false;
     const transfer = new DataTransfer();
-    for (const file of [...input.files]) {
-      if (file !== fileToRemove) transfer.items.add(file);
-    }
+    files.forEach((file) => transfer.items.add(file));
     input.files = transfer.files;
+    return true;
+  }
+
+  function replaceStagedFile(input, target, replacement) {
+    return setInputFiles(
+      input,
+      [...input.files].map((file) => (file === target ? replacement : file)),
+    );
+  }
+
+  function removeStagedFile(input, fileToRemove) {
+    return setInputFiles(
+      input,
+      [...input.files].filter((file) => file !== fileToRemove),
+    );
+  }
+
+  // Renames a staged (not yet uploaded) File in place and fixes Markdown
+  // references to the old name, mirroring the server-side rename for
+  // images that are already in the folder.
+  function renameStagedImage(ctx, file, newName) {
+    const { refs, state, ui } = ctx;
+    if (state.busy) return;
+    if (!isRenameCandidate(newName)) {
+      ui.setStatus(
+        "Enter a file name with an image extension (jpg, png, svg, ...) and no path characters.",
+      );
+      return;
+    }
+    const renamed = new File([file], newName, { type: file.type, lastModified: file.lastModified });
+    if (!replaceStagedFile(refs.imageInput, file, renamed)) {
+      ui.setStatus("Renaming staged images is not supported in this browser.");
+      return;
+    }
+    refs.textarea.value = renameOccurrences(refs.textarea.value, file.name, newName);
+    renderStagedImages(ctx);
+    ui.setStatus(`Renamed "${file.name}" to "${newName}".`);
   }
 
   function createStagedRow(ctx, file) {
@@ -933,24 +997,13 @@ Try this
     const item = document.createElement("li");
     item.className = "recipe-editor__image-item recipe-editor__staged-item";
 
-    const thumb = document.createElement("img");
-    thumb.className = "recipe-editor__image-thumb";
     const url = URL.createObjectURL(file);
     state.stagedUrls.push(url);
-    thumb.src = url;
-    thumb.alt = "";
+    const mainButton = createMainToggle(ctx, file.name, url);
 
-    const name = document.createElement("span");
-    name.className = "recipe-editor__staged-name";
-    name.textContent = file.name;
-    name.title = file.name;
-
-    const upload = document.createElement("button");
-    upload.type = "button";
-    upload.className = "recipe-editor__image-upload";
-    upload.textContent = "Upload";
-    upload.setAttribute("aria-label", `Upload ${file.name} to the folder`);
-    upload.addEventListener("click", () => uploadStagedImage(ctx, file));
+    const [input, renameButton] = createRenameControls(ctx, file.name, (newName) =>
+      renameStagedImage(ctx, file, newName),
+    );
 
     const remove = document.createElement("button");
     remove.type = "button";
@@ -959,34 +1012,43 @@ Try this
     remove.setAttribute("aria-label", `Discard staged image ${file.name}`);
     remove.addEventListener("click", () => removeStagedImage(ctx, file));
 
-    item.append(thumb, name, upload, remove);
+    const row = [mainButton, input, renameButton];
+    if (!state.isCreating) {
+      const upload = document.createElement("button");
+      upload.type = "button";
+      upload.className = "recipe-editor__image-upload";
+      upload.textContent = "Upload";
+      upload.setAttribute("aria-label", `Upload ${file.name} to the folder`);
+      upload.addEventListener("click", () => uploadStagedImage(ctx, file));
+      row.push(upload);
+    }
+    row.push(remove);
+
+    item.append(...row);
     return item;
   }
 
-  // Re-renders the staged list from the input's file list. Only used in
-  // Edit Recipe; in Create mode there is no folder yet, so staged images
-  // are uploaded when the recipe is created.
+  // Re-renders the staged list from the input's file list. In Create mode
+  // staged images are saved with the recipe; in Edit Recipe they can also be
+  // uploaded one at a time with the Upload button.
   function renderStagedImages(ctx) {
     const { refs, state } = ctx;
     const files = [...(refs.imageInput.files ?? [])];
-    if (state.isCreating) {
-      refs.stagedList.hidden = true;
-      refs.stagedList.replaceChildren();
-      return;
-    }
     revokeStagedUrls(state);
     refs.stagedList.hidden = files.length === 0;
     refs.stagedList.replaceChildren(...files.map((file) => createStagedRow(ctx, file)));
     refs.selectedImages.textContent = files.length
-      ? `${files.length} image(s) staged for upload.`
+      ? state.isCreating
+        ? `${files.length} image(s) staged — they'll be saved with the recipe.`
+        : `${files.length} image(s) staged for upload.`
       : "";
+    updateMainImageUi(ctx);
     refreshExistingImageControls(ctx);
   }
 
   function removeStagedImage(ctx, file) {
     const { refs, state, ui } = ctx;
     if (state.busy) return;
-    if (!confirm(`Discard staged image "${file.name}"? It won't be saved to the folder.`)) return;
     removeStagedFile(refs.imageInput, file);
     renderStagedImages(ctx);
     ui.setStatus(`Discarded staged image "${file.name}".`);
@@ -1100,6 +1162,8 @@ Try this
         ".recipe-editor__recipe-images .recipe-editor__images-selected",
       ),
       stagedList: dialog.querySelector(".recipe-editor__staged-images"),
+      imagesHelpEdit: dialog.querySelector(".recipe-editor__images-help--edit"),
+      imagesHelpCreate: dialog.querySelector(".recipe-editor__images-help--create"),
       existingImagesBlock: dialog.querySelector(".recipe-editor__existing-images"),
       imageList: dialog.querySelector(".recipe-editor__image-list"),
       aiSection: dialog.querySelector(".recipe-editor__ai"),
@@ -1816,6 +1880,8 @@ Try this
     madeThis.updateMadeThisCount(0);
     refs.madeThisButton.textContent = "I made this!";
     refs.recipeImages.reset();
+    refs.imagesHelpEdit.hidden = state.isCreating;
+    refs.imagesHelpCreate.hidden = !state.isCreating;
     resetExistingImages(ctx);
   }
 

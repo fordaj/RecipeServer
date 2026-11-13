@@ -24,6 +24,16 @@ def test_staged_images_upload_and_delete_flow():
     assert "staged images flow checks passed" in result.stdout
 
 
+def test_files_section_branches_description_for_create_and_edit():
+    markup = (ASSETS / "files.html").read_text(encoding="utf-8")
+
+    # The help text is branched: one perspective per mode, both mention the
+    # thumbnail toggle for the main image.
+    assert "recipe-editor__images-help--edit" in markup
+    assert "recipe-editor__images-help--create" in markup
+    assert "Click a thumbnail to use that image as the main image" in markup
+
+
 def test_files_section_shows_existing_images_without_dropdown():
     markup = (ASSETS / "files.html").read_text(encoding="utf-8")
 
@@ -65,8 +75,8 @@ def test_files_section_stages_uploads_and_deletes_images():
     # Uploaded images get an X to delete them, inline with rename and the name.
     assert "deleteExistingImage" in script
     assert "/api/recipe-images/delete" in script
-    # Both delete paths confirm with the user before acting.
-    assert script.count("confirm(") >= 2
+    # Deleting a folder image confirms with the user first.
+    assert script.count("confirm(") >= 1
 
 
 def test_staged_upload_wiring_uses_the_assembled_context():

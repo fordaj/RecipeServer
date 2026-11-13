@@ -175,14 +175,14 @@ function mainButton(row) {
   assert.equal(refs.selectedImages.textContent, "1 image(s) staged for upload.");
   assert.ok(statuses.some((message) => message.includes('Saved "saved.png"')));
 
-  // The X on a staged row discards it after a confirm.
+  // The X on a staged row discards it without a confirm.
   refs.stagedList.childNodes[0].querySelector(".recipe-editor__image-remove").click();
   assert.deepEqual(
     [...refs.imageInput.files].map((file) => file.name),
     [],
   );
   assert.equal(refs.stagedList.hidden, true);
-  assert.equal(confirms.length, 1);
+  assert.equal(confirms.length, 0);
 
   // Deleting the hero falls back to the alphabetically-first remaining
   // image (none remain here, so the dangling link is removed).
@@ -190,7 +190,7 @@ function mainButton(row) {
   await tick();
   assert.equal(fetchCalls[1].name, "keep.jpg");
   assert.equal(refs.imageList.childNodes.length, 1); // empty-state row
-  assert.equal(confirms.length, 2);
+  assert.equal(confirms.length, 1);
   assert.equal(refs.textarea.value.includes("![Hero](keep.jpg)"), false);
   assert.ok(statuses.some((message) => message.includes('Deleted "keep.jpg"')));
 
@@ -214,6 +214,53 @@ function mainButton(row) {
   bButton.click();
   assert.equal(refs.textarea.value.includes("![Hero]"), false);
   assert.equal(bButton.getAttribute("aria-pressed"), "false");
+
+  // Create Recipe: staged rows are below the dropzone, have a main-image
+  // toggle and rename/X controls, but no Upload button. Clicking the toggle
+  // rewrites the Markdown hero, and renaming a staged file fixes the hero
+  // reference too.
+  const createState = {
+    isCreating: true,
+    busy: false,
+    existingImages: [],
+    stagedUrls: [],
+    markdownPath: "",
+  };
+  refs.stagedChangeHandler = () => renderStagedImages({ refs, state: createState, ui: ctx.ui });
+  refs.imageInput.files = [new File(["image-bytes"], "zphoto.jpg", { type: "image/jpeg" })];
+  refs.textarea.value = "# New Recipe\n\n![Alt Text](image.png)\n\n## Ingredients\n\n- carrots\n";
+  refs.stagedChangeHandler();
+
+  assert.equal(refs.stagedList.hidden, false);
+  assert.equal(refs.stagedList.childNodes.length, 1);
+  const stagedRow = refs.stagedList.childNodes[0];
+  assert.equal(stagedRow.querySelector(".recipe-editor__image-upload"), null);
+  assert.equal(stagedRow.querySelector(".recipe-editor__image-remove") !== null, true);
+
+  const toggle = mainButton(stagedRow);
+  toggle.click();
+  assert.equal(
+    refs.textarea.value,
+    "# New Recipe\n\n![Alt Text](zphoto.jpg)\n\n## Ingredients\n\n- carrots\n",
+  );
+  assert.equal(toggle.getAttribute("aria-pressed"), "true");
+
+  // Renaming the staged file renames it in the input and in the Markdown.
+  const renameInput = stagedRow.querySelector(".recipe-editor__image-name");
+  const renameButton = stagedRow.querySelector(".recipe-editor__image-rename");
+  renameInput.value = "hero.jpg";
+  renameInput.dispatchEvent({ type: "input", target: renameInput });
+  assert.equal(renameButton.disabled, false);
+  renameButton.click();
+  assert.equal(
+    refs.textarea.value,
+    "# New Recipe\n\n![Alt Text](hero.jpg)\n\n## Ingredients\n\n- carrots\n",
+  );
+  assert.deepEqual(
+    [...refs.imageInput.files].map((file) => file.name),
+    ["hero.jpg"],
+  );
+  assert.ok(statuses.some((message) => message.includes('Renamed "zphoto.jpg" to "hero.jpg".')));
 
   console.log("staged images flow checks passed");
   process.exit(0);

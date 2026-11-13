@@ -462,7 +462,7 @@
 
 .recipe-editor__image-item {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 0.75rem;
   min-width: 0;
@@ -588,13 +588,6 @@
 
 .recipe-editor__staged-images[hidden] {
   display: none;
-}
-
-.recipe-editor__staged-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--text-color);
-  font-size: 1rem;
 }
 
 .recipe-editor__image-empty {
