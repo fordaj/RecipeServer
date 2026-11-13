@@ -1,10 +1,27 @@
 """Source-level checks for the Files section: the existing-images list,
 the main image dropdown, and the rename control."""
 
+import shutil
+import subprocess
 from pathlib import Path
+
+import pytest
 
 BASE = Path(__file__).parents[1] / "src" / "recipeserver"
 ASSETS = BASE / "assets" / "recipe-editor"
+STAGED_IMAGES_TEST = Path(__file__).parent / "js" / "recipe_editor_staged_images_test.js"
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_staged_images_upload_and_delete_flow():
+    result = subprocess.run(
+        [shutil.which("node"), str(STAGED_IMAGES_TEST)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "staged images flow checks passed" in result.stdout
 
 
 def test_files_section_offers_main_image_dropdown_and_thumbnails():
@@ -46,6 +63,16 @@ def test_main_image_dropdown_is_wired_to_markdown_and_rename_api():
     # Renaming goes through the rename endpoint and fixes references.
     assert "/api/recipe-images/rename" in script
     assert "renameOccurrences" in script
+
+
+def test_staged_upload_wiring_uses_the_assembled_context():
+    # Regression: the picker's onChange used to build a partial { refs, state }
+    # context without the UI collaborators, so clicking Upload threw before
+    # any request was made and the user saw nothing.
+    script = (ASSETS / "recipe-editor.js").read_text(encoding="utf-8")
+
+    assert "onChange: () => refs.stagedChangeHandler?.()" in script
+    assert "ctx.refs.stagedChangeHandler = () => renderStagedImages(ctx)" in script
 
 
 def test_rename_endpoint_is_registered_and_images_are_listed():

@@ -1078,12 +1078,13 @@ Try this
     refs.aiImageControls = [refs.aiImage, refs.aiImageButton];
     refs.aiProgress = RecipeAIProgress.createProgress(refs.aiSection);
     refs.pickers = RecipeMetadataPicker.createPickers(refs.dialog);
+    refs.stagedChangeHandler = null;
     refs.recipeImages = createImagePicker({
       input: refs.imageInput,
       dropzone: refs.imageDropzone,
       selected: refs.selectedImages,
       isDisabled: () => refs.imageInput.disabled,
-      onChange: () => renderStagedImages({ refs, state }),
+      onChange: () => refs.stagedChangeHandler?.(),
     });
     refs.aiImages = createImagePicker({
       input: refs.aiImage,
@@ -2048,6 +2049,11 @@ Try this
 
     ctx.bulk.setupBulkFieldButtons();
     ctx.bulk.resetBulkFieldChrome();
+
+    // The staged-images refresh runs with the assembled context so the
+    // rows it creates reach the UI collaborators (status, busy state).
+    ctx.refs.stagedChangeHandler = () => renderStagedImages(ctx);
+
     document.addEventListener("bulk-edit", (event) => {
       ctx.session.openBulkEditor(event.detail?.paths);
     });

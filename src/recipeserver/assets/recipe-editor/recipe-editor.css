@@ -506,9 +506,13 @@
   cursor: pointer;
 }
 
-.recipe-editor__image-rename:hover:not(:disabled),
-.recipe-editor__image-upload:hover:not(:disabled) {
+.recipe-editor__image-rename:hover:not(:disabled) {
   border-color: var(--food-color);
+}
+
+.recipe-editor__image-upload:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
 }
 
 .recipe-editor__image-rename:focus-visible,
@@ -518,20 +522,24 @@
 
 .recipe-editor__image-rename:disabled,
 .recipe-editor__image-upload:disabled {
-  cursor: default;
-  opacity: 0.5;
+  cursor: wait;
+  opacity: 0.6;
 }
 
+/* Same filled style as the main Save button (.recipe-editor__save). */
 .recipe-editor__image-upload {
   min-height: 2.5rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--food-color);
   border-radius: 6px;
-  background: var(--hover-bg);
-  color: var(--text-color);
+  background: var(--food-color);
+  color: var(--page-bg);
   font: inherit;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  font-weight: 600;
   cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
 .recipe-editor__image-remove {
