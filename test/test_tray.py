@@ -251,11 +251,15 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
         def on_config_save(self):
             events.append("config-save")
 
+        def on_recipes_deleted(self, markdown_paths):
+            events.append("recipes-deleted")
+
     class FakeServer:
-        def __init__(self, cfg, on_markdown_saved=None, on_config_saved=None):
+        def __init__(self, cfg, on_markdown_saved=None, on_config_saved=None, on_recipes_deleted=None):
             self.cfg = cfg
             self.on_markdown_saved = on_markdown_saved
             self.on_config_saved = on_config_saved
+            self.on_recipes_deleted = on_recipes_deleted
 
         def start(self):
             events.append("server-start")
