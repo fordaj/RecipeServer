@@ -1,3 +1,26 @@
+// Pull-to-refresh indicator for touch devices. The styles live in
+// pull-down-page-refresh.css, which both generators link alongside this script.
+
+// Vertical distance the indicator spans sit above their resting position while
+// hidden. The stylesheet positions them relative; the JS sets the offset so it
+// is defined in exactly one place.
+const INDICATOR_HIDDEN_OFFSET_PX = 56;
+
+// Stretch applied to the raw pull distance so the indicator feels resistant
+// rather than tracking the finger 1:1.
+const PULL_DAMPING_FACTOR = 0.5;
+
+// Delay between showing the "Refreshing…" state and reloading, so the user
+// sees the indicator before the page navigates away.
+const RELOAD_DELAY_MS = 150;
+
+// Native <dialog> editors that make pull-to-refresh unsafe while open: the
+// user is mid-edit, and reloading would discard in-progress changes. These
+// IDs are owned by recipe-editor.js and config-editor.js; this module cannot
+// import them, so the guarded selectors are named here instead of being raw
+// literals scattered through the gesture handlers.
+const GUARDED_DIALOG_IDS = ["recipe-markdown-editor", "config-editor"];
+
 class PullToRefresh {
   constructor({ threshold = 100, maxPull = 90 } = {}) {
     this.threshold = threshold;
@@ -20,116 +43,19 @@ class PullToRefresh {
     this.arrow = this.indicator.querySelector(".ptr-arrow");
     this.text = this.indicator.querySelector(".ptr-text");
 
-    this.addStyles();
+    this.setIndicatorOffset(-INDICATOR_HIDDEN_OFFSET_PX);
+
     this.addListeners();
   }
 
   isDisabled() {
-    const editorDialog = document.getElementById("recipe-markdown-editor");
-    const configDialog = document.getElementById("config-editor");
-    return editorDialog?.open === true || configDialog?.open === true;
+    return GUARDED_DIALOG_IDS.some((dialogId) => document.getElementById(dialogId)?.open === true);
   }
 
-  addStyles() {
-    const style = document.createElement("style");
-
-    style.textContent = `
-#pull-to-refresh {
-  position: fixed;
-  z-index: 9999;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 0;
-
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-
-  background: transparent;
-  color: #666666;
-  font: 14px sans-serif;
-
-  transform: translateY(0);
-  transition: none;
-  pointer-events: none;
-}
-
-#pull-to-refresh.ptr-active {
-  transition: none;
-}
-
-#pull-to-refresh > span {
-  position: relative;
-  top: -56px;
-}
-
-#pull-to-refresh .ptr-arrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  width: 40px;
-  height: 40px;
-
-  padding: 0;
-  margin-right: 8px;
-
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 50%;
-
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-
-  font-size: 20px;
-  line-height: 1;
-  transition: transform 0.15s ease;
-}
-
-#pull-to-refresh .ptr-text {
-  display: inline-block;
-
-  padding: 10px 16px;
-
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 24px;
-
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-
-  font-size: 14px;
-  line-height: 20px;
-}
-
-#pull-to-refresh.ptr-loading .ptr-arrow {
-  animation: ptr-spin 0.7s linear infinite;
-}
-
-@keyframes ptr-spin {
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #pull-to-refresh,
-  #pull-to-refresh .ptr-arrow {
-    transition: none !important;
-    animation: none !important;
-  }
-}
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-  #pull-to-refresh {
-    color: #d4d0ca;
-  }
-
-  #pull-to-refresh .ptr-arrow,
-  #pull-to-refresh .ptr-text {
-    background: rgba(42, 40, 37, 0.96);
-    color: #e8e4de;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-  }
-}
-    `;
-
-    document.head.appendChild(style);
+  setIndicatorOffset(offsetPx) {
+    const offset = `${offsetPx}px`;
+    this.text.style.top = offset;
+    this.arrow.style.top = offset;
   }
 
   addListeners() {
@@ -154,7 +80,7 @@ class PullToRefresh {
   }
 
   onTouchMove(event) {
-    // Completely disable pull-to-refresh while the editor is open.
+    // Completely disable pull-to-refresh while an editor is open.
     if (this.isDisabled()) {
       this.reset();
       return;
@@ -183,12 +109,9 @@ class PullToRefresh {
     this.active = true;
 
     // Dampen the movement for a natural feel.
-    this.pullDistance = Math.min(deltaY * 0.5, this.maxPull);
+    this.pullDistance = Math.min(deltaY * PULL_DAMPING_FACTOR, this.maxPull);
 
-    const offset = `${-56 + this.pullDistance}px`;
-
-    this.text.style.top = offset;
-    this.arrow.style.top = offset;
+    this.setIndicatorOffset(this.pullDistance - INDICATOR_HIDDEN_OFFSET_PX);
 
     this.indicator.classList.add("ptr-active");
 
@@ -202,7 +125,7 @@ class PullToRefresh {
   onTouchEnd() {
     if (!this.tracking) return;
 
-    // Safety check in case the editor opened during the gesture.
+    // Safety check in case an editor opened during the gesture.
     if (this.isDisabled()) {
       this.reset();
       return;
@@ -219,11 +142,10 @@ class PullToRefresh {
       this.arrow.textContent = "↻";
       this.text.textContent = "Refreshing…";
 
-      this.text.style.top = "0";
-      this.arrow.style.top = "0";
+      this.setIndicatorOffset(0);
 
       // Allow the indicator to appear before reloading.
-      setTimeout(() => location.reload(), 150);
+      setTimeout(() => location.reload(), RELOAD_DELAY_MS);
     } else {
       this.reset();
     }
@@ -236,8 +158,7 @@ class PullToRefresh {
 
     this.indicator.classList.remove("ptr-active", "ptr-ready", "ptr-loading");
 
-    this.text.style.top = "-56px";
-    this.arrow.style.top = "-56px";
+    this.setIndicatorOffset(-INDICATOR_HIDDEN_OFFSET_PX);
 
     this.arrow.textContent = "↓";
     this.text.textContent = "Pull to refresh";
