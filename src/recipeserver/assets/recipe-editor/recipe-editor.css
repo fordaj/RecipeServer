@@ -33,7 +33,10 @@
   min-height: 0;
   box-sizing: border-box;
 
-  padding: 1rem;
+  /* No bottom padding: scrolled content would otherwise be visible in the
+     padding strip below the sticky footer. The footer carries its own
+     opaque bottom padding instead. */
+  padding: 1rem 1rem 0;
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
@@ -1101,7 +1104,9 @@
   /* Always pinned to the bottom of the dialog, even when the
      collapsed sections leave empty space above. */
   margin-top: auto;
-  padding-top: 0.75rem;
+  /* The bottom padding (instead of the form's) keeps buttons off the dialog
+     edge while staying inside the footer's opaque background. */
+  padding: 0.75rem 0 1rem;
   border-top: 1px solid var(--border-color);
   background: var(--card-bg);
   position: sticky;
@@ -1169,7 +1174,7 @@
 
   .recipe-editor {
     gap: 0.6rem;
-    padding: 0.75rem;
+    padding: 0.75rem 0.75rem 0;
   }
 
   .recipe-editor__section,
