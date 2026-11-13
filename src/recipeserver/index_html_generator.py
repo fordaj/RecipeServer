@@ -12,18 +12,12 @@ from urllib.parse import urlsplit
 from bs4 import BeautifulSoup
 
 from ._logger import logger
+from ._version import PACKAGE_VERSION as VERSION
+from .color_utils import dark_mode_color
 from .config import DEFAULT_FOOD_COLOR, DEFAULT_RECIPE_SERVER_NAME, Configuration
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
-
-try:
-    from importlib.metadata import version as _package_version
-
-    VERSION = _package_version("recipeserver")
-except Exception:  # pragma: no cover - package metadata unavailable in tests
-    VERSION = "0.0.0"
-
 from .recipe_utils import (
     display_date,
     is_date_only,
@@ -740,7 +734,6 @@ class IndexHTMLGenerator:
     ) -> str:
         server_name_html = html.escape(self._server_name())
         food_color = getattr(self.cfg, "food_color", None) or DEFAULT_FOOD_COLOR
-        from .markdown_to_html import dark_mode_color
 
         food_color_style = dedent(f"""\
             <style>

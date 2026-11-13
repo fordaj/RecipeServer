@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
 from recipeserver.metadata_linter import lint_recipe_metadata
-from recipeserver.markdown_to_html import MarkdownToHTMLConverter
+from recipeserver.markdown_to_html.overview import build_recipe_overview
 
 
 def test_lint_recipe_metadata_reports_missing_required_values():
@@ -414,8 +414,7 @@ def test_metadata_warnings_refresh_when_index_is_regenerated(tmp_path: Path):
 
 
 def test_recipe_overview_shows_cuisine_before_categories_and_tags():
-    converter = MarkdownToHTMLConverter(SimpleNamespace())
-    overview = converter._build_recipe_overview(
+    overview = build_recipe_overview(
         {
             "cuisine": ["Thai"],
             "categories": ["Soup"],
@@ -437,8 +436,7 @@ def test_recipe_overview_shows_cuisine_before_categories_and_tags():
 
 
 def test_recipe_overview_accepts_legacy_singular_category():
-    converter = MarkdownToHTMLConverter(SimpleNamespace())
-    overview = converter._build_recipe_overview(
+    overview = build_recipe_overview(
         {"category": ["Soup"]},
         BeautifulSoup("", "html.parser"),
     )
