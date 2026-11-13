@@ -32,6 +32,15 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 # length of the recipe itself.
 MAX_MODEL_TOKENS = 8192
 USER_AGENT = "RecipeServer/0.1"
+# Low temperature: the model should follow the prompt's format, not improvise.
+MODEL_TEMPERATURE = 0.2
+# How much of an HTTP error body to read for diagnostics.
+ERROR_BODY_READ_BYTES = 2000
+# How much model output to include in log previews.
+LOG_PREVIEW_CHARS = 2000
+# How much of the document beginning to inspect when deciding whether a
+# fetched URL returned HTML markup or plain text.
+MARKUP_SNIFF_CHARS = 1000
 
 # Ollama exposes the chat stream, the loaded-model list, and the installed-model
 # list under these paths. The endpoint configured by the user may still include
@@ -50,6 +59,12 @@ STATUS_GENERATING = "generating"
 STATUS_COMPLETE = "complete"
 STATUS_ERROR = "error"
 
+# Server-sent event types exchanged with the browser (see ai-progress.js).
+EVENT_STATUS = "status"
+EVENT_METRICS = "metrics"
+EVENT_ERROR = "error"
+EVENT_RESULT = "result"
+
 # Vision-capable image formats accepted for "From Images" generation.
 # SVG is excluded: it is not a raster image a vision model can transcribe.
 IMAGE_MIME_TYPES = {
@@ -65,6 +80,13 @@ IMAGE_MIME_TYPES = {
 
 LIST_FIELDS = ("tags", "cuisine", "categories", "meals")
 SOURCE_FIELDS = ("author", "title", "format", "url")
+# Canonical labels for the source format, keyed by its lower-cased spelling.
+SOURCE_FORMAT_LABELS = {
+    "website": "Website",
+    "ai": "AI",
+    "book": "Book",
+    "other": "Other",
+}
 
 _CODE_FENCE_RE = re.compile(
     r"^\s*```(?:markdown|md)?\s*\n(?P<body>.*)\n```\s*$",
@@ -82,6 +104,11 @@ class ModelRequestError(RuntimeError):
 
 class SourceFetchError(RuntimeError):
     """Recipe source content could not be fetched."""
+
+
+# Model endpoint probes are best-effort: any of these failures means the
+# endpoint is unavailable or its answer is unusable, never a reason to crash.
+MODEL_PROBE_ERRORS = (HTTPError, URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError)
 
 
 @dataclass(frozen=True)
@@ -127,11 +154,14 @@ def resolve_ai_config(config: object | None) -> AIConfigView:
 
 def ai_status(config: object | None) -> dict[str, Any]:
     resolved = resolve_ai_config(config)
+    all_purpose_model_name = resolved.all_purpose_model_name
     status: dict[str, Any] = {
         "configured": resolved.is_configured,
         "available": False,
-        "model": resolved.all_purpose_model_name,
-        "all_purpose_model": resolved.all_purpose_model_name,
+        # `model` is the legacy key kept for browser compatibility;
+        # `all_purpose_model` is the explicit name. Both carry the same value.
+        "model": all_purpose_model_name,
+        "all_purpose_model": all_purpose_model_name,
         "image_model": resolved.image_analysis_model,
         "image_configured": resolved.is_image_configured,
         "image_available": False,
@@ -139,7 +169,7 @@ def ai_status(config: object | None) -> dict[str, Any]:
     logger.debug(
         f"Checking local model status: configured={resolved.is_configured}, "
         f"image_configured={resolved.is_image_configured}, endpoint={resolved.endpoint or '(none)'}, "
-        f"model={resolved.all_purpose_model_name or '(auto)'}, "
+        f"model={all_purpose_model_name or '(auto)'}, "
         f"image_model={resolved.image_analysis_model or '(auto)'}"
     )
 
@@ -221,7 +251,7 @@ def _read_response(response, limit: int) -> bytes:
     return body
 
 
-def _model_names_from_payload(payload: object) -> list[str]:
+def _model_names_from_payload(payload: object, name_keys: tuple[str, ...]) -> list[str]:
     if not isinstance(payload, dict):
         return []
 
@@ -235,29 +265,56 @@ def _model_names_from_payload(payload: object) -> list[str]:
             if isinstance(entry, str):
                 names.append(entry)
             elif isinstance(entry, dict):
-                name = entry.get("id") or entry.get("name") or entry.get("model")
+                name = None
+                for key in name_keys:
+                    if entry.get(key):
+                        name = entry[key]
+                        break
                 if isinstance(name, str) and name.strip():
                     names.append(name.strip())
 
     return names
 
 
-def list_models(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> list[str]:
-    models_url = ollama_tags_url(endpoint)
-    logger.debug(f"Listing models from {models_url}")
+def _fetch_model_names(
+    url: str,
+    *,
+    name_keys: tuple[str, ...],
+    timeout: float,
+    description: str,
+    http_error_level: str,
+) -> list[str]:
+    """GET a JSON model list from ``url`` and return the model names it reports.
+
+    ``name_keys`` lists the per-model payload fields to read, in priority order.
+    A non-2xx response logs ``description`` and yields no names instead of raising,
+    because listing models is best-effort.
+    """
     request = Request(
-        models_url,
+        url,
         headers={"Accept": "application/json", "User-Agent": USER_AGENT},
         method="GET",
     )
 
     with urlopen(request, timeout=timeout) as response:
         if not 200 <= response.status < 300:
-            logger.warning(f"Model list request to {models_url} returned HTTP {response.status}")
+            logger.log(http_error_level, f"{description} to {url} returned HTTP {response.status}")
             return []
         payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
 
-    names = _model_names_from_payload(payload)
+    return _model_names_from_payload(payload, name_keys)
+
+
+def list_models(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> list[str]:
+    models_url = ollama_tags_url(endpoint)
+    logger.debug(f"Listing models from {models_url}")
+    names = _fetch_model_names(
+        models_url,
+        name_keys=("id", "name", "model"),
+        timeout=timeout,
+        description="Model list request",
+        http_error_level="WARNING",
+    )
     logger.debug(f"Models reported by {models_url}: {names}")
     return names
 
@@ -270,7 +327,7 @@ def resolve_model_name(endpoint: str, configured_name: str = "") -> str:
 
     try:
         models = list_models(endpoint)
-    except (HTTPError, URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError) as exc:
+    except MODEL_PROBE_ERRORS as exc:
         logger.warning(f"Could not auto-detect a model name from {endpoint}: {exc}")
         return ""
 
@@ -288,11 +345,11 @@ def is_available(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -
     except HTTPError as exc:
         # Some compatible servers do not expose /models but still accept chat requests.
         if exc.code in {404, 405}:
-            logger.debug(f"{endpoint} does not expose a model list (HTTP {exc.code}); " "assuming chat requests are supported")
+            logger.debug(f"{endpoint} does not expose a model list (HTTP {exc.code}); assuming chat requests are supported")
             return True
         logger.warning(f"Model endpoint {endpoint} returned HTTP {exc.code}")
         return False
-    except (URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError) as exc:
+    except MODEL_PROBE_ERRORS as exc:  # HTTPError was handled above; the rest mean "unavailable".
         logger.warning(f"Model endpoint {endpoint} is unavailable: {exc}")
         return False
     return True
@@ -302,28 +359,13 @@ def loaded_model_names(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECO
     """Return the names of the models Ollama currently has loaded in memory."""
     ps_url = ollama_ps_url(endpoint)
     logger.debug(f"Checking loaded models at {ps_url}")
-    request = Request(
+    names = _fetch_model_names(
         ps_url,
-        headers={"Accept": "application/json", "User-Agent": USER_AGENT},
-        method="GET",
+        name_keys=("name", "model"),
+        timeout=timeout,
+        description="Loaded-model request",
+        http_error_level="DEBUG",
     )
-
-    with urlopen(request, timeout=timeout) as response:
-        if not 200 <= response.status < 300:
-            logger.debug(f"Loaded-model request to {ps_url} returned HTTP {response.status}")
-            return []
-        payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
-
-    entries = payload.get("models") if isinstance(payload, dict) else None
-    names: list[str] = []
-    if isinstance(entries, list):
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            name = entry.get("name") or entry.get("model")
-            if isinstance(name, str) and name.strip():
-                names.append(name.strip())
-
     logger.debug(f"Models loaded at {ps_url}: {names}")
     return names
 
@@ -343,14 +385,14 @@ def is_model_loaded(endpoint: str, model_name: str, timeout: float = AVAILABILIT
     """Whether ``model_name`` is loaded, or ``None`` when the status is unknown."""
     try:
         names = loaded_model_names(endpoint, timeout=timeout)
-    except (HTTPError, URLError, OSError, ValueError, ModelRequestError, json.JSONDecodeError) as exc:
+    except MODEL_PROBE_ERRORS as exc:
         logger.debug(f"Could not read loaded models from {endpoint}: {exc}")
         return None
     return any(_model_names_match(name, model_name) for name in names)
 
 
 def _html_looks_like_markup(text: str) -> bool:
-    beginning = text.lstrip()[:1000].lower()
+    beginning = text.lstrip()[:MARKUP_SNIFF_CHARS].lower()
     return beginning.startswith("<!doctype html") or "<html" in beginning or "<body" in beginning
 
 
@@ -406,7 +448,7 @@ def _build_user_message(input_type: str, input_value: str) -> tuple[str, str]:
 
     if input_type == "url":
         title, text = fetch_url_content(input_value)
-        prompt_text = f"Recipe URL: {input_value}\n" f"Page title: {title}\n\n" f"Recipe content:\n{text}"
+        prompt_text = f"Recipe URL: {input_value}\nPage title: {title}\n\nRecipe content:\n{text}"
     elif input_type == "text":
         prompt_text = f"Recipe text:\n{input_value}"
     else:
@@ -428,7 +470,7 @@ def image_base64(image_filename: str, image_bytes: bytes) -> str:
     suffix = "." + image_filename.rsplit(".", 1)[-1].lower() if "." in image_filename else ""
     mime_type = IMAGE_MIME_TYPES.get(suffix) or mimetypes.guess_type(image_filename)[0]
     if suffix not in IMAGE_MIME_TYPES or mime_type not in IMAGE_MIME_TYPES.values():
-        raise ValueError("Unsupported image type for AI generation. " "Use a JPG, PNG, GIF, WebP, BMP, or TIFF image.")
+        raise ValueError("Unsupported image type for AI generation. Use a JPG, PNG, GIF, WebP, BMP, or TIFF image.")
     if len(image_bytes) > MAX_IMAGE_BYTES:
         raise ValueError("The recipe image is too large to send to the model")
 
@@ -486,19 +528,87 @@ class _ThinkingStreamFilter:
         return self._drain(final=True)
 
     @staticmethod
-    def _pending_tag_start(text: str, markers: tuple[str, ...]) -> int | None:
-        """Index of a trailing ``<`` that may still become one of ``markers``."""
+    def _partial_tag_index(text: str, markers: tuple[str, ...]) -> int | None:
+        """Index where a trailing, possibly incomplete tag starts, or None.
+
+        Streaming can split a tag across chunks. The text after the last ``<``
+        is held back when it could still grow into one of ``markers``.
+        """
         index = text.rfind("<")
         if index == -1:
             return None
 
         suffix = text[index:].lower()
         for marker in markers:
-            if marker.startswith(suffix):
-                return index
-            if suffix.startswith(marker) and ">" not in suffix:
+            # The suffix is the opening of the tag, e.g. "<thi" for "<think".
+            is_tag_opening = marker.startswith(suffix)
+            # The tag name is complete but its attributes or closing bracket
+            # are still streaming, e.g. '<think type="x"' without ">".
+            is_unfinished_tag = suffix.startswith(marker) and ">" not in suffix
+            if is_tag_opening or is_unfinished_tag:
                 return index
         return None
+
+    def _flush_without_match(self, sink: list[str], hold_markers: tuple[str, ...], final: bool) -> None:
+        """Move pending text with no complete tag into ``sink``.
+
+        A trailing partial tag is kept in ``self._pending`` so it can be
+        completed by the next chunk; everything before it is emitted now.
+        """
+        if final:
+            sink.append(self._pending)
+            self._pending = ""
+            return
+
+        hold = self._partial_tag_index(self._pending, hold_markers)
+        if hold is None:
+            sink.append(self._pending)
+            self._pending = ""
+        else:
+            sink.append(self._pending[:hold])
+            self._pending = self._pending[hold:]
+
+    def _drain_thinking(self, thinking: list[str], final: bool) -> bool:
+        """Drain one step while inside a reasoning block.
+
+        Returns True when a complete end tag was consumed and draining may
+        continue, False when the remaining text was flushed or held back.
+        """
+        end_match = THINKING_END_PATTERN.search(self._pending)
+        if end_match:
+            thinking.append(self._pending[: end_match.start()])
+            self._pending = self._pending[end_match.end() :]
+            self._in_thinking = False
+            return True
+
+        self._flush_without_match(thinking, ("</think",), final)
+        return False
+
+    def _drain_content(self, content: list[str], thinking: list[str], final: bool) -> bool:
+        """Drain one step while outside a reasoning block.
+
+        An unmatched closing tag means the model emitted reasoning without an
+        opening tag: the text before it is treated as thinking. Otherwise a
+        complete opening tag starts a reasoning block. Returns True when a tag
+        was consumed and draining may continue, False when the remaining text
+        was flushed or held back.
+        """
+        start_match = THINKING_START_PATTERN.search(self._pending)
+        end_match = THINKING_END_PATTERN.search(self._pending)
+
+        if end_match and (start_match is None or end_match.start() < start_match.start()):
+            thinking.append(self._pending[: end_match.start()])
+            self._pending = self._pending[end_match.end() :]
+            return True
+
+        if start_match:
+            content.append(self._pending[: start_match.start()])
+            self._pending = self._pending[start_match.end() :]
+            self._in_thinking = True
+            return True
+
+        self._flush_without_match(content, ("<think", "</think"), final)
+        return False
 
     def _drain(self, final: bool) -> tuple[str, str]:
         content: list[str] = []
@@ -506,49 +616,11 @@ class _ThinkingStreamFilter:
 
         while self._pending:
             if self._in_thinking:
-                match = THINKING_END_PATTERN.search(self._pending)
-                if match:
-                    thinking.append(self._pending[: match.start()])
-                    self._pending = self._pending[match.end() :]
-                    self._in_thinking = False
-                    continue
-                if final:
-                    thinking.append(self._pending)
-                    self._pending = ""
-                    break
-                hold = self._pending_tag_start(self._pending, ("</think",))
-                if hold is None:
-                    thinking.append(self._pending)
-                    self._pending = ""
-                else:
-                    thinking.append(self._pending[:hold])
-                    self._pending = self._pending[hold:]
-                break
-
-            start_match = THINKING_START_PATTERN.search(self._pending)
-            end_match = THINKING_END_PATTERN.search(self._pending)
-            if end_match and (start_match is None or end_match.start() < start_match.start()):
-                # An unmatched closing tag: the preceding text was reasoning.
-                thinking.append(self._pending[: end_match.start()])
-                self._pending = self._pending[end_match.end() :]
-                continue
-            if start_match:
-                content.append(self._pending[: start_match.start()])
-                self._pending = self._pending[start_match.end() :]
-                self._in_thinking = True
-                continue
-            if final:
-                content.append(self._pending)
-                self._pending = ""
-                break
-            hold = self._pending_tag_start(self._pending, ("<think", "</think"))
-            if hold is None:
-                content.append(self._pending)
-                self._pending = ""
+                keep_draining = self._drain_thinking(thinking, final)
             else:
-                content.append(self._pending[:hold])
-                self._pending = self._pending[hold:]
-            break
+                keep_draining = self._drain_content(content, thinking, final)
+            if not keep_draining:
+                break
 
         return "".join(content), "".join(thinking)
 
@@ -626,7 +698,7 @@ def _chat_payload(
         ],
         "stream": stream,
         "options": {
-            "temperature": 0.2,
+            "temperature": MODEL_TEMPERATURE,
             "num_predict": MAX_MODEL_TOKENS,
         },
     }
@@ -765,7 +837,7 @@ def _ollama_chat(
     try:
         response = urlopen(request, timeout=MODEL_TIMEOUT_SECONDS)
     except HTTPError as exc:
-        details = exc.read(2000).decode("utf-8", errors="replace").strip()
+        details = exc.read(ERROR_BODY_READ_BYTES).decode("utf-8", errors="replace").strip()
         message = f"Model request failed (HTTP {exc.code})"
         if details:
             message = f"{message}: {details}"
@@ -801,9 +873,9 @@ def _ollama_chat(
         f"thinking_chars={len(result.thinking)}, "
         f"metrics={result.metrics}"
     )
-    logger.debug(f"{stage} content preview: {result.content[:2000]!r}")
+    logger.debug(f"{stage} content preview: {result.content[:LOG_PREVIEW_CHARS]!r}")
     if result.thinking:
-        logger.debug(f"{stage} thinking preview: {result.thinking[:2000]!r}")
+        logger.debug(f"{stage} thinking preview: {result.thinking[:LOG_PREVIEW_CHARS]!r}")
 
     if not result.content.strip():
         if result.finish_reason == "length":
@@ -838,22 +910,23 @@ def _chat(
     return _ollama_chat(endpoint, model_name, prompt, user_message, stage=stage, stream=False, images=images).content
 
 
-def _normalize_metadata(metadata: object) -> dict[str, Any]:
-    if not isinstance(metadata, dict):
-        return {}
-
-    normalized = dict(metadata)
-
+def _normalize_legacy_category(normalized: dict[str, Any]) -> None:
+    """Fold the legacy singular ``category`` into ``categories``."""
     legacy_category = normalized.pop("category", None)
     if normalized.get("categories") is None and legacy_category is not None:
         normalized["categories"] = legacy_category
 
+
+def _normalize_list_fields(normalized: dict[str, Any]) -> None:
+    """Split comma-separated strings into lists for the multi-value fields."""
     for field in LIST_FIELDS:
         value = normalized.get(field)
         if isinstance(value, str):
             normalized[field] = [item.strip() for item in value.split(",") if item.strip()]
 
-    # Status is a single string value; collapse any list to its first item.
+
+def _normalize_status(normalized: dict[str, Any]) -> None:
+    """Collapse ``status`` to a single string, or None when it is not usable."""
     status = normalized.get("status")
     if isinstance(status, list):
         normalized["status"] = next((item.strip() for item in status if isinstance(item, str) and item.strip()), None)
@@ -862,23 +935,35 @@ def _normalize_metadata(metadata: object) -> dict[str, Any]:
     elif isinstance(status, str):
         normalized["status"] = status.strip() or None
 
+
+def _clean_source_value(value: object) -> str | None:
+    return (value.strip() or None) if isinstance(value, str) else None
+
+
+def _normalize_source(normalized: dict[str, Any]) -> None:
+    """Rebuild ``source`` as a dict of known fields with cleaned values."""
     source = normalized.get("source")
     if isinstance(source, list):
         source = next((item for item in source if isinstance(item, dict)), None)
     if not isinstance(source, dict):
-        source = None
-    if source is not None:
-        normalized["source"] = {field: (source.get(field).strip() or None if isinstance(source.get(field), str) else None) for field in SOURCE_FIELDS}
+        return
 
-        source_format = normalized["source"].get("format")
-        if isinstance(source_format, str):
-            normalized["source"]["format"] = {
-                "website": "Website",
-                "ai": "AI",
-                "book": "Book",
-                "other": "Other",
-            }.get(source_format.casefold(), source_format)
+    cleaned = {field: _clean_source_value(source.get(field)) for field in SOURCE_FIELDS}
+    source_format = cleaned["format"]
+    if isinstance(source_format, str):
+        cleaned["format"] = SOURCE_FORMAT_LABELS.get(source_format.casefold(), source_format)
+    normalized["source"] = cleaned
 
+
+def _normalize_metadata(metadata: object) -> dict[str, Any]:
+    if not isinstance(metadata, dict):
+        return {}
+
+    normalized = dict(metadata)
+    _normalize_legacy_category(normalized)
+    _normalize_list_fields(normalized)
+    _normalize_status(normalized)
+    _normalize_source(normalized)
     return normalized
 
 
@@ -944,7 +1029,7 @@ def _emit(event_callback: EventCallback | None, event_type: str, **fields: Any) 
 
 
 def _emit_status(event_callback: EventCallback | None, state: str, message: str) -> None:
-    _emit(event_callback, "status", state=state, message=message)
+    _emit(event_callback, EVENT_STATUS, state=state, message=message)
 
 
 def _report_model_loading(event_callback: EventCallback | None, endpoint: str, model_name: str) -> bool | None:
@@ -985,7 +1070,7 @@ def _prepare_image_draft_input(
             stage="image transcription",
             images=[encoded],
         )
-        logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:2000]!r}")
+        logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:LOG_PREVIEW_CHARS]!r}")
         transcriptions.append(f"--- {position.capitalize()}: {image_filename} ---\n{transcription}")
 
         if index < image_count:
@@ -1005,16 +1090,40 @@ def _prepare_image_draft_input(
     return _truncate_prompt_text(f"Recipe text (transcribed from {transcribed_label}):\n{combined}"), ""
 
 
-def _prepare_text_or_url_draft_input(
+def _prepare_draft_input(
+    resolved: AIConfigView,
+    all_purpose_model_name: str,
+    image_model_name: str,
     input_type: str,
     input_value: str,
+    images: list[tuple[str, bytes]],
     event_callback: EventCallback | None,
 ) -> tuple[str, str]:
+    """Dispatch on the input type and build the user message for the draft.
+
+    Reports the input-specific step before doing any expensive work so the
+    browser shows progress immediately.
+    """
+    if input_type == "image":
+        image_count = len(images)
+        message = "Preparing the recipe image..." if image_count == 1 else f"Preparing {image_count} recipe images..."
+        _emit_status(event_callback, STATUS_PREPARING, message)
+        return _prepare_image_draft_input(
+            resolved,
+            all_purpose_model_name,
+            image_model_name,
+            images,
+            event_callback,
+        )
+
+    if input_type == "url":
+        _emit_status(event_callback, STATUS_PREPARING, f"Fetching recipe page: {input_value}")
+    else:
+        _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe text...")
+
     user_message, title = _build_user_message(input_type, input_value)
     if input_type == "url":
         _emit_status(event_callback, STATUS_PREPARING, "Page fetched. Preparing the extracted text...")
-    else:
-        _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe text...")
     return user_message, title
 
 
@@ -1040,6 +1149,84 @@ def _apply_default_source(
             source[field] = value
 
 
+def _validate_generation_request(resolved: AIConfigView, input_type: str, images: list[tuple[str, bytes]]) -> None:
+    if not resolved.is_configured:
+        raise ModelUnavailable("The local model is not configured")
+    if input_type == "image" and not resolved.is_image_configured:
+        raise ModelUnavailable("The image analysis model is not configured")
+    if input_type == "image" and not images:
+        raise ValueError("Expected at least one recipe image")
+
+
+def _require_image_model_name(resolved: AIConfigView, input_type: str) -> str:
+    if input_type != "image":
+        return ""
+    return _require_model_name(
+        resolved.endpoint,
+        resolved.image_analysis_model,
+        "Could not determine an image analysis model name. Configure image_analysis_model in recipe-server-cfg.toml.",
+    )
+
+
+class _ProgressEmitter:
+    """Emit status events, skipping repeats of the current state."""
+
+    def __init__(self, event_callback: EventCallback | None) -> None:
+        self._event_callback = event_callback
+        self._last_state: str | None = None
+
+    def emit(self, state: str, message: str) -> None:
+        if state != self._last_state:
+            self._last_state = state
+            _emit_status(self._event_callback, state, message)
+
+
+def _stream_recipe_draft(
+    resolved: AIConfigView,
+    model_name: str,
+    input_type: str,
+    user_message: str,
+    event_callback: EventCallback | None,
+) -> ChatResult:
+    loaded = _report_model_loading(event_callback, resolved.endpoint, model_name)
+    progress = _ProgressEmitter(event_callback)
+    generating_message = f"Generating recipe with {model_name}..."
+    if loaded is not False:
+        progress.emit(STATUS_GENERATING, generating_message)
+
+    stage = "recipe drafting" if input_type == "image" else "recipe generation"
+    return _ollama_chat(
+        resolved.endpoint,
+        model_name,
+        resolved.new_recipe_prompt,
+        user_message,
+        stage=stage,
+        stream=event_callback is not None,
+        on_thinking=lambda _text: progress.emit(STATUS_THINKING, "Thinking..."),
+        on_content=lambda _text: progress.emit(STATUS_GENERATING, generating_message),
+    )
+
+
+def _build_generation_result(
+    result: ChatResult,
+    input_type: str,
+    model_name: str,
+    input_value: str,
+    title: str,
+    event_callback: EventCallback | None,
+) -> dict[str, Any]:
+    if result.metrics:
+        _emit(event_callback, EVENT_METRICS, metrics=result.metrics)
+
+    content, metadata = parse_model_output(result.content)
+    logger.info(
+        f"Model returned {len(result.content)} characters; parsed {len(content)} characters of Markdown " f"and metadata fields {sorted(metadata)}"
+    )
+    _apply_default_source(metadata, input_type, model_name, input_value, title)
+    _emit_status(event_callback, STATUS_COMPLETE, "Generation complete.")
+    return {"content": content, "metadata": metadata, "metrics": result.metrics}
+
+
 def generate_recipe(
     config: object,
     input_type: str,
@@ -1049,12 +1236,7 @@ def generate_recipe(
 ) -> dict[str, Any]:
     images = list(images or [])
     resolved = resolve_ai_config(config)
-    if not resolved.is_configured:
-        raise ModelUnavailable("The local model is not configured")
-    if input_type == "image" and not resolved.is_image_configured:
-        raise ModelUnavailable("The image analysis model is not configured")
-    if input_type == "image" and not images:
-        raise ValueError("Expected at least one recipe image")
+    _validate_generation_request(resolved, input_type, images)
 
     _emit_status(event_callback, STATUS_CHECKING_MODEL, "Checking model status...")
     all_purpose_model_name = _require_model_name(
@@ -1062,82 +1244,21 @@ def generate_recipe(
         resolved.all_purpose_model_name,
         "Could not determine a model name. Configure all_purpose_model_name in recipe-server-cfg.toml.",
     )
+    image_model_name = _require_image_model_name(resolved, input_type)
 
-    image_model_name = ""
-    if input_type == "image":
-        image_model_name = _require_model_name(
-            resolved.endpoint,
-            resolved.image_analysis_model,
-            "Could not determine an image analysis model name. Configure image_analysis_model in recipe-server-cfg.toml.",
-        )
-
-    # Report the input-specific preparation step before doing any expensive work.
-    if input_type == "url":
-        _emit_status(event_callback, STATUS_PREPARING, f"Fetching recipe page: {input_value}")
-    elif input_type == "image":
-        if len(images) == 1:
-            _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe image...")
-        else:
-            _emit_status(event_callback, STATUS_PREPARING, f"Preparing {len(images)} recipe images...")
-    else:
-        _emit_status(event_callback, STATUS_PREPARING, "Preparing the recipe text...")
-
-    if input_type == "image":
-        user_message, title = _prepare_image_draft_input(
-            resolved,
-            all_purpose_model_name,
-            image_model_name,
-            images,
-            event_callback,
-        )
-    else:
-        user_message, title = _prepare_text_or_url_draft_input(
-            input_type,
-            input_value,
-            event_callback,
-        )
-
+    user_message, title = _prepare_draft_input(
+        resolved,
+        all_purpose_model_name,
+        image_model_name,
+        input_type,
+        input_value,
+        images,
+        event_callback,
+    )
     logger.info(
         f"Generating recipe from {input_type} input with local model '{all_purpose_model_name}' "
         f"({len(user_message)} characters of source content)"
     )
 
-    all_purpose_loaded = _report_model_loading(event_callback, resolved.endpoint, all_purpose_model_name)
-    last_status = None
-
-    def emit_progress(state: str, message: str) -> None:
-        nonlocal last_status
-        if last_status != state:
-            last_status = state
-            _emit_status(event_callback, state, message)
-
-    if all_purpose_loaded is not False:
-        emit_progress(STATUS_GENERATING, f"Generating recipe with {all_purpose_model_name}...")
-
-    def on_thinking(_text: str) -> None:
-        emit_progress(STATUS_THINKING, "Thinking...")
-
-    def on_content(_text: str) -> None:
-        emit_progress(STATUS_GENERATING, f"Generating recipe with {all_purpose_model_name}...")
-
-    result = _ollama_chat(
-        resolved.endpoint,
-        all_purpose_model_name,
-        resolved.new_recipe_prompt,
-        user_message,
-        stage="recipe drafting" if input_type == "image" else "recipe generation",
-        stream=event_callback is not None,
-        on_thinking=on_thinking,
-        on_content=on_content,
-    )
-
-    if result.metrics:
-        _emit(event_callback, "metrics", metrics=result.metrics)
-
-    content, metadata = parse_model_output(result.content)
-    logger.info(
-        f"Model returned {len(result.content)} characters; parsed {len(content)} characters of Markdown " f"and metadata fields {sorted(metadata)}"
-    )
-    _apply_default_source(metadata, input_type, all_purpose_model_name, input_value, title)
-    _emit_status(event_callback, STATUS_COMPLETE, "Generation complete.")
-    return {"content": content, "metadata": metadata, "metrics": result.metrics}
+    result = _stream_recipe_draft(resolved, all_purpose_model_name, input_type, user_message, event_callback)
+    return _build_generation_result(result, input_type, all_purpose_model_name, input_value, title, event_callback)
