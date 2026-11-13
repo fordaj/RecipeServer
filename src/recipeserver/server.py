@@ -34,7 +34,7 @@ from PIL import Image, UnidentifiedImageError
 from . import ai_recipe
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
-from .config import Configuration
+from .config import Configuration, DEFAULT_SERVER_PORT, MAX_PORT
 from .image_handler import IMAGE_EXTENSIONS
 from .metadata_options import collect_metadata_options
 from .shopping_list import scrape_ingredients
@@ -51,12 +51,33 @@ RecipesDeletedCallback = Callable[[list[Path]], None]
 BULK_MAX_PATHS = 100
 ARCHIVE_STREAM_CHUNK_BYTES = 64 * 1024
 
-# Default port; the configured port (Configuration.server_port) wins when set.
-SERVER_PORT = 8000
 SERVER_BIND_ADDRESS = "0.0.0.0"
 LOCALHOST = "localhost"
 PUBLIC_IP_PROBE_ADDRESS = "8.8.8.8"
 PUBLIC_IP_PROBE_PORT = 80
+
+# ----- Filename and metadata-field rules -----------------------------------
+# Shared by recipe creation, the metadata endpoints, and image validation.
+
+RECIPE_FILENAME = "recipe.md"
+MARKDOWN_FILE_SUFFIX = ".md"
+RECIPE_FOLDER_NAME_MAX_BYTES = 200
+MAX_RATING_NAME_LENGTH = 100
+MARKDOWN_NOT_FOUND_ERROR = "Markdown file not found"
+
+# Front matter uses the plural ``categories``; ``category`` is the legacy
+# singular spelling, accepted on read and dropped on save.
+CATEGORIES_FIELD = "categories"
+LEGACY_CATEGORY_FIELD = "category"
+
+# Windows device names that may not be used as filenames (with or without an
+# extension). Applied to both recipe folder names and image filenames.
+WINDOWS_RESERVED_FILENAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"} | {f"COM{number}" for number in range(1, 10)} | {f"LPT{number}" for number in range(1, 10)}
+)
+
+# SVG elements that can carry executable or externally loaded content.
+_SVG_BLOCKED_TAGS = frozenset({"script", "foreignobject"})
 
 
 class _RequestTooLarge(ValueError):
@@ -70,6 +91,32 @@ class _StreamClosed(Exception):
 def _now_utc_iso() -> str:
     """Current UTC time as a millisecond ISO string ending in ``Z``."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _is_windows_reserved_name(stem: str) -> bool:
+    """Check a filename stem (no extension) against Windows reserved device names."""
+    return stem.upper() in WINDOWS_RESERVED_FILENAMES
+
+
+def _xml_local_name(name: str) -> str:
+    """Strip any XML namespace from a tag or attribute name."""
+    return name.rsplit("}", 1)[-1].lower()
+
+
+def _canonical_category_field(field_name: str) -> str:
+    """Map the legacy singular ``category`` field name onto ``categories``."""
+    return CATEGORIES_FIELD if field_name == LEGACY_CATEGORY_FIELD else field_name
+
+
+def _metadata_field_name(path: str) -> str | None:
+    """Extract the metadata field name from an API path, if present."""
+    field_name = path.rsplit("/", 1)[-1]
+    return _canonical_category_field(field_name) if field_name else None
+
+
+def _drop_legacy_category(metadata: dict) -> None:
+    """Remove the legacy singular field once the plural one has been written."""
+    metadata.pop(LEGACY_CATEGORY_FIELD, None)
 
 
 # ---------------------------------------------------------------------------
@@ -107,9 +154,9 @@ def _editor_metadata(metadata: dict) -> dict:
     """Return editable metadata, mapping the legacy singular category field."""
     values = {field: metadata.get(field) for field in EDITOR_METADATA_FIELDS}
 
-    if values["categories"] is None and metadata.get("category") is not None:
-        legacy = metadata["category"]
-        values["categories"] = [legacy] if isinstance(legacy, str) else legacy
+    if values[CATEGORIES_FIELD] is None and metadata.get(LEGACY_CATEGORY_FIELD) is not None:
+        legacy = metadata[LEGACY_CATEGORY_FIELD]
+        values[CATEGORIES_FIELD] = [legacy] if isinstance(legacy, str) else legacy
 
     # Status is a single string; older recipes may store a list.
     status = values.get("status")
@@ -142,9 +189,9 @@ def _recipe_folder_name(content: str, metadata: dict) -> str:
     if not name:
         name = "New Recipe"
 
-    encoded_name = name.encode("utf-8")[:200]
+    encoded_name = name.encode("utf-8")[:RECIPE_FOLDER_NAME_MAX_BYTES]
     name = encoded_name.decode("utf-8", errors="ignore").rstrip(" .") or "New Recipe"
-    if re.fullmatch(r"(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])", name, re.IGNORECASE):
+    if _is_windows_reserved_name(name):
         name = f"_{name}"
     return name
 
@@ -299,8 +346,8 @@ def _validate_bulk_rating(value: object) -> tuple[str, int | float] | None:
 
     name = value.get("name")
     score = value.get("rating", value.get("score"))
-    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 100:
-        raise ValueError("'rating.name' must be 1 to 100 characters")
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_RATING_NAME_LENGTH:
+        raise ValueError(f"'rating.name' must be 1 to {MAX_RATING_NAME_LENGTH} characters")
     if isinstance(score, bool) or not isinstance(score, (int, float)):
         raise ValueError("'rating.rating' must be a number between 0 and 10")
     if score < 0 or score > 10 or not math.isfinite(score):
@@ -355,8 +402,8 @@ def _validate_rating_entry(index: int, rating: object) -> tuple[str, str, dict]:
     rating_id = rating.get("id")
     score = rating.get("rating")
 
-    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 100:
-        raise ValueError(f"Rating {index + 1} must have a name of 1 to 100 characters")
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_RATING_NAME_LENGTH:
+        raise ValueError(f"Rating {index + 1} must have a name of 1 to {MAX_RATING_NAME_LENGTH} characters")
 
     if not isinstance(rating_id, str) or not rating_id.strip() or rating_id != rating_id.strip():
         raise ValueError(f"Rating {index + 1} must have an ID")
@@ -517,6 +564,22 @@ def _fallback_main_image(content: str, deleted_name: str, remaining_names: list[
     return _remove_image_span(content, first["span_start"], first["span_end"]), None
 
 
+def _validate_svg_attribute(filename: str, attribute: str, value: str) -> None:
+    """Reject event-handler attributes and external references in an SVG."""
+    attr_name = _xml_local_name(attribute)
+    if attr_name.startswith("on"):
+        raise ValueError(f"SVG contains unsupported active content: {filename}")
+
+    if attr_name not in {"href", "style"}:
+        return
+
+    lowered_value = value.lower()
+    references_external_url = "url(" in lowered_value and "url(#" not in lowered_value
+    references_external_href = attribute.lower().endswith("href") and not value.startswith("#")
+    if references_external_url or references_external_href:
+        raise ValueError(f"SVG contains unsupported external content: {filename}")
+
+
 def _validate_image_name(name: str, *, field: str) -> str:
     """Validate a bare image filename (no directories) for the rename API."""
     try:
@@ -595,8 +658,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         if path in ("/api/archive/source", "/api/archive/site"):
             self._handle_archive(parsed)
             return True
-        if path in ("/api/markdown", "/api/recipe-editor") or path.startswith("/api/metadata/"):
-            self._handle_recipe_read(parsed)
+        if path == "/api/markdown":
+            self._handle_markdown_read(parsed)
+            return True
+        if path == "/api/recipe-editor":
+            self._handle_recipe_editor_read(parsed)
+            return True
+        if path.startswith("/api/metadata/"):
+            self._handle_metadata_read(parsed)
             return True
         return False
 
@@ -638,6 +707,62 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "Unknown API endpoint")
             return
         self._handle_recipe_delete(parsed)
+
+    # ----- shared endpoint helpers ------------------------------------------
+    # Small building blocks shared by the endpoint handlers: standard error
+    # responses, Markdown-path resolution, and post-save notification.
+
+    def _send_payload_error(self, exc: Exception) -> None:
+        """Send the standard response for a failed request-body parse."""
+        if isinstance(exc, _RequestTooLarge):
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        self._send_json(400, {"error": str(exc)})
+
+    def _require_markdown_file(self, file_path: Path, not_found_message: str = MARKDOWN_NOT_FOUND_ERROR) -> bool:
+        """Send a 404 response and return False when the Markdown file is missing."""
+        if file_path.is_file():
+            return True
+        self._send_json(404, {"error": not_found_message})
+        return False
+
+    def _resolve_existing_markdown_path(self, requested_path: str, *, not_found_message: str = MARKDOWN_NOT_FOUND_ERROR) -> Path | None:
+        """Resolve a Markdown path, sending a 404 response and returning None when missing."""
+        file_path = self._resolve_markdown_path(requested_path)
+        if not self._require_markdown_file(file_path, not_found_message):
+            return None
+        return file_path
+
+    def _resolve_requested_markdown_path(self, parsed) -> Path | None:
+        """Resolve the ``path`` query parameter to an existing Markdown file.
+
+        Sends the 400/404 response and returns None when the request is invalid
+        or the file is missing.
+        """
+        paths = parse_qs(parsed.query).get("path", [])
+        if len(paths) != 1 or not paths[0]:
+            self._send_json(400, {"error": "Expected a path parameter"})
+            return None
+
+        try:
+            return self._resolve_existing_markdown_path(paths[0])
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return None
+
+    def _notify_recipe_saved(self, file_path: Path, failure_message: str, **extra_fields) -> bool:
+        """Notify listeners that a recipe was saved.
+
+        Sends a 500 response built from ``failure_message`` (plus any extra
+        fields) and returns False when the callback raises; returns True otherwise.
+        """
+        try:
+            self._notify_markdown_saved(file_path)
+        except Exception:
+            logger.exception(f"Failed to regenerate recipe after saving {file_path}")
+            self._send_json(500, {"error": failure_message, **extra_fields})
+            return False
+        return True
 
     # ----- GET handlers ----------------------------------------------------
 
@@ -692,38 +817,39 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         self._send_json(200, {"options": options})
 
-    def _handle_recipe_read(self, parsed) -> None:
-        query = parse_qs(parsed.query)
-        paths = query.get("path", [])
-        if len(paths) != 1 or not paths[0]:
-            self._send_json(400, {"error": "Expected a path parameter"})
+    def _handle_markdown_read(self, parsed) -> None:
+        file_path = self._resolve_requested_markdown_path(parsed)
+        if file_path is None:
             return
 
         try:
-            file_path = self._resolve_markdown_path(paths[0])
-            if not file_path.is_file():
-                self._send_json(404, {"error": "Markdown file not found"})
-                return
-
-            if parsed.path.startswith("/api/metadata/"):
-                self._handle_metadata_get(parsed.path, file_path)
-            elif parsed.path == "/api/recipe-editor":
-                self._handle_recipe_editor_get(file_path)
-            else:
-                content = file_path.read_text(encoding="utf-8")
-                self._send_bytes(200, content.encode("utf-8"), "text/markdown; charset=utf-8")
-        except ValueError as exc:
-            self._send_json(400, {"error": str(exc)})
+            content = file_path.read_text(encoding="utf-8")
         except OSError:
             logger.exception("Failed to read Markdown file")
             self._send_json(500, {"error": "Unable to read Markdown file"})
+            return
+
+        self._send_bytes(200, content.encode("utf-8"), "text/markdown; charset=utf-8")
+
+    def _handle_recipe_editor_read(self, parsed) -> None:
+        file_path = self._resolve_requested_markdown_path(parsed)
+        if file_path is None:
+            return
+
+        self._handle_recipe_editor_get(file_path)
+
+    def _handle_metadata_read(self, parsed) -> None:
+        file_path = self._resolve_requested_markdown_path(parsed)
+        if file_path is None:
+            return
+
+        self._handle_metadata_get(parsed.path, file_path)
 
     def _handle_metadata_get(self, path: str, file_path: Path) -> None:
-        field_name = path.split("/")[-1]
-        if not field_name:
-            raise ValueError("Expected a metadata field name")
-        if field_name == "category":
-            field_name = "categories"
+        field_name = _metadata_field_name(path)
+        if field_name is None:
+            self._send_json(400, {"error": "Expected a metadata field name"})
+            return
 
         try:
             recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
@@ -735,8 +861,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         metadata = recipe_post.metadata
         if field_name in metadata:
             self._send_json(200, {"value": metadata[field_name]})
-        elif field_name == "categories" and "category" in metadata:
-            self._send_json(200, {"value": metadata["category"]})
+        elif field_name == CATEGORIES_FIELD and LEGACY_CATEGORY_FIELD in metadata:
+            self._send_json(200, {"value": metadata[LEGACY_CATEGORY_FIELD]})
         elif field_name in ("comments", "ratings"):
             self._send_json(200, {"value": []})
         elif field_name == "archived":
@@ -798,14 +924,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raw_paths = _validate_bulk_paths(parse_qs(parsed.query).get("path", []))
             file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
         except ValueError as exc:
-            self._send_json(400, {"error": str(exc)})
+            self._send_payload_error(exc)
             return
 
         recipes = []
         try:
             for raw_path, file_path in zip(raw_paths, file_paths):
-                if not file_path.is_file():
-                    self._send_json(404, {"error": f"Markdown file not found: {raw_path}"})
+                if not self._require_markdown_file(file_path, f"{MARKDOWN_NOT_FOUND_ERROR}: {raw_path}"):
                     return
                 recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
                 ratings = recipe_post.metadata.get("ratings")
@@ -829,7 +954,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raw_paths = _validate_bulk_paths(parse_qs(parsed.query).get("path", []))
             file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
         except ValueError as exc:
-            self._send_json(400, {"error": str(exc)})
+            self._send_payload_error(exc)
             return
 
         recipes = []
@@ -863,11 +988,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if self.config is None:
                 raise ValueError("Configuration is not available")
             changed = self.config.apply_config_values(payload.get("values"))
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
         except OSError:
             logger.exception("Failed to save configuration")
@@ -888,13 +1010,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def _handle_ai_recipe(self) -> None:
         try:
             request = self._validate_ai_recipe_request()
-        except _RequestTooLarge:
-            logger.warning("AI recipe request body was too large")
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
+        except (_RequestTooLarge, ValueError) as exc:
             logger.warning(f"Invalid AI recipe request: {exc}")
-            self._send_json(400, {"error": str(exc)})
+            self._send_payload_error(exc)
             return
 
         if request["stream_progress"]:
@@ -1031,11 +1149,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 raise ValueError("Markdown content contains a null character")
             images = self._validate_uploaded_images(images)
             folder_path = self._resolve_recipe_directory(folder)
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
 
         self._create_recipe(folder_path, folder, create_folder, content, metadata, images)
@@ -1046,7 +1161,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if folder_path is None:
                 return
 
-            file_path = folder_path / "recipe.md"
+            file_path = folder_path / RECIPE_FILENAME
             if file_path.exists():
                 self._send_json(409, {"error": "A recipe already exists in that folder"})
                 return
@@ -1055,7 +1170,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=True)
 
             logger.info(f"Created recipe: {file_path}")
-            self._notify_markdown_saved(file_path)
+            if not self._notify_recipe_saved(file_path, "Recipe created, but HTML regeneration failed"):
+                return
             self._send_json(201, {"success": True, "path": file_path.relative_to(self.source_directory).as_posix()})
         except FileExistsError:
             self._send_json(409, {"error": "A recipe or folder already exists at that location"})
@@ -1105,30 +1221,27 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 raise ValueError("Markdown content contains a null character")
             images = self._validate_uploaded_images(images)
             file_path = self._resolve_markdown_path(path)
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
 
         self._save_recipe_editor(file_path, content, metadata, images)
 
     def _save_recipe_editor(self, file_path: Path, content: str, metadata: dict, images) -> None:
         try:
-            if not file_path.is_file():
-                self._send_json(404, {"error": "Markdown file not found"})
+            if not self._require_markdown_file(file_path):
                 return
 
             recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
             _apply_editor_metadata(recipe_post.metadata, metadata)
-            recipe_post.metadata.pop("category", None)
+            _drop_legacy_category(recipe_post.metadata)
             recipe_post.metadata["updatedOn"] = _now_utc_iso()
             recipe_post.content = content
 
             self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=False)
             logger.info(f"Saved recipe editor content: {file_path}")
-            self._notify_markdown_saved(file_path)
+            if not self._notify_recipe_saved(file_path, "Recipe saved, but HTML regeneration failed"):
+                return
             self._send_json(200, {"success": True})
         except FileExistsError as exc:
             self._send_json(409, {"error": str(exc)})
@@ -1166,19 +1279,15 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             to_name = payload.get("to")
             if not isinstance(path, str) or not isinstance(from_name, str) or not isinstance(to_name, str):
                 raise ValueError("Expected string fields: path, from, to")
-            file_path = self._resolve_markdown_path(path)
-            if not file_path.is_file():
-                self._send_json(404, {"error": "Markdown file not found"})
+            file_path = self._resolve_existing_markdown_path(path)
+            if file_path is None:
                 return
             source_name = _validate_image_name(from_name, field="from")
             target_name = _validate_image_name(to_name, field="to")
             if source_name == target_name:
                 raise ValueError("Enter a different name to rename the image")
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
 
         directory = file_path.parent
@@ -1218,14 +1327,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self._drop_site_image_copy(file_path, source_name)
 
         logger.info(f"Renamed image {source_name} to {target_name} for {file_path}")
-        try:
-            self._notify_markdown_saved(file_path)
-        except Exception:
-            logger.exception("Failed to regenerate recipe after image rename")
-            self._send_json(
-                500,
-                {"error": "Image renamed, but HTML regeneration failed", "images": self._list_recipe_images(file_path)},
-            )
+        if not self._notify_recipe_saved(
+            file_path,
+            "Image renamed, but HTML regeneration failed",
+            images=self._list_recipe_images(file_path),
+        ):
             return
 
         self._send_json(200, {"success": True, "images": self._list_recipe_images(file_path)})
@@ -1245,15 +1351,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             images = self._validate_uploaded_images(images)
             if not images:
                 raise ValueError("Choose at least one image to upload")
-            file_path = self._resolve_markdown_path(path)
-            if not file_path.is_file():
-                self._send_json(404, {"error": "Markdown file not found"})
+            file_path = self._resolve_existing_markdown_path(path)
+            if file_path is None:
                 return
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
 
         try:
@@ -1267,14 +1369,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             return
 
         logger.info(f"Uploaded {len(images)} image(s) for {file_path}")
-        try:
-            self._notify_markdown_saved(file_path)
-        except Exception:
-            logger.exception("Failed to regenerate recipe after image upload")
-            self._send_json(
-                500,
-                {"error": "Image uploaded, but HTML regeneration failed", "images": self._list_recipe_images(file_path)},
-            )
+        if not self._notify_recipe_saved(
+            file_path,
+            "Image uploaded, but HTML regeneration failed",
+            images=self._list_recipe_images(file_path),
+        ):
             return
 
         self._send_json(200, {"success": True, "images": self._list_recipe_images(file_path)})
@@ -1292,16 +1391,12 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             name = payload.get("name")
             if not isinstance(path, str) or not isinstance(name, str):
                 raise ValueError("Expected string fields: path, name")
-            file_path = self._resolve_markdown_path(path)
-            if not file_path.is_file():
-                self._send_json(404, {"error": "Markdown file not found"})
+            file_path = self._resolve_existing_markdown_path(path)
+            if file_path is None:
                 return
             image_name = _validate_image_name(name, field="name")
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
 
         target = file_path.parent / image_name
@@ -1343,29 +1438,21 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         self._drop_site_image_copy(file_path, image_name)
         logger.info(f"Deleted image {image_name} for {file_path}")
-        try:
-            self._notify_markdown_saved(file_path)
-        except Exception:
-            logger.exception("Failed to regenerate recipe after image deletion")
-            self._send_json(
-                500,
-                {
-                    "error": "Image deleted, but HTML regeneration failed",
-                    "images": self._list_recipe_images(file_path),
-                    "referenced": referenced,
-                },
-            )
+        if not self._notify_recipe_saved(
+            file_path,
+            "Image deleted, but HTML regeneration failed",
+            images=self._list_recipe_images(file_path),
+            referenced=referenced,
+        ):
             return
 
         self._send_json(200, {"success": True, "images": self._list_recipe_images(file_path), "referenced": referenced})
 
     def _handle_metadata_post(self, path: str) -> None:
-        field_name = path.split("/")[-1]
-        if not field_name:
+        field_name = _metadata_field_name(path)
+        if field_name is None:
             self._send_json(400, {"error": "Expected a metadata field name"})
             return
-        if field_name == "category":
-            field_name = "categories"
 
         try:
             payload = self._read_json_payload()
@@ -1386,19 +1473,15 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                     value = _validate_string_field(field_name, value)
 
             file_path = self._resolve_markdown_path(recipe_path)
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
 
         self._save_metadata_field(file_path, field_name, value)
 
     def _save_metadata_field(self, file_path: Path, field_name: str, value) -> None:
         try:
-            if not file_path.is_file():
-                self._send_json(404, {"error": "Markdown file not found"})
+            if not self._require_markdown_file(file_path):
                 return
 
             recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
@@ -1407,19 +1490,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 metadata[field_name] = value
             else:
                 metadata.pop(field_name, None)
-            if field_name == "categories":
-                metadata.pop("category", None)
+            if field_name == CATEGORIES_FIELD:
+                _drop_legacy_category(metadata)
 
             file_path.write_text(frontmatter.dumps(recipe_post), encoding="utf-8", newline="")
             logger.info(f"Updated metadata field '{field_name}' in file: {file_path}")
 
-            if self.on_markdown_saved is not None:
-                try:
-                    self.on_markdown_saved(file_path)
-                except Exception:
-                    logger.exception("Metadata saved, but recipe regeneration failed")
-                    self._send_json(500, {"error": "Metadata saved, but recipe regeneration failed"})
-                    return
+            if not self._notify_recipe_saved(file_path, "Metadata saved, but recipe regeneration failed"):
+                return
 
             self._send_json(200, {"success": True, "field": field_name})
         except OSError:
@@ -1439,21 +1517,18 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if "\x00" in content:
                 raise ValueError("Markdown content contains a null character")
             file_path = self._resolve_markdown_path(path)
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
 
         try:
-            if not file_path.is_file():
-                self._send_json(404, {"error": "Markdown file not found"})
+            if not self._require_markdown_file(file_path):
                 return
 
             file_path.write_text(content, encoding="utf-8", newline="")
             logger.info(f"Saved Markdown file: {file_path}")
-            self._notify_markdown_saved(file_path)
+            if not self._notify_recipe_saved(file_path, "Markdown saved, but HTML regeneration failed"):
+                return
             self._send_json(200, {"success": True})
         except OSError:
             logger.exception("Failed to save Markdown file")
@@ -1478,17 +1553,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if not metadata and rating_override is None:
                 raise ValueError("Expected 'metadata' and/or 'rating'")
             file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
 
         # Pre-check every target before writing any of them.
         for raw_path, file_path in zip(raw_paths, file_paths):
-            if not file_path.is_file():
-                self._send_json(404, {"error": f"Markdown file not found: {raw_path}"})
+            if not self._require_markdown_file(file_path, f"{MARKDOWN_NOT_FOUND_ERROR}: {raw_path}"):
                 return
 
         try:
@@ -1502,13 +1573,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(500, {"error": "Unable to parse recipe data"})
             return
 
-        if self.on_markdown_saved is not None:
-            try:
-                for file_path in saved:
-                    self.on_markdown_saved(file_path)
-            except Exception:
-                logger.exception("Bulk edit saved, but HTML regeneration failed")
-                self._send_json(500, {"error": "Recipes saved, but HTML regeneration failed"})
+        for file_path in saved:
+            if not self._notify_recipe_saved(file_path, "Recipes saved, but HTML regeneration failed"):
                 return
 
         self._send_json(200, {"success": True, "paths": raw_paths, "count": len(raw_paths)})
@@ -1521,7 +1587,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if metadata:
                 subset = {field: metadata.get(field) for field in fields}
                 _apply_editor_metadata(recipe_post.metadata, subset)
-                recipe_post.metadata.pop("category", None)
+                _drop_legacy_category(recipe_post.metadata)
             if rating_override is not None:
                 name, score = rating_override
                 recipe_post.metadata["ratings"] = _apply_rating_override(recipe_post.metadata.get("ratings"), name, score)
@@ -1538,16 +1604,12 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             payload = self._read_json_payload()
             raw_paths = _validate_bulk_paths(payload.get("paths"))
             file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
-        except _RequestTooLarge:
-            self._send_json(413, {"error": "Request body too large"})
-            return
-        except (ValueError, json.JSONDecodeError) as exc:
-            self._send_json(400, {"error": str(exc)})
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
             return
 
         for raw_path, file_path in zip(raw_paths, file_paths):
-            if not file_path.is_file():
-                self._send_json(404, {"error": f"Markdown file not found: {raw_path}"})
+            if not self._require_markdown_file(file_path, f"{MARKDOWN_NOT_FOUND_ERROR}: {raw_path}"):
                 return
 
         try:
@@ -1575,41 +1637,23 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             recipe_dir = file_path.parent
             if recipe_dir != self.source_directory and not any(recipe_dir.iterdir()):
                 recipe_dir.rmdir()
-            logger.info(f"Bulk-deleted recipe: {file_path}")
+            logger.info(f"Deleted recipe: {file_path}")
         return deleted
 
     # ----- DELETE handlers -------------------------------------------------
 
     def _handle_recipe_delete(self, parsed) -> None:
-        query = parse_qs(parsed.query)
-        paths = query.get("path", [])
-        if len(paths) != 1 or not paths[0]:
-            self._send_json(400, {"error": "Expected a path parameter"})
+        file_path = self._resolve_requested_markdown_path(parsed)
+        if file_path is None:
             return
 
         try:
-            file_path = self._resolve_markdown_path(paths[0])
-            if not file_path.is_file():
-                self._send_json(404, {"error": "Markdown file not found"})
-                return
-
-            recipe_dir = file_path.parent
-            file_path.unlink()
-            if recipe_dir != self.source_directory and not any(recipe_dir.iterdir()):
-                recipe_dir.rmdir()
-        except OSError:
-            logger.exception("Failed to delete recipe")
-            self._send_json(500, {"error": "Unable to delete recipe"})
-            return
-        except ValueError as exc:
-            self._send_json(400, {"error": str(exc)})
-            return
+            self._delete_recipe_files([file_path])
         except Exception:
             logger.exception("Failed to delete recipe")
             self._send_json(500, {"error": "Unable to delete recipe"})
             return
 
-        logger.info(f"Deleted recipe: {file_path}")
         if self.on_recipes_deleted is not None:
             try:
                 self.on_recipes_deleted([file_path])
@@ -1712,12 +1756,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raise ValueError("Invalid multipart request")
         return message
 
-    def _read_ai_recipe_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
-        """Read an AI recipe request, which may carry multipart image uploads."""
+    def _read_multipart_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
+        """Read a multipart/form-data body into its text fields and file uploads."""
         content_type = self.headers.get("Content-Type", "")
-        if not content_type.lower().startswith("multipart/form-data"):
-            return self._read_json_payload(), []
-
         body = self._read_body(self.MAX_IMAGE_UPLOAD_SIZE, "Image upload request too large")
         message = self._parse_multipart_message(body, content_type)
 
@@ -1741,41 +1782,28 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             except UnicodeDecodeError as exc:
                 raise ValueError(f"Invalid text field: {field_name}") from exc
 
+        return payload, images
+
+    def _is_multipart_request(self) -> bool:
+        return self.headers.get("Content-Type", "").lower().startswith("multipart/form-data")
+
+    def _read_ai_recipe_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
+        """Read an AI recipe request, which may carry multipart image uploads."""
+        if not self._is_multipart_request():
+            return self._read_json_payload(), []
+
+        payload, images = self._read_multipart_payload()
         if "stream" in payload:
             if payload["stream"] not in {"true", "false"}:
                 raise ValueError("Invalid stream value")
             payload["stream"] = payload["stream"] == "true"
-
         return payload, images
 
     def _read_recipe_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
-        content_type = self.headers.get("Content-Type", "")
-        if not content_type.lower().startswith("multipart/form-data"):
+        if not self._is_multipart_request():
             return self._read_json_payload(), []
 
-        body = self._read_body(self.MAX_IMAGE_UPLOAD_SIZE, "Image upload request too large")
-        message = self._parse_multipart_message(body, content_type)
-
-        payload = {}
-        images = []
-        for part in message.iter_parts():
-            field_name = part.get_param("name", header="content-disposition")
-            if not isinstance(field_name, str):
-                raise ValueError("Invalid multipart field")
-
-            filename = part.get_filename()
-            content = part.get_payload(decode=True) or b""
-            if filename is not None:
-                if field_name != "images":
-                    raise ValueError("Unexpected uploaded file field")
-                images.append((filename, content))
-                continue
-
-            try:
-                payload[field_name] = content.decode("utf-8")
-            except UnicodeDecodeError as exc:
-                raise ValueError(f"Invalid text field: {field_name}") from exc
-
+        payload, images = self._read_multipart_payload()
         if "metadata" in payload:
             try:
                 payload["metadata"] = json.loads(payload["metadata"])
@@ -1830,15 +1858,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         ):
             raise ValueError("Invalid image filename")
 
-        reserved_names = {
-            "CON",
-            "PRN",
-            "AUX",
-            "NUL",
-            *(f"COM{number}" for number in range(1, 10)),
-            *(f"LPT{number}" for number in range(1, 10)),
-        }
-        if PureWindowsPath(filename.split(".", 1)[0]).name.upper() in reserved_names:
+        if _is_windows_reserved_name(PureWindowsPath(filename.split(".", 1)[0]).name):
             raise ValueError("Invalid image filename")
 
     @staticmethod
@@ -1862,22 +1882,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             root = ET.fromstring(content)
         except ET.ParseError as exc:
             raise ValueError(f"Invalid SVG image: {filename}") from exc
-        if root.tag.rsplit("}", 1)[-1].lower() != "svg":
+        if _xml_local_name(root.tag) != "svg":
             raise ValueError(f"Invalid SVG image: {filename}")
 
-        blocked_tags = {"script", "foreignobject"}
         for element in root.iter():
-            tag_name = element.tag.rsplit("}", 1)[-1].lower()
-            if tag_name in blocked_tags:
+            if _xml_local_name(element.tag) in _SVG_BLOCKED_TAGS:
                 raise ValueError(f"SVG contains unsupported active content: {filename}")
             for attribute, value in element.attrib.items():
-                attr_name = attribute.rsplit("}", 1)[-1].lower()
-                if attr_name.startswith("on"):
-                    raise ValueError(f"SVG contains unsupported active content: {filename}")
-                if attr_name in {"href", "style"} and (
-                    ("url(" in value.lower() and "url(#" not in value.lower()) or (attribute.lower().endswith("href") and not value.startswith("#"))
-                ):
-                    raise ValueError(f"SVG contains unsupported external content: {filename}")
+                _validate_svg_attribute(filename, attribute, value)
 
     @staticmethod
     def _write_uploaded_images(directory: Path, images: list[tuple[str, bytes]]) -> list[Path]:
@@ -1912,7 +1924,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         relative_path = Path(requested_path)
         if relative_path.is_absolute() or ".." in relative_path.parts:
             raise ValueError("Path must stay inside the source directory")
-        if relative_path.suffix.lower() != ".md":
+        if relative_path.suffix.lower() != MARKDOWN_FILE_SUFFIX:
             raise ValueError("Only Markdown (.md) files can be edited")
 
         root = self.source_directory
@@ -1949,14 +1961,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _list_recipe_folders(self) -> list[str]:
         folders = []
-        if not (self.source_directory / "recipe.md").exists():
+        if not (self.source_directory / RECIPE_FILENAME).exists():
             folders.append("")
 
         for folder in self.source_directory.rglob("*"):
             if folder.is_symlink() or not folder.is_dir():
                 continue
             resolved_folder = folder.resolve()
-            if not resolved_folder.is_relative_to(self.source_directory) or (resolved_folder / "recipe.md").exists():
+            if not resolved_folder.is_relative_to(self.source_directory) or (resolved_folder / RECIPE_FILENAME).exists():
                 continue
             folders.append(folder.relative_to(self.source_directory).as_posix())
 
@@ -2001,7 +2013,7 @@ class Server:
     def port(self) -> int:
         """Configured listen port, falling back to the default."""
         configured = getattr(self.cfg, "server_port", None)
-        return configured if isinstance(configured, int) and 1 <= configured <= 65535 else SERVER_PORT
+        return configured if isinstance(configured, int) and 1 <= configured <= MAX_PORT else DEFAULT_SERVER_PORT
 
     def _port_in_use(self, port: int) -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -2015,8 +2027,11 @@ class Server:
         if self.is_running:
             return
 
-        if self._port_in_use(SERVER_PORT):
-            logger.error(f"Port {self.port} in use!")
+        port = self.port
+        if self._port_in_use(port):
+            # Take the whole process down, tray icon included: with no HTTP
+            # server there is nothing for the tray to do.
+            logger.error(f"Port {port} is already in use; exiting")
             sys.exit(1)
 
         handler = partial(
