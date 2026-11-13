@@ -138,7 +138,7 @@ def test_index_contains_recipe_details_filters_and_sort_options(tmp_path: Path):
     assert metadata_toggle is not None
     assert metadata_toggle.get("checked") is None
     assert "Metadata Status" in soup.select_one(".metadata-status-toggle").get_text()
-    assert 'class="recipe-icon"' in page and "currentColor" in page
+    assert 'class="recipe-index__icon"' in page and "currentColor" in page
     assert 'aria-label="Rated 8.5 out of 10 from 2 ratings"' in page
     assert "8.5/10" in page
     assert 'aria-label="Makes: x12"' in page
@@ -688,8 +688,10 @@ def test_card_zoom_css_remains_responsive(tmp_path: Path):
     css = (Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "index.css").read_text(encoding="UTF-8")
     # The grid must not overflow narrow viewports at large card widths.
     assert "min(var(--card-min-width, 280px), 100%)" in css
-    # List thumbnails scale proportionally: 280px card width -> 4rem thumb.
-    assert "calc(var(--card-min-width) * 0.2286)" in css
+    # List thumbnails scale proportionally: 280px card width -> 4rem thumb,
+    # via the documented ratio custom property.
+    assert "--list-thumb-ratio: 0.2286;" in css
+    assert "calc(var(--card-min-width) * var(--list-thumb-ratio))" in css
     # Mobile layout keeps the zoom control usable.
     assert "@media (max-width: 499px)" in css
     assert ".card-zoom__slider" in css

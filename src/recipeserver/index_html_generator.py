@@ -35,6 +35,7 @@ ICONS_JS_PATH = "/assets/icons.js"
 
 # ----- Asset paths and URLs ----- #
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
+BASE_CSS_PATH = "/assets/base.css"
 INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
 RECIPE_EDITOR_CSS_PATH = "/assets/recipe-editor/recipe-editor.css"
@@ -269,7 +270,7 @@ class IndexHTMLGenerator:
         if icon is None:
             raise ValueError(f"No SVG element found in {asset_path}")
 
-        icon["class"] = ["recipe-icon"]
+        icon["class"] = ["recipe-index__icon"]
         icon["aria-hidden"] = "true"
         icon["focusable"] = "false"
         return str(icon)
@@ -796,6 +797,7 @@ class IndexHTMLGenerator:
         """Content-hash every local asset the page references, keyed by template name."""
         paths = {
             "definitions_css": DEFINITIONS_CSS_PATH,
+            "base_css": BASE_CSS_PATH,
             "index_css": INDEX_CSS_PATH,
             "index_js": INDEX_JS_PATH,
             "icons_js": ICONS_JS_PATH,
@@ -830,6 +832,7 @@ class IndexHTMLGenerator:
     <title>{server_name_html}</title>
     <link rel="icon" type="image/svg+xml" href="{urls['logo']}">
     <link rel="stylesheet" href="{urls['definitions_css']}">
+    <link rel="stylesheet" href="{urls['base_css']}">
 {food_color_style}
     <link rel="stylesheet" href="{MENU_CSS_URL}">
     <link rel="stylesheet" href="{urls['index_css']}">

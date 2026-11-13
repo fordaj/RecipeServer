@@ -1,22 +1,3 @@
-/* ---------- Base ---------- */
-
-* {
-  box-sizing: border-box;
-}
-
-html {
-  font-size: 16px;
-}
-
-body {
-  margin: 0;
-  padding: 0;
-  background: var(--page-bg);
-  color: var(--text-color);
-  font-family: var(--font-body);
-  line-height: 1.7;
-}
-
 /* ---------- Page ---------- */
 
 .recipes {
@@ -70,10 +51,6 @@ body {
 
 .recipes-eyebrow {
   margin-bottom: 0.4rem;
-}
-
-a {
-  color: var(--food-color);
 }
 
 .recipes h1 {
@@ -280,7 +257,8 @@ a {
   border-color: var(--food-color);
 }
 
-.metadata-status-toggle {
+.metadata-status-toggle,
+.select-all-control {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -290,7 +268,8 @@ a {
   white-space: nowrap;
 }
 
-.metadata-status-toggle input {
+.metadata-status-toggle input,
+.select-all-control input {
   width: 1rem;
   height: 1rem;
   margin: 0;
@@ -298,7 +277,8 @@ a {
   cursor: pointer;
 }
 
-.metadata-status-toggle input:focus-visible {
+.metadata-status-toggle input:focus-visible,
+.select-all-control input:focus-visible {
   outline: 2px solid var(--food-color);
   outline-offset: 2px;
 }
@@ -320,7 +300,8 @@ a {
   display: none;
 }
 
-.bulk-controls button {
+.bulk-controls button,
+#clear-filters {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -342,7 +323,8 @@ a {
   flex: 0 0 auto;
 }
 
-.bulk-controls button:hover:not(:disabled) {
+.bulk-controls button:hover:not(:disabled),
+#clear-filters:hover:not(:disabled) {
   border-color: var(--hover-border-color);
   background: var(--hover-bg);
 }
@@ -352,7 +334,8 @@ a {
   cursor: not-allowed;
 }
 
-.bulk-controls button:focus-visible {
+.bulk-controls button:focus-visible,
+#clear-filters:focus-visible {
   outline: 2px solid var(--food-color);
 }
 
@@ -399,29 +382,6 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-.select-all-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--text-color);
-  font-size: 0.85rem;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.select-all-control input {
-  width: 1rem;
-  height: 1rem;
-  margin: 0;
-  accent-color: var(--food-color);
-  cursor: pointer;
-}
-
-.select-all-control input:focus-visible {
-  outline: 2px solid var(--food-color);
-  outline-offset: 2px;
 }
 
 #recipe-list.selection-mode .recipe-card {
@@ -551,7 +511,6 @@ a {
 
 .recipe-advanced > summary:focus-visible {
   outline: 2px solid var(--food-color);
-  /* outline-offset: 4px; */
   border-radius: 2px;
 }
 
@@ -568,34 +527,10 @@ a {
   width: 100%;
 }
 
-/* ---------- Version footer (same as recipe pages) ---------- */
+/* ---------- Version footer (page-specific spacing; base.css carries the rest) ---------- */
 
 .recipe-version {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
-  gap: 0.35rem;
-
   margin: 2rem auto 0;
-  padding: 0 1.5rem;
-
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  line-height: 1.7;
-}
-
-.recipe-version svg,
-.recipe-version .recipe-icon {
-  width: 0.95em;
-  height: 0.95em;
-  flex-shrink: 0;
-  align-self: center;
-  color: var(--text-muted);
-}
-
-.recipe-version .recipe-meta__separator {
-  margin: 0 0.35rem;
-  color: var(--border-color);
 }
 
 /* ---------- Result count and view switcher ---------- */
@@ -665,26 +600,6 @@ a {
   cursor: pointer;
 }
 
-#clear-filters {
-  padding: 0.4rem 0.7rem;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--card-bg);
-  color: var(--food-color);
-  font: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-#clear-filters:hover {
-  border-color: var(--hover-border-color);
-  background: var(--hover-bg);
-}
-
-#clear-filters:focus-visible {
-  outline: 2px solid var(--food-color);
-}
-
 #clear-filters[hidden] {
   display: none;
 }
@@ -693,10 +608,13 @@ a {
 
 #recipe-list {
   --card-min-width: 280px;
-  /* Proportional to --card-min-width so the Size slider also scales
-     list-view thumbnails (and therefore list-row height) without a
-     separate stored preference: 280px -> 4rem (the historic default). */
-  --list-thumb-size: calc(var(--card-min-width) * 0.2286);
+  /* List thumbnails scale with the card zoom by this ratio, so the Size
+     slider also scales list-row height without a separate preference:
+     280px -> 4rem (the historic default). The single documented home of
+     the factor is this custom property; index.css and index.js both
+     describe it here. */
+  --list-thumb-ratio: 0.2286;
+  --list-thumb-size: calc(var(--card-min-width) * var(--list-thumb-ratio));
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 0.8rem;
@@ -842,12 +760,6 @@ a {
   font-weight: 400;
 }
 
-.recipe-rating--empty {
-  color: var(--muted-color);
-  font-size: 0.78rem;
-  font-weight: 400;
-}
-
 .recipe-card__details {
   display: flex;
   flex-wrap: wrap;
@@ -880,7 +792,7 @@ a {
   gap: 0.3rem;
 }
 
-.recipe-icon {
+.recipe-index__icon {
   display: block;
   width: 1rem;
   height: 1rem;
@@ -904,33 +816,7 @@ a {
   overflow-wrap: anywhere;
 }
 
-.recipe-warning-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  white-space: nowrap;
-
-  border-color: color-mix(
-    in srgb,
-    var(--warning-border-color) var(--warning-border-mix),
-    var(--card-border-color)
-  );
-  background: color-mix(in srgb, var(--warning-bg-color) var(--warning-bg-mix), var(--card-bg));
-  color: var(--warning-text-color);
-}
-
-.recipe-warning-chip .recipe-icon {
-  width: 0.9rem;
-  height: 0.9rem;
-  flex: 0 0 auto;
-}
-
-/* Inline metadata warnings */
-
-.recipe-detail--warning[hidden] {
-  display: none !important;
-}
-
+.recipe-warning-chip,
 .recipe-detail--warning .recipe-chip {
   border-color: color-mix(
     in srgb,
@@ -939,6 +825,25 @@ a {
   );
   background: color-mix(in srgb, var(--warning-bg-color) var(--warning-bg-mix), var(--card-bg));
   color: var(--warning-text-color);
+}
+
+.recipe-warning-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.recipe-warning-chip .recipe-index__icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex: 0 0 auto;
+}
+
+/* Inline metadata warnings */
+
+.recipe-detail--warning[hidden] {
+  display: none;
 }
 
 #recipe-list:empty::after {
@@ -980,7 +885,6 @@ a {
   aspect-ratio: auto;
   /* List thumbnails are free-standing, so round all corners. The radius
      scales with the thumbnail (and thus the Size slider). */
-  border-radius: 8px;
   border-radius: calc(var(--list-thumb-size, 4rem) * 0.125);
 }
 

@@ -5,8 +5,9 @@ const { RecipeIcons } = window;
 // ----- Constants ----- //
 // Card zoom stores the minimum card width (px) used by the card-view
 // grid. Smaller cards show more recipes per row; larger cards show
-// fewer. The same value also scales list-view thumbnails (via
-// --list-thumb-size in index.css), so list-row height follows the
+// fewer. The same value also scales list-view thumbnails, via the
+// --list-thumb-ratio custom property in index.css (--list-thumb-size is
+// --card-min-width times that ratio), so list-row height follows the
 // image size indirectly. Persisted in localStorage so the preference
 // survives reloads and applies in both views.
 const CARD_ZOOM_STORAGE_KEY = "recipe-card-min-width";
@@ -846,7 +847,7 @@ const initRecipeIndex = async () => {
   // The warning icon lives in assets/warning.svg; it is inlined so it can
   // inherit the chip's colour via currentColor.
   ctx.ratingWarningIcon = await RecipeIcons.loadSvgIcon("/assets/warning.svg", {
-    class: "recipe-icon",
+    class: "recipe-index__icon",
   });
 
   wireEvents(ctx);
