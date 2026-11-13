@@ -615,6 +615,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/bulk-delete": self._handle_bulk_delete,
             "/api/config": self._handle_config_update,
             "/api/ai-recipe": self._handle_ai_recipe,
+            "/api/find-image": self._handle_find_image,
             "/api/recipe": self._handle_recipe_create,
             "/api/recipe-editor": self._handle_recipe_editor_post,
             "/api/recipe-images/rename": self._handle_recipe_images_rename_post,
@@ -934,6 +935,45 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "images": images,
             "stream_progress": payload.get("stream") is True,
         }
+
+    # ----- POST handler: find an image for me ------------------------------
+
+    def _handle_find_image(self) -> None:
+        try:
+            payload = self._read_json_payload()
+        except _RequestTooLarge:
+            self._send_json(413, {"error": "Request body too large"})
+            return
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        query = payload.get("query")
+        if not isinstance(query, str) or not query.strip():
+            self._send_json(400, {"error": "Expected a non-empty search query"})
+            return
+        query = query.strip()
+        if len(query) > ai_recipe.MAX_QUERY_CHARS:
+            self._send_json(400, {"error": f"The search query is too long (maximum {ai_recipe.MAX_QUERY_CHARS} characters)"})
+            return
+
+        logger.info(f"Received find-image request for {query!r}")
+        try:
+            result = ai_recipe.find_recipe_image(self.config, query)
+        except ai_recipe.ModelUnavailable as exc:
+            logger.warning(f"Local model unavailable for find-image: {exc}")
+            self._send_json(503, {"error": str(exc)})
+        except ValueError as exc:
+            logger.warning(f"Invalid find-image request: {exc}")
+            self._send_json(400, {"error": str(exc)})
+        except (ai_recipe.ImageSearchError, ai_recipe.ImageDownloadError, ai_recipe.ModelRequestError) as exc:
+            logger.warning(f"Find-image request failed: {exc}")
+            self._send_json(502, {"error": str(exc)})
+        except Exception:
+            logger.exception("Failed to find an image for the recipe")
+            self._send_json(500, {"error": "Unable to find an image"})
+        else:
+            self._send_json(200, result)
 
     def _run_ai_recipe(self, request: dict) -> None:
         try:

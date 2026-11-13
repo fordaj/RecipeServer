@@ -7,12 +7,14 @@
   const RECIPE_FOLDERS_API = "/api/recipe-folders";
   const AI_STATUS_API = "/api/ai-status";
   const AI_RECIPE_API = "/api/ai-recipe";
+  const FIND_IMAGE_API = "/api/find-image";
   const RECIPE_IMAGES_RENAME_API = "/api/recipe-images/rename";
   const RECIPE_IMAGES_UPLOAD_API = "/api/recipe-images/upload";
   const RECIPE_IMAGES_DELETE_API = "/api/recipe-images/delete";
   const MAKES_METADATA_API = "/api/metadata/makes";
   const METADATA_OPTIONS_API = "/api/metadata-options";
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
+  const AI_ICON_URL = "/assets/ai.svg";
   const EDITOR_ASSETS_BASE = "/assets/recipe-editor";
 
   // The pages that load this file also load these scripts before it (see
@@ -181,6 +183,28 @@ Try this
 
   async function requestAiStatus() {
     return fetchJson(new URL(AI_STATUS_API, window.location.origin), { cache: "no-store" });
+  }
+
+  // The find-an-image endpoint searches the web and downloads the selected
+  // image server-side; the browser receives it base64-encoded and attaches it
+  // to the existing recipe-images input like any pasted image.
+  async function requestFindImage(query) {
+    return fetchJson(new URL(FIND_IMAGE_API, window.location.origin), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+  }
+
+  function fileFromBase64(dataBase64, filename, mimeType) {
+    const binary = atob(dataBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return new File([bytes], filename || "recipe-image.jpg", {
+      type: mimeType || "image/jpeg",
+    });
   }
 
   async function createRecipe(folder, createFolder, content, metadata, images) {
@@ -1166,6 +1190,10 @@ Try this
       imagesHelpCreate: dialog.querySelector(".recipe-editor__images-help--create"),
       existingImagesBlock: dialog.querySelector(".recipe-editor__existing-images"),
       imageList: dialog.querySelector(".recipe-editor__image-list"),
+      findImageQuery: dialog.querySelector(".recipe-editor__find-image-query"),
+      findImageButton: dialog.querySelector(".recipe-editor__find-image"),
+      findImageIcon: dialog.querySelector(".recipe-editor__find-image-icon"),
+      findImageText: dialog.querySelector(".recipe-editor__find-image-text"),
       aiSection: dialog.querySelector(".recipe-editor__ai"),
       aiDetails: dialog.querySelector(".recipe-editor__ai-details"),
       aiStatus: dialog.querySelector(".recipe-editor__ai-status"),
@@ -1232,6 +1260,7 @@ Try this
       aiAvailable: false,
       aiImageAvailable: false,
       aiAbortController: null,
+      findImageBusy: false,
     };
   }
 
@@ -1286,6 +1315,8 @@ Try this
       refs.folderSelect.disabled = value;
       refs.newFolder.disabled = value;
       refs.imageInput.disabled = value;
+      refs.findImageQuery.disabled = value;
+      refs.findImageButton.disabled = value || state.findImageBusy;
     }
 
     function setMetadataBusy(value) {
@@ -1429,6 +1460,7 @@ Try this
           );
           refs.textarea.value = result.content || "";
           populateMetadata(refs, result.metadata || {});
+          ctx.findImage?.syncPlaceholder();
         }
       } catch (caughtError) {
         if (caughtError.name === "AbortError") {
@@ -1444,6 +1476,91 @@ Try this
     }
 
     return { setAiProgress, setAiState, generateFromAi };
+  }
+
+  // ----- Find One For Me ----- //
+
+  // Reads the recipe title the same way the rest of the app does: the first
+  // "# " heading in the Markdown source.
+  const RECIPE_TITLE_PATTERN = /^\s{0,3}#\s+(.+?)\s*#*\s*$/m;
+
+  function currentRecipeTitle(textarea) {
+    const match = textarea.value.match(RECIPE_TITLE_PATTERN);
+    return match ? match[1].trim() : "";
+  }
+
+  const DEFAULT_QUERY_PLACEHOLDER = "Search for an image…";
+
+  function createFindImageActions(ctx) {
+    const { refs, state, ui } = ctx;
+
+    // Keep the query field's placeholder in sync with the recipe title, so
+    // it always reflects the query that will be used.
+    function syncPlaceholder() {
+      refs.findImageQuery.placeholder =
+        currentRecipeTitle(refs.textarea) || DEFAULT_QUERY_PLACEHOLDER;
+    }
+
+    function setQueryError(value) {
+      refs.findImageQuery.classList.toggle("is-error", value);
+      if (value) {
+        refs.findImageQuery.setAttribute("aria-invalid", "true");
+      } else {
+        refs.findImageQuery.removeAttribute("aria-invalid");
+      }
+    }
+
+    function setSearching(value) {
+      refs.findImageButton.disabled = value || state.busy;
+      refs.findImageQuery.disabled = value || state.busy;
+      refs.findImageButton.setAttribute("aria-busy", value ? "true" : "false");
+      refs.findImageText.textContent = value ? "Searching…" : "Find One For Me";
+    }
+
+    async function findImage() {
+      if (state.busy || state.findImageBusy) return;
+      const title = currentRecipeTitle(refs.textarea);
+      let query = refs.findImageQuery.value.trim();
+
+      if (!query && !title) {
+        // Nothing to search for: ask for a query or a title instead.
+        setQueryError(true);
+        ui.setStatus("Enter an image search query, or add a recipe title to the Markdown first.");
+        refs.findImageQuery.focus();
+        return;
+      }
+      if (!query) {
+        // Fall back to the recipe title, filling the field for the user.
+        query = title;
+        refs.findImageQuery.value = title;
+      }
+      setQueryError(false);
+
+      state.findImageBusy = true;
+      setSearching(true);
+      ui.setStatus(`Searching the web for an image of "${query}"…`);
+      try {
+        const result = await requestFindImage(query);
+        const file = fileFromBase64(result.data_base64, result.filename, result.mime_type);
+        if (!refs.recipeImages.append([file])) {
+          ui.setStatus(
+            "Found an image, but this browser could not attach it. Choose the image manually instead.",
+          );
+          return;
+        }
+        const attribution = result.attribution ? ` ${result.attribution}.` : "";
+        const source = result.source_url ? ` Source: ${result.source_url}` : "";
+        ui.setStatus(`Found an image for "${query}".${attribution}${source}`);
+      } catch (error) {
+        // Any image the user pasted or found earlier is left untouched.
+        ui.setStatus(error.message || "Unable to find an image. Try again.");
+      } finally {
+        state.findImageBusy = false;
+        setSearching(false);
+      }
+    }
+
+    return { findImage, syncPlaceholder };
   }
 
   // Plays the "I made this!" celebration on `element`: the element replays
@@ -1895,6 +2012,7 @@ Try this
       await refreshMetadataOptions(ctx);
       if (state.isCreating) await loadCreateMode(ctx);
       else await loadEditMode(ctx);
+      ctx.findImage.syncPlaceholder();
       ui.setStatus("");
     } catch (error) {
       ui.setStatus(error.message);
@@ -2071,6 +2189,18 @@ Try this
       updateMainImageUi(ctx);
     });
 
+    refs.findImageQuery.addEventListener("input", () => {
+      refs.findImageQuery.classList.remove("is-error");
+      refs.findImageQuery.removeAttribute("aria-invalid");
+    });
+    refs.findImageQuery.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
+        ctx.findImage.findImage();
+      }
+    });
+
     // Pasting anywhere in the dialog adds the image to the recipe images.
     // The AI image picker handles its own paste first and marks it handled.
     refs.dialog.addEventListener("paste", refs.recipeImages.handlePaste);
@@ -2085,6 +2215,7 @@ Try this
       textarea.required = markdownDetails.open;
     });
     textarea.required = markdownDetails.open;
+    textarea.addEventListener("input", ctx.findImage.syncPlaceholder);
 
     refs.aiTextButton.addEventListener("click", () => ai.generateFromAi("text"));
     refs.aiUrlButton.addEventListener("click", () => ai.generateFromAi("url"));
@@ -2092,6 +2223,7 @@ Try this
     refs.aiCancelButton.addEventListener("click", () => {
       if (state.aiAbortController) state.aiAbortController.abort();
     });
+    refs.findImageButton.addEventListener("click", ctx.findImage.findImage);
 
     refs.form.addEventListener("submit", session.handleSubmit);
     refs.deleteButton.addEventListener("click", session.handleDelete);
@@ -2156,9 +2288,14 @@ Try this
       // The chef-hat icon is inlined so it can inherit currentColor.
       ctx.refs.makesIcon.innerHTML = await RecipeIcons.loadSvgIcon(CHEF_HAT_ICON_URL);
     }
+    if (ctx.refs.findImageIcon) {
+      // The AI sparkle icon is inlined so it can inherit currentColor.
+      ctx.refs.findImageIcon.innerHTML = await RecipeIcons.loadSvgIcon(AI_ICON_URL);
+    }
 
     ctx.ui = createUiActions(ctx);
     ctx.ai = createAiActions(ctx);
+    ctx.findImage = createFindImageActions(ctx);
     ctx.madeThis = createMadeThisActions(ctx);
     ctx.bulk = createBulkActions(ctx);
     ctx.session = createSessionActions(ctx);

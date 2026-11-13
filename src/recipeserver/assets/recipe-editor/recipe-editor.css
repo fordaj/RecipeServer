@@ -359,6 +359,90 @@
   font-weight: 600;
 }
 
+.recipe-editor__images-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* The search query field stays on one row with the button; it is a text
+   field, so it must stay at least 1rem to avoid iOS zooming on focus. */
+.recipe-editor__find-image-query {
+  flex: 1 1 10rem;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+
+  font: inherit;
+  font-size: 1rem;
+}
+
+.recipe-editor__find-image-query:focus-visible {
+  outline: 2px solid var(--food-color);
+  border-color: var(--food-color);
+}
+
+.recipe-editor__find-image-query:disabled {
+  opacity: 0.6;
+}
+
+/* Shown when a search is attempted without a query or recipe title. */
+.recipe-editor__find-image-query.is-error {
+  outline: 2px solid var(--danger-color);
+  border-color: var(--danger-color);
+}
+
+/* Same filled treatment as the Save button (.recipe-editor__save). */
+.recipe-editor__find-image {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1rem;
+
+  border: 1px solid var(--food-color);
+  border-radius: 6px;
+  background: var(--food-color);
+  color: var(--page-bg);
+
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.recipe-editor__find-image:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+.recipe-editor__find-image:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.recipe-editor__find-image:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.recipe-editor__find-image-icon {
+  display: inline-flex;
+}
+
+.recipe-editor__find-image-icon svg {
+  width: 1.1em;
+  height: 1.1em;
+}
+
 .recipe-editor__images input {
   min-width: 0;
   color: var(--text-color);
