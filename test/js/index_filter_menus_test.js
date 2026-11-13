@@ -177,7 +177,10 @@ async function main() {
   const document = createDocument();
   const page = buildPage(document);
 
-  globalThis.window = { location: { pathname: "/", origin: "http://localhost" } };
+  globalThis.window = {
+    location: { pathname: "/", origin: "http://localhost" },
+    innerWidth: 320,
+  };
   globalThis.document = document;
   globalThis.fetch = async () => ({ ok: false });
   const store = new Map();
@@ -253,6 +256,26 @@ async function main() {
   assert.deepEqual(visibleTitles(page), ["Alpha", "Beta"]);
   assert.equal(page.count.textContent, "2 of 2 recipes");
   assert.equal(page.clearFilters.hidden, true);
+
+  // A dropdown that would run past the right edge opens leftwards.
+  const mealMenu = page.meals.menu.querySelector(".filter-menu__menu");
+  page.meals.menu.open = true;
+  mealMenu.rect = { left: 200, width: 224 };
+  page.meals.menu.dispatchEvent({ type: "toggle" });
+  assert.equal(mealMenu.classList.contains("filter-menu__menu--right"), true);
+
+  // A menu with room to the right keeps the default left alignment.
+  mealMenu.rect = { left: 16, width: 224 };
+  page.meals.menu.dispatchEvent({ type: "toggle" });
+  assert.equal(mealMenu.classList.contains("filter-menu__menu--right"), false);
+
+  // Closing a menu drops the alignment class.
+  mealMenu.rect = { left: 200, width: 224 };
+  page.meals.menu.dispatchEvent({ type: "toggle" });
+  assert.equal(mealMenu.classList.contains("filter-menu__menu--right"), true);
+  page.meals.menu.open = false;
+  page.meals.menu.dispatchEvent({ type: "toggle" });
+  assert.equal(mealMenu.classList.contains("filter-menu__menu--right"), false);
 
   console.log("index filter menu checks passed");
 }

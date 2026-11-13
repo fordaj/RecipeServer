@@ -589,6 +589,7 @@ def test_review_filter_shares_filter_control_select_styling():
     # The review filter and the Advanced filters share one menu component.
     assert ".filter-menu {\n  position: relative;" in css
     assert ".filter-menu__menu {" in css
+    assert ".filter-menu__menu--right {\n  left: auto;\n  right: 0;\n}" in css
     assert ".filter-menu__option {" in css
     assert ".filter-menu__count {" in css
     assert "transform: translateY(-50%)" in css

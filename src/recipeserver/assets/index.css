@@ -231,6 +231,12 @@ a {
   box-shadow: var(--hover-shadow);
 }
 
+/* Menus near the right edge open leftwards so they stay on screen. */
+.filter-menu__menu--right {
+  left: auto;
+  right: 0;
+}
+
 .filter-menu__option {
   display: flex;
   align-items: center;

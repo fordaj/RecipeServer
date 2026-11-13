@@ -432,6 +432,22 @@ const initRecipeIndex = async () => {
     }
   };
 
+  // A dropdown in a right-hand grid column can otherwise extend past the
+  // viewport on narrow screens. Right-align it only when it would overflow.
+  const alignFilterMenu = (menu) => {
+    const fieldset = menu.querySelector(".filter-menu__menu");
+    if (!fieldset) return;
+    fieldset.classList.remove("filter-menu__menu--right");
+    if (!menu.open) return;
+
+    const rect = fieldset.getBoundingClientRect();
+    const viewportWidth =
+      window.innerWidth || document.documentElement?.clientWidth || rect.right + 16;
+    if (rect.right > viewportWidth - 8) {
+      fieldset.classList.add("filter-menu__menu--right");
+    }
+  };
+
   const sortVisibleRecipes = (visible, sortValue) => {
     const [sortKey, sortDirection] = sortValue.split(":");
     visible.sort((leftRecipe, rightRecipe) => {
@@ -531,9 +547,17 @@ const initRecipeIndex = async () => {
   );
 
   if (allFilterMenus.length) {
+    for (const menu of allFilterMenus) {
+      menu.addEventListener("toggle", () => alignFilterMenu(menu));
+    }
     document.addEventListener("click", (event) => {
       for (const menu of allFilterMenus) {
         if (menu.open && !menu.contains(event.target)) menu.open = false;
+      }
+    });
+    window.addEventListener?.("resize", () => {
+      for (const menu of allFilterMenus) {
+        if (menu.open) alignFilterMenu(menu);
       }
     });
   }
