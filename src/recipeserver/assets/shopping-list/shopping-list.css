@@ -106,6 +106,9 @@
 .shopping-list__combined {
   flex: 0 0 auto;
   min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
 }
 
 .shopping-list__combined-heading {
@@ -261,9 +264,17 @@
     padding: 0.5rem;
   }
 
+  .shopping-list__combined {
+    padding: 0.5rem;
+  }
+
   .shopping-list__image {
     width: 2.5rem;
     height: 2.5rem;
+  }
+
+  .shopping-list__sources {
+    display: none;
   }
 }
 
@@ -306,6 +317,12 @@
   .shopping-list__recipes,
   .shopping-list__footer {
     display: none !important;
+  }
+
+  .shopping-list__combined {
+    padding: 0;
+    border: none;
+    border-radius: 0;
   }
 
   .shopping-list__combined h3 {
