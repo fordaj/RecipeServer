@@ -1,0 +1,40 @@
+---
+title: Release Workflow
+---
+
+flowchart LR
+
+    MacOS:Checkout["Checkout"]
+    MacOS:Host["Host"]
+    subgraph MacOS
+        direction LR
+        MacOS:Checkout-->MacOS:Host
+    end
+
+    Windows:Checkout["Checkout"]
+    Windows:Host["Host"]
+    subgraph Windows
+        direction LR
+        Windows:Checkout-->Windows:Host
+    end
+    
+    OSJoin@{ shape: join }
+    MacOS---OSJoin
+    Windows---OSJoin
+
+    subgraph Embedded
+        direction LR
+        ESP32_S3
+        ESP32_S3_Emulated
+    end
+    
+    SourceCode["Source Code"]
+    CleanUp["Clean Up"]
+
+    OSJoin-->Embedded
+    OSJoin-->SourceCode
+
+    SourceCode---FirstAvailableJoin
+    Embedded---FirstAvailableJoin
+    FirstAvailableJoin@{ shape: join }
+    FirstAvailableJoin-->CleanUp

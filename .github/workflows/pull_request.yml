@@ -1,0 +1,67 @@
+name: Pull Request
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      working_directory:
+        required: true
+        type: string
+
+jobs:
+  Setup:
+    runs-on: ["self-hosted", "${{ inputs.os }}"]
+    outputs:
+      HOST_NAME: ${{ steps.set-host-name.outputs.HOST_NAME }}
+      RUNNER_NAME: ${{ steps.set-runner-name.outputs.RUNNER_NAME }}
+    steps:
+      - name: Set Host Name
+        id: set-host-name
+        shell: bash
+        run: |
+          echo "HOST_NAME=$(hostname)" >> $GITHUB_OUTPUT
+
+      - name: Set Runner Name
+        id: set-runner-name
+        shell: bash
+        run: |
+          echo "RUNNER_NAME=$RUNNER_NAME" >> $GITHUB_OUTPUT
+
+      - name: Checkout
+        uses: fordaj/Utilities/.github/actions/checkout@main
+        with:
+          working_directory: "${{ inputs.working_directory }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  Checks:
+    needs: ["Setup"]
+    runs-on:
+      [
+        "self-hosted",
+        "${{ inputs.os }}",
+        "${{ needs.Setup.outputs.HOST_NAME }}",
+        "${{ needs.Setup.outputs.RUNNER_NAME }}",
+      ]
+    steps:
+      - name: Checks
+        uses: fordaj/AirFrame/.github/actions/checks@main
+        with:
+          working_directory: "${{ inputs.working_directory }}"
+
+  Cleanup:
+    needs: ["Setup", "Checks"]
+    if: always()
+    runs-on:
+      [
+        "self-hosted",
+        "${{ inputs.os }}",
+        "${{ needs.Setup.outputs.HOST_NAME }}",
+        "${{ needs.Setup.outputs.RUNNER_NAME }}",
+      ]
+    steps:
+      - name: Cleanup
+        uses: fordaj/Utilities/.github/actions/cleanup@main
+        with:
+          working_directory: "${{ inputs.working_directory }}"

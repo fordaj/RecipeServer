@@ -1,0 +1,145 @@
+name: Release
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+      working_directory:
+        required: true
+        type: string
+    secrets:
+      token:
+        required: true
+
+env:
+  CI_RELEASE_TAG: ${{ github.event.release.tag_name }}
+  CI_REPO_NAME: ${{ github.event.repository.name }}
+
+jobs:
+  Setup:
+    runs-on: ["self-hosted", "${{ inputs.os }}"]
+    outputs:
+      HOST_NAME: ${{ steps.set-host-name.outputs.HOST_NAME }}
+      RUNNER_NAME: ${{ steps.set-runner-name.outputs.RUNNER_NAME }}
+    steps:
+      - name: Set Host Name
+        id: set-host-name
+        shell: bash
+        run: |
+          echo "HOST_NAME=$(hostname)" >> $GITHUB_OUTPUT
+
+      - name: Set Runner Name
+        id: set-runner-name
+        shell: bash
+        run: |
+          echo "RUNNER_NAME=$RUNNER_NAME" >> $GITHUB_OUTPUT
+
+      - name: Checkout
+        uses: fordaj/Utilities/.github/actions/checkout@main
+        with:
+          working_directory: "${{ inputs.working_directory }}"
+          token: ${{ secrets.token }}
+
+  Release:
+    needs: ["Setup"]
+    runs-on:
+      [
+        "self-hosted",
+        "${{ inputs.os }}",
+        "${{ needs.Setup.outputs.HOST_NAME }}",
+        "${{ needs.Setup.outputs.RUNNER_NAME }}",
+      ]
+    steps:
+      - name: Source Code
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.token }}
+        run: |
+          cd "${{ inputs.working_directory }}"
+          source Embedded/env.sh
+          bash $RELEASE_SOURCE_SH -l trace \
+              --host "github.com" \
+              --owner "fordaj" \
+              --repo "AirFrame" \
+              --tag "$CI_RELEASE_TAG"
+
+      - name: Build Host
+        shell: bash
+        run: |
+          cd "${{ inputs.working_directory }}"
+          source Embedded/env.sh
+          bash $BUILD_SH -l trace --mode "host"
+
+      - name: Host Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.token }}
+        run: |
+          cd "${{ inputs.working_directory }}"
+          source Embedded/env.sh
+          bash $RELEASE_SH -l trace \
+              --mode "host" \
+              --host "github.com" \
+              --owner "fordaj" \
+              --repo "AirFrame" \
+              --tag "$CI_RELEASE_TAG"
+
+      - name: Build ESP32-S3
+        shell: bash
+        run: |
+          cd "${{ inputs.working_directory }}"
+          source Embedded/env.sh
+          bash $BUILD_SH -l trace --mode "ESP32_S3"
+
+      - name: ESP32-S3 Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.token }}
+        run: |
+          cd "${{ inputs.working_directory }}"
+          source Embedded/env.sh
+          bash $RELEASE_SH -l trace \
+              --mode "ESP32_S3" \
+              --host "github.com" \
+              --owner "fordaj" \
+              --repo "AirFrame" \
+              --tag "$CI_RELEASE_TAG"
+
+      - name: Build ESP32-S3 Emulator
+        shell: bash
+        run: |
+          cd "${{ inputs.working_directory }}"
+          source Embedded/env.sh
+          bash $BUILD_SH -l trace --mode "ESP32_S3_EMULATED"
+
+      - name: ESP32-S3 Emulator Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.token }}
+        run: |
+          cd "${{ inputs.working_directory }}"
+          source Embedded/env.sh
+          bash $RELEASE_SH -l trace \
+              --mode "ESP32_S3_EMULATED" \
+              --host "github.com" \
+              --owner "fordaj" \
+              --repo "AirFrame" \
+              --tag "$CI_RELEASE_TAG"
+
+  Cleanup:
+    needs: ["Setup", "Release"]
+    if: always()
+    runs-on:
+      [
+        "self-hosted",
+        "${{ inputs.os }}",
+        "${{ needs.Setup.outputs.HOST_NAME }}",
+        "${{ needs.Setup.outputs.RUNNER_NAME }}",
+      ]
+    steps:
+      - name: Cleanup
+        uses: fordaj/Utilities/.github/actions/cleanup@main
+        with:
+          working_directory: "${{ inputs.working_directory }}"

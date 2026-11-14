@@ -1,0 +1,27 @@
+name: Checks
+description: Repository checks.
+
+inputs:
+  working_directory:
+    required: true
+    description: Working directory
+
+runs:
+  using: composite
+  steps:
+    - name: Format
+      uses: fordaj/Utilities/.github/actions/format@main
+      with:
+        working_directory: "${{ inputs.working_directory }}"
+
+    - name: Build
+      shell: bash
+      run: |
+        cd "${{ inputs.working_directory }}"
+        source Embedded/env.sh
+        ./$BUILD_SH -l trace --mode all
+
+    - name: Test
+      uses: fordaj/AirFrame/.github/actions/test@main
+      with:
+        working_directory: "${{ inputs.working_directory }}"

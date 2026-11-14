@@ -1,0 +1,20 @@
+name: Nightly Caller
+
+on:
+  schedule:
+    - cron: "0 14 * * *" # 10am EDT (UTC-4) DST: 14. 15 in winter
+  workflow_dispatch:
+
+jobs:
+  Nightly:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows, macos]
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}-${{ matrix.os }}
+      cancel-in-progress: true
+    uses: ./.github/workflows/nightly.yml
+    with:
+      os: ${{ matrix.os }}
+      working_directory: "$HOME/.runners/AirFrame/Nightly-${{ github.run_id }}"

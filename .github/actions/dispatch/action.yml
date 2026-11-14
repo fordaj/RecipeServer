@@ -1,0 +1,26 @@
+name: Dispatch
+description: Get runner and host labels
+
+outputs:
+  HOST_NAME:
+    description: Host name
+    value: ${{ steps.set-host-name.outputs.HOST_NAME }}
+
+  RUNNER_NAME:
+    description: Runner name
+    value: ${{ steps.set-runner-name.outputs.RUNNER_NAME }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set Host Name
+      id: set-host-name
+      shell: bash
+      run: |
+        echo "HOST_NAME=$(hostname)" >> $GITHUB_OUTPUT
+
+    - name: Set Runner Name
+      id: set-runner-name
+      shell: bash
+      run: |
+        echo "RUNNER_NAME=$RUNNER_NAME" >> $GITHUB_OUTPUT
