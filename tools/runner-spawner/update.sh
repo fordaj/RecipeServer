@@ -1,52 +1,52 @@
 #!/usr/bin/env bash
-# update.sh — refresh bundled formattington-lite binaries from fordaj/formattington releases.
+# update.sh — refresh bundled runner-spawner binaries from fordaj/runner-spawner releases.
 #
-# Downloads the LITE assets of the latest release via gh (the full assets,
-# which embed the upstream formatter binaries, are never downloaded),
-# extracts each into tools/formattington-lite/<tag>/<platform>/ (platform
-# matches the bundled <os>-<arch> layout: macos/linux/windows + x86_64/arm64;
-# formattington assets use x64/arm64, so x64 -> x86_64), and deletes old
-# version folders. The binary, NOTICE.md, and LICENSES/ are kept (the lite
-# archive ships attribution for redistributed code); upstream full-release
-# extras are not present in the lite archives. Old v*/ folders are deleted
-# only after the new version is fully staged, so a failed download leaves
-# the previous bundle intact.
+# Downloads the latest release's per-platform executables via gh and verifies
+# their SHA256 checksums against the release's checksums.txt, extracts each
+# binary into tools/runner-spawner/<tag>/<platform>/ (platform is the bundled
+# <os>-<arch> layout: macos/linux/windows + x86_64/arm64, so
+# darwin-amd64 -> macos-x86_64, etc.), and deletes old version folders.
+# Only the binary is kept; docs (README.md, *.example.json) are discarded.
+# Old v*/ folders are deleted only after the new version is fully staged, so
+# a failed download leaves the previous bundle intact.
+#
+# The runner-spawner checksums.txt is cumulative (it lists every asset of
+# every release), so verification filters it down to the assets downloaded
+# for this run; a downloaded asset with no checksum entry aborts the update.
 #
 # Usage:
-#   tools/formattington-lite/update.sh              # download latest, replace old versions
-#   tools/formattington-lite/update.sh --dry-run    # resolve tag + list assets, change nothing
-#   tools/formattington-lite/update.sh --help       # usage
+#   tools/runner-spawner/update.sh              # download latest, replace old versions
+#   tools/runner-spawner/update.sh --dry-run    # resolve tag + list assets, change nothing
+#   tools/runner-spawner/update.sh --help       # usage
 #
-# Prerequisites: gh (https://cli.github.com/), tar (for .tar.gz assets), and
-# unzip or 7z/7zz for the Windows .zip assets. Checksum verification runs
-# only if a checksums.txt asset exists (formattington releases do not
-# publish one today) and requires shasum or sha256sum. The script resolves
-# its own directory, so it can be run from anywhere. Logging uses
+# Prerequisites: gh (https://cli.github.com/), 7z/7zz (p7zip), and (for the
+# real update) shasum or sha256sum for checksum verification. The script
+# resolves its own directory, so it can be run from anywhere. Logging uses
 # log <level> <message> from scripts/env.sh (logamuffin, with printf
 # fallback until tools/logamuffin is populated).
 #
-# Asset -> platform mapping (lite assets only; -full assets are ignored):
-#   formattington-macos-arm64-lite.tar.gz  -> macos-arm64
-#   formattington-macos-x64-lite.tar.gz    -> macos-x86_64
-#   formattington-linux-arm64-lite.tar.gz  -> linux-arm64
-#   formattington-linux-x64-lite.tar.gz    -> linux-x86_64
-#   formattington-windows-arm64-lite.zip   -> windows-arm64
-#   formattington-windows-x64-lite.zip     -> windows-x86_64
+# Asset -> platform mapping:
+#   RunnerSpawner_v0.0.1.1.6_darwin-arm64.7z   -> macos-arm64
+#   RunnerSpawner_v0.0.1.1.6_darwin-amd64.7z   -> macos-x86_64
+#   RunnerSpawner_v0.0.1.1.6_linux-arm64.7z    -> linux-arm64
+#   RunnerSpawner_v0.0.1.1.6_linux-amd64.7z    -> linux-x86_64
+#   RunnerSpawner_v0.0.1.1.6_windows-arm64.7z  -> windows-arm64
+#   RunnerSpawner_v0.0.1.1.6_windows-amd64.7z  -> windows-x86_64
 #
-# Layout after a successful run (example for v0.0.1.0.51):
-#   tools/formattington-lite/
+# Layout after a successful run (example for v0.0.1.1.6):
+#   tools/runner-spawner/
 #     update.sh
-#     v0.0.1.0.51/
-#       macos-arm64/formattington (+ NOTICE.md, LICENSES/)
-#       macos-x86_64/formattington (+ NOTICE.md, LICENSES/)
-#       linux-arm64/formattington (+ NOTICE.md, LICENSES/)
-#       linux-x86_64/formattington (+ NOTICE.md, LICENSES/)
-#       windows-arm64/formattington.exe (+ NOTICE.md, LICENSES/)
-#       windows-x86_64/formattington.exe (+ NOTICE.md, LICENSES/)
+#     v0.0.1.1.6/
+#       macos-arm64/runner-spawner
+#       macos-x86_64/runner-spawner
+#       linux-arm64/runner-spawner
+#       linux-x86_64/runner-spawner
+#       windows-arm64/runner-spawner.exe
+#       windows-x86_64/runner-spawner.exe
 #
 # Env:
-#   FORMATTINGTON_REPO  Repository slug (default: fordaj/formattington)
-#   FORMATTINGTON_TAG   Pinned tag (default: latest release)
+#   RUNNER_SPAWNER_REPO  Repository slug (default: fordaj/runner-spawner)
+#   RUNNER_SPAWNER_TAG   Pinned tag (default: latest release)
 
 set -euo pipefail
 
@@ -63,29 +63,27 @@ fi
 . "$REPO_ROOT_FOR_ENV/scripts/env.sh"
 
 DRY_RUN=0
-TAG="${FORMATTINGTON_TAG:-}"
-REPO="${FORMATTINGTON_REPO:-fordaj/formattington}"
+TAG="${RUNNER_SPAWNER_TAG:-}"
+REPO="${RUNNER_SPAWNER_REPO:-fordaj/runner-spawner}"
 
 usage() {
     cat <<'EOF'
-Usage: tools/formattington-lite/update.sh [--dry-run] [--tag TAG] [--repo REPO]
+Usage: tools/runner-spawner/update.sh [--dry-run] [--tag TAG] [--repo REPO]
 
-Download the latest formattington release's LITE assets from GitHub via
-gh, extract each platform binary into tools/formattington-lite/<tag>/<platform>/
-(platform matches the bundled <os>-<arch> layout, e.g. macos-arm64; the
-assets' x64 is mapped to x86_64), and delete old version folders. The
-binary, NOTICE.md, and LICENSES/ are kept; -full assets are never
-downloaded.
+Download the latest runner-spawner release from GitHub via gh, extract each
+platform binary into tools/runner-spawner/<tag>/<platform>/ (platform is the
+bundled <os>-<arch> layout, e.g. darwin-amd64 -> macos-x86_64), and delete old
+version folders. Only the binary is kept.
 
 Flags:
   --dry-run, -n   Resolve tag + list planned assets, change nothing.
   --tag TAG       Pin a specific release tag (default: latest release).
-  --repo REPO     Repository slug (default: fordaj/formattington).
+  --repo REPO     Repository slug (default: fordaj/runner-spawner).
   --help, -h      Show this help.
 
 Env:
-  FORMATTINGTON_REPO  Repository slug (overridden by --repo).
-  FORMATTINGTON_TAG   Pinned tag (overridden by --tag).
+  RUNNER_SPAWNER_REPO  Repository slug (overridden by --repo).
+  RUNNER_SPAWNER_TAG   Pinned tag (overridden by --tag).
 EOF
 }
 
@@ -149,22 +147,18 @@ need_cmd() {
 need_cmd gh
 
 if [[ "$DRY_RUN" -ne 1 ]]; then
-    need_cmd tar
-    # Windows lite assets are .zip; macOS/Linux lite assets are .tar.gz.
-    if command -v unzip >/dev/null 2>&1; then
-        ZIP_EXTRACT=(unzip -q)
-    elif command -v 7zz >/dev/null 2>&1; then
-        ZIP_EXTRACT=(7zz x -y)
+    if command -v 7zz >/dev/null 2>&1; then
+        SEVENZIP=7zz
     elif command -v 7z >/dev/null 2>&1; then
-        ZIP_EXTRACT=(7z x -y)
+        SEVENZIP=7z
     else
-        die "required command not found: unzip or 7z/7zz (needed for the Windows .zip assets; brew install unzip / apt-get install unzip)"
+        die "required command not found: 7z/7zz (brew install p7zip / apt-get install p7zip-full)"
     fi
 fi
 
-FORMATTINGTON_ROOT="$SCRIPT_DIR"
-[[ -d "$FORMATTINGTON_ROOT" ]] || die "formattington-lite bundle directory not found: $FORMATTINGTON_ROOT"
-log INFO "formattington-lite bundle directory: $FORMATTINGTON_ROOT"
+RUNNER_SPAWNER_ROOT="$SCRIPT_DIR"
+[[ -d "$RUNNER_SPAWNER_ROOT" ]] || die "runner-spawner bundle directory not found: $RUNNER_SPAWNER_ROOT"
+log INFO "runner-spawner bundle directory: $RUNNER_SPAWNER_ROOT"
 log INFO "repository: $REPO"
 
 if [[ -z "$TAG" ]]; then
@@ -178,33 +172,21 @@ fi
 log INFO "release tag: $TAG"
 
 # parse_stem_to_platform <stem> sets PLATFORM (e.g.
-# formattington-macos-x64-lite -> macos-x86_64) or returns 1 for
-# unknown values. Sets globals to avoid subshell-die pitfalls. The
-# assets use x64/arm64 after the os, and the bundled layout uses
-# x86_64/arm64, so x64 is mapped to x86_64 here. The arch may itself
-# contain "_" (x86_64), so the suffix is matched as a whole instead of
-# splitting on the last "_".
+# RunnerSpawner_v0.0.1.1.6_darwin-arm64 -> macos-arm64) or returns 1 for
+# unknown values. Sets globals to avoid subshell-die pitfalls. Asset
+# names append _<os>-<arch> after the tag, and arch may itself contain
+# "_" (x86_64), so the suffix is matched as a whole instead of splitting
+# on the last "_" (which would yield "x86_64" alone).
 parse_stem_to_platform() {
     local stem="$1"
     case "$stem" in
-    formattington-macos-x86_64-lite | formattington-macos-x64-lite | formattington-darwin-amd64-lite) PLATFORM="macos-x86_64" ;;
-    formattington-macos-arm64-lite | formattington-darwin-arm64-lite) PLATFORM="macos-arm64" ;;
-    formattington-linux-x86_64-lite | formattington-linux-x64-lite | formattington-linux-amd64-lite) PLATFORM="linux-x86_64" ;;
-    formattington-linux-arm64-lite) PLATFORM="linux-arm64" ;;
-    formattington-windows-x86_64-lite | formattington-windows-x64-lite | formattington-windows-amd64-lite) PLATFORM="windows-x86_64" ;;
-    formattington-windows-arm64-lite) PLATFORM="windows-arm64" ;;
+    *_macos-x86_64 | *_darwin-amd64) PLATFORM="macos-x86_64" ;;
+    *_macos-arm64 | *_darwin-arm64) PLATFORM="macos-arm64" ;;
+    *_linux-x86_64 | *_linux-amd64) PLATFORM="linux-x86_64" ;;
+    *_linux-arm64) PLATFORM="linux-arm64" ;;
+    *_windows-x86_64 | *_windows-amd64) PLATFORM="windows-x86_64" ;;
+    *_windows-arm64) PLATFORM="windows-arm64" ;;
     *) return 1 ;;
-    esac
-}
-
-# asset_kind <filename> prints "lite-archive", "full-archive",
-# "checksums", or "ignored". Only lite archives are ever downloaded.
-asset_kind() {
-    case "$1" in
-    *-lite.tar.gz | *-lite.zip) printf 'lite-archive\n' ;;
-    *-full.tar.gz | *-full.zip) printf 'full-archive\n' ;;
-    checksums.txt) printf 'checksums\n' ;;
-    *) printf 'ignored\n' ;;
     esac
 }
 
@@ -217,22 +199,17 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     asset_count=0
     while IFS= read -r asset; do
         [[ -n "$asset" ]] || continue
-        kind="$(asset_kind "$asset")"
-        case "$kind" in
-        lite-archive)
+        case "$asset" in
+        *.7z)
             asset_count=$((asset_count + 1))
-            stem="${asset%.tar.gz}"
-            stem="${stem%.zip}"
+            stem="${asset%.7z}"
             if parse_stem_to_platform "$stem"; then
                 log INFO "  $asset -> $TAG/$PLATFORM"
             else
                 log INFO "  $asset -> unknown platform (would fail)"
             fi
             ;;
-        full-archive)
-            log INFO "  $asset (ignored: full release)"
-            ;;
-        checksums)
+        checksums.txt)
             log INFO "  $asset (checksums)"
             ;;
         *)
@@ -240,10 +217,10 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
             ;;
         esac
     done <<<"$assets_list"
-    ((asset_count > 0)) || die "no lite assets found for $TAG in $REPO"
+    ((asset_count > 0)) || die "no .7z assets found for $TAG in $REPO"
     shopt -s nullglob
     old_found=0
-    for dir in "$FORMATTINGTON_ROOT"/v*/; do
+    for dir in "$RUNNER_SPAWNER_ROOT"/v*/; do
         [[ -d "$dir" ]] || continue
         dir_name="$(basename "$dir")"
         if [[ "$dir_name" != "$TAG" ]]; then
@@ -254,7 +231,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     if [[ "$old_found" -eq 0 ]]; then
         log INFO "no old version folders to remove"
     fi
-    log INFO "dry run complete: would update $FORMATTINGTON_ROOT/$TAG"
+    log INFO "dry run complete: would update $RUNNER_SPAWNER_ROOT/$TAG"
     exit 0
 fi
 
@@ -272,36 +249,46 @@ cleanup() {
 trap cleanup EXIT
 
 TMP_DIR="$(mktemp -d)"
-STAGE_DIR="$(mktemp -d "$FORMATTINGTON_ROOT/.tmp.XXXXXX")"
+STAGE_DIR="$(mktemp -d "$RUNNER_SPAWNER_ROOT/.tmp.XXXXXX")"
 
-log INFO "downloading $TAG lite assets from $REPO..."
-gh release download "$TAG" --repo "$REPO" --dir "$TMP_DIR" --pattern '*-lite.tar.gz' --pattern '*-lite.zip' --pattern 'checksums.txt' --clobber
+log INFO "downloading $TAG assets from $REPO..."
+gh release download "$TAG" --repo "$REPO" --dir "$TMP_DIR" --pattern '*.7z' --pattern 'checksums.txt' --clobber
 
 shopt -s nullglob
-archives=("$TMP_DIR"/*-lite.tar.gz "$TMP_DIR"/*-lite.zip)
-((${#archives[@]} > 0)) || die "no lite assets downloaded from $REPO $TAG"
-log INFO "downloaded ${#archives[@]} lite archives"
+archives=("$TMP_DIR"/*.7z)
+((${#archives[@]} > 0)) || die "no .7z assets downloaded from $REPO $TAG"
+log INFO "downloaded ${#archives[@]} .7z archives"
 
 if [[ -f "$TMP_DIR/checksums.txt" ]]; then
     log INFO "verifying checksums..."
+    # runner-spawner publishes a cumulative checksums.txt (every asset of
+    # every release), so verify only the lines for the assets downloaded
+    # here; fail if any downloaded asset has no checksum entry.
+    FILTERED_CHECKSUMS="$TMP_DIR/checksums.filtered.txt"
+    : >"$FILTERED_CHECKSUMS"
+    for archive in "${archives[@]}"; do
+        base="$(basename "$archive")"
+        line="$(awk -v f="$base" '$2 == f { print; exit }' "$TMP_DIR/checksums.txt")"
+        [[ -n "$line" ]] || die "no checksum entry for $base in checksums.txt"
+        printf '%s\n' "$line" >>"$FILTERED_CHECKSUMS"
+    done
     if command -v shasum >/dev/null 2>&1; then
-        (cd "$TMP_DIR" && shasum -a 256 -c checksums.txt) || die "checksum verification failed for $TAG"
+        (cd "$TMP_DIR" && shasum -a 256 -c "$FILTERED_CHECKSUMS") || die "checksum verification failed for $TAG"
     elif command -v sha256sum >/dev/null 2>&1; then
-        (cd "$TMP_DIR" && sha256sum -c checksums.txt) || die "checksum verification failed for $TAG"
+        (cd "$TMP_DIR" && sha256sum -c "$FILTERED_CHECKSUMS") || die "checksum verification failed for $TAG"
     else
         die "checksums.txt present but neither shasum nor sha256sum found"
     fi
     log INFO "checksums verified"
 else
-    log INFO "release publishes no checksums.txt; skipping verification"
+    die "no checksums.txt in $TAG release; refusing to install unverified binaries"
 fi
 
 for archive in "${archives[@]}"; do
     base="$(basename "$archive")"
-    stem="${base%.tar.gz}"
-    stem="${stem%.zip}"
+    stem="${base%.7z}"
     if ! parse_stem_to_platform "$stem"; then
-        die "unknown platform in asset '$base' (expected formattington-<os>-<arch>-lite such as macos-arm64)"
+        die "unknown platform in asset '$base' (expected <os>-<arch> such as darwin-arm64)"
     fi
     if [[ -e "$STAGE_DIR/$PLATFORM" ]]; then
         die "duplicate asset for platform $PLATFORM (from $base)"
@@ -309,52 +296,31 @@ for archive in "${archives[@]}"; do
     log INFO "extracting $base -> $TAG/$PLATFORM"
     extract_dir="$TMP_DIR/extract-$PLATFORM"
     mkdir -p "$extract_dir"
-    case "$base" in
-    *.tar.gz)
-        tar -xzf "$archive" -C "$extract_dir"
-        ;;
-    *.zip)
-        case "${ZIP_EXTRACT[0]}" in
-        unzip) "${ZIP_EXTRACT[@]}" "$archive" -d "$extract_dir" ;;
-        *) "${ZIP_EXTRACT[@]}" "$archive" -o"$extract_dir" >/dev/null ;;
-        esac
-        ;;
-    esac
-    # The lite archives nest a top-level <asset-stem>/ directory holding
-    # the binary, NOTICE.md, and LICENSES/. Accept a root-level binary too,
-    # in case the layout ever flattens.
+    "$SEVENZIP" x -y "$archive" -o"$extract_dir" >/dev/null
     bin_src=""
-    for cand in "$extract_dir"/*/formattington "$extract_dir"/*/formattington.exe "$extract_dir"/formattington "$extract_dir"/formattington.exe; do
+    for cand in "$extract_dir/runner-spawner" "$extract_dir/runner-spawner.exe"; do
         if [[ -f "$cand" ]]; then
             bin_src="$cand"
         fi
     done
-    [[ -n "$bin_src" ]] || die "no formattington binary in $base (expected formattington or formattington.exe in the archive)"
-    inner_dir="$(dirname "$bin_src")"
+    [[ -n "$bin_src" ]] || die "no runner-spawner binary in $base (expected runner-spawner or runner-spawner.exe at archive root)"
     bin_name="$(basename "$bin_src")"
     target_dir="$STAGE_DIR/$PLATFORM"
     mkdir -p "$target_dir"
     cp -p "$bin_src" "$target_dir/$bin_name"
     chmod +x "$target_dir/$bin_name"
-    # Keep the attribution files that ship in the lite archive.
-    if [[ -f "$inner_dir/NOTICE.md" ]]; then
-        cp -p "$inner_dir/NOTICE.md" "$target_dir/NOTICE.md"
-    fi
-    if [[ -d "$inner_dir/LICENSES" ]]; then
-        cp -pR "$inner_dir/LICENSES" "$target_dir/LICENSES"
-    fi
     [[ -s "$target_dir/$bin_name" ]] || die "installed binary is empty: $target_dir/$bin_name"
     log INFO "installed $PLATFORM/$bin_name (from $base)"
     rm -rf -- "$extract_dir"
 done
 
-TAG_DIR="$FORMATTINGTON_ROOT/$TAG"
+TAG_DIR="$RUNNER_SPAWNER_ROOT/$TAG"
 rm -rf -- "$TAG_DIR"
-mkdir -p "$FORMATTINGTON_ROOT"
+mkdir -p "$RUNNER_SPAWNER_ROOT"
 mv "$STAGE_DIR" "$TAG_DIR"
 STAGE_DIR=""
 
-for dir in "$FORMATTINGTON_ROOT"/v*/; do
+for dir in "$RUNNER_SPAWNER_ROOT"/v*/; do
     [[ -d "$dir" ]] || continue
     dir_name="$(basename "$dir")"
     if [[ "$dir_name" != "$TAG" ]]; then
@@ -379,7 +345,7 @@ arm64 | aarch64) host_arch="arm64" ;;
 esac
 host_platform="$host_os-$host_arch"
 host_bin=""
-for cand in "$TAG_DIR/$host_platform/formattington" "$TAG_DIR/$host_platform/formattington.exe"; do
+for cand in "$TAG_DIR/$host_platform/runner-spawner" "$TAG_DIR/$host_platform/runner-spawner.exe"; do
     if [[ -x "$cand" ]]; then
         host_bin="$cand"
     fi
