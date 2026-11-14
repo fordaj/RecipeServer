@@ -209,10 +209,8 @@ meals:
     assert comments is not None and "is-empty" in comments["class"]
 
     assets = Path(__file__).parents[1] / "src" / "recipeserver" / "assets"
-    assert ".recipe-ratings.is-empty .recipe-ratings__heading" in (assets / "ratings.css").read_text(encoding="utf-8")
-    assert ".recipe-comments.is-empty .recipe-comments__heading" in (assets / "comments.css").read_text(encoding="utf-8")
-    assert 'root.classList.toggle("is-empty", ratings.length === 0)' in (assets / "ratings.js").read_text(encoding="utf-8")
-    assert 'root.classList.toggle("is-empty", comments.length === 0)' in (assets / "comments.js").read_text(encoding="utf-8")
+    # The empty-state toggle lives in the shared feedback list skeleton.
+    assert 'root.classList.toggle("is-empty", items.length === 0)' in (assets / "recipe-feedback.js").read_text(encoding="utf-8")
 
 
 def test_conversion_does_not_mark_populated_sections_empty(tmp_path: Path):

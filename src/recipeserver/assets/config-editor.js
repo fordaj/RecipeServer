@@ -62,7 +62,7 @@ function buildFields(fields, values) {
       label.append(element("span", "config-editor__required", "required"));
     }
 
-    const input = element("input");
+    const input = element("input", "field-input");
     input.id = inputId;
     input.name = field.key;
     input.spellcheck = false;
@@ -196,20 +196,8 @@ function createEditorDialog() {
   dialog.addEventListener("cancel", (event) => {
     if (state.busy) event.preventDefault();
   });
-  // BEGIN Close dialogue if a full click cycle occurs outside of dialogue
-  let pointerDownTarget = null;
-
-  dialog.addEventListener("pointerdown", (event) => {
-    pointerDownTarget = event.target;
-  });
-
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog && pointerDownTarget === dialog) {
-      closeEditor();
-    }
-    pointerDownTarget = null;
-  });
-  // END Close dialogue if a full click cycle occurs outside of dialogue
+  // Click outside the dialog (a full press on the backdrop) closes it.
+  window.RecipeDialogs.installClickOutsideClose(dialog, closeEditor);
 }
 
 function initialize() {

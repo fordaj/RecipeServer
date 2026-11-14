@@ -1,9 +1,42 @@
+/* ---------- Recipe feedback: comments and ratings ---------- */
+/* Comments and ratings share one structure and one accent (--food-color).
+   The two features differ in class names and in the inputs inside their
+   forms, so the common rules group the matching selectors. */
+
+.recipe-comments,
 .recipe-ratings {
   max-width: var(--text-width);
-  margin: 0 auto;
+  margin: 0 auto 0;
   padding-top: 1.5rem;
 }
 
+.recipe-comment,
+.recipe-rating,
+.recipe-comment-form,
+.recipe-rating-form {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.recipe-comment-form,
+.recipe-rating-form {
+  margin-top: 1.25rem;
+}
+
+.recipe-comment-form[hidden],
+.recipe-rating-form[hidden] {
+  display: none;
+}
+
+.recipe-comment + .recipe-comment,
+.recipe-rating + .recipe-rating {
+  margin-top: 1.75rem;
+}
+
+/* Feedback headings and add buttons */
+
+.recipe-comments__heading,
 .recipe-ratings__heading {
   display: flex;
   align-items: center;
@@ -11,10 +44,7 @@
   gap: 1rem;
 }
 
-.recipe-ratings.is-empty .recipe-ratings__heading {
-  border-bottom: none;
-}
-
+.recipe-comments__add,
 .recipe-ratings__add {
   display: inline-grid;
   place-items: center;
@@ -28,33 +58,19 @@
   line-height: 0;
 }
 
+.recipe-comments__add:hover,
 .recipe-ratings__add:hover {
   background: color-mix(in srgb, var(--food-color) 10%, transparent);
 }
 
+.recipe-comments__add:focus-visible,
 .recipe-ratings__add:focus-visible {
   outline: 2px solid var(--food-color);
 }
 
-.recipe-rating,
-.recipe-rating-form {
-  display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-}
+/* Avatars */
 
-.recipe-rating + .recipe-rating {
-  margin-top: 1.75rem;
-}
-
-.recipe-rating-form {
-  margin-top: 1.25rem;
-}
-
-.recipe-rating-form[hidden] {
-  display: none;
-}
-
+.recipe-comment__avatar,
 .recipe-rating__avatar {
   display: grid;
   place-items: center;
@@ -68,21 +84,28 @@
   font-weight: 700;
 }
 
+.recipe-comment-form__avatar,
 .recipe-rating-form__avatar {
   flex-shrink: 0;
   color: var(--food-color);
 }
 
+.recipe-comment-form__avatar svg,
 .recipe-rating-form__avatar svg {
   width: 1.25rem;
   height: 1.25rem;
 }
 
-.recipe-rating__content {
+/* Entry content */
+
+.recipe-comment__content,
+.recipe-rating__content,
+.recipe-rating-form__content {
   flex: 1;
   min-width: 0;
 }
 
+.recipe-comment__meta,
 .recipe-rating__meta {
   display: flex;
   flex-wrap: wrap;
@@ -91,15 +114,33 @@
   margin-bottom: 0.5rem;
 }
 
+.recipe-comment__author,
 .recipe-rating__author {
   font-size: 0.9rem;
   font-weight: 700;
 }
 
+.recipe-comment__date,
 .recipe-rating__date {
   color: var(--text-muted);
   font-size: 0.8rem;
 }
+
+.recipe-comment__text {
+  margin: 0;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.recipe-rating-form__meta {
+  margin-bottom: 0.5rem;
+}
+
+.recipe-rating-form__meter {
+  justify-content: flex-start;
+}
+
+/* Star meter and slider (ratings-specific) */
 
 .recipe-rating__meter {
   display: flex;
@@ -149,23 +190,35 @@
   font-size: 0.85rem;
 }
 
+/* Action buttons (reveal on hover/focus for precise input) */
+
+.recipe-comment__actions,
 .recipe-rating__actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.75rem;
-  margin-left: auto;
   opacity: 0;
   visibility: hidden;
   transition: opacity 150ms ease;
 }
 
+.recipe-comment__actions {
+  margin-top: 0.5rem;
+}
+
+.recipe-rating__actions {
+  margin-left: auto;
+}
+
+.recipe-comment:hover .recipe-comment__actions,
+.recipe-comment:focus-within .recipe-comment__actions,
 .recipe-rating:hover .recipe-rating__actions,
-.recipe-rating:focus-within .recipe-rating__actions,
-.recipe-rating--actions-visible .recipe-rating__actions {
+.recipe-rating:focus-within .recipe-rating__actions {
   opacity: 1;
   visibility: visible;
 }
 
+.recipe-comment__actions button,
 .recipe-rating__actions button {
   padding: 0.25rem 0;
   border: 0;
@@ -176,34 +229,94 @@
   cursor: pointer;
 }
 
+.recipe-comment__actions button:hover,
 .recipe-rating__actions button:hover {
   text-decoration: underline;
 }
 
+.recipe-comment__actions button:disabled,
 .recipe-rating__actions button:disabled {
   opacity: 0.5;
   cursor: wait;
 }
 
+/* Touch devices don't have reliable hover, so actions stay visible. */
+@media (hover: none) {
+  .recipe-comment__actions,
+  .recipe-rating__actions {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+.recipe-comment-form__actions,
 .recipe-rating-form__actions {
   justify-content: flex-start;
-  margin-left: 0;
-  margin-top: 0.5rem;
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
 }
 
+.recipe-rating-form__actions {
+  margin-left: 0;
+  margin-top: 0.5rem;
+}
+
+.recipe-comment-form__actions #save-comment,
 .recipe-rating-form__actions #save-rating {
   font-weight: 700;
 }
 
+/* Edit forms */
+
+.recipe-comment__edit,
 .recipe-rating__edit {
   display: grid;
   gap: 0.5rem;
   width: 100%;
 }
 
+.recipe-comment__edit input,
+.recipe-comment__edit textarea,
+.recipe-rating__edit input[type="text"],
+.recipe-rating-form__meter input[type="text"] {
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 0.25rem;
+  background: var(--input-bg);
+  color: inherit;
+  font: inherit;
+  /* 16 pixels is the smallest a field may be, or iOS zooms the page in. */
+  font-size: 1rem;
+}
+
+.recipe-rating__edit input[type="text"],
+.recipe-rating-form__meter input[type="text"] {
+  width: 5rem;
+  padding: 0.3rem 0.4rem;
+  text-align: center;
+}
+
+.recipe-comment__edit input,
+.recipe-comment__edit textarea {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+}
+
+.recipe-comment__edit textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.recipe-rating__edit input[type="text"]:focus,
+.recipe-rating-form__meter input[type="text"]:focus {
+  border-color: var(--food-color);
+  outline: 1px solid var(--food-color);
+}
+
+/* Underline text fields (comment add form, name fields, comment textarea) */
+
+.recipe-comment__author-input,
 .recipe-rating__author-input {
   box-sizing: border-box;
   width: min(100%, 16rem);
@@ -219,70 +332,43 @@
   font-weight: 700;
 }
 
+.recipe-comment__author-input:focus,
 .recipe-rating__author-input:focus {
   border-bottom-color: var(--food-color);
   outline: none;
 }
 
-.recipe-rating-form__content {
-  flex: 1;
-  min-width: 0;
-}
-
-.recipe-rating-form__meta {
-  margin-bottom: 0.5rem;
-}
-
-.recipe-rating-form__meta input {
+.recipe-comment__text-input {
+  display: block;
   box-sizing: border-box;
-  width: min(100%, 16rem);
-  padding: 0;
+  width: 100%;
+  min-height: 5rem;
+  padding: 0.5rem 0;
   border: 0;
   border-bottom: 1px solid var(--border-color);
   border-radius: 0;
   background: transparent;
   color: inherit;
   font: inherit;
-  /* 16 pixels is the smallest a field may be, or iOS zooms the page in. */
-  font-size: 1rem;
-  font-weight: 700;
+  line-height: 1.7;
+  resize: vertical;
 }
 
-.recipe-rating-form__meta input:focus {
+.recipe-comment__text-input:focus {
   border-bottom-color: var(--food-color);
   outline: none;
 }
 
-.recipe-rating-form__meta input::placeholder {
+.recipe-comment__text-input::placeholder,
+.recipe-comment__author-input::placeholder,
+.recipe-rating__author-input::placeholder {
   color: var(--text-muted);
   font-weight: 400;
 }
 
-.recipe-rating-form__meter {
-  justify-content: flex-start;
-}
+/* Status lines */
 
-.recipe-rating__edit input[type="text"],
-.recipe-rating-form__meter input[type="text"] {
-  box-sizing: border-box;
-  width: 5rem;
-  padding: 0.3rem 0.4rem;
-  border: 1px solid var(--border-color);
-  border-radius: 0.25rem;
-  background: var(--input-background);
-  color: inherit;
-  font: inherit;
-  /* 16 pixels is the smallest a field may be, or iOS zooms the page in. */
-  font-size: 1rem;
-  text-align: center;
-}
-
-.recipe-rating__edit input[type="text"]:focus,
-.recipe-rating-form__meter input[type="text"]:focus {
-  border-color: var(--food-color);
-  outline: 1px solid var(--food-color);
-}
-
+#comment-status,
 .recipe-rating__status,
 #rating-status {
   margin: 0.5rem 0 0;
@@ -290,19 +376,14 @@
   font-size: 0.85rem;
 }
 
-@media (hover: none) {
-  .recipe-rating__actions {
-    opacity: 1;
-    visibility: visible;
-  }
-}
-
 @media (max-width: 480px) {
-  .recipe-rating,
-  .recipe-rating-form {
+  .recipe-comment-form,
+  .recipe-rating-form,
+  .recipe-rating {
     gap: 0.75rem;
   }
 
+  .recipe-comment-form__avatar,
   .recipe-rating__avatar,
   .recipe-rating-form__avatar {
     flex-basis: 2rem;

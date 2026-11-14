@@ -1,38 +1,11 @@
 /* ---------- Recipe editor dialog ---------- */
-
-.recipe-editor-dialog {
-  width: min(900px, calc(100% - 2rem));
-  height: min(85dvh, 800px);
-  max-width: none;
-  max-height: none;
-  padding: 0;
-  box-sizing: border-box;
-
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--card-bg);
-  color: var(--text-color);
-
-  overflow: hidden;
-}
-
-.recipe-editor-dialog::backdrop {
-  background: var(--dialog-backdrop);
-}
+/* The dialog shell (box, backdrop, rows, close button, pinned footer, filled
+   and danger buttons, "I made this!" celebration, field inputs) lives in
+   dialog-shell.css, shared with the shopping-list and configuration dialogs. */
 
 /* ---------- Editor layout ---------- */
 
 .recipe-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  min-height: 0;
-  box-sizing: border-box;
-
   /* No bottom padding: scrolled content would otherwise be visible in the
      padding strip below the sticky footer. The footer carries its own
      opaque bottom padding instead. */
@@ -40,30 +13,9 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* ---------- Header and footer ---------- */
-
-.recipe-editor__header,
-.recipe-editor__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex: 0 0 auto;
-}
-
-.recipe-editor__header {
-  position: relative;
-}
-
-.recipe-editor__header h2 {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0;
-  font-size: 1.25rem;
-}
 
 .recipe-editor__makes-count {
   display: inline-flex;
@@ -73,10 +25,6 @@
   color: var(--text-color);
   font-size: 0.95rem;
   white-space: nowrap;
-}
-
-.recipe-editor__makes-count[hidden] {
-  display: none;
 }
 
 .recipe-editor__makes-icon {
@@ -98,8 +46,6 @@
   padding: 0.65rem 1rem;
   border: 1px solid var(--food-color);
   border-radius: 6px;
-  background: var(--food-color);
-  color: var(--page-bg);
   font: inherit;
   font-size: 0.9rem;
   line-height: 1.4;
@@ -110,12 +56,6 @@
   white-space: nowrap;
 }
 
-.recipe-editor__made-this:hover:not(:disabled) {
-  border-color: var(--food-color-hover);
-  background: var(--food-color-hover);
-  color: var(--page-bg);
-}
-
 .recipe-editor__made-this:focus-visible {
   outline: 2px solid var(--food-color);
   outline-offset: 2px;
@@ -124,83 +64,6 @@
 .recipe-editor__made-this:disabled {
   opacity: 0.6;
   cursor: wait;
-}
-
-.recipe-editor__made-this[hidden] {
-  display: none;
-}
-
-.recipe-editor__made-this.is-celebrating {
-  animation: recipe-editor-made-this-pop 500ms ease;
-}
-
-.recipe-editor__sparkle {
-  position: absolute;
-  top: 0.25rem;
-  right: 3.5rem;
-  z-index: 1;
-  pointer-events: none;
-  font-size: 1rem;
-  animation: recipe-editor-sparkle 900ms ease-out var(--sparkle-delay, 0ms) forwards;
-}
-
-@keyframes recipe-editor-made-this-pop {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.12) rotate(-2deg);
-  }
-  70% {
-    transform: scale(0.97) rotate(1deg);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-@keyframes recipe-editor-sparkle {
-  0% {
-    opacity: 0;
-    transform: translate(0, 0) scale(0.4) rotate(0deg);
-  }
-  25% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(var(--sparkle-x, 0), -1.75rem) scale(1.15) rotate(25deg);
-  }
-}
-
-.recipe-editor__close {
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 4px;
-  padding: 0.2rem 0.5rem;
-  background: transparent;
-  color: var(--text-color);
-  font-size: 1.75rem;
-  cursor: pointer;
-}
-
-.recipe-editor__close:hover {
-  background: var(--hover-bg);
-}
-
-.recipe-editor__close:focus-visible,
-.recipe-editor__footer button:focus-visible {
-  outline: 2px solid var(--food-color);
-}
-
-/* ---------- Status ---------- */
-
-.recipe-editor__status {
-  flex: 0 0 auto;
-  min-height: 1.25rem;
-  margin: 0;
-  font-size: 0.9rem;
-  overflow-wrap: anywhere;
 }
 
 /* ---------- Collapsible recipe details ---------- */
@@ -236,10 +99,6 @@
   transform: rotate(90deg);
 }
 
-.recipe-editor__details > summary:focus-visible {
-  outline: 2px solid var(--food-color);
-}
-
 /* ---------- Details section panels ---------- */
 
 .recipe-editor__section,
@@ -273,10 +132,6 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
-.recipe-editor__ai-details[hidden] {
-  display: none;
-}
-
 .recipe-editor__location {
   display: grid;
   grid-template-columns: 1fr;
@@ -287,42 +142,10 @@
   border-radius: 8px;
 }
 
-.recipe-editor__location[hidden] {
-  display: none;
-}
-
-.recipe-editor__location label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  min-width: 0;
-  font-size: 0.875rem;
-  font-weight: 500;
-}
-
-.recipe-editor__location select,
-.recipe-editor__location input {
-  width: 100%;
-  min-width: 0;
-  height: 2.5rem;
-  box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--input-bg);
-  color: var(--text-color);
-  font: inherit;
-  font-size: 1rem;
-}
-
 .recipe-editor__location select:focus-visible,
 .recipe-editor__location input:focus-visible {
   outline: 2px solid var(--food-color);
   border-color: var(--food-color);
-}
-
-.recipe-editor__location label[hidden] {
-  display: none;
 }
 
 /*
@@ -388,10 +211,6 @@
 .recipe-editor__existing-images {
   display: grid;
   gap: 0.35rem;
-}
-
-.recipe-editor__existing-images[hidden] {
-  display: none;
 }
 
 .recipe-editor__existing-images > span {
@@ -537,16 +356,6 @@
   background: var(--hover-bg);
 }
 
-.recipe-editor__image-upload:hover:not(:disabled) {
-  border-color: var(--food-color-hover);
-  background: var(--food-color-hover);
-}
-
-.recipe-editor__image-rename:focus-visible,
-.recipe-editor__image-upload:focus-visible {
-  outline: 2px solid var(--food-color);
-}
-
 .recipe-editor__image-rename:disabled,
 .recipe-editor__image-upload:disabled {
   cursor: default;
@@ -559,8 +368,6 @@
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--food-color);
   border-radius: 6px;
-  background: var(--food-color);
-  color: var(--page-bg);
   font: inherit;
   font-size: 0.9rem;
   line-height: 1.4;
@@ -591,10 +398,6 @@
   color: var(--danger-color);
 }
 
-.recipe-editor__image-remove:focus-visible {
-  outline: 2px solid var(--food-color);
-}
-
 .recipe-editor__image-remove:disabled {
   cursor: default;
   opacity: 0.5;
@@ -606,10 +409,6 @@
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.recipe-editor__staged-images[hidden] {
-  display: none;
 }
 
 .recipe-editor__image-empty {
@@ -633,10 +432,6 @@
 
 /* ---------- AI recipe source ---------- */
 
-.recipe-editor__ai[hidden] {
-  display: none;
-}
-
 .recipe-editor__ai h3 {
   margin: 0;
   font-size: 1rem;
@@ -658,11 +453,6 @@
   display: grid;
   gap: 0.6rem;
   min-width: 0;
-}
-
-.recipe-editor__ai-progress[hidden],
-.recipe-editor__ai-metrics[hidden] {
-  display: none;
 }
 
 .recipe-editor__ai-metrics {
@@ -702,19 +492,6 @@
   font-weight: 500;
 }
 
-.recipe-editor__ai-field textarea,
-.recipe-editor__ai-field input {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--input-bg);
-  color: var(--text-color);
-  font: inherit;
-}
-
 .recipe-editor__ai-field textarea {
   min-height: 6rem;
   resize: vertical;
@@ -743,11 +520,6 @@
   background: var(--hover-bg);
 }
 
-.recipe-editor__ai-field button:focus-visible,
-.recipe-editor__ai-cancel:focus-visible {
-  outline: 2px solid var(--food-color);
-}
-
 .recipe-editor__ai-field button:disabled,
 .recipe-editor__ai-cancel:disabled,
 .recipe-editor__ai-field textarea:disabled,
@@ -762,6 +534,7 @@
   font-weight: 600;
 }
 
+.recipe-editor__location label,
 .recipe-editor__metadata label,
 .recipe-editor__section > label {
   display: flex;
@@ -771,36 +544,6 @@
   min-width: 0;
   font-size: 0.875rem;
   font-weight: 500;
-}
-
-.recipe-editor__section > input {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  color: var(--text-color);
-  font: inherit;
-}
-
-.recipe-editor__section > input:focus-visible {
-  outline: 2px solid var(--food-color);
-  outline-offset: 2px;
-}
-
-.recipe-editor__metadata input,
-.recipe-editor__metadata select {
-  width: 100%;
-  min-width: 0;
-  height: 2.5rem;
-  box-sizing: border-box;
-  padding: 0.5rem 0.65rem;
-
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--input-bg);
-  color: var(--text-color);
-
-  font: inherit;
-  font-size: 1rem;
 }
 
 .recipe-editor__metadata select {
@@ -1030,10 +773,6 @@
 
 /* ---------- Markdown editor ---------- */
 
-.recipe-editor__markdown-details .recipe-editor__markdown-label {
-  margin-top: 0.5rem;
-}
-
 .recipe-editor__markdown-details .recipe-editor__source {
   margin-top: 0.35rem;
 }
@@ -1041,7 +780,7 @@
 .recipe-editor__markdown-label {
   display: block;
   flex: 0 0 auto;
-  margin: 0;
+  margin: 0.5rem 0 0;
 
   font-size: 0.95rem;
   font-weight: 600;
@@ -1068,7 +807,6 @@
   resize: vertical;
   overflow: auto;
   overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
 
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -1096,85 +834,43 @@
   border-color: var(--food-color);
 }
 
+/* Hidden toggles: every dismissible region above collapses the same way. */
+.recipe-editor__makes-count[hidden],
+.recipe-editor__made-this[hidden],
+.recipe-editor__ai-details[hidden],
+.recipe-editor__location[hidden],
+.recipe-editor__location label[hidden],
+.recipe-editor__existing-images[hidden],
+.recipe-editor__staged-images[hidden],
+.recipe-editor__ai[hidden],
+.recipe-editor__ai-progress[hidden],
+.recipe-editor__ai-metrics[hidden],
+.recipe-editor__bulk-list[hidden],
+.recipe-editor__ratings-details[hidden],
+.recipe-editor__bulk-field-save[hidden],
+.recipe-editor__mixed[hidden] {
+  display: none;
+}
+
 /* ---------- Actions ---------- */
 
 .recipe-editor__footer {
-  flex: 0 0 auto;
-  justify-content: flex-end;
   /* Always pinned to the bottom of the dialog, even when the
      collapsed sections leave empty space above. */
   margin-top: auto;
   /* The bottom padding (instead of the form's) keeps buttons off the dialog
      edge while staying inside the footer's opaque background. */
   padding: 0.75rem 0 1rem;
-  border-top: 1px solid var(--border-color);
-  background: var(--card-bg);
   position: sticky;
   bottom: 0;
   z-index: 1;
 }
 
-.recipe-editor__footer button {
-  padding: 0.65rem 1rem;
-
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  background: var(--card-bg);
-  color: var(--food-color);
-
-  font: inherit;
-  font-size: 0.9rem;
-  line-height: 1.4;
-
-  cursor: pointer;
-}
-
-.recipe-editor__footer button:hover:not(:disabled) {
-  background: var(--hover-bg);
-}
-
-.recipe-editor__footer .recipe-editor__save {
-  border-color: var(--food-color);
-  background: var(--food-color);
-  color: var(--page-bg);
-}
-
-.recipe-editor__footer .recipe-editor__save:hover:not(:disabled) {
-  border-color: var(--food-color-hover);
-  background: var(--food-color-hover);
-  color: var(--page-bg);
-}
-
-.recipe-editor__footer .recipe-editor__delete {
-  background: var(--danger-color);
-  color: var(--danger-text-color);
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.recipe-editor__delete:hover:not(:disabled) {
-  background: var(--danger-color-hover);
-}
-
-.recipe-editor__footer button:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
 /* ---------- Mobile ---------- */
 
 @media (max-width: 600px) {
-  .recipe-editor-dialog {
-    width: calc(100% - 1rem);
-    height: 90dvh;
-  }
-
   .recipe-editor {
-    gap: 0.6rem;
-    padding: 0.75rem 0.75rem 0;
+    padding-bottom: 0;
   }
 
   .recipe-editor__section,
@@ -1200,10 +896,6 @@
   .recipe-editor__numeric {
     gap: 0.6rem;
   }
-
-  .recipe-editor__footer button {
-    min-height: 2.75rem;
-  }
 }
 
 /* ---------- Bulk editor ---------- */
@@ -1226,14 +918,6 @@
   overflow-wrap: anywhere;
 }
 
-.recipe-editor__bulk-list[hidden] {
-  display: none;
-}
-
-.recipe-editor__ratings-details[hidden] {
-  display: none;
-}
-
 .recipe-editor__bulk-help {
   margin: 0;
   color: var(--muted-color);
@@ -1245,11 +929,6 @@
   position: relative;
   display: block;
   min-width: 0;
-}
-
-.recipe-editor__field-control input,
-.recipe-editor__field-control select {
-  padding-right: 0.65rem;
 }
 
 .recipe-editor-dialog.is-bulk .recipe-editor__field-control input,
@@ -1271,19 +950,11 @@
   padding: 0.25rem 0.55rem;
   border: 1px solid var(--food-color);
   border-radius: 6px;
-  background: var(--food-color);
-  color: var(--page-bg);
   font: inherit;
   font-size: 0.8rem;
   line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
-}
-
-.recipe-editor__bulk-field-save:hover:not(:disabled) {
-  border-color: var(--food-color-hover);
-  background: var(--food-color-hover);
-  color: var(--page-bg);
 }
 
 /*
@@ -1295,21 +966,19 @@
   transform: none;
 }
 
-.recipe-editor__bulk-field-save[hidden] {
-  display: none;
-}
-
-.recipe-editor__mixed[hidden] {
-  display: none;
-}
-
-.recipe-editor__bulk-field-save:focus-visible {
-  outline: 2px solid var(--food-color);
-}
-
 .recipe-editor__bulk-field-save:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+
+.recipe-editor__details > summary:focus-visible,
+.recipe-editor__image-rename:focus-visible,
+.recipe-editor__image-upload:focus-visible,
+.recipe-editor__image-remove:focus-visible,
+.recipe-editor__ai-field button:focus-visible,
+.recipe-editor__ai-cancel:focus-visible,
+.recipe-editor__bulk-field-save:focus-visible {
+  outline: 2px solid var(--food-color);
 }
 
 /* ---------- Reduced motion ---------- */
@@ -1317,10 +986,5 @@
 @media (prefers-reduced-motion: reduce) {
   .recipe-editor__details > summary::before {
     transition: none;
-  }
-
-  .recipe-editor__made-this.is-celebrating,
-  .recipe-editor__sparkle {
-    animation: none;
   }
 }

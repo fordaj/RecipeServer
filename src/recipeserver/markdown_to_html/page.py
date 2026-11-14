@@ -16,16 +16,19 @@ RECIPE_SCALER_HTML = ASSETS_DIR / "recipe-scaler.html"
 
 CSS_PATH = "/assets/style.css"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
+BASE_CSS_PATH = "/assets/base.css"
+DIALOG_SHELL_CSS_PATH = "/assets/dialog-shell.css"
+DIALOGS_JS_PATH = "/assets/dialogs.js"
 RECIPE_JS = "/assets/recipe.js"
 RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
 RECIPE_EDITOR_JS = "/assets/recipe-editor/recipe-editor.js"
+FIELDS_JS = "/assets/recipe-editor/fields.js"
 RECIPE_EDITOR_CSS = "/assets/recipe-editor/recipe-editor.css"
 METADATA_PICKER_JS = "/assets/recipe-editor/metadata-picker.js"
 AI_PROGRESS_JS = "/assets/recipe-editor/ai-progress.js"
 RECIPE_SCALER_JS = "/assets/recipe-scaler.js"
-COMMENTS_CSS = "/assets/comments.css"
+FEEDBACK_CSS = "/assets/feedback.css"
 COMMENTS_JS = "/assets/comments.js"
-RATINGS_CSS = "/assets/ratings.css"
 PULL_DOWN_PAGE_REFRESH_CSS = "/assets/pull-down-page-refresh.css"
 RATINGS_JS = "/assets/ratings.js"
 RECIPE_FEEDBACK_JS = "/assets/recipe-feedback.js"
@@ -96,11 +99,12 @@ def build_recipe_html(
         <title>{escape(source_title)}</title>
         <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
         <link rel="stylesheet" href="{DEFINITIONS_CSS_PATH}">
+        <link rel="stylesheet" href="{BASE_CSS_PATH}">
+        <link rel="stylesheet" href="{DIALOG_SHELL_CSS_PATH}">
         <link rel="stylesheet" href="{CSS_PATH}">
         <link rel="stylesheet" href="{RECIPE_SCALER_CSS}">
         <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">
-        <link rel="stylesheet" href="{COMMENTS_CSS}">
-        <link rel="stylesheet" href="{RATINGS_CSS}">
+        <link rel="stylesheet" href="{FEEDBACK_CSS}">
         <link rel="stylesheet" href="{PULL_DOWN_PAGE_REFRESH_CSS}">
         {doc_specific_overrides(heading_color)}
         {KATEX}
@@ -127,6 +131,8 @@ def build_recipe_html(
         <script defer src="{RATINGS_JS}"></script>
         <script defer src="{METADATA_PICKER_JS}"></script>
         <script defer src="{AI_PROGRESS_JS}"></script>
+        <script defer src="{FIELDS_JS}"></script>
+        <script defer src="{DIALOGS_JS_PATH}"></script>
         <script defer src="{RECIPE_EDITOR_JS}"></script>
     </body>
     </html>

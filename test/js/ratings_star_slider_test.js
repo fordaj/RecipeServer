@@ -10,6 +10,15 @@ const path = require("node:path");
 const { createDocument } = require("./dom_stub.js");
 
 const RATINGS_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "ratings.js");
+const RECIPE_FEEDBACK_JS = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "recipeserver",
+  "assets",
+  "recipe-feedback.js",
+);
 
 const RATING = {
   name: "Avery",
@@ -112,6 +121,14 @@ async function main() {
     json: async () => ({ value: [RATING] }),
   });
 
+  // recipe-feedback.js is a hard dependency of ratings.js and must be
+  // loaded first, exactly as page.py orders the <script defer> tags.
+  require(RECIPE_FEEDBACK_JS);
+  assert.equal(
+    typeof window.RecipeFeedback,
+    "object",
+    "recipe-feedback.js exposes window.RecipeFeedback",
+  );
   require(RATINGS_JS);
   await tick();
 

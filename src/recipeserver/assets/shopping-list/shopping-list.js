@@ -505,14 +505,7 @@
     });
 
     // The dialog form closes the shopping list; the "Done" button submits it.
-    let pointerDownTarget = null;
-    element.addEventListener("pointerdown", (event) => {
-      pointerDownTarget = event.target;
-    });
-    element.addEventListener("click", (event) => {
-      if (event.target === element && pointerDownTarget === element) element.close();
-      pointerDownTarget = null;
-    });
+    window.RecipeDialogs.installClickOutsideClose(element, () => element.close());
 
     element.addEventListener("close", () => {
       state.ready = false;

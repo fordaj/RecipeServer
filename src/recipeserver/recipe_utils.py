@@ -7,11 +7,27 @@ adding abstraction that hides meaning.
 
 from __future__ import annotations
 
+import html
 import math
 import re
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import date, datetime, time, timezone
+
+# Front matter uses the plural ``categories``; ``category`` is the legacy
+# singular spelling, accepted on read and dropped on save.
+CATEGORIES_FIELD = "categories"
+LEGACY_CATEGORY_FIELD = "category"
+
+# Source fields the editor and the AI drafts know how to render and save.
+SOURCE_FIELDS = ("author", "title", "format", "url")
+# Canonical labels for the source format, keyed by its lower-cased spelling.
+SOURCE_FORMAT_LABELS = {
+    "website": "Website",
+    "ai": "AI",
+    "book": "Book",
+    "other": "Other",
+}
 
 
 def as_list(value: object) -> list:
@@ -105,6 +121,90 @@ def display_date(value: datetime) -> str:
     if datetime.now(timezone.utc).year != value.year:
         text += f", {value.year}"
     return text
+
+
+def is_missing_metadata_value(value: object) -> bool:
+    """Return True when *value* carries no metadata information."""
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return not value.strip()
+    if isinstance(value, list):
+        return not value or all(is_missing_metadata_value(item) for item in value)
+    return False
+
+
+def read_categories(metadata: Mapping[str, object]) -> object:
+    """Return ``categories``, falling back to the legacy singular ``category``."""
+    value = metadata.get(CATEGORIES_FIELD)
+    if is_missing_metadata_value(value):
+        return metadata.get(LEGACY_CATEGORY_FIELD)
+    return value
+
+
+def normalize_legacy_category(metadata: dict) -> None:
+    """Fold the legacy singular ``category`` into ``categories`` (in place)."""
+    legacy = metadata.pop(LEGACY_CATEGORY_FIELD, None)
+    if legacy is None or not is_missing_metadata_value(metadata.get(CATEGORIES_FIELD)):
+        return
+    if isinstance(legacy, str):
+        legacy = [item.strip() for item in legacy.split(",") if item.strip()]
+    metadata[CATEGORIES_FIELD] = legacy
+
+
+def collapse_status(status: object) -> str | None:
+    """Collapse a ``status`` value to a single trimmed string, or ``None``."""
+    if isinstance(status, list):
+        return next((item.strip() for item in status if isinstance(item, str) and item.strip()), None)
+    if isinstance(status, str):
+        return status.strip() or None
+    return None
+
+
+def normalize_source_dict(source: object) -> dict | None:
+    """Coerce a ``source`` value (possibly a legacy list) to a single dict."""
+    if isinstance(source, list):
+        source = next((item for item in source if isinstance(item, dict)), None)
+    return source if isinstance(source, dict) else None
+
+
+def clean_source_fields(source: dict, *, format_labels: Mapping[str, str] | None = None) -> dict:
+    """Rebuild *source* with the known fields, stripping string values."""
+    cleaned = {}
+    for field_name in SOURCE_FIELDS:
+        value = source.get(field_name)
+        cleaned[field_name] = (value.strip() or None) if isinstance(value, str) else None
+    source_format = cleaned["format"]
+    if format_labels is not None and isinstance(source_format, str):
+        cleaned["format"] = format_labels.get(source_format.casefold(), source_format)
+    return cleaned
+
+
+def meta_time_html(raw_value: object, text_prefix: str = "") -> str | None:
+    """Return the recipe-meta "· <time>" fragment, or ``None`` when unparseable.
+
+    Shared by the soup-based recipe extras and the string-built index markup so
+    both emit identical separator and ``<time>`` markup. Date-only values render
+    as a bare calendar date; timestamps render in browser-local time via
+    ``data-local-time``. *text_prefix* (for example ``"Edited "``) is prepended to
+    the displayed text and emitted as ``data-time-prefix`` so the browser-side
+    script can rebuild the label.
+    """
+    parsed = parse_metadata_datetime(raw_value)
+    if parsed is None:
+        return None
+
+    separator = f'<span class="recipe-meta__separator" aria-hidden="true">·</span>'
+
+    if is_date_only(raw_value):
+        time_attrs = f'datetime="{parsed.date().isoformat()}"'
+    else:
+        time_attrs = f'datetime="{parsed.isoformat()}" data-local-time="true"'
+        if text_prefix:
+            time_attrs += f' data-time-prefix="{html.escape(text_prefix, quote=True)}"'
+
+    text = f"{text_prefix}{display_date(parsed)}"
+    return f"{separator}<time {time_attrs}>{html.escape(text)}</time>"
 
 
 def slug_to_title(slug: str) -> str:

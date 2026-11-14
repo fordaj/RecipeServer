@@ -1,0 +1,297 @@
+/* ---------- Dialog shell ---------- */
+/* Shared by the recipe editor, the shopping list, and the configuration
+   dialog. Each dialog's own deviations (size, disabled states, status
+   colour) live in its local stylesheet. */
+
+.recipe-editor-dialog,
+.shopping-list-dialog,
+.config-editor-dialog {
+  width: min(900px, calc(100% - 2rem));
+  height: min(85dvh, 800px);
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  box-sizing: border-box;
+
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-color);
+
+  overflow: hidden;
+}
+
+.recipe-editor-dialog::backdrop,
+.shopping-list-dialog::backdrop,
+.config-editor-dialog::backdrop {
+  background: var(--dialog-backdrop);
+}
+
+/* ---------- Layout ---------- */
+
+.recipe-editor,
+.shopping-list__form,
+.config-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+/* ---------- Header and footer rows ---------- */
+
+.recipe-editor__header,
+.shopping-list__header,
+.config-editor__header,
+.recipe-editor__footer,
+.shopping-list__footer,
+.config-editor__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+.recipe-editor__header,
+.config-editor__header {
+  position: relative;
+}
+
+.recipe-editor__header h2,
+.shopping-list__header h2,
+.config-editor__header h2 {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.recipe-editor__close,
+.shopping-list__close,
+.config-editor__close {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1.75rem;
+  cursor: pointer;
+}
+
+.recipe-editor__close:hover,
+.shopping-list__close:hover,
+.config-editor__close:hover {
+  background: var(--hover-bg);
+}
+
+.recipe-editor__close:focus-visible,
+.shopping-list__close:focus-visible,
+.config-editor__close:focus-visible,
+.recipe-editor__footer button:focus-visible,
+.shopping-list__footer button:focus-visible,
+.config-editor__footer button:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+/* ---------- Status line ---------- */
+
+.recipe-editor__status,
+.shopping-list__status,
+.config-editor__status {
+  flex: 0 0 auto;
+  min-height: 1.25rem;
+  margin: 0;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Pinned footer ---------- */
+
+.recipe-editor__footer,
+.shopping-list__footer,
+.config-editor__footer {
+  justify-content: flex-end;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.recipe-editor__footer button,
+.shopping-list__footer button,
+.config-editor__footer button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+
+  padding: 0.65rem 1rem;
+
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--food-color);
+
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+
+  cursor: pointer;
+}
+
+.recipe-editor__footer button:hover:not(:disabled),
+.shopping-list__footer button:hover:not(:disabled),
+.config-editor__footer button:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.recipe-editor__footer button:disabled,
+.shopping-list__footer button:disabled,
+.config-editor__footer button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* ---------- Field input ---------- */
+
+.field-input {
+  width: 100%;
+  min-width: 0;
+  height: 2.5rem;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text-color);
+
+  font: inherit;
+  font-size: 1rem;
+}
+
+/* ---------- Filled call-to-action buttons ---------- */
+/* Filled Save-style buttons share one food-color fill. */
+
+.recipe-editor__made-this,
+.recipe-editor__image-upload,
+.recipe-editor__footer .recipe-editor__save,
+.recipe-editor__bulk-field-save,
+.shopping-list__footer .shopping-list__done,
+.config-editor__footer .config-editor__save {
+  border-color: var(--food-color);
+  background: var(--food-color);
+  color: var(--page-bg);
+}
+
+.recipe-editor__made-this:hover:not(:disabled),
+.recipe-editor__image-upload:hover:not(:disabled),
+.recipe-editor__footer .recipe-editor__save:hover:not(:disabled),
+.recipe-editor__bulk-field-save:hover:not(:disabled),
+.shopping-list__footer .shopping-list__done:hover:not(:disabled),
+.config-editor__footer .config-editor__save:hover:not(:disabled) {
+  border-color: var(--food-color-hover);
+  background: var(--food-color-hover);
+  color: var(--page-bg);
+}
+
+/* Danger buttons share one red fill. */
+
+.recipe-editor__footer .recipe-editor__delete,
+#bulk-delete {
+  background: var(--danger-color);
+  color: var(--danger-text-color);
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.recipe-editor__delete:hover:not(:disabled),
+#bulk-delete:hover:not(:disabled) {
+  background: var(--danger-color-hover);
+}
+
+/* ---------- "I made this!" celebration ---------- */
+
+.recipe-editor__made-this.is-celebrating,
+.recipe-overview__makes.is-celebrating {
+  animation: recipe-editor-made-this-pop 500ms ease;
+}
+
+.recipe-editor__sparkle {
+  position: absolute;
+  top: 0.25rem;
+  right: 3.5rem;
+  z-index: 1;
+  pointer-events: none;
+  font-size: 1rem;
+  animation: recipe-editor-sparkle 900ms ease-out var(--sparkle-delay, 0ms) forwards;
+}
+
+@keyframes recipe-editor-made-this-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.12) rotate(-2deg);
+  }
+  70% {
+    transform: scale(0.97) rotate(1deg);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes recipe-editor-sparkle {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4) rotate(0deg);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sparkle-x, 0), -1.75rem) scale(1.15) rotate(25deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recipe-editor__made-this.is-celebrating,
+  .recipe-overview__makes.is-celebrating,
+  .recipe-editor__sparkle {
+    animation: none;
+  }
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 600px) {
+  .recipe-editor-dialog,
+  .shopping-list-dialog,
+  .config-editor-dialog {
+    width: calc(100% - 1rem);
+    height: 90dvh;
+  }
+
+  .recipe-editor,
+  .shopping-list__form,
+  .config-editor {
+    gap: 0.6rem;
+    padding: 0.75rem;
+  }
+
+  .recipe-editor__footer button,
+  .shopping-list__footer button,
+  .config-editor__footer button {
+    min-height: 2.75rem;
+  }
+}

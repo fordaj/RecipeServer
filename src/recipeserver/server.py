@@ -9,7 +9,6 @@ metadata updates.
 from __future__ import annotations
 
 import json
-import math
 import re
 import socket
 import sys
@@ -34,11 +33,21 @@ from PIL import Image, UnidentifiedImageError
 from . import ai_recipe
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
-from .config import Configuration, DEFAULT_SERVER_PORT, MAX_PORT
+from .config import Configuration, DEFAULT_SERVER_PORT
 from .image_handler import IMAGE_EXTENSIONS
 from .metadata_options import collect_metadata_options
 from .shopping_list import scrape_ingredients
-from .recipe_utils import json_default, normalize_reviewer_name
+from .recipe_utils import (
+    CATEGORIES_FIELD,
+    LEGACY_CATEGORY_FIELD,
+    clean_source_fields,
+    collapse_status,
+    is_finite_rating_score,
+    json_default,
+    normalize_legacy_category,
+    normalize_reviewer_name,
+    normalize_source_dict,
+)
 
 MarkdownSavedCallback = Callable[[Path], None]
 ConfigSavedCallback = Callable[[], None]
@@ -53,8 +62,6 @@ ARCHIVE_STREAM_CHUNK_BYTES = 64 * 1024
 
 SERVER_BIND_ADDRESS = "0.0.0.0"
 LOCALHOST = "localhost"
-PUBLIC_IP_PROBE_ADDRESS = "8.8.8.8"
-PUBLIC_IP_PROBE_PORT = 80
 
 # ----- Filename and metadata-field rules -----------------------------------
 # Shared by recipe creation, the metadata endpoints, and image validation.
@@ -64,11 +71,6 @@ MARKDOWN_FILE_SUFFIX = ".md"
 RECIPE_FOLDER_NAME_MAX_BYTES = 200
 MAX_RATING_NAME_LENGTH = 100
 MARKDOWN_NOT_FOUND_ERROR = "Markdown file not found"
-
-# Front matter uses the plural ``categories``; ``category`` is the legacy
-# singular spelling, accepted on read and dropped on save.
-CATEGORIES_FIELD = "categories"
-LEGACY_CATEGORY_FIELD = "category"
 
 # Windows device names that may not be used as filenames (with or without an
 # extension). Applied to both recipe folder names and image filenames.
@@ -86,6 +88,19 @@ class _RequestTooLarge(ValueError):
 
 class _StreamClosed(Exception):
     """Raised when the browser closes an in-progress event stream."""
+
+
+def _read_recipe_post(path: Path) -> frontmatter.Post:
+    """Parse a recipe file's front matter, raising on failure."""
+    return frontmatter.loads(path.read_text(encoding="utf-8"))
+
+
+def _update_recipe_post(path: Path, mutate: Callable[[frontmatter.Post], None]) -> frontmatter.Post:
+    """Read a recipe's front matter, apply *mutate*, and rewrite the file."""
+    post = _read_recipe_post(path)
+    mutate(post)
+    path.write_text(frontmatter.dumps(post), encoding="utf-8", newline="")
+    return post
 
 
 def _now_utc_iso() -> str:
@@ -128,7 +143,7 @@ EDITOR_METADATA_FIELDS = {
     "cuisine": "string_list",
     "categories": "string_list",
     "meals": "string_list",
-    "makes": "integer",
+    "makes": "non_negative_integer",
     "difficulty": "number",
     "contributor": "string",
     "status": "string",
@@ -143,30 +158,17 @@ EDITOR_METADATA_FIELDS = {
 BULK_EDITABLE_FIELDS = tuple(field for field in EDITOR_METADATA_FIELDS if field != "updatedOn")
 
 
-def _normalize_source_value(value: object) -> dict | None:
-    """Coerce a source field to a single source dict or None."""
-    if isinstance(value, list):
-        value = next((item for item in value if isinstance(item, dict)), None)
-    return value if isinstance(value, dict) else None
-
-
 def _editor_metadata(metadata: dict) -> dict:
     """Return editable metadata, mapping the legacy singular category field."""
-    values = {field: metadata.get(field) for field in EDITOR_METADATA_FIELDS}
-
-    if values[CATEGORIES_FIELD] is None and metadata.get(LEGACY_CATEGORY_FIELD) is not None:
-        legacy = metadata[LEGACY_CATEGORY_FIELD]
-        values[CATEGORIES_FIELD] = [legacy] if isinstance(legacy, str) else legacy
+    merged = dict(metadata)
+    normalize_legacy_category(merged)
+    values = {field: merged.get(field) for field in EDITOR_METADATA_FIELDS}
 
     # Status is a single string; older recipes may store a list.
-    status = values.get("status")
-    if isinstance(status, list):
-        values["status"] = next((item for item in status if isinstance(item, str) and item.strip()), None)
-    elif status is not None and not isinstance(status, str):
-        values["status"] = None
+    values["status"] = collapse_status(values.get("status"))
 
     # The editor edits one source at a time; older recipes may store a list.
-    values["source"] = _normalize_source_value(values["source"])
+    values["source"] = normalize_source_dict(values["source"])
 
     # ``archived`` defaults to False when absent (or not a boolean).
     values["archived"] = metadata.get("archived") is True
@@ -242,12 +244,6 @@ def _validate_string_field(field: str, value: object) -> str:
     return value
 
 
-def _validate_integer_field(field: str, value: object) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ValueError(f"'{field}' must be an integer or null")
-    return value
-
-
 def _validate_number_field(field: str, value: object) -> int | float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"'{field}' must be a number or null")
@@ -262,21 +258,21 @@ def _validate_boolean_field(field: str, value: object) -> bool:
 
 def _validate_source_field(field: str, value: object) -> dict | None:
     if isinstance(value, list):
-        value = next((item for item in value if isinstance(item, dict)), None)
-        if value is None:
+        source = normalize_source_dict(value)
+        if source is None:
             return None
-    if not isinstance(value, dict):
+    elif not isinstance(value, dict):
         raise ValueError(f"'{field}' must be an object or null")
-
-    allowed_fields = {"author", "title", "format", "url"}
-    return {key: (value.get(key).strip() or None if isinstance(value.get(key), str) else None) for key in allowed_fields}
+    else:
+        source = value
+    return clean_source_fields(source)
 
 
 def _validate_editor_field(field: str, expected_type: str, value: object) -> object:
     validators = {
         "string_list": _validate_string_list_field,
         "string": _validate_string_field,
-        "integer": _validate_integer_field,
+        "non_negative_integer": lambda field, value: _validate_makes(value),
         "number": _validate_number_field,
         "boolean": _validate_boolean_field,
     }
@@ -337,6 +333,20 @@ def _validate_bulk_fields(value: object) -> list[str]:
     return list(dict.fromkeys(value))
 
 
+def _validate_rating_name(name: object, label: str) -> str:
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_RATING_NAME_LENGTH:
+        raise ValueError(f"{label} must be 1 to {MAX_RATING_NAME_LENGTH} characters")
+    return name.strip()
+
+
+def _validate_rating_score(score: object, label: str) -> int | float:
+    if not is_finite_rating_score(score):
+        raise ValueError(f"{label} must be a number between 0 and 10")
+    if score < 0 or score > 10:
+        raise ValueError(f"{label} must be between 0 and 10")
+    return score
+
+
 def _validate_bulk_rating(value: object) -> tuple[str, int | float] | None:
     """Validate a bulk rating override: add a named rating, overriding ties."""
     if value is None:
@@ -344,15 +354,9 @@ def _validate_bulk_rating(value: object) -> tuple[str, int | float] | None:
     if not isinstance(value, dict):
         raise ValueError("'rating' must be an object with 'name' and 'rating'")
 
-    name = value.get("name")
-    score = value.get("rating", value.get("score"))
-    if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_RATING_NAME_LENGTH:
-        raise ValueError(f"'rating.name' must be 1 to {MAX_RATING_NAME_LENGTH} characters")
-    if isinstance(score, bool) or not isinstance(score, (int, float)):
-        raise ValueError("'rating.rating' must be a number between 0 and 10")
-    if score < 0 or score > 10 or not math.isfinite(score):
-        raise ValueError("'rating.rating' must be between 0 and 10")
-    return name.strip(), score
+    name = _validate_rating_name(value.get("name"), "'rating.name'")
+    score = _validate_rating_score(value.get("rating", value.get("score")), "'rating.rating'")
+    return name, score
 
 
 # ---------------------------------------------------------------------------
@@ -398,20 +402,13 @@ def _validate_rating_entry(index: int, rating: object) -> tuple[str, str, dict]:
     if not isinstance(rating, dict):
         raise ValueError(f"Rating {index + 1} must be an object")
 
-    name = rating.get("name")
+    label = f"Rating {index + 1}"
+    name = _validate_rating_name(rating.get("name"), label)
     rating_id = rating.get("id")
-    score = rating.get("rating")
-
-    if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_RATING_NAME_LENGTH:
-        raise ValueError(f"Rating {index + 1} must have a name of 1 to {MAX_RATING_NAME_LENGTH} characters")
+    score = _validate_rating_score(rating.get("rating"), label)
 
     if not isinstance(rating_id, str) or not rating_id.strip() or rating_id != rating_id.strip():
-        raise ValueError(f"Rating {index + 1} must have an ID")
-
-    if isinstance(score, bool) or not isinstance(score, (int, float)):
-        raise ValueError(f"Rating {index + 1} must have a numeric score")
-    if score < 0 or score > 10 or not math.isfinite(score):
-        raise ValueError(f"Rating {index + 1} must be between 0 and 10")
+        raise ValueError(f"{label} must have an ID")
 
     for field in ("created", "updated"):
         timestamp = rating.get(field)
@@ -423,7 +420,7 @@ def _validate_rating_entry(index: int, rating: object) -> tuple[str, str, dict]:
             raise ValueError(f"Rating {index + 1} has an invalid {field} timestamp") from exc
 
     normalized_rating = rating.copy()
-    normalized_rating["name"] = name.strip()
+    normalized_rating["name"] = name
     return normalize_reviewer_name(name), rating_id, normalized_rating
 
 
@@ -492,36 +489,38 @@ def _basename_of_src(src: str) -> str:
 
 def _first_image_reference(content: str) -> dict | None:
     """Locate the first image in the Markdown, Markdown or HTML syntax."""
-    best = None
+    candidates: list[dict] = []
     for match in _MARKDOWN_IMAGE_RE.finditer(content):
-        if best is not None and match.start() >= best["span_start"]:
-            continue
         src_raw = match.group(1)
         src = src_raw[1:-1] if src_raw.startswith("<") and src_raw.endswith(">") else src_raw
-        best = {
-            "span_start": match.start(),
-            "span_end": match.end(),
-            "src_start": match.start(1),
-            "src_end": match.end(1),
-            "src": src,
-            "kind": "markdown",
-        }
+        candidates.append(
+            {
+                "span_start": match.start(),
+                "span_end": match.end(),
+                "src_start": match.start(1),
+                "src_end": match.end(1),
+                "src": src,
+                "kind": "markdown",
+            }
+        )
     for match in _HTML_IMG_RE.finditer(content):
-        if best is not None and match.start() >= best["span_start"]:
-            continue
         span_end = match.end()
         closing = content.find(">", match.end())
         if closing != -1:
             span_end = closing + 1
-        best = {
-            "span_start": match.start(),
-            "span_end": span_end,
-            "src_start": match.start(1),
-            "src_end": match.end(1),
-            "src": match.group(1),
-            "kind": "html",
-        }
-    return best
+        candidates.append(
+            {
+                "span_start": match.start(),
+                "span_end": span_end,
+                "src_start": match.start(1),
+                "src_end": match.end(1),
+                "src": match.group(1),
+                "kind": "html",
+            }
+        )
+    if not candidates:
+        return None
+    return min(candidates, key=lambda candidate: candidate["span_start"])
 
 
 def _remove_image_span(content: str, span_start: int, span_end: int) -> str:
@@ -564,6 +563,23 @@ def _fallback_main_image(content: str, deleted_name: str, remaining_names: list[
     return _remove_image_span(content, first["span_start"], first["span_end"]), None
 
 
+def _validate_image_filename(filename: str) -> None:
+    windows_path = PureWindowsPath(filename)
+    if (
+        not filename
+        or filename in {".", ".."}
+        or "/" in filename
+        or "\\" in filename
+        or windows_path.name != filename
+        or any(ord(character) < 32 or character in '<>:"|?*' for character in filename)
+        or filename.endswith((".", " "))
+    ):
+        raise ValueError("Invalid image filename")
+
+    if _is_windows_reserved_name(filename.split(".", 1)[0]):
+        raise ValueError("Invalid image filename")
+
+
 def _validate_svg_attribute(filename: str, attribute: str, value: str) -> None:
     """Reject event-handler attributes and external references in an SVG."""
     attr_name = _xml_local_name(attribute)
@@ -583,7 +599,7 @@ def _validate_svg_attribute(filename: str, attribute: str, value: str) -> None:
 def _validate_image_name(name: str, *, field: str) -> str:
     """Validate a bare image filename (no directories) for the rename API."""
     try:
-        RecipeRequestHandler._validate_image_filename(name)
+        _validate_image_filename(name)
     except ValueError as exc:
         raise ValueError(f"{field}: {exc}") from exc
     if Path(name).suffix.lower() not in IMAGE_EXTENSIONS:
@@ -852,7 +868,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+            recipe_post = _read_recipe_post(file_path)
         except Exception:
             logger.exception(f"Failed to parse YAML front matter for field {field_name}")
             self._send_json(500, {"error": "Unable to parse YAML front matter"})
@@ -872,7 +888,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_recipe_editor_get(self, file_path: Path) -> None:
         try:
-            recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+            recipe_post = _read_recipe_post(file_path)
         except Exception:
             logger.exception("Failed to parse YAML front matter")
             self._send_json(500, {"error": "Unable to parse YAML front matter"})
@@ -932,7 +948,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             for raw_path, file_path in zip(raw_paths, file_paths):
                 if not self._require_markdown_file(file_path, f"{MARKDOWN_NOT_FOUND_ERROR}: {raw_path}"):
                     return
-                recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+                recipe_post = _read_recipe_post(file_path)
                 ratings = recipe_post.metadata.get("ratings")
                 recipes.append(
                     {
@@ -1232,7 +1248,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if not self._require_markdown_file(file_path):
                 return
 
-            recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
+            recipe_post = _read_recipe_post(file_path)
             _apply_editor_metadata(recipe_post.metadata, metadata)
             _drop_legacy_category(recipe_post.metadata)
             recipe_post.metadata["updatedOn"] = _now_utc_iso()
@@ -1463,14 +1479,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
             if field_name == "ratings":
                 value = _validate_ratings(value)
-            elif field_name == "makes":
-                value = _validate_makes(value)
-            elif field_name == "archived":
+            elif field_name in EDITOR_METADATA_FIELDS:
                 if value is not None:
-                    value = _validate_boolean_field(field_name, value)
-            elif field_name == "status":
-                if value is not None:
-                    value = _validate_string_field(field_name, value)
+                    value = _validate_editor_field(field_name, EDITOR_METADATA_FIELDS[field_name], value)
 
             file_path = self._resolve_markdown_path(recipe_path)
         except (_RequestTooLarge, ValueError) as exc:
@@ -1484,16 +1495,16 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if not self._require_markdown_file(file_path):
                 return
 
-            recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
-            metadata = recipe_post.metadata
-            if value is not None:
-                metadata[field_name] = value
-            else:
-                metadata.pop(field_name, None)
-            if field_name == CATEGORIES_FIELD:
-                _drop_legacy_category(metadata)
+            def mutate(post: frontmatter.Post) -> None:
+                metadata = post.metadata
+                if value is not None:
+                    metadata[field_name] = value
+                else:
+                    metadata.pop(field_name, None)
+                if field_name == CATEGORIES_FIELD:
+                    _drop_legacy_category(metadata)
 
-            file_path.write_text(frontmatter.dumps(recipe_post), encoding="utf-8", newline="")
+            _update_recipe_post(file_path, mutate)
             logger.info(f"Updated metadata field '{field_name}' in file: {file_path}")
 
             if not self._notify_recipe_saved(file_path, "Metadata saved, but recipe regeneration failed"):
@@ -1583,18 +1594,19 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def _apply_bulk_edit(file_paths: list[Path], fields: list[str], metadata: dict, rating_override) -> list[Path]:
         saved: list[Path] = []
         for file_path in file_paths:
-            recipe_post = frontmatter.loads(file_path.read_text(encoding="utf-8"))
-            if metadata:
-                subset = {field: metadata.get(field) for field in fields}
-                _apply_editor_metadata(recipe_post.metadata, subset)
-                _drop_legacy_category(recipe_post.metadata)
-            if rating_override is not None:
-                name, score = rating_override
-                recipe_post.metadata["ratings"] = _apply_rating_override(recipe_post.metadata.get("ratings"), name, score)
-            if metadata or rating_override is not None:
-                recipe_post.metadata["updatedOn"] = _now_utc_iso()
 
-            file_path.write_text(frontmatter.dumps(recipe_post), encoding="utf-8", newline="")
+            def mutate(post: frontmatter.Post) -> None:
+                if metadata:
+                    subset = {field: metadata.get(field) for field in fields}
+                    _apply_editor_metadata(post.metadata, subset)
+                    _drop_legacy_category(post.metadata)
+                if rating_override is not None:
+                    name, score = rating_override
+                    post.metadata["ratings"] = _apply_rating_override(post.metadata.get("ratings"), name, score)
+                if metadata or rating_override is not None:
+                    post.metadata["updatedOn"] = _now_utc_iso()
+
+            _update_recipe_post(file_path, mutate)
             saved.append(file_path)
             logger.info(f"Bulk-saved recipe: {file_path}")
         return saved
@@ -1689,7 +1701,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self._stream_archive(kind, directory, filename)
 
     def _stream_archive(self, kind: str, directory: Path, filename: str) -> None:
-        archive_path = Path()
+        archive_path: Path | None = None
         headers_sent = False
         try:
             with tempfile.NamedTemporaryFile(prefix="recipeserver-", suffix=".7z", delete=False) as temp:
@@ -1717,7 +1729,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if not headers_sent:
                 self._send_json(500, {"error": "Unable to build archive"})
         finally:
-            if archive_path != Path():
+            if archive_path is not None:
                 archive_path.unlink(missing_ok=True)
 
     # ----- request payload parsing -----------------------------------------
@@ -1826,7 +1838,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         names = set()
         total_size = 0
         for filename, content in images:
-            self._validate_image_filename(filename)
+            _validate_image_filename(filename)
             if Path(filename).suffix.lower() not in IMAGE_EXTENSIONS:
                 raise ValueError(f"Unsupported image type: {filename}")
             if not content:
@@ -1843,23 +1855,6 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             validated.append((filename, content))
 
         return validated
-
-    @staticmethod
-    def _validate_image_filename(filename: str) -> None:
-        windows_path = PureWindowsPath(filename)
-        if (
-            not filename
-            or filename in {".", ".."}
-            or "/" in filename
-            or "\\" in filename
-            or windows_path.name != filename
-            or any(ord(character) < 32 or character in '<>:"|?*' for character in filename)
-            or filename.endswith((".", " "))
-        ):
-            raise ValueError("Invalid image filename")
-
-        if _is_windows_reserved_name(PureWindowsPath(filename.split(".", 1)[0]).name):
-            raise ValueError("Invalid image filename")
 
     @staticmethod
     def _validate_image_content(filename: str, content: bytes) -> None:
@@ -1940,7 +1935,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raise ValueError("Folder path must stay inside the source directory")
 
         relative_path = Path(requested_path) if requested_path else Path()
-        if relative_path.is_absolute() or relative_path.drive or ".." in relative_path.parts:
+        if PureWindowsPath(requested_path).drive:
             raise ValueError("Folder path must stay inside the source directory")
 
         folder_path = (self.source_directory / relative_path).resolve()
@@ -2012,8 +2007,7 @@ class Server:
     @property
     def port(self) -> int:
         """Configured listen port, falling back to the default."""
-        configured = getattr(self.cfg, "server_port", None)
-        return configured if isinstance(configured, int) and 1 <= configured <= MAX_PORT else DEFAULT_SERVER_PORT
+        return getattr(self.cfg, "server_port", DEFAULT_SERVER_PORT)
 
     def _port_in_use(self, port: int) -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -2058,16 +2052,8 @@ class Server:
         )
         self._thread.start()
 
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-            try:
-                sock.connect((PUBLIC_IP_PROBE_ADDRESS, PUBLIC_IP_PROBE_PORT))
-                ip_address = sock.getsockname()[0]
-            except OSError:
-                ip_address = "unavailable"
-
         logger.info(f"Server started on port {self.port}")
         logger.info(f"Hostname: http://{socket.gethostname()}.local:{self.port}")
-        logger.info(f"IP: http://{ip_address}:{self.port}")
 
     def stop(self):
         if self._http_server is None:
