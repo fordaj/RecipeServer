@@ -894,7 +894,9 @@
     padding: 0.6rem;
   }
 
-  .recipe-editor__metadata input {
+  /* Text fields and dropdowns get the taller touch target on mobile. */
+  .recipe-editor__metadata input,
+  .recipe-editor__metadata select {
     min-height: 2.75rem;
   }
 

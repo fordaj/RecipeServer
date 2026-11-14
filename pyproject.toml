@@ -1,9 +1,11 @@
 [project]
 name = "recipeserver"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Add your description here"
 readme = "README.md"
-authors = [{ name = "fordaj", email = "6288298+fordaj@users.noreply.github.com" }]
+authors = [
+    { name = "fordaj", email = "6288298+fordaj@users.noreply.github.com" }
+]
 requires-python = ">=3.14"
 dependencies = [
   "beautifulsoup4>=4.15.0",
@@ -24,8 +26,11 @@ dependencies = [
 recipeserver = "recipeserver:main"
 
 [build-system]
-requires = ["uv_build>=0.12.1,<0.13.0"]
-build-backend = "uv_build"
+requires = ["setuptools>=68", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+version_file = "src/recipeserver/_version.py"
 
 [dependency-groups]
 dev = ["black>=24.0", "formattington", "pytest>=9.1.1"]
