@@ -54,9 +54,9 @@
 
 # Resolve this file's directory (works sourced or executed, from anywhere).
 if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
-	_env_sh_path="${BASH_SOURCE[0]}"
+  _env_sh_path="${BASH_SOURCE[0]}"
 else
-	_env_sh_path="$0"
+  _env_sh_path="$0"
 fi
 _env_sh_dir=$(cd -- "$(dirname -- "$_env_sh_path")" &>/dev/null && pwd)
 _repo_root=$(dirname -- "$_env_sh_dir")
@@ -82,18 +82,18 @@ set -a
 # shellcheck disable=SC1090,SC1091
 . "$_env_sh_dir/.common.env"
 if [[ -f "$_env_sh_dir/.$_detected_platform.env" ]]; then
-	# shellcheck disable=SC1090,SC1091
-	. "$_env_sh_dir/.$_detected_platform.env"
+  # shellcheck disable=SC1090,SC1091
+  . "$_env_sh_dir/.$_detected_platform.env"
 else
-	echo "env.sh: warning: no $_env_sh_dir/.$_detected_platform.env; using defaults" >&2
-	RECIPE_SERVER_PLATFORM="$_detected_platform"
-	if [[ "$_host_os" == "windows" ]]; then
-		VERSIONER_BIN_NAME="versioner.exe"
-		LOGAMUFFIN_BIN_NAME="logamuffin.exe"
-	else
-		VERSIONER_BIN_NAME="versioner"
-		LOGAMUFFIN_BIN_NAME="logamuffin"
-	fi
+  echo "env.sh: warning: no $_env_sh_dir/.$_detected_platform.env; using defaults" >&2
+  RECIPE_SERVER_PLATFORM="$_detected_platform"
+  if [[ "$_host_os" == "windows" ]]; then
+    VERSIONER_BIN_NAME="versioner.exe"
+    LOGAMUFFIN_BIN_NAME="logamuffin.exe"
+  else
+    VERSIONER_BIN_NAME="versioner"
+    LOGAMUFFIN_BIN_NAME="logamuffin"
+  fi
 fi
 set +a
 
@@ -107,46 +107,46 @@ LOGAMUFFIN_BUNDLE_DIR="${LOGAMUFFIN_BUNDLE_DIR:-tools/logamuffin}"
 # A caller-provided non-empty VERSIONER_BIN/LOGAMUFFIN_BIN wins (this
 # mirrors release.bash's `if [[ -z ... ]]; then . env.sh; fi` guard).
 if [[ -z "${VERSIONER_BIN:-}" ]]; then
-	VERSIONER_BIN=""
-	_bundle_root="$_repo_root/$VERSIONER_BUNDLE_DIR"
-	for _version_dir in "$_bundle_root"/v*/; do
-		if [[ ! -d "$_version_dir" ]]; then
-			continue
-		fi
-		_cand="$_version_dir$RECIPE_SERVER_PLATFORM/$VERSIONER_BIN_NAME"
-		if [[ -f "$_cand" ]]; then
-			VERSIONER_BIN="$_cand"
-		fi
-	done
-	if [[ -z "$VERSIONER_BIN" || ! -x "$VERSIONER_BIN" ]]; then
-		if command -v versioner >/dev/null 2>&1; then
-			VERSIONER_BIN=$(command -v versioner)
-		else
-			VERSIONER_BIN=""
-		fi
-	fi
+  VERSIONER_BIN=""
+  _bundle_root="$_repo_root/$VERSIONER_BUNDLE_DIR"
+  for _version_dir in "$_bundle_root"/v*/; do
+    if [[ ! -d "$_version_dir" ]]; then
+      continue
+    fi
+    _cand="$_version_dir$RECIPE_SERVER_PLATFORM/$VERSIONER_BIN_NAME"
+    if [[ -f "$_cand" ]]; then
+      VERSIONER_BIN="$_cand"
+    fi
+  done
+  if [[ -z "$VERSIONER_BIN" || ! -x "$VERSIONER_BIN" ]]; then
+    if command -v versioner >/dev/null 2>&1; then
+      VERSIONER_BIN=$(command -v versioner)
+    else
+      VERSIONER_BIN=""
+    fi
+  fi
 fi
 
 # Resolve the newest bundled logamuffin (single v*/ dir per update.bash).
 if [[ -z "${LOGAMUFFIN_BIN:-}" ]]; then
-	LOGAMUFFIN_BIN=""
-	_bundle_root="$_repo_root/$LOGAMUFFIN_BUNDLE_DIR"
-	for _version_dir in "$_bundle_root"/v*/; do
-		if [[ ! -d "$_version_dir" ]]; then
-			continue
-		fi
-		_cand="$_version_dir$RECIPE_SERVER_PLATFORM/$LOGAMUFFIN_BIN_NAME"
-		if [[ -f "$_cand" ]]; then
-			LOGAMUFFIN_BIN="$_cand"
-		fi
-	done
-	if [[ -z "$LOGAMUFFIN_BIN" || ! -x "$LOGAMUFFIN_BIN" ]]; then
-		if command -v logamuffin >/dev/null 2>&1; then
-			LOGAMUFFIN_BIN=$(command -v logamuffin)
-		else
-			LOGAMUFFIN_BIN=""
-		fi
-	fi
+  LOGAMUFFIN_BIN=""
+  _bundle_root="$_repo_root/$LOGAMUFFIN_BUNDLE_DIR"
+  for _version_dir in "$_bundle_root"/v*/; do
+    if [[ ! -d "$_version_dir" ]]; then
+      continue
+    fi
+    _cand="$_version_dir$RECIPE_SERVER_PLATFORM/$LOGAMUFFIN_BIN_NAME"
+    if [[ -f "$_cand" ]]; then
+      LOGAMUFFIN_BIN="$_cand"
+    fi
+  done
+  if [[ -z "$LOGAMUFFIN_BIN" || ! -x "$LOGAMUFFIN_BIN" ]]; then
+    if command -v logamuffin >/dev/null 2>&1; then
+      LOGAMUFFIN_BIN=$(command -v logamuffin)
+    else
+      LOGAMUFFIN_BIN=""
+    fi
+  fi
 fi
 
 export RECIPE_SERVER_PLATFORM VERSIONER_BIN VERSIONER_BIN_NAME
@@ -160,15 +160,15 @@ unset _host_os _host_arch _detected_platform _bundle_root _version_dir _cand
 # and scripts can point at a build output via LOGAMUFFIN_BIN or PATH.
 # Never fails at source time.
 _logamuffin_bin() {
-	if [[ -n "${LOGAMUFFIN_BIN:-}" ]]; then
-		printf '%s\n' "$LOGAMUFFIN_BIN"
-		return 0
-	fi
-	if command -v logamuffin >/dev/null 2>&1; then
-		command -v logamuffin
-		return 0
-	fi
-	printf '%s\n' "logamuffin"
+  if [[ -n "${LOGAMUFFIN_BIN:-}" ]]; then
+    printf '%s\n' "$LOGAMUFFIN_BIN"
+    return 0
+  fi
+  if command -v logamuffin >/dev/null 2>&1; then
+    command -v logamuffin
+    return 0
+  fi
+  printf '%s\n' "logamuffin"
 }
 
 # log LEVEL [MESSAGE ...]
@@ -179,103 +179,103 @@ _logamuffin_bin() {
 #   header for filtering/stream semantics). The exit code is
 #   preserved (2 for usage errors, 0 otherwise for the fallback).
 log() {
-	local bin
-	bin="$(_logamuffin_bin)"
+  local bin
+  bin="$(_logamuffin_bin)"
 
-	# Caller context -> LOG_SOURCE="file[:function]:line". BASH_SOURCE[1]
-	# is the caller's file, BASH_LINENO[0] is the line that called
-	# log(), and FUNCNAME[1] is the calling function (empty at top
-	# level). Defaults keep `set -u` safe.
-	local caller_file="${BASH_SOURCE[1]:-}"
-	local caller_line="${BASH_LINENO[0]:-1}"
-	local caller_func=""
-	if ((${#FUNCNAME[@]} > 1)); then
-		caller_func="${FUNCNAME[1]:-}"
-	fi
-	if [[ -z "$caller_file" ]]; then
-		caller_file="${0:-log}"
-	fi
+  # Caller context -> LOG_SOURCE="file[:function]:line". BASH_SOURCE[1]
+  # is the caller's file, BASH_LINENO[0] is the line that called
+  # log(), and FUNCNAME[1] is the calling function (empty at top
+  # level). Defaults keep `set -u` safe.
+  local caller_file="${BASH_SOURCE[1]:-}"
+  local caller_line="${BASH_LINENO[0]:-1}"
+  local caller_func=""
+  if ((${#FUNCNAME[@]} > 1)); then
+    caller_func="${FUNCNAME[1]:-}"
+  fi
+  if [[ -z "$caller_file" ]]; then
+    caller_file="${0:-log}"
+  fi
 
-	local src
-	if [[ -n "$caller_func" && "$caller_func" != "log" && "$caller_func" != "main" ]]; then
-		src="${caller_file}:${caller_func}:${caller_line}"
-	else
-		src="${caller_file}:${caller_line}"
-	fi
+  local src
+  if [[ -n "$caller_func" && "$caller_func" != "log" && "$caller_func" != "main" ]]; then
+    src="${caller_file}:${caller_func}:${caller_line}"
+  else
+    src="${caller_file}:${caller_line}"
+  fi
 
-	if [[ ! -x "$bin" ]]; then
-		# No logamuffin binary: printf fallback (bootstrap / fresh clone).
-		if [[ $# -eq 0 ]]; then
-			printf '%s\n' "log: usage: log LEVEL MESSAGE..." >&2
-			return 2
-		fi
-		local level_arg="${1:-}"
-		shift
-		local msg="$*"
-		local level_upper level_value _thr_raw _thr_upper
-		if [[ "$level_arg" =~ ^-?[0-9]+$ ]]; then
-			level_value="$level_arg"
-		else
-			level_upper="$(printf '%s' "$level_arg" | tr '[:lower:]' '[:upper:]')"
-			case "$level_upper" in
-			TRACE) level_value=5 ;;
-			DEBUG) level_value=10 ;;
-			INFO) level_value=20 ;;
-			WARNING | WARN) level_value=30 ;;
-			ERROR) level_value=40 ;;
-			CRITICAL | FATAL) level_value=50 ;;
-			ALWAYS) level_value=-1 ;;
-			*) level_value=20 ;;
-			esac
-		fi
-		_thr_raw="${LOG_LEVEL:-${LOGAMUFFIN_LEVEL:-INFO}}"
-		if [[ -z "$_thr_raw" ]]; then
-			_thr_raw="INFO"
-		fi
-		if [[ "$_thr_raw" =~ ^-?[0-9]+$ ]]; then
-			local threshold_value="$_thr_raw"
-		else
-			_thr_upper="$(printf '%s' "$_thr_raw" | tr '[:lower:]' '[:upper:]')"
-			case "$_thr_upper" in
-			TRACE) threshold_value=5 ;;
-			DEBUG) threshold_value=10 ;;
-			INFO) threshold_value=20 ;;
-			WARNING | WARN) threshold_value=30 ;;
-			ERROR) threshold_value=40 ;;
-			CRITICAL | FATAL) threshold_value=50 ;;
-			ALWAYS) threshold_value=-1 ;;
-			*) threshold_value=20 ;;
-			esac
-		fi
-		if [[ "$level_value" -ne -1 && "$level_value" -lt "$threshold_value" ]]; then
-			return 0
-		fi
-		if [[ "$level_value" -ge 40 ]]; then
-			printf '%s: [%s] %s\n' "$src" "$level_arg" "$msg" >&2
-		else
-			printf '%s: [%s] %s\n' "$src" "$level_arg" "$msg"
-		fi
-		return 0
-	fi
+  if [[ ! -x "$bin" ]]; then
+    # No logamuffin binary: printf fallback (bootstrap / fresh clone).
+    if [[ $# -eq 0 ]]; then
+      printf '%s\n' "log: usage: log LEVEL MESSAGE..." >&2
+      return 2
+    fi
+    local level_arg="${1:-}"
+    shift
+    local msg="$*"
+    local level_upper level_value _thr_raw _thr_upper
+    if [[ "$level_arg" =~ ^-?[0-9]+$ ]]; then
+      level_value="$level_arg"
+    else
+      level_upper="$(printf '%s' "$level_arg" | tr '[:lower:]' '[:upper:]')"
+      case "$level_upper" in
+      TRACE) level_value=5 ;;
+      DEBUG) level_value=10 ;;
+      INFO) level_value=20 ;;
+      WARNING | WARN) level_value=30 ;;
+      ERROR) level_value=40 ;;
+      CRITICAL | FATAL) level_value=50 ;;
+      ALWAYS) level_value=-1 ;;
+      *) level_value=20 ;;
+      esac
+    fi
+    _thr_raw="${LOG_LEVEL:-${LOGAMUFFIN_LEVEL:-INFO}}"
+    if [[ -z "$_thr_raw" ]]; then
+      _thr_raw="INFO"
+    fi
+    if [[ "$_thr_raw" =~ ^-?[0-9]+$ ]]; then
+      local threshold_value="$_thr_raw"
+    else
+      _thr_upper="$(printf '%s' "$_thr_raw" | tr '[:lower:]' '[:upper:]')"
+      case "$_thr_upper" in
+      TRACE) threshold_value=5 ;;
+      DEBUG) threshold_value=10 ;;
+      INFO) threshold_value=20 ;;
+      WARNING | WARN) threshold_value=30 ;;
+      ERROR) threshold_value=40 ;;
+      CRITICAL | FATAL) threshold_value=50 ;;
+      ALWAYS) threshold_value=-1 ;;
+      *) threshold_value=20 ;;
+      esac
+    fi
+    if [[ "$level_value" -ne -1 && "$level_value" -lt "$threshold_value" ]]; then
+      return 0
+    fi
+    if [[ "$level_value" -ge 40 ]]; then
+      printf '%s: [%s] %s\n' "$src" "$level_arg" "$msg" >&2
+    else
+      printf '%s: [%s] %s\n' "$src" "$level_arg" "$msg"
+    fi
+    return 0
+  fi
 
-	LOG_SOURCE="$src" "$bin" "$@"
-	# Preserve `logamuffin`'s exit code (0 success/filtered,
-	# 2 usage/config errors) even when `set -e` is active.
-	return $?
+  LOG_SOURCE="$src" "$bin" "$@"
+  # Preserve `logamuffin`'s exit code (0 success/filtered,
+  # 2 usage/config errors) even when `set -e` is active.
+  return $?
 }
 
 # Sourced vs executed: when executed, print export statements and log().
 if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]:-}" == "$0" ]]; then
-	printf 'export RECIPE_SERVER_PLATFORM=%q\n' "$RECIPE_SERVER_PLATFORM"
-	printf 'export VERSIONER_BIN=%q\n' "$VERSIONER_BIN"
-	printf 'export VERSIONER_BIN_NAME=%q\n' "$VERSIONER_BIN_NAME"
-	printf 'export VERSIONER_REPO=%q\n' "${VERSIONER_REPO:-}"
-	printf 'export VERSIONER_TAG_PATTERN=%q\n' "${VERSIONER_TAG_PATTERN:-}"
-	printf 'export VERSIONER_CONFIG_FILE=%q\n' "${VERSIONER_CONFIG_FILE:-}"
-	printf 'export VERSIONER_BUNDLE_DIR=%q\n' "${VERSIONER_BUNDLE_DIR:-}"
-	printf 'export LOGAMUFFIN_BIN=%q\n' "$LOGAMUFFIN_BIN"
-	printf 'export LOGAMUFFIN_BIN_NAME=%q\n' "$LOGAMUFFIN_BIN_NAME"
-	printf 'export LOGAMUFFIN_REPO=%q\n' "${LOGAMUFFIN_REPO:-}"
-	printf 'export LOGAMUFFIN_BUNDLE_DIR=%q\n' "${LOGAMUFFIN_BUNDLE_DIR:-}"
-	declare -f _logamuffin_bin log
+  printf 'export RECIPE_SERVER_PLATFORM=%q\n' "$RECIPE_SERVER_PLATFORM"
+  printf 'export VERSIONER_BIN=%q\n' "$VERSIONER_BIN"
+  printf 'export VERSIONER_BIN_NAME=%q\n' "$VERSIONER_BIN_NAME"
+  printf 'export VERSIONER_REPO=%q\n' "${VERSIONER_REPO:-}"
+  printf 'export VERSIONER_TAG_PATTERN=%q\n' "${VERSIONER_TAG_PATTERN:-}"
+  printf 'export VERSIONER_CONFIG_FILE=%q\n' "${VERSIONER_CONFIG_FILE:-}"
+  printf 'export VERSIONER_BUNDLE_DIR=%q\n' "${VERSIONER_BUNDLE_DIR:-}"
+  printf 'export LOGAMUFFIN_BIN=%q\n' "$LOGAMUFFIN_BIN"
+  printf 'export LOGAMUFFIN_BIN_NAME=%q\n' "$LOGAMUFFIN_BIN_NAME"
+  printf 'export LOGAMUFFIN_REPO=%q\n' "${LOGAMUFFIN_REPO:-}"
+  printf 'export LOGAMUFFIN_BUNDLE_DIR=%q\n' "${LOGAMUFFIN_BUNDLE_DIR:-}"
+  declare -f _logamuffin_bin log
 fi

@@ -4,7 +4,7 @@ dynamic = ["version"]
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "fordaj", email = "6288298+fordaj@users.noreply.github.com" }
+  { name = "fordaj", email = "6288298+fordaj@users.noreply.github.com" },
 ]
 requires-python = ">=3.14"
 dependencies = [
