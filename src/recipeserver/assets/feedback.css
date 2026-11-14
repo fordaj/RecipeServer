@@ -44,6 +44,12 @@
   gap: 1rem;
 }
 
+/* .recipe h2 draws a bottom border; an empty section should not keep it. */
+.recipe-comments.is-empty .recipe-comments__heading,
+.recipe-ratings.is-empty .recipe-ratings__heading {
+  border-bottom: none;
+}
+
 .recipe-comments__add,
 .recipe-ratings__add {
   display: inline-grid;

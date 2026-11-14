@@ -35,11 +35,11 @@
       this.controls.className = "recipe-editor__picker-controls";
 
       this.select = document.createElement("select");
-      this.select.className = "recipe-editor__picker-select";
+      this.select.className = "recipe-editor__picker-select field-input";
       this.select.setAttribute("aria-label", this.selectLabel());
 
       this.newInput = document.createElement("input");
-      this.newInput.className = "recipe-editor__picker-new";
+      this.newInput.className = "recipe-editor__picker-new field-input";
       this.newInput.type = "text";
       this.newInput.placeholder = `New ${this.label}`;
       this.newInput.setAttribute("aria-label", `New ${this.label}`);
