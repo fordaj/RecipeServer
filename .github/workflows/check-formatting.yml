@@ -1,0 +1,21 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-formatting:
+    name: Check Formatting
+    runs-on: self-hosted
+    steps:
+      # Full clone: the package version is dynamic (setuptools-scm) and is
+      # derived from git tags, which a shallow checkout would not have.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Requires on the self-hosted runner: uv, bash, prettier, shfmt, and taplo
+      # on PATH (see AGENTS.md). Exits non-zero when anything is unformatted.
+      - name: Run formattington format check
+        run: ./format.sh --check
