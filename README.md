@@ -266,13 +266,13 @@ This repository carries compiled executables from the sibling `fordaj/*`
 repositories under `tools/` (pinned, platform-native; refreshed by each
 `tools/<name>/update.bash`):
 
-| Tool | Used for |
-| ---- | -------- |
-| `tools/versioner` | Compute `VERSION`/`TAG` for releases (`scripts/version.bash`, `release.bash`) |
-| `tools/logamuffin` | Shell logging behind `scripts/entry.sh` (`serve.sh`, `format.sh`, `release.bash`, …) |
-| `tools/runner-spawner` | Provision the self-hosted CI runners (`./spawn-runners.sh`) |
-| `tools/formattington-lite` | Formatting fallback; the pinned uv dependency is the primary path |
-| `tools/barnacle` | Documentation site generation (`scripts/docs.sh`) |
+| Tool                       | Used for                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------ |
+| `tools/versioner`          | Compute `VERSION`/`TAG` for releases (`scripts/version.bash`, `scripts/release.sh`)        |
+| `tools/logamuffin`         | Shell logging behind `scripts/entry.sh` (`serve.sh`, `format.sh`, `scripts/release.sh`, …) |
+| `tools/runner-spawner`     | Provision the self-hosted CI runners (`./spawn-runners.sh`)                                |
+| `tools/formattington-lite` | Formatting fallback; the pinned uv dependency is the primary path                          |
+| `tools/barnacle`           | Documentation site generation (`scripts/docs.sh`)                                          |
 
 Scripts source `scripts/entry.sh`, which exposes `log()` backed by the
 bundled logamuffin binary. Formatting is orchestrated by
@@ -282,7 +282,7 @@ bundled logamuffin binary. Formatting is orchestrated by
 
 GitHub Actions (`.github/workflows/check-formatting.yml`, “PR Checks”) runs
 on the self-hosted macOS and Windows runners provisioned above; it checks
-formatting on every pull request. Releases are cut with `./release.bash`
+formatting on every pull request. Releases are cut with `./scripts/release.sh`
 (tag + GitHub release notes only — no binaries are published for this app).
 
 ### Project layout

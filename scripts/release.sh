@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release.bash — compute the next version with versioner (dogfooding),
+# release.sh — compute the next version with versioner (dogfooding),
 # tag HEAD, push the tag, and create a GitHub release for version tracking.
 #
 # Unlike the Versioner and Logamuffin tools, RecipeServer ships no bundled
@@ -9,8 +9,8 @@
 # with generated notes (`gh release create ... --generate-notes`).
 #
 # Usage:
-#   ./release.bash           # compute version, tag, push, gh release create
-#   ./release.bash --dry-run # compute + verify only, touch nothing remote
+#   scripts/release.sh           # compute version, tag, push, gh release create
+#   scripts/release.sh --dry-run # compute + verify only, touch nothing remote
 #
 # Prerequisites: git, gh authenticated via `gh auth login` (real release),
 # and bundled versioner/logamuffin binaries (refresh with
@@ -26,7 +26,7 @@ set -euo pipefail
 # env cascade first so every later message goes through log().
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 if [[ ! -f "$SCRIPT_DIR/scripts/entry.sh" ]]; then
-  printf 'release.bash: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
+  printf 'release.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
   exit 1
 fi
 # shellcheck disable=SC1091
@@ -36,7 +36,7 @@ DRY_RUN=0
 
 usage() {
   cat <<'EOF'
-Usage: ./release.bash [--dry-run]
+Usage: scripts/release.sh [--dry-run]
 
 Compute the next VERSION/TAG with versioner itself (dogfooding, bundled
 binary selected via scripts/entry.sh), create an annotated tag, push it,
@@ -105,7 +105,7 @@ fi
 if [[ -n "$(git status --porcelain)" ]]; then
   if [[ "$DRY_RUN" -eq 1 ]]; then
     log WARNING "working tree is not clean (allowed in --dry-run)"
-    git status --short | sed 's/^/release.bash:   /' >&2
+    git status --short | sed 's/^/release.sh:   /' >&2
   else
     die "working tree is not clean (commit or stash first):"$'\n'"$(git status --short)"
   fi
@@ -132,13 +132,13 @@ if [[ -n "${LOGAMUFFIN_BIN:-}" && -x "$LOGAMUFFIN_BIN" ]]; then
 else
   log WARNING "logamuffin not found; falling back to printf logging (run tools/logamuffin/update.bash)"
 fi
-"$VERSIONER_BIN" --version | sed 's/^/release.bash:   /'
+"$VERSIONER_BIN" --version | sed 's/^/release.sh:   /'
 
 # --- Compute VERSION/TAG with versioner (dogfooding) ------------------
 log INFO "computing version with versioner (dogfooding)..."
 VERSION_OUT="$("$VERSIONER_BIN" --repo-dir "$REPO_ROOT" --quiet)"
 log INFO "versioner output:"
-printf '%s\n' "$VERSION_OUT" | sed 's/^/release.bash:   /'
+printf '%s\n' "$VERSION_OUT" | sed 's/^/release.sh:   /'
 
 VERSION="$(printf '%s\n' "$VERSION_OUT" | sed -n 's/^VERSION=//p' | tail -1)"
 TAG="$(printf '%s\n' "$VERSION_OUT" | sed -n 's/^TAG=//p' | tail -1)"
