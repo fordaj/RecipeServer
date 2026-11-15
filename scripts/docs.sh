@@ -28,14 +28,14 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 REPO_ROOT=$(cd -- "$SCRIPT_DIR/.." &>/dev/null && pwd)
 if [[ ! -f "$REPO_ROOT/scripts/entry.sh" ]]; then
-	printf 'docs.sh: error: script entry point not found: %s/scripts/entry.sh\n' "$REPO_ROOT/scripts/entry.sh" >&2
-	exit 1
+  printf 'docs.sh: error: script entry point not found: %s/scripts/entry.sh\n' "$REPO_ROOT/scripts/entry.sh" >&2
+  exit 1
 fi
 # shellcheck disable=SC1091
 . "$REPO_ROOT/scripts/entry.sh"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-	cat <<'EOF'
+  cat <<'EOF'
 Usage: scripts/docs.sh [barnacle options...]
 
 Generate the repository's documentation site with barnacle. With no
@@ -52,16 +52,16 @@ Environment:
 
 The bundled binaries are refreshed with tools/barnacle/update.bash.
 EOF
-	exit 0
+  exit 0
 fi
 
 if [[ -z "${BARNACLE_BIN:-}" ]]; then
-	log ERROR "no barnacle binary found (run tools/barnacle/update.bash, or set BARNACLE_BIN)"
-	exit 1
+  log ERROR "no barnacle binary found (run tools/barnacle/update.bash, or set BARNACLE_BIN)"
+  exit 1
 fi
 [[ -x "$BARNACLE_BIN" ]] || {
-	log ERROR "BARNACLE_BIN=$BARNACLE_BIN is not executable (run tools/barnacle/update.bash, or set BARNACLE_BIN)"
-	exit 1
+  log ERROR "BARNACLE_BIN=$BARNACLE_BIN is not executable (run tools/barnacle/update.bash, or set BARNACLE_BIN)"
+  exit 1
 }
 log INFO "using barnacle: $BARNACLE_BIN"
 

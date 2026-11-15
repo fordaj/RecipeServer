@@ -11,12 +11,14 @@
 # repository root so they resolve from any working directory.
 # Works in bash and zsh, sourced from any directory.
 
+# Resolve this file's directory (sourced or executed, in bash and zsh).
+# In zsh $0 is the sourced file's path (FUNCTION_ARGZERO, the default).
+# Kept bash-parseable on purpose: shfmt checks this repo's shell files
+# as bash.
 if [ -n "${BASH_VERSION:-}" ]; then
-	_env_sh_path="${BASH_SOURCE[0]}"
-elif [ -n "${ZSH_VERSION:-}" ]; then
-	_env_sh_path="${(%):-%x}"
+  _env_sh_path="${BASH_SOURCE[0]}"
 else
-	_env_sh_path="$0"
+  _env_sh_path="$0"
 fi
 ENV_DIR="$(cd -- "$(dirname -- "$_env_sh_path")" && pwd)"
 REPO_ROOT_DIR="$(cd -- "$ENV_DIR/.." && pwd)"
@@ -33,11 +35,11 @@ Linux:aarch64) . "$ENV_DIR/.linux-arm64.env" ;;
 MINGW*:x86_64 | MSYS*:x86_64 | CYGWIN*:x86_64) . "$ENV_DIR/.windows-x86_64.env" ;;
 MINGW*:aarch64 | MSYS*:aarch64 | CYGWIN*:aarch64 | MINGW*:arm64 | MSYS*:arm64 | CYGWIN*:arm64) . "$ENV_DIR/.windows-arm64.env" ;;
 *)
-	echo "Unsupported platform: $(uname -s) $(uname -m)" >&2
-	set +a
-	# shellcheck disable=SC2317
-	return 1 2>/dev/null || exit 1
-	;;
+  echo "Unsupported platform: $(uname -s) $(uname -m)" >&2
+  set +a
+  # shellcheck disable=SC2317
+  return 1 2>/dev/null || exit 1
+  ;;
 esac
 
 # Anchor the repository-relative tool binaries to the repo root.

@@ -15,22 +15,22 @@
 # Prerequisites: git, gh authenticated via `gh auth login` (real release),
 # and bundled versioner/logamuffin binaries (refresh with
 # tools/versioner/update.bash and tools/logamuffin/update.bash; select with
-# scripts/env.sh). Logging uses log <level> <message> from scripts/env.sh
+# scripts/entry.sh). Logging uses log <level> <message> from scripts/entry.sh
 # (logamuffin, with printf fallback until tools/logamuffin is populated).
 # Working tree must be clean; HEAD should be pushed.
 
 set -euo pipefail
 
-# Logging via logamuffin (log <level> <message> from scripts/env.sh,
+# Logging via logamuffin (log <level> <message> from scripts/entry.sh,
 # with printf fallback until tools/logamuffin is populated). Source the
 # env cascade first so every later message goes through log().
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-if [[ ! -f "$SCRIPT_DIR/scripts/env.sh" ]]; then
-  printf 'release.bash: error: env cascade not found: %s/scripts/env.sh\n' "$SCRIPT_DIR" >&2
+if [[ ! -f "$SCRIPT_DIR/scripts/entry.sh" ]]; then
+  printf 'release.bash: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
   exit 1
 fi
 # shellcheck disable=SC1091
-. "$SCRIPT_DIR/scripts/env.sh"
+. "$SCRIPT_DIR/scripts/entry.sh"
 
 DRY_RUN=0
 
@@ -39,7 +39,7 @@ usage() {
 Usage: ./release.bash [--dry-run]
 
 Compute the next VERSION/TAG with versioner itself (dogfooding, bundled
-binary selected via scripts/env.sh), create an annotated tag, push it,
+binary selected via scripts/entry.sh), create an annotated tag, push it,
 and create a GitHub release with generated notes (version tracking only,
 no assets).
 
@@ -48,8 +48,8 @@ Flags:
   --help, -h      Show this help.
 
 Env:
-  VERSIONER_BIN   Path to versioner (default: via scripts/env.sh, then PATH).
-  LOGAMUFFIN_BIN  Path to logamuffin for log() (default: via scripts/env.sh, then PATH).
+  VERSIONER_BIN   Path to versioner (default: via scripts/entry.sh, then PATH).
+  LOGAMUFFIN_BIN  Path to logamuffin for log() (default: via scripts/entry.sh, then PATH).
 EOF
 }
 
@@ -120,7 +120,7 @@ if ! git fetch origin --tags 2>/dev/null; then
   fi
 fi
 
-# --- Dogfooding: versioner/logamuffin via scripts/env.sh (sourced above)
+# --- Dogfooding: versioner/logamuffin via scripts/entry.sh (sourced above)
 # shellcheck disable=SC2154
 if [[ -z "${VERSIONER_BIN:-}" ]]; then
   die "no versioner binary found (run tools/versioner/update.bash, or set VERSIONER_BIN)"

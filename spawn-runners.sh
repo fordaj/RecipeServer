@@ -6,13 +6,13 @@
 #   ./spawn-runners.sh --dry-run      # print what would happen, change nothing
 #   ./spawn-runners.sh <flags...>     # any additional runner-spawner create flags
 #
-# Sources scripts/env.sh to resolve RUNNER_SPAWNER_BIN (bundled via
+# Sources scripts/entry.sh to resolve RUNNER_SPAWNER_BIN (bundled via
 # tools/runner-spawner/update.sh) and the logamuffin-backed log()
 # helper, then runs `runner-spawner create --config .runner-spawner.json`
 # from the repository root. Extra arguments are forwarded to the binary
-# (runner-spawner reads RUNNER_SPAWNER_REPO as the *target* repository,
-# which is why the env cascade exports RUNNER_SPAWNER_UPSTREAM_REPO for
-# the release updater instead — do not set RUNNER_SPAWNER_REPO).
+# (runner-spawner reads RUNNER_SPAWNER_REPO as the *target* repository; the
+# env cascade exports RUNNER_SPAWNER_TOOL_REPO for the release updater
+# instead of colliding with it).
 # The runners are repository-scoped to the origin remote (github.com/
 # fordaj/RecipeServer); .runners/ is gitignored.
 #
@@ -22,12 +22,12 @@
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
-if [[ ! -f "$SCRIPT_DIR/scripts/env.sh" ]]; then
-  printf 'spawn-runners.sh: error: env cascade not found: %s/scripts/env.sh\n' "$SCRIPT_DIR" >&2
+if [[ ! -f "$SCRIPT_DIR/scripts/entry.sh" ]]; then
+  printf 'spawn-runners.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
   exit 1
 fi
 # shellcheck disable=SC1091
-. "$SCRIPT_DIR/scripts/env.sh"
+. "$SCRIPT_DIR/scripts/entry.sh"
 
 # Target-repo selectors for the runner-spawner binary are read from
 # RUNNER_SPAWNER_REPO / RUNNER_SPAWNER_OWNER. Older env cascades exported

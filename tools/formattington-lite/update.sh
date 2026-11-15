@@ -22,7 +22,7 @@
 # only if a checksums.txt asset exists (formattington releases do not
 # publish one today) and requires shasum or sha256sum. The script resolves
 # its own directory, so it can be run from anywhere. Logging uses
-# log <level> <message> from scripts/env.sh (logamuffin, with printf
+# log <level> <message> from scripts/entry.sh (logamuffin, with printf
 # fallback until tools/logamuffin is populated).
 #
 # Asset -> platform mapping (lite assets only; -full assets are ignored):
@@ -50,17 +50,17 @@
 
 set -euo pipefail
 
-# Logging via logamuffin (log <level> <message> from scripts/env.sh,
+# Logging via logamuffin (log <level> <message> from scripts/entry.sh,
 # with printf fallback until tools/logamuffin is populated). Source the
 # env cascade first so every later message goes through log().
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 REPO_ROOT_FOR_ENV=$(cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd)
-if [[ ! -f "$REPO_ROOT_FOR_ENV/scripts/env.sh" ]]; then
-    printf 'update.sh: error: env cascade not found: %s/scripts/env.sh\n' "$REPO_ROOT_FOR_ENV" >&2
+if [[ ! -f "$REPO_ROOT_FOR_ENV/scripts/entry.sh" ]]; then
+    printf 'update.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$REPO_ROOT_FOR_ENV" >&2
     exit 1
 fi
 # shellcheck disable=SC1091
-. "$REPO_ROOT_FOR_ENV/scripts/env.sh"
+. "$REPO_ROOT_FOR_ENV/scripts/entry.sh"
 
 DRY_RUN=0
 TAG="${FORMATTINGTON_TAG:-}"
