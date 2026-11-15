@@ -71,7 +71,7 @@ The repository's documentation is a set of Markdown (`.md`) and Mermaid (`.mmd`)
 Layout — documentation lives next to the code it describes:
 
 - One sibling `.md` per Python module in `src/recipeserver/` (for example `server.py` → `server.md`, `markdown_to_html/converter.py` → `markdown_to_html/converter.md`), plus `src/recipeserver/README.md` as the package hub. There is one page per module, including the small ones (`_logger.py` → [_logger.md](src/recipeserver/_logger.md)); none are optional.
-- One sibling `.md` per script in `scripts/` (`entry.sh` → `entry.md`, `env.sh` → `env.md`, `version.bash` → `version.md`, `docs.sh` → `docs.md`, `release.sh` → `release.md`), plus `scripts/README.md` as the hub. Root bash scripts follow the same rule (`format.sh` → `format.md`, `serve.sh` → `serve.md`, `spawn-runners.sh` → `spawn-runners.md`).
+- One sibling `.md` per script in `scripts/` (`entry.sh` → `entry.md`, `env.sh` → `env.md`, `version.sh` → `version.md`, `docs.sh` → `docs.md`, `release.sh` → `release.md`), plus `scripts/README.md` as the hub. Root bash scripts follow the same rule (`format.sh` → `format.md`, `serve.sh` → `serve.md`, `spawn-runners.sh` → `spawn-runners.md`).
 - One sibling `.md` per bundle in `tools/` (`tools/<name>/update.md`), plus `tools/README.md` as the hub.
 
 Not documented page-by-page: vendored KaTeX under `src/recipeserver/assets/katex/` (third-party; mentioned in the package hub and the root README), the `assets/` tree itself, `test/` (fixtures are not pages), and the package's prompt files (`NewRecipePrompt.md`, `NewRecipeFromImagePrompt.md`, `FindOneForMePrompt.md` — content, loaded at startup, not rendered as documentation).

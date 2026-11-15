@@ -6,7 +6,7 @@
 
 ```text
 tools/logamuffin/
-  update.bash                     # refresh from fordaj/logamuffin releases
+  update.sh                     # refresh from fordaj/logamuffin releases
   v0.1.3.0.35/
     macos-arm64/logamuffin
     macos-x86_64/logamuffin
@@ -16,7 +16,7 @@ tools/logamuffin/
     windows-x86_64/logamuffin.exe
 ```
 
-## `update.bash` in detail
+## `update.sh` in detail
 
 Archives are `.tar.gz` (macOS/Linux) and `.zip` (Windows). The script:
 
@@ -29,7 +29,7 @@ Only the binary is kept — no LICENSE or NOTICE files are retained by this bund
 
 ## How the repository uses it
 
-[scripts/entry.sh](../../scripts/entry.md) resolves `LOGAMUFFIN_BIN` through the [env cascade](../../scripts/env.md) and forwards every `log LEVEL MESSAGE…` call to the binary with `LOG_SOURCE` set to the call site; when the binary is absent, `log()` falls back to a printf implementation. `scripts/release.sh` logs a warning naming `tools/logamuffin/update.bash` when the binary is missing.
+[scripts/entry.sh](../../scripts/entry.md) resolves `LOGAMUFFIN_BIN` through the [env cascade](../../scripts/env.md) and forwards every `log LEVEL MESSAGE…` call to the binary with `LOG_SOURCE` set to the call site; when the binary is absent, `log()` falls back to a printf implementation. `scripts/release.sh` logs a warning naming `tools/logamuffin/update.sh` when the binary is missing.
 
 ## Related pages
 

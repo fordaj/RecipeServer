@@ -6,7 +6,7 @@
 
 ```text
 tools/barnacle/
-  update.bash                     # refresh from fordaj/barnacle releases
+  update.sh                     # refresh from fordaj/barnacle releases
   v0.0.1.0.5/
     macos-arm64/barnacle
     macos-x86_64/barnacle
@@ -16,7 +16,7 @@ tools/barnacle/
     windows-x86_64/barnacle.exe
 ```
 
-## `update.bash` in detail
+## `update.sh` in detail
 
 Archives are `.tar.gz` (macOS/Linux) and `.zip` (Windows); each is expected to carry a top-level directory with the binary. The script:
 

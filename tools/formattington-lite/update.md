@@ -6,7 +6,7 @@
 
 ```text
 tools/formattington-lite/
-  update.bash                     # refresh from fordaj/formattington releases
+  update.sh                     # refresh from fordaj/formattington releases
   v0.0.2.0.53/
     macos-arm64/formattington
     macos-arm64/NOTICE.md
@@ -16,7 +16,7 @@ tools/formattington-lite/
 
 Platform directories: `macos-arm64`, `macos-x86_64`, `linux-arm64`, `linux-x86_64`, `windows-arm64`, `windows-x86_64`.
 
-## `update.bash` in detail
+## `update.sh` in detail
 
 Archives are `.tar.gz` (macOS/Linux) and `.zip` (Windows). The script:
 

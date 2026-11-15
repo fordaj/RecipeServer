@@ -7,7 +7,7 @@
 #   ./spawn-runners.sh <flags...>     # any additional runner-spawner create flags
 #
 # Sources scripts/entry.sh to resolve RUNNER_SPAWNER_BIN (bundled via
-# tools/runner-spawner/update.bash) and the logamuffin-backed log()
+# tools/runner-spawner/update.sh) and the logamuffin-backed log()
 # helper, then runs `runner-spawner create --config .runner-spawner.json`
 # from the repository root. Extra arguments are forwarded to the binary
 # (runner-spawner reads RUNNER_SPAWNER_REPO as the *target* repository; the
@@ -41,7 +41,7 @@ unset RUNNER_SPAWNER_REPO RUNNER_SPAWNER_OWNER
 cd "$SCRIPT_DIR"
 
 if [[ -z "${RUNNER_SPAWNER_BIN:-}" ]]; then
-  log ERROR "no runner-spawner binary found (run tools/runner-spawner/update.bash, or set RUNNER_SPAWNER_BIN)"
+  log ERROR "no runner-spawner binary found (run tools/runner-spawner/update.sh, or set RUNNER_SPAWNER_BIN)"
   exit 1
 fi
 [[ -x "$RUNNER_SPAWNER_BIN" ]] || {

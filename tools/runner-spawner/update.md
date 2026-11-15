@@ -6,7 +6,7 @@
 
 ```text
 tools/runner-spawner/
-  update.bash                     # refresh from fordaj/runner-spawner releases
+  update.sh                     # refresh from fordaj/runner-spawner releases
   v0.0.1.2.6/
     macos-arm64/runner-spawner
     macos-x86_64/runner-spawner
@@ -16,7 +16,7 @@ tools/runner-spawner/
     windows-x86_64/runner-spawner.exe
 ```
 
-## `update.bash` in detail
+## `update.sh` in detail
 
 Archives are `.tar.gz` (macOS/Linux) and `.zip` (Windows). The script:
 

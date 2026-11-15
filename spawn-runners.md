@@ -10,7 +10,7 @@ Creates the repository-scoped self-hosted CI runners described by `.runner-spawn
 ./spawn-runners.sh <flags...>     # any additional runner-spawner create flags
 ```
 
-Sources [scripts/entry.sh](scripts/entry.md) to resolve `RUNNER_SPAWNER_BIN` (bundled via [tools/runner-spawner/update.bash](tools/runner-spawner/update.md)) and the `log()` helper, then runs:
+Sources [scripts/entry.sh](scripts/entry.md) to resolve `RUNNER_SPAWNER_BIN` (bundled via [tools/runner-spawner/update.sh](tools/runner-spawner/update.md)) and the `log()` helper, then runs:
 
 ```bash
 runner-spawner create --config .runner-spawner.json "$@"

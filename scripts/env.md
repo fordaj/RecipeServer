@@ -7,7 +7,7 @@
 1. Locates the cascade files relative to itself (bash via `$BASH_SOURCE`, zsh via `$ZSH_VERSION`) so sourcing works from any cwd.
 2. Brings in `.common.env`, then the platform file selected by `uname -s`/`uname -m` — for example `.macos-arm64.env` or `.windows-x86_64.env`. Unsupported platforms print `Unsupported platform: <os> <arch>` and return `1`.
 3. **Anchors** every repository-relative `*_BIN` to the repository root (`REPO_ROOT_DIR`), leaving absolute paths untouched. After sourcing, `$VERSIONER_BIN`, `$LOGAMUFFIN_BIN`, `$RUNNER_SPAWNER_BIN`, and `$BARNACLE_BIN` are absolute.
-4. Sets `REPO_ROOT_DIR` for callers that need the repository root (for example [version.bash](version.md)).
+4. Sets `REPO_ROOT_DIR` for callers that need the repository root (for example [version.sh](version.md)).
 
 Everything is exported with `set -a` while sourcing and un-exported at the end, so the cascade does not leak into the caller's environment beyond the intended variables.
 
