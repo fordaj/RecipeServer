@@ -20,7 +20,7 @@ tools/runner-spawner/
 
 Archives are `.tar.gz` (macOS/Linux) and `.zip` (Windows). The script:
 
-1. Resolves the tag (latest release, or `--tag vX.Y.Z...`), validating the tag shape. `--repo`/env `RUNNER_SPAWNER_TOOL_REPO` override the slug (default `fordaj/runner-spawner`; env `RUNNER_SPAWNER_TAG` pins the tag, overridden by `--tag`). The env variable is deliberately `RUNNER_SPAWNER_TOOL_REPO`, not `RUNNER_SPAWNER_REPO`, so the release updater cannot collide with the target-repository selector the binary itself reads (`RUNNER_SPAWNER_REPO`/`RUNNER_SPAWNER_OWNER`) — [spawn-runners.sh](../../spawn-runners.md) unsets those before invoking the binary.
+1. Resolves the tag (latest release, or `--tag vX.Y.Z...`), validating the tag shape. `--repo`/env `RUNNER_SPAWNER_TOOL_REPO` override the slug (default `fordaj/runner-spawner`; env `RUNNER_SPAWNER_TAG` pins the tag, overridden by `--tag`). The env variable is deliberately `RUNNER_SPAWNER_TOOL_REPO`, not `RUNNER_SPAWNER_REPO`, so the release updater cannot collide with the target-repository selector the binary itself reads (`RUNNER_SPAWNER_REPO`/`RUNNER_SPAWNER_OWNER`) — [spawn-runners.sh](../../scripts/spawn-runners.md) unsets those before invoking the binary.
 2. Downloads via `gh` and verifies downloaded archives against `checksums.txt` or `SHA256SUMS.txt`. **A release without a checksums file is fatal here** (`refusing to install unverified binaries`) — the one bundle of the five that refuses to install unverified binaries.
 3. Extracts each archive, copies the `runner-spawner` binary into `v<tag>/<platform>/`, makes it executable, and verifies it is non-empty.
 4. Swaps in the new version directory and deletes superseded `v*/` ones, then smoke-tests the host binary (`runner-spawner --version`).
@@ -29,10 +29,10 @@ Only the binary is kept. Unknown arguments exit `2`. `--dry-run` lists assets an
 
 ## How the repository uses it
 
-[spawn-runners.sh](../../spawn-runners.md) resolves `RUNNER_SPAWNER_BIN` through the [env cascade](../../scripts/env.md) and runs `runner-spawner create --config .runner-spawner.json`. The tool is macOS/Windows only; the Linux binaries ship for bundle uniformity but report unsupported, and requesting the registration token requires `gh` to be authenticated (or `--token`).
+[spawn-runners.sh](../../scripts/spawn-runners.md) resolves `RUNNER_SPAWNER_BIN` through the [env cascade](../../scripts/env.md) and runs `runner-spawner create --config .runner-spawner.json`. The tool is macOS/Windows only; the Linux binaries ship for bundle uniformity but report unsupported, and requesting the registration token requires `gh` to be authenticated (or `--token`).
 
 ## Related pages
 
 - [../README.md](../README.md) — the bundle index
-- [../../spawn-runners.md](../../spawn-runners.md) — the consumer
+- [../../spawn-runners.md](../../scripts/spawn-runners.md) — the consumer
 - [../../scripts/README.md](../../scripts/README.md)

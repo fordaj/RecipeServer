@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# serve.sh — start the local recipe server.
+# scripts/serve.sh — start the local recipe server.
 #
 # Usage:
-#   ./serve.sh
+#   ./scripts/serve.sh
 #
 # Sources scripts/entry.sh for the logamuffin-backed log() helper, then
 # starts the server from the repository root with:
@@ -12,7 +12,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 if [[ ! -f "$SCRIPT_DIR/scripts/entry.sh" ]]; then
-  printf 'serve.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
+  printf 'scripts/serve.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
   exit 1
 fi
 # shellcheck disable=SC1091

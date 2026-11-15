@@ -13,8 +13,12 @@ Vernacular used in the headers (`log INFO`, `REPO_ROOT_DIR`, `VERSIONER_BIN`): r
 ## Task scripts
 
 - [version.sh](version.md) — print the repository version computed by versioner (`--format text|shell|json`).
+- [format.sh](format.md) — format the repository in place with formattington.
+- [serve.sh](serve.md) — launch the RecipeServer web app (development).
+- [spawn-runners.sh](spawn-runners.md) — spawn self-hosted GitHub Actions runners for this repository.
 - [docs.sh](docs.md) — generate the documentation site you are reading, with the bundled barnacle.
 - [release.sh](release.md) — compute the version, tag `HEAD`, push the tag, and create the GitHub release (version tracking only; see the caveat in [release.md](release.md)).
+- [entry.sh](entry.md) / [env.sh](env.md) — the sourced cascade and `log()` helper (not entry points).
 
 ## Related pages
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# format.sh — run formattington with logging via logamuffin.
+# scripts/format.sh — run formattington with logging via logamuffin.
 #
 # Usage:
-#   ./format.sh [--check] [...]
+#   ./scripts/format.sh [--check] [...]
 #
 # Forwards all arguments to `uv run formattington <args> all
 # --config .formattington.json` after sourcing scripts/entry.sh for the
@@ -13,7 +13,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 if [[ ! -f "$SCRIPT_DIR/scripts/entry.sh" ]]; then
-  printf 'format.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
+  printf 'scripts/format.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
   exit 1
 fi
 # shellcheck disable=SC1091

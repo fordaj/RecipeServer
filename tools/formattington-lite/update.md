@@ -1,6 +1,6 @@
 # The formattington-lite bundle (`tools/formattington-lite/`)
 
-[Formattington](https://github.com/fordaj/formattington) is the repository's formatter. RecipeServer uses formattington two ways: the primary path is the pinned `uv` dev dependency invoked by [format.sh](../../format.md) (`uv run formattington all --config .formattington.json`), and this bundle is the committed binary fallback for environments where the uv path is unavailable. The `-lite` binaries redistribute nothing; the `NOTICE.md` and `LICENSES/` in each platform directory travel with the release archives anyway.
+[Formattington](https://github.com/fordaj/formattington) is the repository's formatter. RecipeServer uses formattington two ways: the primary path is the pinned `uv` dev dependency invoked by [format.sh](../../scripts/format.md) (`uv run formattington all --config .formattington.json`), and this bundle is the committed binary fallback for environments where the uv path is unavailable. The `-lite` binaries redistribute nothing; the `NOTICE.md` and `LICENSES/` in each platform directory travel with the release archives anyway.
 
 ## Layout
 
@@ -29,10 +29,10 @@ Unknown arguments exit `2`. `--dry-run` lists assets and what would change witho
 
 ## How the repository uses it
 
-[format.sh](../../format.md) does not call this binary — it uses the pinned uv dependency. The bundle exists so a checkout without working uv/network access still has a formattington on hand; the repository's `README.md` credits it as the formatting fallback in the "Bundled tooling and CI" table.
+[format.sh](../../scripts/format.md) does not call this binary — it uses the pinned uv dependency. The bundle exists so a checkout without working uv/network access still has a formattington on hand; the repository's `README.md` credits it as the formatting fallback in the "Bundled tooling and CI" table.
 
 ## Related pages
 
 - [../README.md](../README.md) — the bundle index
-- [../../format.md](../../format.md) — the formatting entry point
+- [../../format.md](../../scripts/format.md) — the formatting entry point
 - [../../scripts/README.md](../../scripts/README.md)

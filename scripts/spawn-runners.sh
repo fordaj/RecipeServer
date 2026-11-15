@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# spawn-runners.sh — create the repository-scoped self-hosted runners.
+# scripts/spawn-runners.sh — create the repository-scoped self-hosted runners.
 #
 # Usage:
-#   ./spawn-runners.sh                # create the runners in .runner-spawner.json
-#   ./spawn-runners.sh --dry-run      # print what would happen, change nothing
-#   ./spawn-runners.sh <flags...>     # any additional runner-spawner create flags
+#   ./scripts/spawn-runners.sh                # create the runners in .runner-spawner.json
+#   ./scripts/spawn-runners.sh --dry-run      # print what would happen, change nothing
+#   ./scripts/spawn-runners.sh <flags...>     # any additional runner-spawner create flags
 #
 # Sources scripts/entry.sh to resolve RUNNER_SPAWNER_BIN (bundled via
 # tools/runner-spawner/update.sh) and the logamuffin-backed log()
@@ -23,7 +23,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 if [[ ! -f "$SCRIPT_DIR/scripts/entry.sh" ]]; then
-  printf 'spawn-runners.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
+  printf 'scripts/spawn-runners.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
   exit 1
 fi
 # shellcheck disable=SC1091

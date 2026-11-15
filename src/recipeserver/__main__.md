@@ -7,7 +7,7 @@ Enables `python -m recipeserver`. Ten lines, no logic of its own — it just wir
 3. `Configuration().handle_configuration()` resolves the recipe source directory and the optional local-model settings ([config.md](config.md)).
 4. `main(cfg)` builds the site, starts the server, and runs the tray ([core.md](core.md)).
 
-`__main__.py` is only executed for `python -m recipeserver`. The console script from `pyproject.toml` and [serve.sh](../../serve.md) both go through the package `main` instead.
+`__main__.py` is only executed for `python -m recipeserver`. The console script from `pyproject.toml` and [scripts/serve.sh](../../scripts/serve.md) both go through the package `main` instead.
 
 ## Related pages
 

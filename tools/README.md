@@ -1,6 +1,6 @@
 # Pinned helper tools (`tools/`)
 
-`tools/` carries the repository's pinned helper binaries — build, release, logging, and docs tooling — plus one `update.sh` per tool that refreshes them. These are **not** the formatters [format.sh](../format.md) orchestrates (formattington is the primary path, as a pinned `uv` dev dependency; formattington-lite here is the fallback); they are the tools used to build, test, log, and document this repository itself, consumed by the scripts via the [env cascade](../scripts/env.md).
+`tools/` carries the repository's pinned helper binaries — build, release, logging, and docs tooling — plus one `update.sh` per tool that refreshes them. These are **not** the formatters [format.sh](../scripts/format.md) orchestrates (formattington is the primary path, as a pinned `uv` dev dependency; formattington-lite here is the fallback); they are the tools used to build, test, log, and document this repository itself, consumed by the scripts via the [env cascade](../scripts/env.md).
 
 ## Bundling convention
 
@@ -23,7 +23,7 @@ tools/<name>/
 | --- | --- | --- |
 | [versioner](versioner/update.md) | Computes the repository version (`scripts/version.sh`, `scripts/release.sh`) | [update.sh](versioner/update.md) |
 | [logamuffin](logamuffin/update.md) | Logging backend for `log()` in [scripts/entry.sh](../scripts/entry.md) | [update.sh](logamuffin/update.md) |
-| [runner-spawner](runner-spawner/update.md) | Self-hosted CI runners ([spawn-runners.sh](../spawn-runners.md)) | [update.sh](runner-spawner/update.md) |
+| [runner-spawner](runner-spawner/update.md) | Self-hosted CI runners ([spawn-runners.sh](../scripts/spawn-runners.md)) | [update.sh](runner-spawner/update.md) |
 | [barnacle](barnacle/update.md) | Documentation site generation ([scripts/docs.sh](../scripts/docs.md)) | [update.sh](barnacle/update.md) |
 | [formattington-lite](formattington-lite/update.md) | Formatting fallback; the pinned uv dev dependency is the primary path | [update.sh](formattington-lite/update.md) |
 
@@ -42,6 +42,6 @@ tools/barnacle/update.sh --dry-run  # show what would change
 
 - [../scripts/env.md](../scripts/env.md) — how the cascade selects these binaries
 - [../scripts/docs.md](../scripts/docs.md) — barnacle in action
-- [../spawn-runners.md](../spawn-runners.md) — runner-spawner in action
-- [../format.md](../format.md) — the formatting entry point
+- [../spawn-runners.md](../scripts/spawn-runners.md) — runner-spawner in action
+- [../format.md](../scripts/format.md) — the formatting entry point
 - [../README.md](../README.md)

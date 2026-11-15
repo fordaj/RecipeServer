@@ -20,7 +20,7 @@ When the binary is missing (a fresh clone before tools are populated), `log()` f
 set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)   # repo root
 if [[ ! -f "$SCRIPT_DIR/scripts/entry.sh" ]]; then ... fi
-. "$SCRIPT_DIR/scripts/entry.sh"   # as used by serve.sh, format.sh, spawn-runners.sh
+. "$SCRIPT_DIR/scripts/entry.sh"   # as used by scripts/serve.sh, scripts/format.sh, scripts/spawn-runners.sh
 ```
 
 Scripts inside `scripts/` source it as `"$SCRIPT_DIR/entry.sh"` instead (see [version.md](version.md)).

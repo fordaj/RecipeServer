@@ -55,7 +55,7 @@ uv sync
 Start the app from the repository root:
 
 ```bash
-./serve.sh
+./scripts/serve.sh
 ```
 
 On Windows, run `serve.bat`. The equivalent cross-platform command is:
@@ -256,8 +256,8 @@ uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_
 Format Python (Black, line-length 150), Bash (shfmt), CSS/JS/HTML/Markdown/YAML (Prettier), TOML (taplo), and SVG (Prettier `--parser html`) via formattington (`uv run formattington all --config .formattington.json`, concurrently by default). Formatters are declared in `.formattington.json`; vendored KaTeX is excluded via `.prettierignore`. Requires `prettier` on PATH (`npm install -g prettier`) and `taplo` on PATH:
 
 ```bash
-./format.sh
-./format.sh --check
+./scripts/format.sh
+./scripts/format.sh --check
 ```
 
 ### Bundled tooling and CI
@@ -269,15 +269,15 @@ repositories under `tools/` (pinned, platform-native; refreshed by each
 | Tool                       | Used for                                                                                   |
 | -------------------------- | ------------------------------------------------------------------------------------------ |
 | `tools/versioner`          | Compute `VERSION`/`TAG` for releases (`scripts/version.sh`, `scripts/release.sh`)        |
-| `tools/logamuffin`         | Shell logging behind `scripts/entry.sh` (`serve.sh`, `format.sh`, `scripts/release.sh`, …) |
-| `tools/runner-spawner`     | Provision the self-hosted CI runners (`./spawn-runners.sh`)                                |
+| `tools/logamuffin`         | Shell logging behind `scripts/entry.sh` (`scripts/serve.sh`, `scripts/format.sh`, `scripts/release.sh`, …) |
+| `tools/runner-spawner`     | Provision the self-hosted CI runners (`./scripts/spawn-runners.sh`)                                |
 | `tools/formattington-lite` | Formatting fallback; the pinned uv dependency is the primary path                          |
 | `tools/barnacle`           | Documentation site generation (`scripts/docs.sh`)                                          |
 
 Scripts source `scripts/entry.sh`, which exposes `log()` backed by the
 bundled logamuffin binary. Formatting is orchestrated by
 [formattington](https://github.com/fordaj/formattington) both as a pinned
-`uv` dev dependency (`./format.sh`) and as the committed config in
+`uv` dev dependency (`./scripts/format.sh`) and as the committed config in
 `.formattington.json`.
 
 GitHub Actions (`.github/workflows/check-formatting.yml`, “PR Checks”) runs
@@ -303,9 +303,9 @@ src/recipeserver/
 ├── NewRecipePrompt.md      # model prompt requirements, reloaded at startup
 └── assets/                 # CSS, JavaScript, icons, and vendored KaTeX
 test/                       # pytest suite
-serve.sh / serve.bat        # launch helpers
-format.sh                   # Python (Black) and Bash (shfmt) formatting via formattington
-spawn-runners.sh            # create the self-hosted CI runners (macOS/Windows)
+serve.bat / scripts/serve.sh      # launch helpers (Windows / Unix)
+scripts/format.sh                   # Python (Black) and Bash (shfmt) formatting via formattington
+scripts/spawn-runners.sh            # create the self-hosted CI runners (macOS/Windows)
 scripts/                    # env cascade (entry.sh/env.sh) + version.sh + docs.sh
 tools/                      # bundled fordaj/* binaries + update.sh refreshers
 ```
