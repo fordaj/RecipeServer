@@ -1,5 +1,16 @@
 # AGENTS.md
 
+```mermaid
+flowchart LR
+    code["Edit source"] --> doc["Update sibling .md<br/>in the same change"]
+    doc --> regen["scripts/docs.sh"]
+    regen --> site["./site — git-ignored"]
+    site --> review["Self-review the<br/>changed pages"]
+    review --> commit["Commit source + doc together"]
+    click doc href "src/recipeserver/README.md"
+    click regen href "scripts/docs.sh.md"
+```
+
 ## What this is
 
 Local recipe-site generator and HTTP server. It reads a tree of `recipe.md` files, renders each to HTML, builds a searchable `index.html`, and serves the site with in-browser editing of metadata, ratings, and comments. Edits are written back to each recipe's YAML front matter and Markdown body.
@@ -71,20 +82,28 @@ The repository's documentation is a set of Markdown (`.md`) and Mermaid (`.mmd`)
 
 Layout — documentation lives next to the code it describes:
 
-- One sibling `.md` per Python module in `src/recipeserver/` (for example `server.py` → `server.md`, `markdown_to_html/converter.py` → `markdown_to_html/converter.md`), plus `src/recipeserver/README.md` as the package hub. There is one page per module, including the small ones (`_logger.py` → [_logger.md](src/recipeserver/_logger.md)); none are optional.
-- One sibling `.md` per script in `scripts/` (`entry.sh` → `entry.md`, `env.sh` → `env.md`, `version.sh` → `version.md`, `docs.sh` → `docs.md`, `release.sh` → `release.md`), plus `scripts/README.md` as the hub. Scripts that live outside `scripts/` follow no separate rule — everything shell now lives there.
-- One sibling `.md` per bundle in `tools/` (`tools/<name>/update.md`), plus `tools/README.md` as the hub.
+- One sibling `.md` per Python module in `src/recipeserver/` (for example `server.py` → `server.py.md`, `markdown_to_html/converter.py` → `markdown_to_html/converter.py.md`), plus `src/recipeserver/README.md` as the package hub. There is one page per module, including the small ones (`_logger.py` → [_logger.py.md](src/recipeserver/_logger.py.md)); none are optional.
+- One sibling `.md` per script in `scripts/` (`entry.sh` → `entry.sh.md`, `env.sh` → `env.sh.md`, `version.sh` → `version.sh.md`, `docs.sh` → `docs.sh.md`, `release.sh` → `release.sh.md`), plus `scripts/README.md` as the hub. Scripts that live outside `scripts/` follow no separate rule — everything shell now lives there.
+- One sibling `.md` per bundle in `tools/` (`tools/<name>/update.sh.md`), plus `tools/README.md` as the hub. `tools/` is excluded from the generated site via `.barnacle.json` (the pinned binaries carry their own upstream docs), so these pages exist for the repository, not the site.
 
-Not documented page-by-page: vendored KaTeX under `src/recipeserver/assets/katex/` (third-party; mentioned in the package hub and the root README), the `assets/` tree itself, `test/` (fixtures are not pages), and the package's prompt files (`NewRecipePrompt.md`, `NewRecipeFromImagePrompt.md`, `FindOneForMePrompt.md` — content, loaded at startup, not rendered as documentation).
+Not documented page-by-page: vendored KaTeX under `src/recipeserver/assets/katex/` (third-party; mentioned in the package hub and the root README), the `assets/` tree itself, `test/` (fixtures are not pages), and the package's prompt files (`NewRecipePrompt.md`, `NewRecipeFromImagePrompt.md`, `FindOneForMePrompt.md` — content, loaded at startup, not rendered as documentation). These are excluded from the site via `.barnacle.json` (`tools`, `dist`, `test`, `src/recipeserver/assets/katex`, and the three prompt files).
+
+Naming rules:
+
+- **Retain the documented file's suffix.** A documentation file for `main.py` is `main.py.md`; for `scripts/serve.sh` it is `scripts/serve.sh.md`. This is the convention for everything in this repository, and it exists so files that share a base name can be documented individually.
+- Hub pages (`README.md` in each documented directory) keep their plain names.
+- Free-standing diagrams that do not document one specific file (for example `architecture.mmd`) may use a plain name.
 
 Rules for keeping these files current:
 
 - When you add, rename, remove, or repurpose a documented file — a module, a script, or a bundle — update its sibling `.md` **in the same change**. A new file without its page is incomplete work; a stale page is worse than none.
+- **Every page opens with a Mermaid diagram** under its `#` heading (guidance, not a hard rule): what the thing is and how it fits, in the diagram type that fits best — a flowchart, class diagram, sequence diagram, state diagram, dependency graph — whatever best communicates the thing to someone who has never seen it. If a page you touch has no diagram at the top, add one. Barnacle prints a non-fatal stderr note listing pages without one.
 - Source every fact: the `.py`/`.sh` file itself, this file (AGENTS.md), and README.md are the accepted sources. Never invent routes, flags, exit codes, or bundle-platform matrices.
-- Use plain relative links (`converter.md`, `../../README.md`) with the linking file's `.md` path — barnacle rewrites them to `.html`. Do not link to files barnacle does not render (binaries, `.sh`, `LICENSE`); link the related `.md` page (for external references, a full `https://` URL is fine).
-- A `foo.md` and a `foo.mmd` may not coexist for the same stem — barnacle fails the whole site rather than overwriting.
+- Use plain relative links (`converter.py.md`, `../../README.md`) with the linking file's `.md` path — barnacle rewrites them to `.html`. Do not link to files barnacle does not render (binaries, `.sh`, `LICENSE`); link the related `.md` page (for external references, a full `https://` URL is fine). Pages that are not rendered (`tools/`) may still be linked from other unrendered pages; rendered pages must not hyperlink into `tools/` — refer to those pages as code (for example `tools/barnacle/update.sh.md`), because `.barnacle.json` excludes them from the site.
+- Mermaid `click` directives are rewritten too (`click Core href "core.py.md"`), so diagram nodes may link between pages — prefer this in the top-of-page diagram; it makes the site explorable by diagram alone. Transitions work the same way with an inline anchor in the label (`Idle --> Waiting : <a href="core.py.md">regen()</a>`, see barnacle's README ("Clickable edges") for the quoting rules) — no JS, no directives. Targets are relative to the current page, exactly like Markdown links, and `.md`/`.markdown`/`.mmd` targets rewrite to `.html`.
+- A `foo.md` and a `foo.mmd` may not coexist for the same stem — barnacle fails the whole site rather than overwriting. The same applies with retained suffixes: `main.py.md` and `main.py.mmd` both generate `main.py.html`.
 - Hub pages (`README.md` in each documented directory) list their siblings; adding a page means linking it from the hub too, in registry order where a registry order exists.
-- Barnacle skips hidden files by default, so the `.common.env` and `.<platform>.env` cascade is documented inside [scripts/env.md](scripts/env.md) — keep it accurate there instead of adding hidden doc files.
+- Barnacle skips hidden files by default, so the `.common.env` and `.<platform>.env` cascade is documented inside [scripts/env.sh.md](scripts/env.sh.md) — keep it accurate there instead of adding hidden doc files.
 - Regenerate and self-review the site before publishing: `scripts/docs.sh`, then click through the changed pages. The generator output must remain free of broken local links.
 
-Definition of Done addition: a change that touches any documented file updates (or creates) its sibling page in the same commit.
+Definition of Done addition: a change that touches any documented file updates (or creates) its sibling page in the same commit — including the diagram at the top.

@@ -1,5 +1,16 @@
 # COGNITIVE_COMPLEXITY_AGENT
 
+```mermaid
+flowchart TD
+    create["Create issues"] --> audit["Agent audits the<br/>whole codebase"]
+    audit --> parent["Parent issue"]
+    parent --> children["Child issue per<br/>top offender"]
+    work["Work on an issue"] --> branch["Branch per issue"]
+    branch --> pr["Pull request"]
+    click audit href "CODE_DISTILLATION_AGENT.md"
+    click branch href "COGNITIVE_COMPLEXITY_AGENT.md"
+```
+
 ## Create issues
 
 ```text

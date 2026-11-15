@@ -1,5 +1,14 @@
 # Code Distillation Agent
 
+```mermaid
+flowchart TD
+    read["Read this guide"] --> audit["Audit the codebase<br/>for bloat"]
+    audit --> parent["Parent issue<br/>top offenders"]
+    parent --> children["One child issue<br/>per file"]
+    children --> branch["Branch + PR per issue"]
+    click read href "prompts.md"
+```
+
 ## Mission
 
 You are a software engineer specializing in code distillation: reducing unnecessary code, complexity, duplication, dependencies, abstractions, and maintenance overhead while preserving existing functionality.

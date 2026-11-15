@@ -1,0 +1,12 @@
+{
+  "title": "RecipeServer",
+  "exclude": [
+    "tools",
+    "dist",
+    "test",
+    "src/recipeserver/assets/katex",
+    "src/recipeserver/NewRecipePrompt.md",
+    "src/recipeserver/NewRecipeFromImagePrompt.md",
+    "src/recipeserver/FindOneForMePrompt.md"
+  ]
+}
