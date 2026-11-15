@@ -326,13 +326,13 @@ This repository carries compiled executables from the sibling `fordaj/*`
 repositories under `tools/` (pinned, platform-native; refreshed by each
 `tools/<name>/update.sh`):
 
-| Tool                       | Used for                                                                                   |
-| -------------------------- | ------------------------------------------------------------------------------------------ |
-| `tools/versioner`          | Compute `VERSION`/`TAG` for releases (`scripts/version.sh`, `scripts/release.sh`)        |
+| Tool                       | Used for                                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `tools/versioner`          | Compute `VERSION`/`TAG` for releases (`scripts/version.sh`, `scripts/release.sh`)                          |
 | `tools/logamuffin`         | Shell logging behind `scripts/entry.sh` (`scripts/serve.sh`, `scripts/format.sh`, `scripts/release.sh`, …) |
-| `tools/runner-spawner`     | Provision the self-hosted CI runners (`./scripts/spawn-runners.sh`)                                |
-| `tools/formattington-lite` | Formatting fallback; the pinned uv dependency is the primary path                          |
-| `tools/barnacle`           | Documentation site generation (`scripts/docs.sh`)                                          |
+| `tools/runner-spawner`     | Provision the self-hosted CI runners (`./scripts/spawn-runners.sh`)                                        |
+| `tools/formattington-lite` | Formatting fallback; the pinned uv dependency is the primary path                                          |
+| `tools/barnacle`           | Documentation site generation (`scripts/docs.sh`)                                                          |
 
 Scripts source `scripts/entry.sh`, which exposes `log()` backed by the
 bundled logamuffin binary. Formatting is orchestrated by

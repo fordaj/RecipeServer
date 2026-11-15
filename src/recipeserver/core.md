@@ -19,7 +19,7 @@ The server binds `0.0.0.0` on the configured port (default 8000); if the port is
 
 ## Related pages
 
-- [__main__.md](__main__.md) — the `python -m recipeserver` wrapper
+- [**main**.md](__main__.md) — the `python -m recipeserver` wrapper
 - [server.md](server.md) — the HTTP server wired up here
 - [tray.md](tray.md) — the tray icon wired up here
 - [index_html_generator.md](index_html_generator.md) — builds `index.html`

@@ -22,6 +22,7 @@ Hidden files are excluded from barnacle's default scan, so their contract is doc
   - `BARNACLE_VERSION_DIR=tools/barnacle/v0.0.1.0.5`
 
   When bumping a pinned tool, this file names the version directory the platform files point into.
+
 - **`.<platform>.env`** — one per supported platform (`linux-arm64`, `linux-x86_64`, `macos-arm64`, `macos-x86_64`, `windows-arm64`, `windows-x86_64`). Sets `PROJECT_PLATFORM` and the `*_BIN` paths, including `BARNACLE_BIN`. `.linux-*.env` note that runner-spawner reports unsupported on Linux (macOS + Windows only) but the binary still ships for a uniform bundle layout. `.windows-arm64.env` carries a NOTE that there is no windows-arm64 versioner bundle upstream, points `VERSIONER_BIN` at `windows-x86_64/versioner.exe` instead, and advises setting `VERSIONER_BIN` to a versioner on PATH if needed.
 
 ## Related pages
