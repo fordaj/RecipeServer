@@ -10,6 +10,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   check-formatting:
     name: Check Formatting
@@ -21,26 +24,75 @@ jobs:
           - { os: macOS, labels: [self-hosted, macOS] }
           - { os: Windows, labels: [self-hosted, Windows] }
     runs-on: ${{ matrix.labels }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./repo
     steps:
       # Full clone: the package version is dynamic (setuptools-scm) and is
-      # derived from git tags, which a shallow checkout would not have.
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
+      # derived from git tags; mirror-clone/git clone always does a full clone.
+      # Clone the repo with mirror-clone when available; fall back to
+      # git clone otherwise (or if mirror-clone fails). A full clone is
+      # required for the git-tag-derived version checks.
+      - name: Clone Repo
+        # Job default is ./repo, but ./repo is created by this step.
+        working-directory: .
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP:-/tmp}"
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          clone_dir="$GITHUB_WORKSPACE/repo"
+          rm -rf "$clone_dir"
+          mkdir -p "$clone_dir"
+          if command -v mirror-clone >/dev/null 2>&1; then
+            echo "using mirror-clone"
+            mirror-clone --branch "$branch" \
+              "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+              "$clone_dir" || {
+                echo "mirror-clone failed; falling back to git clone"
+                rm -rf "$clone_dir"
+                mkdir -p "$clone_dir"
+                git clone --branch "$branch" \
+                  "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+                  "$clone_dir"
+              }
+          else
+            echo "mirror-clone not installed; using git clone"
+            git clone --branch "$branch" \
+              "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+              "$clone_dir"
+          fi
 
       # uv for the Python side (black, formattington via uv run). uv also
       # fetches CPython 3.14 on first use.
       - uses: astral-sh/setup-uv@v7
 
-      # node + npm for the PATH-only formatter CLIs (prettier).
+      # node + pnpm for the PATH-only formatter CLIs (prettier).
       - uses: actions/setup-node@v7
         with:
           node-version: 22
 
-      # prettier (npm) — matches the PATH-only requirement in AGENTS.md.
+      # prettier (pnpm) — matches the PATH-only requirement in format.bash.
+      - name: Install pnpm
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@10 --activate
+
       - name: Install prettier
         shell: bash
-        run: npm install --global prettier
+        run: |
+          set -euo pipefail
+          PNPM_HOME="$HOME/pnpm"
+          mkdir -p "$PNPM_HOME"
+          export PATH="$PNPM_HOME:$PATH"
+          pnpm config set global-bin-dir "$PNPM_HOME"
+          pnpm add --global prettier
+          echo "$PNPM_HOME" >> "$GITHUB_PATH"
 
       # taplo + shfmt — pinned releases, installed into a scratch bin dir.
       # Windows x64 and macOS x64/arm64 only (Linux runners are out of scope
@@ -89,12 +141,47 @@ jobs:
           - { os: macOS, labels: [self-hosted, macOS] }
           - { os: Windows, labels: [self-hosted, Windows] }
     runs-on: ${{ matrix.labels }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./repo
     steps:
       # Full clone: the package version is dynamic (setuptools-scm) and is
-      # derived from git tags, which a shallow checkout would not have.
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
+      # derived from git tags; mirror-clone/git clone always does a full clone.
+      # Clone the repo with mirror-clone when available; fall back to
+      # git clone otherwise (or if mirror-clone fails). A full clone is
+      # required for the git-tag-derived version checks.
+      - name: Clone Repo
+        # Job default is ./repo, but ./repo is created by this step.
+        working-directory: .
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd "${RUNNER_TEMP:-/tmp}"
+          branch="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          clone_dir="$GITHUB_WORKSPACE/repo"
+          rm -rf "$clone_dir"
+          mkdir -p "$clone_dir"
+          if command -v mirror-clone >/dev/null 2>&1; then
+            echo "using mirror-clone"
+            mirror-clone --branch "$branch" \
+              "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+              "$clone_dir" || {
+                echo "mirror-clone failed; falling back to git clone"
+                rm -rf "$clone_dir"
+                mkdir -p "$clone_dir"
+                git clone --branch "$branch" \
+                  "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+                  "$clone_dir"
+              }
+          else
+            echo "mirror-clone not installed; using git clone"
+            git clone --branch "$branch" \
+              "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+              "$clone_dir"
+          fi
 
       # uv for Python + dev dependencies (pytest via dependency-groups).
       - uses: astral-sh/setup-uv@v7
