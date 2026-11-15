@@ -186,10 +186,31 @@ jobs:
       # uv for Python + dev dependencies (pytest via dependency-groups).
       - uses: astral-sh/setup-uv@v7
 
+      # Chrome for Testing + the matching chromedriver power the Selenium
+      # browser tests under test/e2e. They run headless in CI.
+      - name: Setup Chrome
+        id: setup-chrome
+        uses: browser-actions/setup-chrome@v2
+        with:
+          install-chromedriver: true
+
       - name: Install dependencies
         shell: bash
         run: uv sync --locked --group dev
 
       - name: Run pytest
         shell: bash
+        env:
+          RECIPE_SERVER_TEST_HEADLESS: "1"
+          RECIPE_SERVER_TEST_CHROME_BINARY: ${{ steps.setup-chrome.outputs.chrome-path }}
+          RECIPE_SERVER_TEST_CHROMEDRIVER: ${{ steps.setup-chrome.outputs.chromedriver-path }}
         run: uv run pytest
+
+      # Screenshots and browser console logs captured on test failure.
+      - name: Upload e2e failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-${{ matrix.os }}
+          path: repo/.e2e-artifacts/
+          if-no-files-found: ignore

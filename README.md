@@ -253,6 +253,66 @@ uv run pytest test/test_tray.py
 uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_and_decimal_score
 ```
 
+### Browser end-to-end tests
+
+`test/e2e/` contains Selenium browser tests that exercise the app as a real user
+would: they build a site from a throwaway recipe tree, serve it from a live
+RecipeServer on an ephemeral port, and drive a real browser against it. No user
+data, configuration, or port 8000 is touched.
+
+Prerequisites:
+
+- Google Chrome (the default browser). Firefox and Edge also work via
+  `RECIPE_SERVER_TEST_BROWSER`; see the environment variables below.
+- The chromedriver matching your Chrome. Selenium Manager resolves it
+  automatically on first run (needs network access once, cached afterwards).
+  Override it with `RECIPE_SERVER_TEST_CHROMEDRIVER` if resolution fails.
+
+Run only the browser tests:
+
+```bash
+uv run pytest test/e2e
+```
+
+Or the whole suite (which includes them):
+
+```bash
+uv run pytest
+```
+
+Skip the browser tests locally:
+
+```bash
+uv run pytest --ignore=test/e2e
+```
+
+Browser tests run headless by default. Relevant environment variables:
+
+| Variable                                                               | Default           | Purpose                                                 |
+| ---------------------------------------------------------------------- | ----------------- | ------------------------------------------------------- |
+| `RECIPE_SERVER_TEST_BROWSER`                                           | `chrome`          | `chrome`, `firefox`, or `edge`.                         |
+| `RECIPE_SERVER_TEST_HEADLESS`                                          | `1`               | Set to `0` to watch the browser.                        |
+| `RECIPE_SERVER_TEST_CHROME_BINARY`                                     | auto              | Path to the Chrome/Chromium binary.                     |
+| `RECIPE_SERVER_TEST_CHROMEDRIVER`                                      | auto              | Path to chromedriver.                                   |
+| `RECIPE_SERVER_TEST_FIREFOX_BINARY` / `RECIPE_SERVER_TEST_EDGE_BINARY` | auto              | Path to the Firefox / Edge binary.                      |
+| `RECIPE_SERVER_TEST_EDGEDRIVER`                                        | auto              | Path to edgedriver.                                     |
+| `RECIPE_SERVER_TEST_ARTIFACTS`                                         | `.e2e-artifacts/` | Where failure screenshots and console logs are written. |
+
+When a browser test fails, a screenshot and (Chrome/Edge) the browser console
+log are saved to `.e2e-artifacts/` and attached to the pytest failure report;
+CI uploads them as a workflow artifact. When the browser cannot be started the
+tests fail in CI and skip locally (set `CI=true` to force the failure).
+
+Writing new tests:
+
+- Use the `recipe_server` fixture for a running server against temporary
+  recipe/site directories and the `driver` fixture for the browser; request
+  only the ones a test needs. `source_dir` is available separately when a test
+  needs to inspect or mutate the recipe tree.
+- Prefer `WebDriverWait`-based helpers from `test/e2e/helpers.py` over sleeps
+  and prefer `data-testid` attributes (for example `[data-testid="recipe-item"]`)
+  and stable element IDs over positional selectors.
+
 Format Python (Black, line-length 150), Bash (shfmt), CSS/JS/HTML/Markdown/YAML (Prettier), TOML (taplo), and SVG (Prettier `--parser html`) via formattington (`uv run formattington all --config .formattington.json`, concurrently by default). Formatters are declared in `.formattington.json`; vendored KaTeX is excluded via `.prettierignore`. Requires `prettier` on PATH (`npm install -g prettier`) and `taplo` on PATH:
 
 ```bash
@@ -282,7 +342,9 @@ bundled logamuffin binary. Formatting is orchestrated by
 
 GitHub Actions (`.github/workflows/check-formatting.yml`, “PR Checks”) runs
 on the self-hosted macOS and Windows runners provisioned above; it checks
-formatting on every pull request. Releases are cut with `./scripts/release.sh`
+formatting and runs the pytest suite — including the headless Selenium
+browser tests, with Chrome and chromedriver installed by
+`browser-actions/setup-chrome` — on every pull request. Releases are cut with `./scripts/release.sh`
 (tag + GitHub release notes only — no binaries are published for this app).
 
 ### Project layout
@@ -302,7 +364,7 @@ src/recipeserver/
 ├── tray.py                 # system tray icon and menu
 ├── NewRecipePrompt.md      # model prompt requirements, reloaded at startup
 └── assets/                 # CSS, JavaScript, icons, and vendored KaTeX
-test/                       # pytest suite
+test/                       # pytest suite (test/e2e/ holds the Selenium browser tests)
 serve.bat / scripts/serve.sh      # launch helpers (Windows / Unix)
 scripts/format.sh                   # Python (Black) and Bash (shfmt) formatting via formattington
 scripts/spawn-runners.sh            # create the self-hosted CI runners (macOS/Windows)

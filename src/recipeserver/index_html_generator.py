@@ -534,7 +534,7 @@ class IndexHTMLGenerator:
     def _card_attributes_html(self, card: _RecipeCard) -> str:
         serialize = self.serialize_for_html_attribute
         return (
-            f'<li class="recipe"'
+            f'<li class="recipe" data-testid="recipe-item"'
             f' data-path="{html.escape(card.markdown_path, quote=True)}"'
             f' data-title="{html.escape(card.title, quote=True)}"'
             f' data-search="{html.escape(card.search_text, quote=True)}"'
@@ -926,6 +926,7 @@ class IndexHTMLGenerator:
         <span class="visually-hidden">Search recipes</span>
         <input
             id="recipe-search"
+            data-testid="recipe-search"
             type="search"
             placeholder="Search recipes, ingredients, tags..."
             aria-label="Search recipes"
@@ -1041,7 +1042,7 @@ class IndexHTMLGenerator:
 {self._page_header_html(server_name_html)}
 {self._toolbar_html(filter_menus_html, reviewer_options_html)}
 {self._results_bar_html()}
-<ul id="recipe-list" class="list-view">
+<ul id="recipe-list" data-testid="recipe-list" class="list-view">
 {recipe_items_html}
 </ul>
 {self._version_footer_html()}
