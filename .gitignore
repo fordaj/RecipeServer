@@ -4,6 +4,7 @@
 *.py.log
 node_modules/*
 test/**/*.html
+.worktrees/
 
 # ==========================================
 # Byte-compiled / optimized / DLL files
