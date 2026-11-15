@@ -329,3 +329,7 @@ tools/                      # bundled fordaj/* binaries + update.bash refreshers
 ## KaTeX
 
 Updated last on 11/08/2026 to KaTeX 0.19.1 using `pnpm install katex` (see `src/recipeserver/assets/katex/README.md`).
+
+## Documentation
+
+Every module, script, and pinned tool carries a sibling Markdown page next to its source. [AGENTS.md](AGENTS.md) documents the sources and the rules for keeping them current; run `scripts/docs.sh` to render the set into `./site/` with the bundled [barnacle](https://github.com/fordaj/barnacle) binary.
