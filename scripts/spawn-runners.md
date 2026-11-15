@@ -20,7 +20,7 @@ from the repository root. Extra arguments are forwarded to the binary.
 
 ## Details worth knowing
 
-- The script `unset`s `RUNNER_SPAWNER_REPO` and `RUNNER_SPAWNER_OWNER` before invoking the binary: those selectors are read by runner-spawner as the *target* repository, and a stale value in the caller's shell would override `.runner-spawner.json` and the git remote. An explicit `--owner`/`--repo` flag (forwarded through `"$@"`) still wins.
+- The script `unset`s `RUNNER_SPAWNER_REPO` and `RUNNER_SPAWNER_OWNER` before invoking the binary: those selectors are read by runner-spawner as the _target_ repository, and a stale value in the caller's shell would override `.runner-spawner.json` and the git remote. An explicit `--owner`/`--repo` flag (forwarded through `"$@"`) still wins.
 - It fails with a clear error when the binary or `.runner-spawner.json` is missing, or when the binary is not executable.
 - runner-spawner is macOS/Windows only, and requesting the registration token requires `gh` to be authenticated (or `--token`). On Linux the bundled binary still ships but reports unsupported (see [scripts/env.md](env.md)).
 

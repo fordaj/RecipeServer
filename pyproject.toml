@@ -38,7 +38,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools_scm]
 
 [dependency-groups]
-dev = ["black>=24.0", "formattington", "pytest>=9.1.1"]
+dev = ["black>=24.0", "formattington", "pytest>=9.1.1", "selenium>=4.30"]
 
 [tool.uv.sources]
 # Pinned to a commit that supports the Go toolchain reliance.

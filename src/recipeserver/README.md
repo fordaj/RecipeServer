@@ -6,8 +6,8 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 
 ## Entry points and startup
 
-- [__init__.py](__init__.md) — re-exports `core` at package scope (console script target)
-- [__main__.py](__main__.md) — `python -m recipeserver`
+- [**init**.py](__init__.md) — re-exports `core` at package scope (console script target)
+- [**main**.py](__main__.md) — `python -m recipeserver`
 - [core.py](core.md) — startup, site regeneration, parallel conversion
 - [config.py](config.md) — the TOML configuration, legacy migration, Tk folder picker, prompt loading
 - [_logger.py](_logger.md) — loguru setup (`setup_logger`, `LogLevel`)
@@ -15,7 +15,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 
 ## Rendering pipeline
 
-- [markdown_to_html/__init__.py](markdown_to_html/__init__.md) — package exports (`MarkdownToHTMLConverter`, `VERSION`)
+- [markdown_to_html/**init**.py](markdown_to_html/__init__.md) — package exports (`MarkdownToHTMLConverter`, `VERSION`)
 - [markdown_to_html/converter.py](markdown_to_html/converter.md) — orchestrates the recipe-page stages
 - [markdown_to_html/page.py](markdown_to_html/page.md) — the HTML page shell
 - [markdown_to_html/quantities.py](markdown_to_html/quantities.md) — inline-code quantities → scaler spans

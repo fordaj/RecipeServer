@@ -9,5 +9,5 @@ Note the import has side effects you should be aware of: importing `recipeserver
 ## Related pages
 
 - [core.md](core.md) — the startup pipeline and `Core`
-- [__main__.md](__main__.md) — `python -m recipeserver` entry
+- [**main**.md](__main__.md) — `python -m recipeserver` entry
 - [README.md](README.md) — the package hub

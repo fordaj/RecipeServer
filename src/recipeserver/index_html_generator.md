@@ -9,6 +9,7 @@ Builds `index.html`: the searchable, sortable grid of recipe cards with filter m
 - `_prepare_card(recipe, filter_values)` → `_RecipeCard` — computes everything one card needs: title (heading → front-matter `title` → directory name), hero image URL, average rating, filter values, `data-*` attributes, and the metadata warnings from [metadata_linter.md](metadata_linter.md).
 - `convert()` — aggregates filter option counts, renders the page shell (`_render_page`), and writes `index.html`.
 - Page chrome: `_page_head_html`, `_page_header_html`, `_toolbar_html`, `_results_bar_html`, `_version_footer_html`. The toolbar includes the sandwich menu ([menu.md](menu.md)), filter menus, and the **Metadata Status** toggle — warnings are advisory and hidden by default.
+- Stable test hooks: the search input carries `data-testid="recipe-search"`, the list carries `data-testid="recipe-list"`, and every recipe item carries `data-testid="recipe-item"`. The Selenium browser tests under `test/e2e/` select on these.
 - Accent color: `_food_color_style` emits a per-page `--food-color` override with a `prefers-color-scheme: dark` variant via [color_utils.md](color_utils.md); `FOOD_COLOR_HOVER_MIX_PERCENT = 82` weights the hover `color-mix()`.
 - Assets URLs are content-hashed via `versioned_asset_url` ([_version.md](_version.md)); icons are inlined from `assets/*.svg` (never inline ad-hoc SVG).
 

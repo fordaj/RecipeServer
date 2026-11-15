@@ -8,8 +8,9 @@ Reusable hamburger menu markup — deliberately independent of any one page. `sa
   - **Configuration** — `data-config="open"` (opens the configuration dialog; `assets/config-editor.js` drives it)
   - **Download Source Archive** — `data-archive="source"`
   - **Download Site Archive** — `data-archive="site"`
-  
+
   Plus a `role="status"` live region for menu feedback. The archive entries hit `/api/archive/source` and `/api/archive/site` ([server.md](server.md), [archive.md](archive.md)).
+
 - `MENU_CSS_URL` / `MENU_JS_URL` — content-hashed URLs via `versioned_asset_url` ([_version.md](_version.md)).
 - `_menu_icon_html(icon_path, class_name)` — inlines an asset SVG with `currentColor`-friendly markup and `aria-hidden="true"`.
 

@@ -11,7 +11,7 @@ Enables `python -m recipeserver`. Ten lines, no logic of its own — it just wir
 
 ## Related pages
 
-- [__init__.md](__init__.md) — package initializer and console-script entry
+- [**init**.md](__init__.md) — package initializer and console-script entry
 - [core.md](core.md) — `parse_args()` and `main()`
 - [config.md](config.md) — `Configuration` and `handle_configuration()`
 - [README.md](README.md) — the package hub

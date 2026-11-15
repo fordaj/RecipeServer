@@ -186,10 +186,56 @@ jobs:
       # uv for Python + dev dependencies (pytest via dependency-groups).
       - uses: astral-sh/setup-uv@v7
 
+      # The Selenium browser tests under test/e2e run against the system
+      # Chrome already installed on the self-hosted runners; Selenium Manager
+      # resolves chromedriver at test time. (Chrome for Testing hung on the
+      # macOS runner and browser-actions/setup-chrome's Windows path is
+      # incompatible with self-hosted runners, so no CfT here.)
+      - name: Detect system Chrome
+        id: detect-chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$(uname -s)" in
+            Darwin*)
+              candidate="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+              if [ -f "$candidate" ]; then
+                echo "chrome-path=$candidate" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+              ;;
+            MINGW*|MSYS*|CYGWIN*)
+              for candidate in \
+                "C:/Program Files/Google/Chrome/Application/chrome.exe" \
+                "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe" \
+                "${LOCALAPPDATA:-C:/Users/Default}/Google/Chrome/Application/chrome.exe"; do
+                if [ -f "$candidate" ]; then
+                  echo "chrome-path=$candidate" >> "$GITHUB_OUTPUT"
+                  exit 0
+                fi
+              done
+              ;;
+            *) echo "Unsupported runner OS: $(uname -s)" >&2; exit 1 ;;
+          esac
+          echo "No system Chrome found; install Google Chrome on this runner" >&2
+          exit 1
+
       - name: Install dependencies
         shell: bash
         run: uv sync --locked --group dev
 
       - name: Run pytest
         shell: bash
+        env:
+          RECIPE_SERVER_TEST_HEADLESS: "1"
+          RECIPE_SERVER_TEST_CHROME_BINARY: ${{ steps.detect-chrome.outputs.chrome-path }}
         run: uv run pytest
+
+      # Screenshots and browser console logs captured on test failure.
+      - name: Upload e2e failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-${{ matrix.os }}
+          path: repo/.e2e-artifacts/
+          if-no-files-found: ignore
