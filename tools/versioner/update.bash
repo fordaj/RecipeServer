@@ -17,7 +17,7 @@
 # Prerequisites: gh (https://cli.github.com/), 7z/7zz (p7zip), and (for the
 # real update) shasum or sha256sum for checksum verification. The script
 # resolves its own directory, so it can be run from anywhere. Logging uses
-# log <level> <message> from scripts/env.sh (logamuffin, with printf
+# log <level> <message> from scripts/entry.sh (logamuffin, with printf
 # fallback until tools/logamuffin is populated).
 #
 # Layout after a successful run (example for v0.1.2.3):
@@ -36,17 +36,17 @@
 
 set -euo pipefail
 
-# Logging via logamuffin (log <level> <message> from scripts/env.sh,
+# Logging via logamuffin (log <level> <message> from scripts/entry.sh,
 # with printf fallback until tools/logamuffin is populated). Source the
 # env cascade first so every later message goes through log().
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 REPO_ROOT_FOR_ENV=$(cd -- "$SCRIPT_DIR/../.." &>/dev/null && pwd)
-if [[ ! -f "$REPO_ROOT_FOR_ENV/scripts/env.sh" ]]; then
-    printf 'update.bash: error: env cascade not found: %s/scripts/env.sh\n' "$REPO_ROOT_FOR_ENV" >&2
+if [[ ! -f "$REPO_ROOT_FOR_ENV/scripts/entry.sh" ]]; then
+    printf 'update.bash: error: env cascade not found: %s/scripts/entry.sh\n' "$REPO_ROOT_FOR_ENV" >&2
     exit 1
 fi
 # shellcheck disable=SC1091
-. "$REPO_ROOT_FOR_ENV/scripts/env.sh"
+. "$REPO_ROOT_FOR_ENV/scripts/entry.sh"
 
 DRY_RUN=0
 TAG="${VERSIONER_TAG:-}"
