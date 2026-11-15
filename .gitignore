@@ -98,3 +98,6 @@ venv.bak/
 # ==========================================
 .DS_Store
 Thumbs.db
+
+# Self-hosted runners created by spawn-runners.sh
+.runners/

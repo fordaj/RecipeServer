@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
-# spawn-runners.sh — spawn the GitHub Actions runners for this repo.
+# spawn-runners.sh — create the repository-scoped self-hosted runners.
 #
 # Usage:
-#   ./spawn-runners.sh
+#   ./spawn-runners.sh                # create the runners in .runner-spawner.json
+#   ./spawn-runners.sh --dry-run      # print what would happen, change nothing
+#   ./spawn-runners.sh <flags...>     # any additional runner-spawner create flags
 #
-# For now this only reports the bundled runner-spawner binary's
-# version; the actual spawn logic will be added later. Sources
-# scripts/env.sh for the runner-spawner binary (RUNNER_SPAWNER_BIN,
-# resolved from tools/runner-spawner/v*/<platform>/) and the
-# logamuffin-backed log() helper. Runs from the repository root so
-# paths resolve regardless of the caller's directory.
+# Sources scripts/env.sh to resolve RUNNER_SPAWNER_BIN (bundled via
+# tools/runner-spawner/update.sh) and the logamuffin-backed log()
+# helper, then runs `runner-spawner create --config .runner-spawner.json`
+# from the repository root. Extra arguments are forwarded to the binary
+# (runner-spawner reads RUNNER_SPAWNER_REPO as the *target* repository,
+# which is why the env cascade exports RUNNER_SPAWNER_UPSTREAM_REPO for
+# the release updater instead — do not set RUNNER_SPAWNER_REPO).
+# The runners are repository-scoped to the origin remote (github.com/
+# fordaj/RecipeServer); .runners/ is gitignored.
+#
+# Note: runner-spawner is macOS/Windows only, and requesting the
+# registration token requires gh to be authenticated (or --token).
 
 set -euo pipefail
 
@@ -31,6 +39,12 @@ fi
   log ERROR "RUNNER_SPAWNER_BIN=$RUNNER_SPAWNER_BIN is not executable"
   exit 1
 }
+CONFIG="$SCRIPT_DIR/.runner-spawner.json"
+[[ -f "$CONFIG" ]] || {
+  log ERROR "runner config not found: $CONFIG"
+  exit 1
+}
+
 log INFO "using runner-spawner: $RUNNER_SPAWNER_BIN"
-"$RUNNER_SPAWNER_BIN" --version
-log INFO "spawn-runners complete (nothing spawned yet)"
+log INFO "creating runners from $CONFIG (repo resolved by runner-spawner from .runner-spawner.json / git remote)"
+"$RUNNER_SPAWNER_BIN" create --config "$CONFIG" "$@"

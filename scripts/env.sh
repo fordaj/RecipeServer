@@ -41,7 +41,9 @@
 #   LOGAMUFFIN_REPO, LOGAMUFFIN_BUNDLE_DIR (repo-relative)
 #   RUNNER_SPAWNER_BIN          absolute path to runner-spawner ("" if not found)
 #   RUNNER_SPAWNER_BIN_NAME     runner-spawner or runner-spawner.exe
-#   RUNNER_SPAWNER_REPO, RUNNER_SPAWNER_BUNDLE_DIR (repo-relative)
+#   RUNNER_SPAWNER_UPSTREAM_REPO Repository that publishes runner-spawner releases
+#   (distinct from the runner-spawner binary's own RUNNER_SPAWNER_REPO, which
+#   names the target repository for runners), RUNNER_SPAWNER_BUNDLE_DIR (repo-relative)
 #
 # Functions (when sourced; also printed for eval when executed):
 #   log LEVEL [MESSAGE ...]
@@ -185,7 +187,7 @@ fi
 export RECIPE_SERVER_PLATFORM VERSIONER_BIN VERSIONER_BIN_NAME
 export VERSIONER_REPO VERSIONER_TAG_PATTERN VERSIONER_CONFIG_FILE VERSIONER_BUNDLE_DIR
 export LOGAMUFFIN_BIN LOGAMUFFIN_BIN_NAME LOGAMUFFIN_REPO LOGAMUFFIN_BUNDLE_DIR
-export RUNNER_SPAWNER_BIN RUNNER_SPAWNER_BIN_NAME RUNNER_SPAWNER_REPO RUNNER_SPAWNER_BUNDLE_DIR
+export RUNNER_SPAWNER_BIN RUNNER_SPAWNER_BIN_NAME RUNNER_SPAWNER_UPSTREAM_REPO RUNNER_SPAWNER_BUNDLE_DIR
 
 unset _env_sh_path _env_sh_dir _repo_root _host_os_raw _host_arch_raw
 unset _host_os _host_arch _detected_platform _bundle_root _version_dir _cand
@@ -313,7 +315,7 @@ if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]:-}" == "$0" ]]; then
   printf 'export LOGAMUFFIN_BUNDLE_DIR=%q\n' "${LOGAMUFFIN_BUNDLE_DIR:-}"
   printf 'export RUNNER_SPAWNER_BIN=%q\n' "$RUNNER_SPAWNER_BIN"
   printf 'export RUNNER_SPAWNER_BIN_NAME=%q\n' "$RUNNER_SPAWNER_BIN_NAME"
-  printf 'export RUNNER_SPAWNER_REPO=%q\n' "${RUNNER_SPAWNER_REPO:-}"
+  printf 'export RUNNER_SPAWNER_UPSTREAM_REPO=%q\n' "${RUNNER_SPAWNER_UPSTREAM_REPO:-}"
   printf 'export RUNNER_SPAWNER_BUNDLE_DIR=%q\n' "${RUNNER_SPAWNER_BUNDLE_DIR:-}"
   declare -f _logamuffin_bin log
 fi

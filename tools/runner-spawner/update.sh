@@ -45,7 +45,8 @@
 #       windows-x86_64/runner-spawner.exe
 #
 # Env:
-#   RUNNER_SPAWNER_REPO  Repository slug (default: fordaj/runner-spawner)
+#   RUNNER_SPAWNER_UPSTREAM_REPO  Repository slug to pull runner-spawner releases from
+#   (intentionally not RUNNER_SPAWNER_REPO: the runner-spawner binary reads that as the target repo)
 #   RUNNER_SPAWNER_TAG   Pinned tag (default: latest release)
 
 set -euo pipefail
@@ -64,7 +65,7 @@ fi
 
 DRY_RUN=0
 TAG="${RUNNER_SPAWNER_TAG:-}"
-REPO="${RUNNER_SPAWNER_REPO:-fordaj/runner-spawner}"
+REPO="${RUNNER_SPAWNER_UPSTREAM_REPO:-fordaj/runner-spawner}"
 
 usage() {
     cat <<'EOF'
@@ -82,7 +83,7 @@ Flags:
   --help, -h      Show this help.
 
 Env:
-  RUNNER_SPAWNER_REPO  Repository slug (overridden by --repo).
+  RUNNER_SPAWNER_UPSTREAM_REPO  Repository slug (overridden by --repo).
   RUNNER_SPAWNER_TAG   Pinned tag (overridden by --tag).
 EOF
 }
