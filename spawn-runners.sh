@@ -29,6 +29,15 @@ fi
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/scripts/env.sh"
 
+# Target-repo selectors for the runner-spawner binary are read from
+# RUNNER_SPAWNER_REPO / RUNNER_SPAWNER_OWNER. Older env cascades exported
+# RUNNER_SPAWNER_REPO for the release updater (fordaj/runner-spawner), and a
+# stale value in the caller's shell overrides .runner-spawner.json and the
+# git remote (that is what produced fordaj/fordaj/runner-spawner, HTTP 404).
+# This script is scoped to this repo's config, so disarm them; an explicit
+# --owner/--repo flag (forwarded via "$@") still wins.
+unset RUNNER_SPAWNER_REPO RUNNER_SPAWNER_OWNER
+
 cd "$SCRIPT_DIR"
 
 if [[ -z "${RUNNER_SPAWNER_BIN:-}" ]]; then
