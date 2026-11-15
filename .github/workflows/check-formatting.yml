@@ -24,7 +24,7 @@ jobs:
 
       # uv for the Python side (black, formattington via uv run). uv also
       # fetches CPython 3.14 on first use.
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v7
 
       # node + npm for the PATH-only formatter CLIs (prettier).
       - uses: actions/setup-node@v7
