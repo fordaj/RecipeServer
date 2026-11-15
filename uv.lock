@@ -230,8 +230,8 @@ wheels = [
 
 [[package]]
 name = "formattington"
-version = "0.1.0"
-source = { git = "https://github.com/fordaj/formattington.git#bc23b3a6a370d63285ce83f1fe8c76799a7addf9" }
+version = "254.0.0.0.39"
+source = { git = "https://github.com/fordaj/formattington.git?rev=dbed7479da27bd9908fbd7e39c66cb84ab7d7aab#dbed7479da27bd9908fbd7e39c66cb84ab7d7aab" }
 
 [[package]]
 name = "inflate64"
@@ -747,7 +747,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "black", specifier = ">=24.0" },
-    { name = "formattington", git = "https://github.com/fordaj/formattington.git" },
+    { name = "formattington", git = "https://github.com/fordaj/formattington.git?rev=dbed7479da27bd9908fbd7e39c66cb84ab7d7aab" },
     { name = "pytest", specifier = ">=9.1.1" },
 ]
 

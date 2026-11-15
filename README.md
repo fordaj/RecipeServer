@@ -260,6 +260,31 @@ Format Python (Black, line-length 150), Bash (shfmt), CSS/JS/HTML/Markdown/YAML 
 ./format.sh --check
 ```
 
+### Bundled tooling and CI
+
+This repository carries compiled executables from the sibling `fordaj/*`
+repositories under `tools/` (pinned, platform-native; refreshed by each
+`tools/<name>/update.bash`):
+
+| Tool                       | Used for                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------ |
+| `tools/versioner`          | Compute `VERSION`/`TAG` for releases (`scripts/version.bash`, `scripts/release.sh`)        |
+| `tools/logamuffin`         | Shell logging behind `scripts/entry.sh` (`serve.sh`, `format.sh`, `scripts/release.sh`, …) |
+| `tools/runner-spawner`     | Provision the self-hosted CI runners (`./spawn-runners.sh`)                                |
+| `tools/formattington-lite` | Formatting fallback; the pinned uv dependency is the primary path                          |
+| `tools/barnacle`           | Documentation site generation (`scripts/docs.sh`)                                          |
+
+Scripts source `scripts/entry.sh`, which exposes `log()` backed by the
+bundled logamuffin binary. Formatting is orchestrated by
+[formattington](https://github.com/fordaj/formattington) both as a pinned
+`uv` dev dependency (`./format.sh`) and as the committed config in
+`.formattington.json`.
+
+GitHub Actions (`.github/workflows/check-formatting.yml`, “PR Checks”) runs
+on the self-hosted macOS and Windows runners provisioned above; it checks
+formatting on every pull request. Releases are cut with `./scripts/release.sh`
+(tag + GitHub release notes only — no binaries are published for this app).
+
 ### Project layout
 
 ```text
@@ -280,6 +305,9 @@ src/recipeserver/
 test/                       # pytest suite
 serve.sh / serve.bat        # launch helpers
 format.sh                   # Python (Black) and Bash (shfmt) formatting via formattington
+spawn-runners.sh            # create the self-hosted CI runners (macOS/Windows)
+scripts/                    # env cascade (entry.sh/env.sh) + version.bash + docs.sh
+tools/                      # bundled fordaj/* binaries + update.bash refreshers
 ```
 
 ### Architecture and invariants
