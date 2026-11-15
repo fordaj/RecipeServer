@@ -3,19 +3,72 @@ name: PR Checks
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 jobs:
   check-formatting:
     name: Check Formatting
-    runs-on: self-hosted
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macOS, labels: [self-hosted, macOS] }
+          - { os: Windows, labels: [self-hosted, Windows] }
+    runs-on: ${{ matrix.labels }}
     steps:
       # Full clone: the package version is dynamic (setuptools-scm) and is
       # derived from git tags, which a shallow checkout would not have.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      # Requires on the self-hosted runner: uv, bash, prettier, shfmt, and taplo
-      # on PATH (see AGENTS.md). Exits non-zero when anything is unformatted.
+      # uv for the Python side (black, formattington via uv run). uv also
+      # fetches CPython 3.14 on first use.
+      - uses: astral-sh/setup-uv@v10
+
+      # node + npm for the PATH-only formatter CLIs (prettier).
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # prettier (npm) — matches the PATH-only requirement in AGENTS.md.
+      - name: Install prettier
+        shell: bash
+        run: npm install --global prettier
+
+      # taplo + shfmt — pinned releases, installed into a scratch bin dir.
+      # Windows x64 and macOS x64/arm64 only (Linux runners are out of scope
+      # for now).
+      - name: Install taplo and shfmt
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin_dir="$RUNNER_TEMP/fmt-bin"
+          mkdir -p "$bin_dir"
+          case "$(uname -s)-$(uname -m)" in
+            Darwin-x86_64)                 t=taplo-darwin-x86_64; s=shfmt_v3.14.1_darwin_amd64 ;;
+            Darwin-arm64)                  t=taplo-darwin-aarch64; s=shfmt_v3.14.1_darwin_arm64 ;;
+            Linux-x86_64)                  t=taplo-linux-x86_64;  s=shfmt_v3.14.1_linux_amd64 ;;
+            Linux-aarch64|Linux-arm64)     t=taplo-linux-aarch64; s=shfmt_v3.14.1_linux_arm64 ;;
+            MINGW*-x86_64|MSYS*-x86_64|CYGWIN*-x86_64) t=taplo-windows-x86_64; s=shfmt_v3.14.1_windows_amd64.exe ;;
+            MINGW*-aarch64|MSYS*-aarch64|CYGWIN*-aarch64|*arm64)   t=taplo-windows-aarch64; s=shfmt_v3.14.1_windows_amd64.exe ;;
+            *) echo "unsupported platform: $(uname -s) $(uname -m)" >&2; exit 2 ;;
+          esac
+          curl -fsSL "https://github.com/tamasfe/taplo/releases/download/0.10.0/$t.gz" | gunzip > "$bin_dir/taplo"
+          curl -fsSL "https://github.com/mvdan/sh/releases/download/v3.14.1/$s" -o "$bin_dir/shfmt"
+          chmod +x "$bin_dir/taplo" "$bin_dir/shfmt"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+
+      - name: Tool versions
+        shell: bash
+        run: |
+          uv --version
+          prettier --version
+          taplo --version
+          shfmt --version
+
+      # Requires uv, bash, prettier, shfmt, and taplo (all installed above).
+      # Exits non-zero when anything is unformatted.
       - name: Run formattington format check
+        shell: bash
         run: ./format.sh --check
