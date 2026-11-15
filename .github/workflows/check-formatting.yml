@@ -5,9 +5,15 @@ on:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+# Cancel superseded runs on the same ref; keep main-branch runs independent.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check-formatting:
     name: Check Formatting
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -75,6 +81,7 @@ jobs:
 
   test:
     name: Test (${{ matrix.os }})
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
