@@ -187,12 +187,35 @@ jobs:
       - uses: astral-sh/setup-uv@v7
 
       # Chrome for Testing + the matching chromedriver power the Selenium
-      # browser tests under test/e2e. They run headless in CI.
-      - name: Setup Chrome
+      # browser tests under test/e2e. They run headless in CI. macOS uses
+      # Chrome for Testing; setup-chrome's Windows path is incompatible with
+      # self-hosted runners (PowerShell Expand-Archive requires a .zip
+      # extension on the download), so Windows uses the system Chrome and
+      # lets Selenium Manager resolve chromedriver at test time.
+      - name: Setup Chrome (macOS)
+        if: runner.os == 'macOS'
         id: setup-chrome
         uses: browser-actions/setup-chrome@v2
         with:
           install-chromedriver: true
+
+      - name: Detect system Chrome (Windows)
+        if: runner.os == 'Windows'
+        id: detect-chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          for candidate in \
+            "C:/Program Files/Google/Chrome/Application/chrome.exe" \
+            "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe" \
+            "${LOCALAPPDATA:-C:/Users/Default}/Google/Chrome/Application/chrome.exe"; do
+            if [ -f "$candidate" ]; then
+              echo "chrome-path=$candidate" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "No system Chrome found; install Google Chrome on this runner" >&2
+          exit 1
 
       - name: Install dependencies
         shell: bash
@@ -202,7 +225,8 @@ jobs:
         shell: bash
         env:
           RECIPE_SERVER_TEST_HEADLESS: "1"
-          RECIPE_SERVER_TEST_CHROME_BINARY: ${{ steps.setup-chrome.outputs.chrome-path }}
+          # Empty string from the skipped OS-specific step falls through ||.
+          RECIPE_SERVER_TEST_CHROME_BINARY: ${{ steps.setup-chrome.outputs.chrome-path || steps.detect-chrome.outputs.chrome-path }}
           RECIPE_SERVER_TEST_CHROMEDRIVER: ${{ steps.setup-chrome.outputs.chromedriver-path }}
         run: uv run pytest
 

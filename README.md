@@ -343,8 +343,9 @@ bundled logamuffin binary. Formatting is orchestrated by
 GitHub Actions (`.github/workflows/check-formatting.yml`, “PR Checks”) runs
 on the self-hosted macOS and Windows runners provisioned above; it checks
 formatting and runs the pytest suite — including the headless Selenium
-browser tests, with Chrome and chromedriver installed by
-`browser-actions/setup-chrome` — on every pull request. Releases are cut with `./scripts/release.sh`
+browser tests — on every pull request. Chrome for Testing is installed on
+macOS via `browser-actions/setup-chrome`; Windows uses the system Chrome
+already on the runner, with chromedriver resolved by Selenium Manager. Releases are cut with `./scripts/release.sh`
 (tag + GitHub release notes only — no binaries are published for this app).
 
 ### Project layout
