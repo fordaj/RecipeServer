@@ -11,7 +11,7 @@ Assembles the full HTML document for a recipe page: `<head>` asset references, t
 - `HOME_PAGE_ICON_HTML`, `EDIT_RECIPE_HTML` — the header fragment with the notebook icon linking to `/index.html` and the pencil edit button.
 - `build_recipe_html(...)` — keyword-only: `source_title`, `heading_color`, `metadata_json`, `recipe_scaler_html`, `body`, `ratings_html`, `comments_html`. The `<script id="recipe-metadata" type="application/json">` tag carries the metadata JSON (see [converter.md](converter.md)).
 
-`ai-progress.js` loads before `recipe-editor.js` on both recipe pages and the index (enforced by the page templates, not by runtime checks).
+`ai-progress.js` loads before `recipe-editor.js` on both recipe pages and the index (enforced by the page templates, not by runtime checks). On recipe pages, `metadata-picker.js` loads before `comments.js` / `ratings.js`, which need the shared dropdown widget for their name fields.
 
 ## Related pages
 

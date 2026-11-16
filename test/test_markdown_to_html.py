@@ -519,3 +519,30 @@ Body.
     )
     soup = BeautifulSoup(html_file.read_text(encoding="utf-8"), "html.parser")
     assert soup.select(".recipe-meta__group") == []
+
+
+def test_feedback_name_fields_render_as_pickers(tmp_path: Path):
+    _, html_file = convert_recipe(
+        tmp_path,
+        """---
+meals:
+  - Dinner
+---
+# Feedback Pickers
+""",
+    )
+
+    html = html_file.read_text(encoding="utf-8")
+    soup = BeautifulSoup(html, "html.parser")
+
+    comment_picker = soup.select_one('#recipe-comment-form .recipe-editor__picker[data-field="commenters"]')
+    rating_picker = soup.select_one('#recipe-rating-form .recipe-editor__picker[data-field="raters"]')
+    assert comment_picker is not None
+    assert rating_picker is not None
+    assert comment_picker["data-max-length"] == "100"
+    assert rating_picker["data-max-length"] == "100"
+    # The plain text name inputs are gone; the dropdown owns the name field.
+    assert soup.select_one("#comment-author") is None
+    assert soup.select_one("#rating-author") is None
+    # The picker must be loaded before the feedback scripts that use it.
+    assert html.index("metadata-picker.js") < html.index("comments.js") < html.index("ratings.js")

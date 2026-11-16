@@ -1,4 +1,61 @@
 (() => {
+  // ----- Name dropdowns ----- //
+  // The comment/rating forms offer every name that is already used in the
+  // library as a dropdown (plus "Add new…"), the same widget the recipe
+  // editor uses. The options are re-read from the server every time a form
+  // opens, so a name that was just used on another recipe shows up right
+  // away.
+
+  function fetchMetadataOptions() {
+    return fetch("/api/metadata-options", { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load metadata options (HTTP ${response.status})`);
+        }
+        return response.json();
+      })
+      .then((data) => data?.options ?? {})
+      .catch((error) => {
+        // Without the library values the dropdowns only offer "Add new…".
+        console.error("Unable to load metadata options:", error);
+        return {};
+      });
+  }
+
+  // Build the dropdown for a .recipe-editor__picker element that holds
+  // library names. Options are applied by refreshNameOptions, usually when
+  // the surrounding form opens.
+  function createNamePicker(element) {
+    if (!window.RecipeMetadataPicker?.MetadataPicker) {
+      throw new Error("metadata-picker.js must load before the feedback scripts");
+    }
+    return new window.RecipeMetadataPicker.MetadataPicker(element);
+  }
+
+  function refreshNameOptions(picker, field) {
+    return fetchMetadataOptions().then((options) => picker.setOptions(options?.[field] ?? []));
+  }
+
+  // ----- Remembering who this device is ----- //
+  // The last name used on this device is kept in localStorage so the device
+  // remembers who it is talking to. Storage may be unavailable (private
+  // mode, quota), so read and write are best-effort.
+  function getStoredName(storageKey) {
+    try {
+      return String(window.localStorage?.getItem(storageKey) ?? "").trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function setStoredName(storageKey, name) {
+    try {
+      window.localStorage?.setItem(storageKey, String(name));
+    } catch {
+      // Remembering the name is best-effort.
+    }
+  }
+
   // ----- Path helpers ----- //
   function getMarkdownPath() {
     const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
@@ -97,10 +154,10 @@
 
   // ----- Busy state and inline errors ----- //
   // One busy-state convention for the feedback features: while an operation
-  // is in flight, every button, input, and textarea inside the container is
-  // disabled so it cannot be used twice.
+  // is in flight, every button, input, select, and textarea inside the
+  // container is disabled so it cannot be used twice.
   function setBusy(container, busy) {
-    container.querySelectorAll("button, input, textarea").forEach((element) => {
+    container.querySelectorAll("button, input, select, textarea").forEach((element) => {
       element.disabled = busy;
     });
   }
@@ -259,6 +316,11 @@
     sortByUpdatedDesc,
     fetchMetadata,
     saveMetadata,
+    fetchMetadataOptions,
+    createNamePicker,
+    refreshNameOptions,
+    getStoredName,
+    setStoredName,
     setBusy,
     showInlineError,
     createFeedbackList,

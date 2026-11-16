@@ -14,6 +14,8 @@
     tags: { label: "tag", mode: "multi" },
     status: { label: "status", mode: "single" },
     contributor: { label: "contributor", mode: "single" },
+    commenters: { label: "commenter", mode: "single" },
+    raters: { label: "rater", mode: "single" },
   };
 
   function fieldConfig(field) {
@@ -44,6 +46,10 @@
       this.newInput.placeholder = `New ${this.label}`;
       this.newInput.setAttribute("aria-label", `New ${this.label}`);
       this.newInput.hidden = true;
+      const maxLength = Number(element.dataset.maxLength);
+      if (Number.isFinite(maxLength) && maxLength > 0) {
+        this.newInput.maxLength = maxLength;
+      }
 
       this.addButton = document.createElement("button");
       this.addButton.type = "button";
@@ -69,6 +75,10 @@
     }
 
     // ----- Values ----- //
+
+    focus() {
+      this.select.focus();
+    }
 
     getValues() {
       return [...this.values];

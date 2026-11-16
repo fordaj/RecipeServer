@@ -74,6 +74,9 @@ def test_recipe_page_loads_the_metadata_picker_script(tmp_path: Path):
     assert 'src="/assets/recipe-editor/recipe-editor.js"' in html
     # The picker has to be loaded before the editor that uses it.
     assert html.index("metadata-picker.js") < html.index("recipe-editor.js")
+    # The feedback forms use it for their name dropdowns too.
+    assert html.index("metadata-picker.js") < html.index("comments.js")
+    assert html.index("metadata-picker.js") < html.index("ratings.js")
 
 
 def test_index_page_loads_the_metadata_picker_script(tmp_path: Path):

@@ -31,7 +31,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 
 - [server.py](server.md) — `ThreadingHTTPServer`, the `/api/*` routes
 - [ai_recipe.py](ai_recipe.md) — optional Ollama integration, recipe drafting
-- [metadata_options.py](metadata_options.md) — in-use metadata values for the editor dropdowns
+- [metadata_options.py](metadata_options.md) — in-use metadata and feedback-name values for the dropdowns
 - [metadata_linter.py](metadata_linter.md) — required-field warnings
 - [recipe_utils.py](recipe_utils.md) — shared metadata/JSON/markup helpers
 - [sources.py](sources.md) — shared `source` front-matter rendering rules

@@ -8,29 +8,29 @@
 
 ## Routes
 
-| Method   | Path                                       | Handler                                                                            |
-| -------- | ------------------------------------------ | ---------------------------------------------------------------------------------- |
-| GET      | `/health`                                  | health check                                                                       |
-| GET      | `/api/ai-status`                           | AI configured/reachable probe ([ai_recipe.md](ai_recipe.md))                       |
-| GET      | `/api/config`                              | current configuration values + field specs                                         |
-| POST     | `/api/config`                              | validate + persist configuration; triggers full rebuild                            |
-| GET      | `/api/recipe-folders`                      | list folders under the source directory                                            |
-| GET      | `/api/metadata-options`                    | in-use metadata values with counts ([metadata_options.md](metadata_options.md))    |
-| GET      | `/api/markdown?path=…`                     | raw Markdown of a recipe                                                           |
-| POST     | `/api/markdown`                            | write raw Markdown back to the recipe file (content only, no front-matter rewrite) |
-| GET/POST | `/api/recipe-editor?path=…`                | load/save the editor form (save updates `updatedOn`)                               |
-| GET/POST | `/api/metadata/<field>?path=…`             | per-field metadata read/save                                                       |
-| GET      | `/api/shopping-list?path=…`                | ingredients per selected recipe ([shopping_list.md](shopping_list.md))             |
-| GET      | `/api/bulk-editor?path=…`                  | metadata for several recipes at once                                               |
-| POST     | `/api/bulk-editor`                         | apply fields to several recipes                                                    |
-| POST     | `/api/bulk-delete`                         | delete several recipes                                                             |
-| DELETE   | `/api/recipe?path=…`                       | delete one recipe                                                                  |
-| POST     | `/api/recipe`                              | create a recipe in an existing/new folder                                          |
-| POST     | `/api/ai-recipe`                           | draft a recipe (SSE `text/event-stream` when `stream: true`)                       |
-| POST     | `/api/recipe-images/upload`                | upload images next to a recipe                                                     |
-| POST     | `/api/recipe-images/rename`                | rename an image; rewrites Markdown references                                      |
-| POST     | `/api/recipe-images/delete`                | delete an image; main-image fallback logic                                         |
-| GET      | `/api/archive/source`, `/api/archive/site` | stream a 7z archive ([archive.md](archive.md))                                     |
+| Method   | Path                                       | Handler                                                                                            |
+| -------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| GET      | `/health`                                  | health check                                                                                       |
+| GET      | `/api/ai-status`                           | AI configured/reachable probe ([ai_recipe.md](ai_recipe.md))                                       |
+| GET      | `/api/config`                              | current configuration values + field specs                                                         |
+| POST     | `/api/config`                              | validate + persist configuration; triggers full rebuild                                            |
+| GET      | `/api/recipe-folders`                      | list folders under the source directory                                                            |
+| GET      | `/api/metadata-options`                    | in-use metadata values and feedback names with counts ([metadata_options.md](metadata_options.md)) |
+| GET      | `/api/markdown?path=…`                     | raw Markdown of a recipe                                                                           |
+| POST     | `/api/markdown`                            | write raw Markdown back to the recipe file (content only, no front-matter rewrite)                 |
+| GET/POST | `/api/recipe-editor?path=…`                | load/save the editor form (save updates `updatedOn`)                                               |
+| GET/POST | `/api/metadata/<field>?path=…`             | per-field metadata read/save                                                                       |
+| GET      | `/api/shopping-list?path=…`                | ingredients per selected recipe ([shopping_list.md](shopping_list.md))                             |
+| GET      | `/api/bulk-editor?path=…`                  | metadata for several recipes at once                                                               |
+| POST     | `/api/bulk-editor`                         | apply fields to several recipes                                                                    |
+| POST     | `/api/bulk-delete`                         | delete several recipes                                                                             |
+| DELETE   | `/api/recipe?path=…`                       | delete one recipe                                                                                  |
+| POST     | `/api/recipe`                              | create a recipe in an existing/new folder                                                          |
+| POST     | `/api/ai-recipe`                           | draft a recipe (SSE `text/event-stream` when `stream: true`)                                       |
+| POST     | `/api/recipe-images/upload`                | upload images next to a recipe                                                                     |
+| POST     | `/api/recipe-images/rename`                | rename an image; rewrites Markdown references                                                      |
+| POST     | `/api/recipe-images/delete`                | delete an image; main-image fallback logic                                                         |
+| GET      | `/api/archive/source`, `/api/archive/site` | stream a 7z archive ([archive.md](archive.md))                                                     |
 
 Unknown `/api/*` paths return 404. `path` must be a relative `.md` path inside the configured source directory; anything else is rejected.
 

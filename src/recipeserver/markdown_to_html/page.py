@@ -127,9 +127,9 @@ def build_recipe_html(
         <script defer src="{RECIPE_SCALER_JS}"></script>
         <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
         <script defer src="{RECIPE_FEEDBACK_JS}"></script>
+        <script defer src="{METADATA_PICKER_JS}"></script>
         <script defer src="{COMMENTS_JS}"></script>
         <script defer src="{RATINGS_JS}"></script>
-        <script defer src="{METADATA_PICKER_JS}"></script>
         <script defer src="{AI_PROGRESS_JS}"></script>
         <script defer src="{FIELDS_JS}"></script>
         <script defer src="{DIALOGS_JS_PATH}"></script>

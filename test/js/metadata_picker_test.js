@@ -164,6 +164,27 @@ function main() {
   status.setValues(["In Rotation", "Try Me"]);
   assert.deepEqual(status.getValues(), ["In Rotation"]);
 
+  // The feedback name fields are single-value dropdowns that remember the
+  // device's name.
+  const { MetadataPicker } = window.RecipeMetadataPicker;
+  const raters = new MetadataPicker(buildPicker(document, "raters"));
+  assert.equal(raters.config.mode, "single");
+  raters.setOptions([
+    { value: "Avery", count: 3 },
+    { value: "Kailey", count: 1 },
+  ]);
+  assert.deepEqual(optionValues(raters.select), ["", NEW_VALUE, "Avery", "Kailey"]);
+
+  // A picker with a data-max-length caps the "Add new" input.
+  const limited = buildPicker(document, "commenters");
+  limited.setAttribute("data-max-length", "100");
+  const commenters = new MetadataPicker(limited);
+  assert.equal(commenters.newInput.maxLength, 100);
+
+  // focus() moves focus to the dropdown.
+  raters.focus();
+  assert.equal(document.activeElement, raters.select);
+
   console.log("metadata picker checks passed");
 }
 
