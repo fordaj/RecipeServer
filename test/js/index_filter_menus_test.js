@@ -8,17 +8,10 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { createDocument } = require("./dom_stub.js");
+const { element, tick } = require("./test_helpers.js");
 
 const INDEX_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "index.js");
 const ICONS_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "icons.js");
-
-function element(document, tagName, attributes = {}) {
-  const node = document.createElement(tagName);
-  for (const [name, value] of Object.entries(attributes)) {
-    node.setAttribute(name, value);
-  }
-  return node;
-}
 
 function buildMenu(document, { controlId, filter, label, allLabel, options }) {
   const menu = element(document, "details", {
@@ -202,10 +195,6 @@ function buildPage(document) {
   );
 
   return { search, sort, count, clearFilters, showArchived, meals, categories, recipes, list };
-}
-
-function tick() {
-  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function visibleTitles(page) {

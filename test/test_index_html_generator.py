@@ -586,7 +586,9 @@ def test_review_filter_shares_filter_control_select_styling():
     assert ".recipe-advanced > summary" in css
     assert ".recipe-advanced summary" not in css
     # The review filter and the Advanced filters share one menu component.
-    assert ".filter-menu {\n  position: relative;" in css
+    # (.filter-control and .filter-menu always appear together on the <details>
+    # element, so a single shared rule covers both.)
+    assert ".filter-control {\n  position: relative;" in css
     assert ".filter-menu__menu {" in css
     assert ".filter-menu__menu--right {\n  left: auto;\n  right: 0;\n}" in css
     assert ".filter-menu__option {" in css

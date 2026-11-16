@@ -9,17 +9,10 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { createDocument } = require("./dom_stub.js");
+const { element, tick } = require("./test_helpers.js");
 
 const INDEX_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "index.js");
 const ICONS_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "icons.js");
-
-function element(document, tagName, attributes = {}) {
-  const node = document.createElement(tagName);
-  for (const [name, value] of Object.entries(attributes)) {
-    node.setAttribute(name, value);
-  }
-  return node;
-}
 
 // Builds the part of the index page the bulk controls bar lives in.
 function buildPage(document) {
@@ -130,10 +123,6 @@ function buildPage(document) {
     status,
     recipes,
   };
-}
-
-function tick() {
-  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 // The browser toggles the checkbox before the click handler runs.

@@ -21,6 +21,15 @@ a {
   color: var(--food-color);
 }
 
+/* Strikethrough and italicize checked checklist items (recipe ingredients on
+   the recipe page and the shopping list dialog both use this treatment). */
+.recipe li:has(input[type="checkbox"]:checked),
+.shopping-list__ingredients li:has(input[type="checkbox"]:checked) {
+  text-decoration: line-through;
+  font-style: italic;
+  opacity: 0.65;
+}
+
 /* ---------- Version footer ---------- */
 
 .recipe-version {
