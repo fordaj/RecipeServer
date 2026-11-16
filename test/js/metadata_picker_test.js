@@ -164,26 +164,46 @@ function main() {
   status.setValues(["In Rotation", "Try Me"]);
   assert.deepEqual(status.getValues(), ["In Rotation"]);
 
-  // The feedback name fields are single-value dropdowns that remember the
-  // device's name.
+  // The feedback name fields are combo pickers: a typeable input plus the
+  // library dropdown, with no chips and no "Add new" swap.
   const { MetadataPicker } = window.RecipeMetadataPicker;
   const raters = new MetadataPicker(buildPicker(document, "raters"));
   assert.equal(raters.config.mode, "single");
+  assert.ok(!raters.valuesElement, "the combo variant renders no chip row");
+  assert.equal(raters.input.getAttribute("placeholder"), "Your name");
   raters.setOptions([
     { value: "Avery", count: 3 },
     { value: "Kailey", count: 1 },
   ]);
-  assert.deepEqual(optionValues(raters.select), ["", NEW_VALUE, "Avery", "Kailey"]);
+  // The library is always offered in full; the input is the free-text path.
+  assert.deepEqual(optionValues(raters.select), ["", "Avery", "Kailey"]);
+  assert.deepEqual(optionTexts(raters.select), ["Select rater", "Avery (3)", "Kailey (1)"]);
 
-  // A picker with a data-max-length caps the "Add new" input.
+  // Typing a name is read as typed, trimmed on read.
+  raters.input.value = "  Kailey  ";
+  raters.input.dispatchEvent({ type: "input" });
+  assert.deepEqual(raters.getValues(), ["Kailey"]);
+
+  // Picking a library option writes the value into the input.
+  raters.select.value = "Avery";
+  raters.select.dispatchEvent({ type: "change" });
+  assert.equal(raters.input.value, "Avery");
+  assert.deepEqual(raters.getValues(), ["Avery"]);
+
+  // A picker with a data-max-length caps the input.
   const limited = buildPicker(document, "commenters");
   limited.setAttribute("data-max-length", "100");
   const commenters = new MetadataPicker(limited);
-  assert.equal(commenters.newInput.maxLength, 100);
+  assert.equal(commenters.input.maxLength, 100);
 
-  // focus() moves focus to the dropdown.
+  // setValues() seeds the input.
+  raters.setValues(["Kailey"]);
+  assert.equal(raters.input.value, "Kailey");
+  assert.deepEqual(raters.getValues(), ["Kailey"]);
+
+  // focus() moves focus to the input.
   raters.focus();
-  assert.equal(document.activeElement, raters.select);
+  assert.equal(document.activeElement, raters.input);
 
   console.log("metadata picker checks passed");
 }

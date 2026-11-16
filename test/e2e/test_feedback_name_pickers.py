@@ -69,37 +69,37 @@ def test_name_dropdowns_offer_library_names_and_remember_the_device(driver, reci
     open_page(driver, f"{recipe_server.url}/waffles/recipe.html")
     wait_visible(driver, "#recipe-ratings")
 
-    # The add-form name dropdown offers the library's raters. The options
-    # are re-read when the form opens.
+    # The add-form name field carries the remembered/typed name in its text
+    # input; the dropdown offers the library's raters. The options are
+    # re-read when the form opens.
     wait_clickable(driver, ".recipe-ratings__add").click()
     _wait_for_option(driver, "#recipe-rating-form .recipe-editor__picker-select", "Avery (1)")
+    name_input = driver.find_element("css selector", "#recipe-rating-form .recipe-editor__picker-input")
+    assert name_input.get_attribute("value") == ""
+    # Picking a library name writes it into the input; no chip is rendered.
     select = Select(driver.find_element("css selector", "#recipe-rating-form .recipe-editor__picker-select"))
-    option_texts = [option.text for option in select.options]
-    assert "Avery (1)" in option_texts
+    select.select_by_visible_text("Avery (1)")
+    assert name_input.get_attribute("value") == "Avery"
+    assert driver.execute_script("return document.querySelector('#recipe-rating-form .recipe-editor__picker-chip') !== null;") is False
 
-    # "Add new…" swaps the dropdown for a text field.
-    select.select_by_value("__new__")
-    new_input = driver.find_element("css selector", "#recipe-rating-form .recipe-editor__picker-new")
-    assert new_input.is_displayed()
-    new_input.send_keys("Kailey")
-    driver.find_element("css selector", "#recipe-rating-form .recipe-editor__picker-add").click()
-    chip = wait_visible(driver, "#recipe-rating-form .recipe-editor__picker-chip")
-    assert chip.text.startswith("Kailey")
+    # Type a name that is not in the library and post the rating.
+    name_input.clear()
+    name_input.send_keys("Kailey")
 
     # Post the rating; the device remembers the name.
     wait_clickable(driver, "#save-rating").click()
     wait_visible(driver, ".recipe-rating__author")
     assert driver.execute_script("return window.localStorage.getItem('lastRater');") == "Kailey"
 
-    # Reload the page; the remembered name is preselected. Opening the form
-    # re-renders the picker once the library names arrive, so read the chip
-    # atomically instead of holding an element reference across the fetch.
+    # Reload the page; the remembered name is prefilled in the text input.
+    # Opening the form re-reads the library name, so read the input after the
+    # options arrive.
     driver.refresh()
     wait_visible(driver, "#recipe-ratings")
     wait_clickable(driver, ".recipe-ratings__add").click()
     _wait_for_option(driver, "#recipe-rating-form .recipe-editor__picker-select", "Avery (1)")
-    chip_text = driver.execute_script("return document.querySelector('#recipe-rating-form .recipe-editor__picker-chip')?.textContent ?? '';")
-    assert chip_text.startswith("Kailey")
+    value = driver.execute_script("return document.querySelector('#recipe-rating-form .recipe-editor__picker-input')?.value ?? '';")
+    assert value == "Kailey"
 
 
 def test_comment_name_dropdown_remembers_the_device(driver, recipe_server):
@@ -109,15 +109,13 @@ def test_comment_name_dropdown_remembers_the_device(driver, recipe_server):
     open_page(driver, f"{recipe_server.url}/waffles/recipe.html")
     wait_visible(driver, "#recipe-comments")
 
-    # The options are re-read when the form opens.
+    # The options are re-read when the form opens. Type a name that is not
+    # in the library into the text input.
     wait_clickable(driver, ".recipe-comments__add").click()
     _wait_for_option(driver, "#recipe-comment-form .recipe-editor__picker-select", "Avery (1)")
-    select = Select(driver.find_element("css selector", "#recipe-comment-form .recipe-editor__picker-select"))
-    select.select_by_value("__new__")
-    new_input = driver.find_element("css selector", "#recipe-comment-form .recipe-editor__picker-new")
-    assert new_input.is_displayed()
-    new_input.send_keys("Kailey")
-    driver.find_element("css selector", "#recipe-comment-form .recipe-editor__picker-add").click()
+    name_input = driver.find_element("css selector", "#recipe-comment-form .recipe-editor__picker-input")
+    assert name_input.get_attribute("value") == ""
+    name_input.send_keys("Kailey")
 
     text = driver.find_element("css selector", "#comment-text")
     text.send_keys("Tasted great.")
@@ -125,12 +123,11 @@ def test_comment_name_dropdown_remembers_the_device(driver, recipe_server):
     wait_visible(driver, ".recipe-comment__author")
     assert driver.execute_script("return window.localStorage.getItem('lastCommenter');") == "Kailey"
 
-    # The remembered name comes back preselected; the library names are
-    # re-read when the form opens again. Kailey is already selected, so it
-    # is not re-offered (single-value pickers hide the selected value).
+    # The remembered name comes back prefilled in the text input; the
+    # library names are re-read when the form opens again.
     driver.refresh()
     wait_visible(driver, "#recipe-comments")
     wait_clickable(driver, ".recipe-comments__add").click()
     _wait_for_option(driver, "#recipe-comment-form .recipe-editor__picker-select", "Avery (1)")
-    chip_text = driver.execute_script("return document.querySelector('#recipe-comment-form .recipe-editor__picker-chip')?.textContent ?? '';")
-    assert chip_text.startswith("Kailey")
+    value = driver.execute_script("return document.querySelector('#recipe-comment-form .recipe-editor__picker-input')?.value ?? '';")
+    assert value == "Kailey"

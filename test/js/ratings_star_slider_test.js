@@ -182,10 +182,11 @@ async function main() {
   require(RATINGS_JS);
   await tick();
 
-  // The name field is prefilled with the name this device remembers.
-  const authorChip = page.authorPicker.querySelector(".recipe-editor__picker-chip");
-  assert.ok(authorChip, "the name field is prefilled with the remembered rater");
-  assert.equal(authorChip.dataset.value, "Kailey");
+  // The name field is prefilled with the name this device remembers, in the
+  // text input itself.
+  const authorInput = page.authorPicker.querySelector(".recipe-editor__picker-input");
+  assert.ok(authorInput, "the add form renders a text input for the name");
+  assert.equal(authorInput.value, "Kailey");
 
   // Opening the form re-reads the library names from the server.
   page.addButton.click();
@@ -196,7 +197,8 @@ async function main() {
     (option) => option.textContent,
   );
   assert.ok(authorOptions.includes("Avery (3)"), "the dropdown offers the library's raters");
-  assert.ok(authorOptions.includes("Add new…"), "the dropdown offers Add new");
+  assert.ok(!authorOptions.includes("Add new…"), "the combo dropdown has no Add new entry");
+  assert.ok(!page.authorPicker.querySelector(".recipe-editor__picker-chip"), "no chips");
 
   // The add form replaces its static stars with a slider.
   const formSlider = document.querySelector("#recipe-rating-form .recipe-rating__stars--slider");

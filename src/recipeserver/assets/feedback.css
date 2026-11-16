@@ -322,7 +322,7 @@
 
 .recipe-feedback__picker {
   box-sizing: border-box;
-  width: min(100%, 16rem);
+  width: min(100%, 22rem);
 }
 
 .recipe-comment__text-input {

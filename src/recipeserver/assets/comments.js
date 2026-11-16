@@ -182,6 +182,8 @@
     status.textContent = "";
     if (open) {
       feedback.refreshNameOptions(authorPicker, "commenters");
+      const stored = feedback.getStoredName("lastCommenter");
+      if (stored) authorPicker.setValues([stored]);
       textInput.focus();
     }
   }

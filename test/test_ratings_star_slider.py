@@ -53,7 +53,7 @@ def test_feedback_name_pickers_are_sized_and_styled():
     field_input = declaration_block((ASSETS / "dialog-shell.css").read_text(encoding="utf-8"), ".field-input")
 
     assert ".recipe-feedback__picker" in css
-    assert "width: min(100%, 16rem);" in declaration_block(css, ".recipe-feedback__picker")
+    assert "width: min(100%, 22rem);" in declaration_block(css, ".recipe-feedback__picker")
     assert "font-size: 1rem;" in field_input
 
 

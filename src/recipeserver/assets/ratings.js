@@ -404,6 +404,8 @@
     status.textContent = "";
     if (open) {
       feedback.refreshNameOptions(authorPicker, "raters");
+      const stored = feedback.getStoredName("lastRater");
+      if (stored) authorPicker.setValues([stored]);
       authorPicker.focus();
     }
   }

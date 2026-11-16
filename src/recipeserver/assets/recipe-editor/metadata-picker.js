@@ -4,6 +4,11 @@
   // text field so a value that is not in the library yet can still be typed
   // in. Multi-value fields collect several values, single-value fields keep
   // exactly one.
+  //
+  // Single-value "combo" fields (the feedback name pickers) skip the chip
+  // row and the "Add new" swap: they render a plain text input whose value is
+  // the current name, with the library dropdown next to it. Picking an option
+  // writes the value into the input; typing works for any other value.
 
   const NEW_VALUE = "__new__";
 
@@ -14,12 +19,17 @@
     tags: { label: "tag", mode: "multi" },
     status: { label: "status", mode: "single" },
     contributor: { label: "contributor", mode: "single" },
-    commenters: { label: "commenter", mode: "single" },
-    raters: { label: "rater", mode: "single" },
+    commenters: { label: "commenter", mode: "single", variant: "combo", placeholder: "Your name" },
+    raters: { label: "rater", mode: "single", variant: "combo", placeholder: "Your name" },
   };
 
   function fieldConfig(field) {
     return FIELDS[field] ?? { label: field, mode: "single" };
+  }
+
+  function maxLengthFromDataset(element) {
+    const maxLength = Number(element.dataset.maxLength);
+    return Number.isFinite(maxLength) && maxLength > 0 ? maxLength : 0;
   }
 
   class MetadataPicker {
@@ -29,6 +39,7 @@
       this.config = fieldConfig(this.field);
       this.label = this.config.label;
       this.multi = this.config.mode === "multi";
+      this.combo = this.config.variant === "combo";
       this.options = [];
       this.values = [];
       this.disabled = false;
@@ -40,32 +51,51 @@
       this.select.className = "recipe-editor__picker-select field-input";
       this.select.setAttribute("aria-label", this.selectLabel());
 
-      this.newInput = document.createElement("input");
-      this.newInput.className = "recipe-editor__picker-new field-input";
-      this.newInput.type = "text";
-      this.newInput.placeholder = `New ${this.label}`;
-      this.newInput.setAttribute("aria-label", `New ${this.label}`);
-      this.newInput.hidden = true;
-      const maxLength = Number(element.dataset.maxLength);
-      if (Number.isFinite(maxLength) && maxLength > 0) {
-        this.newInput.maxLength = maxLength;
+      if (this.combo) {
+        this.input = document.createElement("input");
+        this.input.className = "recipe-editor__picker-input field-input";
+        this.input.type = "text";
+        const placeholder = this.config.placeholder ?? `New ${this.label}`;
+        // The browser reflects the placeholder attribute onto the property.
+        this.input.placeholder = placeholder;
+        this.input.setAttribute("placeholder", placeholder);
+        this.input.setAttribute("aria-label", placeholder);
+        const maxLength = maxLengthFromDataset(element);
+        if (maxLength) {
+          this.input.maxLength = maxLength;
+        }
+        this.controls.append(this.input, this.select);
+        this.element.append(this.controls);
+        this.input.addEventListener("input", () => this.handleInput());
+      } else {
+        this.newInput = document.createElement("input");
+        this.newInput.className = "recipe-editor__picker-new field-input";
+        this.newInput.type = "text";
+        this.newInput.placeholder = `New ${this.label}`;
+        this.newInput.setAttribute("aria-label", `New ${this.label}`);
+        this.newInput.hidden = true;
+        const maxLength = maxLengthFromDataset(element);
+        if (maxLength) {
+          this.newInput.maxLength = maxLength;
+        }
+
+        this.addButton = document.createElement("button");
+        this.addButton.type = "button";
+        this.addButton.className = "recipe-editor__picker-add";
+        this.addButton.textContent = "Add";
+        this.addButton.hidden = true;
+
+        this.valuesElement = document.createElement("span");
+        this.valuesElement.className = "recipe-editor__picker-values";
+
+        this.controls.append(this.select, this.newInput, this.addButton);
+        this.element.append(this.controls, this.valuesElement);
+
+        this.addButton.addEventListener("click", () => this.commitNewValue());
+        this.newInput.addEventListener("keydown", (event) => this.handleNewInputKey(event));
       }
 
-      this.addButton = document.createElement("button");
-      this.addButton.type = "button";
-      this.addButton.className = "recipe-editor__picker-add";
-      this.addButton.textContent = "Add";
-      this.addButton.hidden = true;
-
-      this.valuesElement = document.createElement("span");
-      this.valuesElement.className = "recipe-editor__picker-values";
-
-      this.controls.append(this.select, this.newInput, this.addButton);
-      this.element.append(this.controls, this.valuesElement);
-
       this.select.addEventListener("change", () => this.handleSelectChange());
-      this.addButton.addEventListener("click", () => this.commitNewValue());
-      this.newInput.addEventListener("keydown", (event) => this.handleNewInputKey(event));
 
       this.render();
     }
@@ -77,6 +107,10 @@
     // ----- Values ----- //
 
     focus() {
+      if (this.combo) {
+        this.input.focus();
+        return;
+      }
       this.select.focus();
     }
 
@@ -149,10 +183,21 @@
       return count ? `${value} (${count})` : value;
     }
 
+    // The combo variant keeps the text input as the source of truth, so the
+    // typed text is trimmed on read instead of on every keystroke.
+    handleInput() {
+      const text = this.input.value.trim();
+      this.values = text ? [text] : [];
+    }
+
     // ----- Rendering ----- //
 
     render() {
-      this.renderChips();
+      if (this.combo) {
+        this.input.value = this.values[0] ?? "";
+      } else {
+        this.renderChips();
+      }
       this.renderSelect();
     }
 
@@ -161,25 +206,39 @@
       placeholder.value = "";
       placeholder.textContent = this.selectLabel();
 
-      // "Add new" sits at the top so a value that is not in the library yet
-      // is always one click away.
-      const addNew = document.createElement("option");
-      addNew.value = NEW_VALUE;
-      addNew.textContent = "Add new…";
+      const options = [placeholder];
+      if (this.combo) {
+        // The combo input is typeable, so there is no "Add new" option and
+        // the library is always offered in full.
+        this.options.forEach((option) => {
+          const element = document.createElement("option");
+          element.value = option.value;
+          element.textContent = this.labelFor(option.value);
+          options.push(element);
+        });
+      } else {
+        // "Add new" sits at the top so a value that is not in the library
+        // yet is always one click away.
+        const addNew = document.createElement("option");
+        addNew.value = NEW_VALUE;
+        addNew.textContent = "Add new…";
 
-      const options = [placeholder, addNew];
-      this.availableOptions().forEach((option) => {
-        const element = document.createElement("option");
-        element.value = option.value;
-        element.textContent = this.labelFor(option.value);
-        options.push(element);
-      });
+        options.push(addNew);
+        this.availableOptions().forEach((option) => {
+          const element = document.createElement("option");
+          element.value = option.value;
+          element.textContent = this.labelFor(option.value);
+          options.push(element);
+        });
+      }
 
       this.select.replaceChildren(...options);
       this.select.value = "";
     }
 
     renderChips() {
+      if (this.combo) return;
+
       const chips = this.values.map((value) => {
         const chip = document.createElement("span");
         chip.className = "recipe-editor__picker-chip";
@@ -261,8 +320,12 @@
     setDisabled(disabled) {
       this.disabled = Boolean(disabled);
       this.select.disabled = this.disabled;
-      this.newInput.disabled = this.disabled;
-      this.addButton.disabled = this.disabled;
+      if (this.combo) {
+        this.input.disabled = this.disabled;
+      } else {
+        this.newInput.disabled = this.disabled;
+        this.addButton.disabled = this.disabled;
+      }
       this.renderChips();
     }
   }
