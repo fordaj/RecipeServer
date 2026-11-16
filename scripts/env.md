@@ -16,10 +16,10 @@ Everything is exported with `set -a` while sourcing and un-exported at the end, 
 Hidden files are excluded from barnacle's default scan, so their contract is documented here:
 
 - **`.common.env`** — `TOOLS_DIR=tools`; the upstream `fordaj/*` repository slugs (`fordaj/Versioner`, `fordaj/logamuffin`, `fordaj/runner-spawner`, `fordaj/barnacle`); versioner's release config (`VERSIONER_TAG_PATTERN="v[0-9]*"`, `VERSIONER_CONFIG_FILE=".versioner.json"`); and the pinned `*_VERSION_DIR`s:
-  - `VERSIONER_VERSION_DIR=tools/versioner/v0.0.3.0.5`
+  - `VERSIONER_VERSION_DIR=tools/versioner/v0.0.3.0.17`
   - `LOGAMUFFIN_VERSION_DIR=tools/logamuffin/v0.1.3.0.35`
-  - `RUNNER_SPAWNER_VERSION_DIR=tools/runner-spawner/v0.0.1.2.6`
-  - `BARNACLE_VERSION_DIR=tools/barnacle/v0.0.1.0.5`
+  - `RUNNER_SPAWNER_VERSION_DIR=tools/runner-spawner/v0.0.1.2.16`
+  - `BARNACLE_VERSION_DIR=tools/barnacle/v0.0.1.0.17`
 
   When bumping a pinned tool, this file names the version directory the platform files point into.
 

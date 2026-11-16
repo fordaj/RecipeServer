@@ -7,7 +7,7 @@
 ```text
 tools/runner-spawner/
   update.sh                     # refresh from fordaj/runner-spawner releases
-  v0.0.1.2.6/
+  v0.0.1.2.16/
     macos-arm64/runner-spawner
     macos-x86_64/runner-spawner
     linux-arm64/runner-spawner

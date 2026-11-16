@@ -7,7 +7,7 @@
 ```text
 tools/formattington-lite/
   update.sh                     # refresh from fordaj/formattington releases
-  v0.0.2.0.53/
+  v0.0.3.0.67/
     macos-arm64/formattington
     macos-arm64/NOTICE.md
     macos-arm64/LICENSES/<tool>.txt
