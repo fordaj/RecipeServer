@@ -643,6 +643,16 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     # ----- routing ---------------------------------------------------------
 
+    def end_headers(self):
+        # Generated HTML must never be served from a stale cache: the editor
+        # reloads the page immediately after a save and has to see the
+        # freshly generated page, but the static-file fallback sends no
+        # Cache-Control header and browsers apply heuristic caching.
+        path = urlsplit(self.path).path
+        if path.endswith(".html") or path.endswith("/"):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def do_GET(self):
         parsed = urlsplit(self.path)
         path = parsed.path

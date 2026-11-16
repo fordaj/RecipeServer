@@ -8,6 +8,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { createDocument } = require("./dom_stub.js");
+const { tick } = require("./test_helpers.js");
 
 const RATINGS_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "ratings.js");
 const RECIPE_FEEDBACK_JS = path.join(
@@ -78,10 +79,6 @@ function buildPage(document) {
   root.append(list);
 
   return { root, addButton, form, authorInput, scoreInput, scoreValue, status, list };
-}
-
-function tick() {
-  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 // Presses the slider at a fraction of its width, the way a pointer would.

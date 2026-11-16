@@ -22,6 +22,16 @@ def wait_clickable(driver, css: str, timeout: int = DEFAULT_TIMEOUT):
     return WebDriverWait(driver, timeout).until(EC.element_to_be_clickable((By.CSS_SELECTOR, css)))
 
 
+def wait_textarea_value(driver, css: str, timeout: int = DEFAULT_TIMEOUT):
+    """Wait until a textarea has a non-empty value (the editor loads asynchronously)."""
+
+    def _has_value(driver):
+        element = driver.find_element(By.CSS_SELECTOR, css)
+        return driver.execute_script("return arguments[0].value.length > 0;", element)
+
+    return WebDriverWait(driver, timeout).until(_has_value)
+
+
 def wait_hidden(driver, css: str, timeout: int = DEFAULT_TIMEOUT):
     return WebDriverWait(driver, timeout).until(EC.invisibility_of_element_located((By.CSS_SELECTOR, css)))
 

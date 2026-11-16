@@ -258,13 +258,6 @@ body > a:hover {
   box-shadow: none;
 }
 
-/* Strikethrough and italicize checked items */
-.recipe li:has(input[type="checkbox"]:checked) {
-  text-decoration: line-through;
-  font-style: italic;
-  opacity: 0.65;
-}
-
 /* ---------- Checkboxes ---------- */
 
 /* Recipe ingredient checkboxes */

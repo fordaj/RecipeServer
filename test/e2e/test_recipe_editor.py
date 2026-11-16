@@ -1,12 +1,16 @@
 """End-to-end coverage for the in-browser recipe editor."""
 
-from test.e2e.helpers import open_page, wait_clickable, wait_hidden, wait_text, wait_visible
+from test.e2e.helpers import open_page, wait_clickable, wait_hidden, wait_textarea_value, wait_text, wait_visible
 
 
 def _open_editor(driver, recipe_server):
     open_page(driver, f"{recipe_server.url}/waffles/recipe.html")
     wait_clickable(driver, "#edit-recipe").click()
     wait_visible(driver, "#recipe-markdown-editor[open]")
+    # The dialog opens before the Markdown arrives from the server; wait for
+    # the load to finish so the textarea is not overwritten after the test
+    # edits it.
+    wait_textarea_value(driver, ".recipe-editor__source")
 
 
 def test_editor_opens_and_shows_existing_content(driver, recipe_server):

@@ -894,17 +894,6 @@ def _ollama_chat(
     return result
 
 
-def _chat(
-    endpoint: str,
-    model_name: str,
-    prompt: str,
-    user_message: str,
-    stage: str = "recipe generation",
-    images: list[str] | None = None,
-) -> str:
-    return _ollama_chat(endpoint, model_name, prompt, user_message, stage=stage, stream=False, images=images).content
-
-
 def _normalize_list_fields(normalized: dict[str, Any]) -> None:
     """Split comma-separated strings into lists for the multi-value fields."""
     for field in LIST_FIELDS:
@@ -1028,14 +1017,15 @@ def _prepare_image_draft_input(
         )
         encoded = image_base64(image_filename, image_bytes)
         logger.info(f"Transcribing recipe image with local model '{image_model_name}' ({len(image_bytes)} bytes, {image_filename})")
-        transcription = _chat(
+        transcription = _ollama_chat(
             resolved.endpoint,
             image_model_name,
             resolved.new_recipe_from_image_prompt,
             "Recipe image:",
             stage="image transcription",
+            stream=False,
             images=[encoded],
-        )
+        ).content
         logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:LOG_PREVIEW_CHARS]!r}")
         transcriptions.append(f"--- {position.capitalize()}: {image_filename} ---\n{transcription}")
 
