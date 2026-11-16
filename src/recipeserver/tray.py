@@ -51,7 +51,9 @@ class Tray:
 
     def _open_recipes(self, icon, item):
         port = getattr(self.server, "port", 8000)
-        webbrowser.open(f"http://localhost:{port}")
+        # 127.0.0.1 instead of "localhost": the server listens on the IPv4
+        # loopback address only, and "localhost" may resolve to IPv6 first.
+        webbrowser.open(f"http://127.0.0.1:{port}")
 
     def _server_status(self, item):
         return "Server: Running" if self.server.is_running else "Server: Stopped"

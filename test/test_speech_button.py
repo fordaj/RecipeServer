@@ -1,0 +1,232 @@
+"""Tests for the dictation (speech) button: the generated index markup, the
+browser script, and the ``/api/transcribe`` endpoint.
+
+The feature is only offered over HTTPS: the browser script removes the
+button when the page was not loaded over HTTPS, and the endpoint refuses
+requests that did not arrive over HTTPS.
+"""
+
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+from pathlib import Path
+from types import SimpleNamespace
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
+
+import pytest
+
+from recipeserver import server as server_module
+from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
+from test.helpers import running_recipe_server
+
+SPEECH_JS_TEST = Path(__file__).parent / "js" / "speech_button_test.js"
+SPEECH_ASSETS = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "speech-button"
+
+# A short recording, as the browser would send it.
+AUDIO = b"fake-webm-audio"
+
+
+class FakeTranscriber:
+    """Stand-in for the Whisper transcriber."""
+
+    def __init__(self, text: str = "chocolate cake", error: Exception | None = None):
+        self.text = text
+        self.error = error
+        self.calls: list[tuple[bytes, str]] = []
+
+    def transcribe(self, audio: bytes, suffix: str = ".webm") -> str:
+        self.calls.append((audio, suffix))
+        if self.error is not None:
+            raise self.error
+        return self.text
+
+
+def _post_audio(url: str, *, headers: dict | None = None, body: bytes = AUDIO, content_type: str = "audio/webm") -> tuple[int, dict]:
+    request_headers = {"Content-Type": content_type}
+    request_headers.update(headers or {})
+
+    request = Request(url, data=body, headers=request_headers, method="POST")
+    try:
+        with urlopen(request) as response:
+            return response.status, json.loads(response.read())
+    except HTTPError as error:
+        payload = error.read()
+        try:
+            parsed = json.loads(payload) if payload else {}
+        except json.JSONDecodeError:
+            parsed = {"error": payload.decode("utf-8", errors="replace")}
+        return error.code, parsed
+
+
+@pytest.fixture()
+def fake_transcriber(monkeypatch: pytest.MonkeyPatch):
+    transcriber = FakeTranscriber()
+    monkeypatch.setattr(server_module, "transcriber", transcriber)
+    return transcriber
+
+
+@pytest.fixture()
+def source(tmp_path: Path) -> Path:
+    recipes = tmp_path / "recipes"
+    (recipes / "soup").mkdir(parents=True)
+    (recipes / "soup" / "recipe.md").write_text("---\nmeals:\n  - Dinner\n---\n# Soup\n\nBody.\n", encoding="utf-8")
+    return recipes
+
+
+# ----- The generated index page ----- #
+
+
+def _generate_index(tmp_path: Path) -> str:
+    recipe_path = tmp_path / "soup" / "recipe.html"
+    recipe_path.parent.mkdir(parents=True, exist_ok=True)
+    recipe_path.write_text("<h1>Soup</h1>", encoding="utf-8")
+
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    generator.add(Recipe({"categories": ["Soup"]}, recipe_path))
+    generator.convert()
+
+    return (tmp_path / "index.html").read_text(encoding="utf-8")
+
+
+def test_index_page_offers_the_dictation_button(tmp_path: Path):
+    index = _generate_index(tmp_path)
+
+    assert 'data-testid="speech-button"' in index
+    assert 'class="speech-button"' in index
+    # The button sits next to the search field.
+    assert 'class="speech-input"' in index
+    assert 'id="recipe-search"' in index
+    # The button starts hidden: the script only reveals it over HTTPS.
+    speech_button = index.split('data-testid="speech-button"', 1)[1]
+    assert "hidden" in speech_button.split(">", 1)[0]
+
+
+def test_index_page_loads_the_dictation_assets(tmp_path: Path):
+    index = _generate_index(tmp_path)
+
+    assert "/assets/speech-button/speech-button.css" in index
+    assert "/assets/speech-button/speech-button.js" in index
+    # The icon helper has to load before the script that inlines the icons.
+    assert index.index("icons.js") < index.index("speech-button.js")
+
+
+def test_dictation_assets_exist():
+    assert (SPEECH_ASSETS / "speech-button.js").is_file()
+    assert (SPEECH_ASSETS / "speech-button.css").is_file()
+
+    assets = SPEECH_ASSETS.parent
+    # The icons live with the other icons and are referenced by root-absolute
+    # URL, so the generated pages find them.
+    assert (assets / "microphone.svg").is_file()
+    assert (assets / "checkmark.svg").is_file()
+
+
+# ----- The transcription endpoint ----- #
+
+
+def test_transcription_requires_https(source: Path, fake_transcriber: FakeTranscriber):
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe")
+
+    assert status == 403
+    assert "HTTPS" in body["error"]
+    # Nothing was transcribed.
+    assert fake_transcriber.calls == []
+
+
+def test_transcription_accepts_a_forwarded_https_request(source: Path, fake_transcriber: FakeTranscriber):
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"})
+
+    assert status == 200
+    assert body == {"text": "chocolate cake"}
+    assert fake_transcriber.calls == [(AUDIO, ".webm")]
+
+
+def test_transcription_accepts_the_forwarded_header(source: Path, fake_transcriber: FakeTranscriber):
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"Forwarded": "proto=https"})
+
+    assert status == 200
+    assert body == {"text": "chocolate cake"}
+
+
+def test_transcription_rejects_a_forwarded_http_request(source: Path, fake_transcriber: FakeTranscriber):
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "http"})
+
+    assert status == 403
+    assert fake_transcriber.calls == []
+
+
+def test_transcription_rejects_an_unsupported_audio_format(source: Path, fake_transcriber: FakeTranscriber):
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"}, content_type="audio/flac")
+
+    assert status == 415
+    assert fake_transcriber.calls == []
+
+
+def test_transcription_rejects_an_empty_recording(source: Path, fake_transcriber: FakeTranscriber):
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"}, body=b"")
+
+    assert status == 400
+    assert fake_transcriber.calls == []
+
+
+def test_transcription_rejects_an_oversized_recording(source: Path, fake_transcriber: FakeTranscriber, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(server_module, "MAX_TRANSCRIPTION_SIZE", 8)
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"}, body=b"x" * 9)
+
+    assert status == 413
+    assert fake_transcriber.calls == []
+
+
+def test_transcription_reports_a_missing_transcriber(source: Path, monkeypatch: pytest.MonkeyPatch):
+    from recipeserver.transcriber import TranscriberUnavailable
+
+    monkeypatch.setattr(server_module, "transcriber", FakeTranscriber(error=TranscriberUnavailable("faster-whisper is not installed.")))
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"})
+
+    assert status == 503
+    assert "faster-whisper" in body["error"]
+
+
+def test_transcription_reports_a_failed_transcription(source: Path, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(server_module, "transcriber", FakeTranscriber(error=RuntimeError("boom")))
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"})
+
+    assert status == 500
+    assert body["error"] == "Speech transcription failed"
+
+
+# ----- The browser script ----- #
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_speech_button_script_only_works_over_https():
+    result = subprocess.run(
+        [shutil.which("node"), str(SPEECH_JS_TEST)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "speech button checks passed" in result.stdout
+
+
+def test_server_binds_to_the_loopback_interface():
+    # The site has no authentication, so it only listens on the loopback
+    # interface and is served over HTTPS through a local reverse proxy.
+    assert server_module.SERVER_BIND_ADDRESS == "127.0.0.1"
+    assert server_module.LOCALHOST == "127.0.0.1"

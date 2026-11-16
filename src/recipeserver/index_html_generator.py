@@ -48,6 +48,8 @@ METADATA_PICKER_JS_PATH = "/assets/recipe-editor/metadata-picker.js"
 AI_PROGRESS_JS_PATH = "/assets/recipe-editor/ai-progress.js"
 SHOPPING_LIST_CSS_PATH = "/assets/shopping-list/shopping-list.css"
 SHOPPING_LIST_JS_PATH = "/assets/shopping-list/shopping-list.js"
+SPEECH_BUTTON_CSS_PATH = "/assets/speech-button/speech-button.css"
+SPEECH_BUTTON_JS_PATH = "/assets/speech-button/speech-button.js"
 RECIPE_SCALER_CSS_PATH = "/assets/recipe-scaler.css"
 RECIPE_SCALER_JS_PATH = "/assets/recipe-scaler.js"
 CONFIG_EDITOR_CSS_PATH = "/assets/config-editor.css"
@@ -814,6 +816,8 @@ class IndexHTMLGenerator:
             "ai_progress_js": AI_PROGRESS_JS_PATH,
             "shopping_list_css": SHOPPING_LIST_CSS_PATH,
             "shopping_list_js": SHOPPING_LIST_JS_PATH,
+            "speech_button_css": SPEECH_BUTTON_CSS_PATH,
+            "speech_button_js": SPEECH_BUTTON_JS_PATH,
             "recipe_scaler_css": RECIPE_SCALER_CSS_PATH,
             "recipe_scaler_js": RECIPE_SCALER_JS_PATH,
             "config_editor_css": CONFIG_EDITOR_CSS_PATH,
@@ -846,12 +850,14 @@ class IndexHTMLGenerator:
     <link rel="stylesheet" href="{urls['recipe_editor_css']}">
     <link rel="stylesheet" href="{urls['recipe_scaler_css']}">
     <link rel="stylesheet" href="{urls['shopping_list_css']}">
+    <link rel="stylesheet" href="{urls['speech_button_css']}">
     <link rel="stylesheet" href="{urls['config_editor_css']}">
     <link rel="stylesheet" href="{urls['pull_down_page_refresh_css']}">
     <script src="{MENU_JS_URL}" defer></script>
     <script src="{urls['icons_js']}" defer></script>
     <script src="{urls['dialogs_js']}" defer></script>
     <script src="{urls['index_js']}" defer></script>
+    <script src="{urls['speech_button_js']}" defer></script>
     <script src="{urls['metadata_picker_js']}" defer></script>
     <script src="{urls['ai_progress_js']}" defer></script>
     <script src="{urls['fields_js']}" defer></script>
@@ -922,16 +928,28 @@ class IndexHTMLGenerator:
     def _toolbar_html(self, filter_menus_html: str, reviewer_options_html: str) -> str:
         return dedent(f"""\
 <section class="recipe-toolbar" aria-label="Recipe search and filters">
-    <label class="search-control">
-        <span class="visually-hidden">Search recipes</span>
-        <input
-            id="recipe-search"
-            data-testid="recipe-search"
-            type="search"
-            placeholder="Search recipes, ingredients, tags..."
-            aria-label="Search recipes"
+    <div class="speech-input">
+        <label class="search-control">
+            <span class="visually-hidden">Search recipes</span>
+            <input
+                id="recipe-search"
+                data-testid="recipe-search"
+                type="search"
+                placeholder="Search recipes, ingredients, tags..."
+                aria-label="Search recipes"
+            >
+        </label>
+        <button
+            type="button"
+            class="speech-button"
+            data-testid="speech-button"
+            aria-label="Start dictation"
+            title="Start dictation"
+            hidden
         >
-    </label>
+            <span class="speech-button__icon"></span>
+        </button>
+    </div>
     <details class="recipe-advanced">
         <summary>
             <span>Advanced</span>

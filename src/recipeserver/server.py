@@ -48,6 +48,7 @@ from .recipe_utils import (
     normalize_reviewer_name,
     normalize_source_dict,
 )
+from .transcriber import TranscriberUnavailable, get_transcriber
 
 MarkdownSavedCallback = Callable[[Path], None]
 ConfigSavedCallback = Callable[[], None]
@@ -60,8 +61,30 @@ RecipesDeletedCallback = Callable[[list[Path]], None]
 BULK_MAX_PATHS = 100
 ARCHIVE_STREAM_CHUNK_BYTES = 64 * 1024
 
-SERVER_BIND_ADDRESS = "0.0.0.0"
-LOCALHOST = "localhost"
+# The server only listens on the loopback interface: it has no
+# authentication, and the site is meant to be reached through a local
+# reverse proxy (or tunnel) that terminates HTTPS. 127.0.0.1 is used instead
+# of "localhost" because the name may resolve to IPv6 first, which the
+# server does not listen on.
+SERVER_BIND_ADDRESS = "127.0.0.1"
+LOCALHOST = "127.0.0.1"
+
+# Audio containers the browser can record, mapped to the file suffix the
+# recording is written to before it is transcribed.
+TRANSCRIPTION_AUDIO_SUFFIXES = {
+    "audio/webm": ".webm",
+    "audio/ogg": ".ogg",
+    "audio/mp4": ".mp4",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/mpeg": ".mp3",
+}
+
+# Longest recording the transcription endpoint accepts.
+MAX_TRANSCRIPTION_SIZE = 25 * 1024 * 1024
+
+# The shared transcriber; the Whisper model behind it loads on first use.
+transcriber = get_transcriber()
 
 # ----- Filename and metadata-field rules -----------------------------------
 # Shared by recipe creation, the metadata endpoints, and image validation.
@@ -718,6 +741,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/recipe-images/upload": self._handle_recipe_images_upload_post,
             "/api/recipe-images/delete": self._handle_recipe_images_delete_post,
             "/api/markdown": self._handle_markdown_post,
+            "/api/transcribe": self._handle_transcription,
         }
 
         handler = exact_handlers.get(path)
@@ -1007,6 +1031,79 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         """Return the generated page that belongs to a recipe Markdown file."""
         relative_path = markdown_path.relative_to(self.source_directory)
         return (Path(self.directory).resolve() / relative_path).with_suffix(".html")
+
+    # ----- POST handlers: speech transcription -------------------------------
+
+    def _request_is_secure(self) -> bool:
+        """Report whether the request reached the server over HTTPS.
+
+        The server itself only speaks plain HTTP, so the site is served over
+        HTTPS through a local reverse proxy (or tunnel) that terminates TLS
+        and forwards the request. Those proxies record the original protocol
+        in the ``X-Forwarded-Proto`` (or ``Forwarded``) header. The server
+        listens on the loopback interface only, so that header can only come
+        from a process on this machine.
+        """
+        forwarded_proto = self.headers.get("X-Forwarded-Proto", "")
+        if forwarded_proto:
+            # The left-most value is the protocol the client used.
+            return forwarded_proto.split(",")[0].strip().lower() == "https"
+
+        for element in self.headers.get("Forwarded", "").split(";"):
+            key, _, value = element.partition("=")
+            if key.strip().lower() == "proto":
+                return value.strip().strip('"').lower() == "https"
+
+        return False
+
+    def _handle_transcription(self) -> None:
+        """Transcribe a recorded audio clip into text."""
+        if not self._request_is_secure():
+            self._send_json(403, {"error": "Speech transcription requires an HTTPS connection"})
+            return
+
+        content_type = self.headers.get("Content-Type", "")
+        mime_type = content_type.split(";")[0].strip().lower()
+        suffix = TRANSCRIPTION_AUDIO_SUFFIXES.get(mime_type)
+        if suffix is None:
+            self._send_json(415, {"error": "Unsupported audio format"})
+            return
+
+        content_length = self.headers.get("Content-Length")
+        try:
+            length = int(content_length) if content_length is not None else 0
+        except ValueError:
+            length = 0
+
+        if length <= 0:
+            self._send_json(400, {"error": "Empty audio recording"})
+            return
+
+        if length > MAX_TRANSCRIPTION_SIZE:
+            self._send_json(413, {"error": "Audio recording too large"})
+            return
+
+        audio = self.rfile.read(length)
+        if len(audio) != length:
+            self._send_json(400, {"error": "Incomplete audio recording"})
+            return
+
+        try:
+            text = transcriber.transcribe(audio, suffix=suffix)
+        except TranscriberUnavailable as exc:
+            logger.warning(f"Speech transcription is unavailable: {exc}")
+            self._send_json(503, {"error": str(exc)})
+            return
+        except ValueError as exc:
+            logger.warning(f"Invalid speech transcription request: {exc}")
+            self._send_json(400, {"error": str(exc)})
+            return
+        except Exception:
+            logger.exception("Speech transcription failed")
+            self._send_json(500, {"error": "Speech transcription failed"})
+            return
+
+        self._send_json(200, {"text": text})
 
     # ----- POST handlers: configuration and AI -----------------------------
 
@@ -2065,7 +2162,8 @@ class Server:
         self._thread.start()
 
         logger.info(f"Server started on port {self.port}")
-        logger.info(f"Hostname: http://{socket.gethostname()}.local:{self.port}")
+        logger.info(f"Address: http://{SERVER_BIND_ADDRESS}:{self.port}")
+        logger.info("Serve the site over HTTPS through a local reverse proxy to enable the dictation button.")
 
     def stop(self):
         if self._http_server is None:

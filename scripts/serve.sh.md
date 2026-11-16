@@ -25,7 +25,7 @@ Sources [scripts/entry.sh](entry.sh.md) — which loads the [env cascade](env.sh
 uv run python -m recipeserver
 ```
 
-The module entry point is [src/recipeserver/**main**.py](../src/recipeserver/__main__.py.md): it parses `--log-level` (pass it through with `uv run python -m recipeserver --log-level DEBUG`; `scripts/serve.sh` forwards no arguments), handles configuration, builds the site, and starts the tray server on the configured port (default `http://localhost:8000`).
+The module entry point is [src/recipeserver/**main**.py](../src/recipeserver/__main__.py.md): it parses `--log-level` (pass it through with `uv run python -m recipeserver --log-level DEBUG`; `scripts/serve.sh` forwards no arguments), handles configuration, builds the site, and starts the tray server on the configured port (default `http://127.0.0.1:8000`).
 
 Requires `uv`; on first launch the app asks you to choose the recipes directory (or writes `recipe-server-cfg.toml` for you). Runtime logs go to `.logs/` in the directory the app was started from.
 

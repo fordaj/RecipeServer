@@ -177,10 +177,10 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
     ConfigField(
         MODEL_ENDPOINT_KEY,
         "Local model endpoint",
-        "Ollama server endpoint, for example http://localhost:11434. Leave blank to disable AI recipe creation. A scheme is added if omitted.",
+        "Ollama server endpoint, for example http://127.0.0.1:11434. Leave blank to disable AI recipe creation. A scheme is added if omitted.",
         _validate_model_endpoint,
         input_type="url",
-        placeholder="http://localhost:11434",
+        placeholder="http://127.0.0.1:11434",
     ),
     ConfigField(
         ALL_PURPOSE_MODEL_NAME_KEY,
@@ -513,7 +513,7 @@ class Configuration:
         """
         logger.info("Optionally configure a local AI model so recipes can be created from text, a URL, or an image.")
 
-        endpoint = self._prompt_user("Ollama endpoint (for example http://localhost:11434). Press Enter to skip: ")
+        endpoint = self._prompt_user("Ollama endpoint (for example http://127.0.0.1:11434). Press Enter to skip: ")
         if not endpoint:
             logger.info("No local model configured; AI recipe creation is disabled")
             self.model_endpoint = ""

@@ -5,7 +5,7 @@ flowchart TD
     main("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.main(cfg)</u>") --> regen("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>Core.regen()")
     regen --> convert("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>parallel convert<br/>recipe.md → html</u>")
     convert --> index("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_update_index()<br/>index.html</u>")
-    main --> server("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Server(...)<br/>bind 0.0.0.0:port</u>")
+    main --> server("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Server(...)<br/>bind 127.0.0.1:port</u>")
     main --> tray("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Tray(...)<br/>menu · open · quit</u>")
     click main href "__main__.py.md"
     click convert href "markdown_to_html/converter.py.md"
@@ -31,7 +31,7 @@ The application spine. `main(cfg)` builds the site, starts the HTTP server, and 
 - `parse_args()` — `--log-level LEVEL` (`-l`), choices from `LogLevel` ([_logger.py.md](_logger.py.md)), default `INFO`.
 - `main(cfg)` — `Core(cfg)` → `regen()` → `Server(...)` ([server.py.md](server.py.md)) → `Tray(...)` ([tray.py.md](tray.py.md)). On macOS the tray runs on the main thread; elsewhere it runs detached and this thread polls the shutdown event.
 
-The server binds `0.0.0.0` on the configured port (default 8000); if the port is in use at startup, `Server.start()` logs an error and exits (see [server.py.md](server.py.md)).
+The server binds `127.0.0.1` on the configured port (default 8000); if the port is in use at startup, `Server.start()` logs an error and exits (see [server.py.md](server.py.md)).
 
 ## Related pages
 
