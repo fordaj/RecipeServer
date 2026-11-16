@@ -555,8 +555,11 @@ Try this
   // file on disk by themselves (except rename, which the server applies
   // immediately because it changes the directory listing).
 
-  const MARKDOWN_IMAGE_PATTERN = /(!\[[^\]]*\]\()(\s*)(<[^>\n]*>|[^)\s>]+)((?:\s+"[^"]*")?\s*\))/g;
-  const HTML_IMAGE_PATTERN = /(<img\b[^>]*?\bsrc\s*=\s*["'])([^"']+)(["'])/gi;
+  // Image link syntax, mirroring the server-side patterns: only the src is
+  // captured, everything else is a non-capturing wrapper.
+  const MARKDOWN_IMAGE_PATTERN =
+    /(?<open>!\[[^\]]*\]\()(?<gap>\s*)(?<src><[^>\n]*>|[^)\s>]+)(?:(?:\s+"[^"]*")?\s*\))/g;
+  const HTML_IMAGE_PATTERN = /(?<before><img\b[^>]*?\bsrc\s*=\s*["'])(?<src>[^"']+)(?:["'])/gi;
   const CLIENT_IMAGE_EXTENSIONS = new Set([
     ".jpg",
     ".jpeg",
@@ -622,26 +625,28 @@ Try this
     MARKDOWN_IMAGE_PATTERN.lastIndex = 0;
     let match;
     while ((match = MARKDOWN_IMAGE_PATTERN.exec(content))) {
-      const srcStart = match.index + match[1].length + match[2].length;
+      const srcToken = match.groups.src;
+      const srcStart = match.index + match.groups.open.length + match.groups.gap.length;
       consider(
         match.index,
         match.index + match[0].length,
         srcStart,
-        srcStart + match[3].length,
-        parseMarkdownSrc(match[3]),
+        srcStart + srcToken.length,
+        parseMarkdownSrc(srcToken),
         "markdown",
       );
     }
 
     HTML_IMAGE_PATTERN.lastIndex = 0;
     while ((match = HTML_IMAGE_PATTERN.exec(content))) {
-      const srcStart = match.index + match[1].length;
+      const srcToken = match.groups.src;
+      const srcStart = match.index + match.groups.before.length;
       consider(
         match.index,
         match.index + match[0].length,
         srcStart,
-        srcStart + match[2].length,
-        match[2],
+        srcStart + srcToken.length,
+        srcToken,
         "html",
       );
     }

@@ -181,8 +181,8 @@ def _source_is_empty(source: dict | None) -> bool:
 
 
 def _recipe_folder_name(content: str, metadata: dict) -> str:
-    heading = re.search(r"^\s{0,3}#\s+(.+?)\s*#*\s*$", content, re.MULTILINE)
-    title = heading.group(1) if heading else metadata.get("title")
+    heading = re.search(r"^\s{0,3}#\s+(?P<heading>.+?)\s*#*\s*$", content, re.MULTILINE)
+    title = heading.group("heading") if heading else metadata.get("title")
     if not isinstance(title, str):
         title = ""
 
@@ -460,19 +460,21 @@ def _image_name_pattern(name: str) -> re.Pattern:
     A plain substring replace would corrupt references such as
     ``chocolate-cake.png`` when renaming ``cake.png``.
     """
-    return re.compile(r"(^|[^A-Za-z0-9_.-])" + re.escape(name) + r"(?![A-Za-z0-9_.-])")
+    return re.compile(r"(?P<prefix>^|[^A-Za-z0-9_.-])" + re.escape(name) + r"(?![A-Za-z0-9_.-])")
 
 
 def _replace_image_reference(content: str, source: str, target: str) -> str:
-    updated = _image_name_pattern(source).sub(lambda match: match.group(1) + target, content)
+    updated = _image_name_pattern(source).sub(lambda match: match.group("prefix") + target, content)
     quoted_source = quote(source)
     if quoted_source != source:
-        updated = _image_name_pattern(quoted_source).sub(lambda match: match.group(1) + quote(target), updated)
+        updated = _image_name_pattern(quoted_source).sub(lambda match: match.group("prefix") + quote(target), updated)
     return updated
 
 
-_MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(\s*(<[^>\n]*>|[^)\s>]+)((?:\s+\"[^\"]*\")?\s*\))")
-_HTML_IMG_RE = re.compile(r"<img\b[^>]*?\bsrc\s*=\s*[\"']([^\"']+)[\"']", re.IGNORECASE)
+# Match a Markdown image reference: the src token (optionally in angle brackets)
+# followed by an optional title and the closing paren. Only the src is captured.
+_MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(\s*(?P<image_src><[^>\n]*>|[^)\s>]+)(?:(?:\s+\"[^\"]*\")?\s*\))")
+_HTML_IMG_RE = re.compile(r"<img\b[^>]*?\bsrc\s*=\s*[\"'](?P<image_src>[^\"']+)[\"']", re.IGNORECASE)
 _EXTERNAL_SRC_RE = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
 
 
@@ -491,14 +493,14 @@ def _first_image_reference(content: str) -> dict | None:
     """Locate the first image in the Markdown, Markdown or HTML syntax."""
     candidates: list[dict] = []
     for match in _MARKDOWN_IMAGE_RE.finditer(content):
-        src_raw = match.group(1)
+        src_raw = match.group("image_src")
         src = src_raw[1:-1] if src_raw.startswith("<") and src_raw.endswith(">") else src_raw
         candidates.append(
             {
                 "span_start": match.start(),
                 "span_end": match.end(),
-                "src_start": match.start(1),
-                "src_end": match.end(1),
+                "src_start": match.start("image_src"),
+                "src_end": match.end("image_src"),
                 "src": src,
                 "kind": "markdown",
             }
@@ -512,9 +514,9 @@ def _first_image_reference(content: str) -> dict | None:
             {
                 "span_start": match.start(),
                 "span_end": span_end,
-                "src_start": match.start(1),
-                "src_end": match.end(1),
-                "src": match.group(1),
+                "src_start": match.start("image_src"),
+                "src_end": match.end("image_src"),
+                "src": match.group("image_src"),
                 "kind": "html",
             }
         )

@@ -1,3 +1,7 @@
+// Safety net: reveal the scaler even if KaTeX (or something else) fails
+// before the first reveal. Generously longer than a normal typeset.
+const SCALER_REVEAL_FALLBACK_MS = 3000;
+
 class RecipeScaler {
   // ----- Noun forms ----- //
   // Single source of truth for irregular noun singular/plural pairs.
@@ -416,7 +420,7 @@ class RecipeScaler {
     // the reveal (e.g. KaTeX failed to load).
     this.revealTimer = window.setTimeout(() => {
       this.revealScaler();
-    }, 3000);
+    }, SCALER_REVEAL_FALLBACK_MS);
   }
 
   revealScaler() {

@@ -2,6 +2,9 @@
 // The download date is built from local date components so the filename
 // reflects the browser's timezone, not UTC (toISOString would be UTC).
 
+// Keep the "Downloaded" status visible briefly before the menu closes.
+const STATUS_AUTOCLOSE_DELAY_MS = 1200;
+
 const initSandwichMenu = () => {
   document.querySelectorAll(".sandwich-menu").forEach((menu) => {
     const toggle = menu.querySelector(".sandwich-menu__toggle");
@@ -81,7 +84,7 @@ const initSandwichMenu = () => {
           URL.revokeObjectURL(url);
 
           if (status) status.textContent = `Downloaded ${filename}.`;
-          setTimeout(close, 1200);
+          setTimeout(close, STATUS_AUTOCLOSE_DELAY_MS);
         } catch {
           if (status) status.textContent = "Download failed. Please try again.";
         } finally {

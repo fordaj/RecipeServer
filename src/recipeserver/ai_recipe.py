@@ -252,6 +252,19 @@ def _read_response(response, limit: int) -> bytes:
     return body
 
 
+def _name_from_entry(entry: object, name_keys: tuple[str, ...]) -> str | None:
+    """Extract a model name from an Ollama list entry (string or object)."""
+    if isinstance(entry, str):
+        # String entries are used as-is.
+        return entry
+    if not isinstance(entry, dict):
+        return None
+    first_truthy = next((entry[key] for key in name_keys if entry.get(key)), None)
+    if not isinstance(first_truthy, str) or not first_truthy.strip():
+        return None
+    return first_truthy.strip()
+
+
 def _model_names_from_payload(payload: object, name_keys: tuple[str, ...]) -> list[str]:
     if not isinstance(payload, dict):
         return []
@@ -259,20 +272,14 @@ def _model_names_from_payload(payload: object, name_keys: tuple[str, ...]) -> li
     entries = payload.get("data")
     if not isinstance(entries, list):
         entries = payload.get("models")
+    if not isinstance(entries, list):
+        return []
 
     names: list[str] = []
-    if isinstance(entries, list):
-        for entry in entries:
-            if isinstance(entry, str):
-                names.append(entry)
-            elif isinstance(entry, dict):
-                name = None
-                for key in name_keys:
-                    if entry.get(key):
-                        name = entry[key]
-                        break
-                if isinstance(name, str) and name.strip():
-                    names.append(name.strip())
+    for entry in entries:
+        name = _name_from_entry(entry, name_keys)
+        if name is not None:
+            names.append(name)
 
     return names
 
