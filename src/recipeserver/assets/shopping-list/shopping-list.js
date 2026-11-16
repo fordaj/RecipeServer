@@ -8,6 +8,8 @@
   const PRINTER_ICON_URL = "/assets/printer.svg";
   const LIST_ICON_URL = "/assets/list.svg";
   const COPY_ICON_URL = "/assets/copy.svg";
+  // Give the browser time to start the download before the object URL is revoked.
+  const REVOKE_OBJECT_URL_DELAY_MS = 1000;
 
   // Loaded before this file on the index page; destructured once so the
   // external dependency is explicit.
@@ -454,7 +456,7 @@
     link.click();
     link.remove();
 
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    window.setTimeout(() => URL.revokeObjectURL(url), REVOKE_OBJECT_URL_DELAY_MS);
   }
 
   // Copy the checklist to the clipboard, falling back to a hidden text area

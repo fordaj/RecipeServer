@@ -6,6 +6,8 @@
 
 const CONFIG_EDITOR_API = "/api/config";
 const CONFIG_EDITOR_HOOK = "[data-config]";
+// TCP port ceiling, mirroring MAX_PORT on the server.
+const MAX_SERVER_PORT = 65535;
 
 const state = {
   busy: false,
@@ -73,7 +75,7 @@ function buildFields(fields, values) {
       field.input_type === "url" ? "url" : field.input_type === "number" ? "number" : "text";
     if (input.type === "number") {
       input.min = "1";
-      input.max = "65535";
+      input.max = String(MAX_SERVER_PORT);
       input.step = "1";
       input.inputMode = "numeric";
     }
