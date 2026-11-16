@@ -27,7 +27,7 @@ tools/<name>/
 | [barnacle](barnacle/update.md) | Documentation site generation ([scripts/docs.sh](../scripts/docs.md)) | [update.sh](barnacle/update.md) |
 | [formattington-lite](formattington-lite/update.md) | Formatting fallback; the pinned uv dev dependency is the primary path | [update.sh](formattington-lite/update.md) |
 
-Currently pinned: versioner `v0.0.3.0.5`, logamuffin `v0.1.3.0.35`, runner-spawner `v0.0.1.2.6`, barnacle `v0.0.1.0.5`, formattington-lite `v0.0.2.0.53`. `scripts/.common.env` and `scripts/.<platform>.env` select these via `*_VERSION_DIR`/`*_BIN`; see [scripts/env.md](../scripts/env.md). Archives are platform-native (`.tar.gz` on macOS/Linux, `.zip` on Windows); legacy `.7z` assets are still readable (a p7zip install is only needed until new releases ship platform-native archives).
+Currently pinned: versioner `v0.0.3.0.17`, logamuffin `v0.1.3.0.35`, runner-spawner `v0.0.1.2.16`, barnacle `v0.0.1.0.17`, formattington-lite `v0.0.3.0.67`. `scripts/.common.env` and `scripts/.<platform>.env` select these via `*_VERSION_DIR`/`*_BIN`; see [scripts/env.md](../scripts/env.md). Archives are platform-native (`.tar.gz` on macOS/Linux, `.zip` on Windows); legacy `.7z` assets are still readable (a p7zip install is only needed until new releases ship platform-native archives).
 
 ## Refreshing a pinned tool
 

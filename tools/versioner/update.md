@@ -7,7 +7,7 @@
 ```text
 tools/versioner/
   update.sh                     # refresh from fordaj/Versioner releases
-  v0.0.3.0.5/
+  v0.0.3.0.17/
     macos-arm64/versioner
     macos-x86_64/versioner
     linux-arm64/versioner
