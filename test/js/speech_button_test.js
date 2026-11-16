@@ -204,6 +204,23 @@ async function main() {
   assert.equal(secure.button.dataset.state, "error");
   assert.equal(secure.button.title, "Speech transcription requires an HTTPS connection");
 
+  // ----- An empty transcript says so ----- //
+  global.fetch = async () => ({
+    ok: true,
+    async json() {
+      return { text: "" };
+    },
+  });
+
+  secure.button.click();
+  await tick();
+  secure.button.click();
+  await tick();
+  await tick();
+
+  assert.equal(secure.button.dataset.state, "error");
+  assert.equal(secure.button.title, "Nothing was heard. Try again.");
+
   console.log("speech button checks passed");
 }
 

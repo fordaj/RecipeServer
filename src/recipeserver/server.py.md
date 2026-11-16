@@ -65,6 +65,7 @@ HTML responses (generated `.html` pages and directory paths) are sent with `Cach
 
 - The request must have arrived over HTTPS. The server itself speaks plain HTTP, so the protocol is taken from the `X-Forwarded-Proto` (or `Forwarded`) header the reverse proxy sets; without it the endpoint answers 403. The header can only come from a local process, because the server listens on the loopback interface only.
 - The body is the recording; its `Content-Type` selects the container (`audio/webm`, `audio/ogg`, `audio/mp4`, `audio/wav`, `audio/mpeg`) and the suffix the recording is written to. Unknown types answer 415, an empty body 400, and a body over `MAX_TRANSCRIPTION_SIZE` 413.
+- A recording that cannot be decoded answers 400 with the reason; it is the caller's mistake, not a server error.
 - The transcription itself is done by the module-level `transcriber` ([transcriber.py.md](transcriber.py.md)); a missing model answers 503 and a failed transcription 500.
 
 ## Limits and conventions

@@ -48,7 +48,7 @@ from .recipe_utils import (
     normalize_reviewer_name,
     normalize_source_dict,
 )
-from .transcriber import TranscriberUnavailable, get_transcriber
+from .transcriber import TranscriberUnavailable, TranscriptionError, get_transcriber
 
 MarkdownSavedCallback = Callable[[Path], None]
 ConfigSavedCallback = Callable[[], None]
@@ -1093,6 +1093,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         except TranscriberUnavailable as exc:
             logger.warning(f"Speech transcription is unavailable: {exc}")
             self._send_json(503, {"error": str(exc)})
+            return
+        except TranscriptionError as exc:
+            logger.warning(f"Unable to decode the speech recording: {exc}")
+            self._send_json(400, {"error": str(exc)})
             return
         except ValueError as exc:
             logger.warning(f"Invalid speech transcription request: {exc}")

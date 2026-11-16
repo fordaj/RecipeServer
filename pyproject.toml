@@ -13,6 +13,8 @@ dependencies = [
   "faster-whisper>=1.2.1",
   "loguru>=0.7.3",
   "markdown>=3.11",
+  # 2.3.2 is the first release with Python 3.14 wheels.
+  "numpy>=2.3.2",
   "pillow==12.3.0",
   "platformdirs>=4.13.0",
   "py7zr>=1.1.4",

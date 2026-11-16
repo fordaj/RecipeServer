@@ -171,7 +171,16 @@
           throw new Error(result.error || "Transcription failed");
         }
 
-        insertTranscript(result.text || "");
+        const text = String(result.text || "").trim();
+
+        if (!text) {
+          // Nothing was recognised: say so instead of quietly doing nothing.
+          setState("error", "Nothing was heard. Try again.");
+          resetAfterDelay("error", ERROR_STATE_MS);
+          return;
+        }
+
+        insertTranscript(text);
 
         setState("complete");
         resetAfterDelay("complete", COMPLETE_STATE_MS);

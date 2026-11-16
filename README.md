@@ -157,7 +157,11 @@ tailscale serve --bg http://127.0.0.1:8000
 
 The proxy must forward to `http://127.0.0.1:8000` and set `X-Forwarded-Proto: https` (Caddy and Tailscale do this by default). Caddy and Cloudflare Tunnel work the same way.
 
-The recording is transcribed on this machine with a local [faster-whisper](https://github.com/SYSTRAN/faster-whisper) model; no audio leaves the machine. The `base` model is used by default and its weights are downloaded from Hugging Face the first time a recording is transcribed, so the first dictation needs an internet connection. Set `RECIPE_SERVER_WHISPER_MODEL` to another model size (`tiny`, `small`, `medium`, …) to trade accuracy for speed.
+The recording is transcribed on this machine with a local [faster-whisper](https://github.com/SYSTRAN/faster-whisper) model; no audio leaves the machine. The `base` model is used by default and its weights are downloaded from Hugging Face the first time a recording is transcribed, so the first dictation needs an internet connection and can take a minute or two. Set `RECIPE_SERVER_WHISPER_MODEL` to another model size (`tiny`, `small`, `medium`, …) to trade accuracy for speed.
+
+The model runs on the CPU by default, which works everywhere. Set `RECIPE_SERVER_WHISPER_DEVICE` to `cuda` (or `cuda:0`) to use the GPU, or to `auto` to use the GPU when it can be initialised and the CPU when it cannot.
+
+If the first dictation fails because the proxy gave up waiting for the model to download, raise the proxy's read timeout — nginx, for example, defaults to 60 seconds — or dictate again: the model stays loaded in memory after the first attempt.
 
 ## Recipe layout
 
@@ -279,6 +283,9 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **AI generation fails with an HTTP error:** Confirm the Ollama server is running and reachable, and that it exposes `/api/chat` and `/api/ps`. Set `all_purpose_model_name` explicitly if auto-detection picks the wrong model.
 - **The microphone button is missing from the search field:** The site is not being served over HTTPS. Put a local reverse proxy or tunnel in front of `http://127.0.0.1:8000` that sets `X-Forwarded-Proto: https`, and open the site through that address.
 - **Dictation returns "Speech transcription requires an HTTPS connection":** The proxy forwarded the request without the `X-Forwarded-Proto` header (or with `http`). Configure the proxy to forward the original protocol.
+- **Dictation returns "Nothing was heard. Try again.":** The model did not recognise anything in the recording. Speak closer to the microphone and hold the button a little longer.
+- **Dictation fails with "Unable to load the Whisper model":** The model could not be initialised. Check the log for the reason; `RECIPE_SERVER_WHISPER_DEVICE=cpu` runs the model on the CPU, which works on every machine.
+- **The first dictation takes a long time and the proxy times out:** The model weights are downloaded on the first transcription. Raise the proxy's read timeout (nginx defaults to 60 seconds) or dictate again — the model stays loaded after that.
 
 ## Development
 
@@ -344,6 +351,28 @@ When a browser test fails, a screenshot and (Chrome/Edge) the browser console
 log are saved to `.e2e-artifacts/` and attached to the pytest failure report;
 CI uploads them as a workflow artifact. When the browser cannot be started the
 tests fail in CI and skip locally (set `CI=true` to force the failure).
+
+### Speech transcription tests
+
+The dictation feature is covered by tests that need no model: `test/test_transcriber.py`
+decodes real recordings (Opus in WebM, AAC in MP4, and WAV) with the installed
+PyAV, and `test/test_speech_button.py` posts those recordings through the
+`/api/transcribe` endpoint. The recorded phrase lives in `test/fixtures/speech/`.
+
+The tests that run the real Whisper model are skipped by default, because they
+download the model weights. Run them with:
+
+```bash
+RECIPE_SERVER_TEST_WHISPER=1 uv run pytest test/test_speech_model.py
+```
+
+| Variable                           | Default | Purpose                                                     |
+| ---------------------------------- | ------- | ----------------------------------------------------------- |
+| `RECIPE_SERVER_TEST_WHISPER`       | unset   | Set to `1` to run the tests that use the real model.        |
+| `RECIPE_SERVER_TEST_WHISPER_MODEL` | `tiny`  | Model size for those tests (`tiny`, `base`, `small`, …).    |
+| `RECIPE_SERVER_WHISPER_MODEL`      | `base`  | Model size the app uses.                                    |
+| `RECIPE_SERVER_WHISPER_DEVICE`     | `cpu`   | Device the model runs on (`cpu`, `cuda`, `cuda:0`, `auto`). |
+| `HF_HOME`                          | default | Where the downloaded model weights are cached.              |
 
 Writing new tests:
 

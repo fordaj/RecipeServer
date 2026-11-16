@@ -16,14 +16,22 @@ from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+import numpy as np
 import pytest
 
 from recipeserver import server as server_module
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
+from recipeserver.transcriber import Transcriber
 from test.helpers import running_recipe_server
 
 SPEECH_JS_TEST = Path(__file__).parent / "js" / "speech_button_test.js"
 SPEECH_ASSETS = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "speech-button"
+
+# A recording of the phrase "chocolate cake", in the containers the browsers
+# record (Opus in WebM, and AAC in MP4 for Safari) and as a plain WAV.
+SPEECH_FIXTURES = Path(__file__).parent / "fixtures" / "speech"
+WEBM_FIXTURE = SPEECH_FIXTURES / "chocolate-cake.webm"
+MP4_FIXTURE = SPEECH_FIXTURES / "chocolate-cake.mp4"
 
 # A short recording, as the browser would send it.
 AUDIO = b"fake-webm-audio"
@@ -42,6 +50,25 @@ class FakeTranscriber:
         if self.error is not None:
             raise self.error
         return self.text
+
+
+class FakeSegment:
+    def __init__(self, text: str):
+        self.text = text
+
+
+class RecordingModel:
+    """Stand-in for the Whisper model that records what it is given."""
+
+    def __init__(self, text: str = "chocolate cake"):
+        self.text = text
+        self.samples = None
+        self.calls: list[dict] = []
+
+    def transcribe(self, samples, **kwargs):
+        self.calls.append(kwargs)
+        self.samples = samples
+        return [FakeSegment(self.text)], None
 
 
 def _post_audio(url: str, *, headers: dict | None = None, body: bytes = AUDIO, content_type: str = "audio/webm") -> tuple[int, dict]:
@@ -208,6 +235,65 @@ def test_transcription_reports_a_failed_transcription(source: Path, monkeypatch:
 
     assert status == 500
     assert body["error"] == "Speech transcription failed"
+
+
+# ----- The recording the browser sends ----- #
+
+
+def test_transcription_decodes_the_recorded_clip(source: Path, monkeypatch: pytest.MonkeyPatch):
+    """The whole path: a recorded clip in, the decoded samples in the model.
+
+    This is the test that catches a broken audio decoder: the recording is
+    a real Opus/WebM clip, the way the browser records it.
+    """
+    model = RecordingModel()
+    monkeypatch.setattr(server_module, "transcriber", Transcriber(model=model))
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(
+            f"{base_url}/api/transcribe",
+            headers={"X-Forwarded-Proto": "https"},
+            body=WEBM_FIXTURE.read_bytes(),
+            content_type="audio/webm;codecs=opus",
+        )
+
+    assert status == 200
+    assert body == {"text": "chocolate cake"}
+
+    # The model is given the decoded samples, not a file name.
+    assert isinstance(model.samples, np.ndarray)
+    assert model.samples.dtype == np.float32
+    assert model.samples.ndim == 1
+    assert model.samples.size > 0
+
+
+def test_transcription_reports_a_recording_it_cannot_decode(source: Path, monkeypatch: pytest.MonkeyPatch):
+    """A clip that is not audio is the caller's mistake, not a server error."""
+    monkeypatch.setattr(server_module, "transcriber", Transcriber(model=RecordingModel()))
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"}, body=b"not audio at all")
+
+    assert status == 400
+    assert "decode" in body["error"].lower()
+
+
+def test_transcription_decodes_the_clip_safari_records(source: Path, monkeypatch: pytest.MonkeyPatch):
+    """Safari records AAC in MP4; that recording has to transcribe as well."""
+    model = RecordingModel()
+    monkeypatch.setattr(server_module, "transcriber", Transcriber(model=model))
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = _post_audio(
+            f"{base_url}/api/transcribe",
+            headers={"X-Forwarded-Proto": "https"},
+            body=MP4_FIXTURE.read_bytes(),
+            content_type="audio/mp4",
+        )
+
+    assert status == 200
+    assert body == {"text": "chocolate cake"}
+    assert model.samples.size > 0
 
 
 # ----- The browser script ----- #
