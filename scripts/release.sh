@@ -24,7 +24,8 @@ set -euo pipefail
 # Logging via logamuffin (log <level> <message> from scripts/entry.sh,
 # with printf fallback until tools/logamuffin is populated). Source the
 # env cascade first so every later message goes through log().
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
+# This script lives in scripts/, so the repository root is its parent directory.
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." &>/dev/null && pwd)
 if [[ ! -f "$SCRIPT_DIR/scripts/entry.sh" ]]; then
   printf 'release.sh: error: env cascade not found: %s/scripts/entry.sh\n' "$SCRIPT_DIR" >&2
   exit 1

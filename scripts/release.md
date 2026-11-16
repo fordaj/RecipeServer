@@ -22,7 +22,7 @@ scripts/release.sh --dry-run   # compute + verify only, touch nothing remote
 
 ## Caveat
 
-As written, the entry-point check looks for the cascade at `$SCRIPT_DIR/scripts/entry.sh` where `SCRIPT_DIR` is the directory `release.sh` itself lives in — i.e. `scripts/scripts/entry.sh`, which does not exist — so the script exits with `release.sh: error: env cascade not found` before doing any work. The flow above describes what the script is written to do; the path check would need correcting (not by this document) for it to run.
+None currently. The entry-point check resolves the repository root as the parent of the `scripts/` directory (the same idiom as the other scripts), so `$SCRIPT_DIR/scripts/entry.sh` points at the real cascade.
 
 ## Related pages
 
