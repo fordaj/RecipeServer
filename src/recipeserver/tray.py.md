@@ -2,12 +2,14 @@
 
 ```mermaid
 flowchart LR
-    main["core.main()"] --> tray["Tray(server, on_quit)"]
-    tray --> open["Open Recipes<br/>browser → localhost:port"]
-    tray --> status["Server: Running/Stopped<br/>Start · Stop"]
-    tray --> quit["Quit<br/>shutdown event"]
+    main("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.main()</u>") --> tray("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>Tray(server, on_quit)")
+    tray --> open("<img src='barnacle:globe.svg' width='20' alt=''/><br/>Open Recipes<br/>browser → localhost:port")
+    tray --> status("<img src='barnacle:activity.svg' width='20' alt=''/><br/><u>Server: Running/Stopped<br/>Start · Stop</u>")
+    tray --> quit("<img src='barnacle:power.svg' width='20' alt=''/><br/>Quit<br/>shutdown event")
     click main href "core.py.md"
     click status href "server.py.md"
+    class main,tray goFile
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 The `pystray`-based tray icon: open the site, see server status, start/stop the server, quit. Created by [core.py.md](core.py.md)'s `main()` after the server starts.

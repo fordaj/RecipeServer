@@ -2,12 +2,16 @@
 
 ```mermaid
 flowchart LR
-    menu["sandwich_menu_html()"] --> config["Configuration<br/>data-config=open"]
-    menu --> source["Download Source Archive<br/>data-archive=source"]
-    menu --> site["Download Site Archive<br/>data-archive=site"]
+    menu("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>sandwich_menu_html()") --> config("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Configuration<br/>data-config=open</u>")
+    menu --> source("<img src='barnacle:download.svg' width='20' alt=''/><br/><u>Download Source Archive<br/>data-archive=source</u>")
+    menu --> site("<img src='barnacle:download.svg' width='20' alt=''/><br/><u>Download Site Archive<br/>data-archive=site</u>")
     click config href "server.py.md"
     click source href "archive.py.md"
     click site href "archive.py.md"
+    class menu,config goFile
+    class source,site dlNode
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef dlNode fill:#93e2e2,stroke:#0f766e,color:#042f2e
 ```
 
 Reusable hamburger menu markup — deliberately independent of any one page. `sandwich_menu_html()` returns the markup, `MENU_CSS_URL`/`MENU_JS_URL` point at the shared stylesheet and script, and colors come from `definitions.css` so the menu picks up light/dark themes automatically. The index page includes it today; a recipe page can include the same helper to get the identical menu.

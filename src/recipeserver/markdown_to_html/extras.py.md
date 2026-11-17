@@ -2,12 +2,16 @@
 
 ```mermaid
 flowchart LR
-    main["<main class=recipe>"] --> contributor["inject_recipe_contributor()<br/>by <name> · quill"]
-    main --> sources["inject_recipe_sources()<br/>icon per format"]
-    main --> version["inject_recipe_version()<br/>v<PACKAGE_VERSION>"]
+    main("<img src='barnacle:app-window.svg' width='20' alt=''/><br/><main class=recipe>") --> contributor("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>inject_recipe_contributor()<br/>by <name> · quill</u>")
+    main --> sources("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>inject_recipe_sources()<br/>icon per format</u>")
+    main --> version("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>inject_recipe_version()<br/>v<PACKAGE_VERSION></u>")
     click contributor href "converter.py.md"
     click sources href "../sources.py.md"
     click version href "../_version.py.md"
+    class main htmlFile
+    class contributor,sources,version goFile
+    classDef htmlFile fill:#ffc48a,stroke:#c2410c,color:#431407
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 The trailing blocks appended at the end of the recipe page's `<main>`: contributor, sources, and version. All three end the `<main>` element; they share the `"· <time>"` fragment built by `recipe_utils.meta_time_html` (date-only values render as a bare date; timestamps render in browser-local time via `data-local-time`).

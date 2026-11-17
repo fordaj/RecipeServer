@@ -2,11 +2,15 @@
 
 ```mermaid
 flowchart LR
-    modules["every module"] --> logger["_logger.py<br/>loguru logger"]
-    logger --> stdout["stdout sink<br/>width-aware format"]
-    logger --> file[".logs/<argv0>.py.log<br/>TRACE file sink"]
+    modules("<img src='barnacle:folder.svg' width='20' alt=''/><br/><u>every module</u>") --> logger("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_logger.py<br/>loguru logger</u>")
+    logger --> stdout("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>stdout sink<br/>width-aware format")
+    logger --> file("<img src='barnacle:logs.svg' width='20' alt=''/><br/>.logs/<argv0>.py.log<br/>TRACE file sink")
     click modules href "README.md"
     click logger href "core.py.md"
+    class modules folder
+    class logger goFile
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 The package's logging setup, built on [loguru](https://github.com/Delgan/loguru). Every module logs through the shared `logger` exported here; nothing uses `print` (scripts at the repository root use the shell `log()` from [scripts/entry.sh.md](../../scripts/entry.sh.md), which is a separate path).

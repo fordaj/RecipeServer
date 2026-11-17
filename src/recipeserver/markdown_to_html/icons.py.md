@@ -2,11 +2,15 @@
 
 ```mermaid
 flowchart LR
-    assets["assets/*.svg<br/>standalone files"] --> read["read_svg()<br/>lru_cache"]
-    read --> html["icon_html()<br/>svg markup + class"]
-    read --> append["append_svg_icon()<br/>soup element"]
+    assets("<img src='barnacle:folder.svg' width='20' alt=''/><br/>assets/*.svg<br/>standalone files") --> read("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>read_svg()<br/>lru_cache")
+    read --> html("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>icon_html()<br/>svg markup + class</u>")
+    read --> append("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>append_svg_icon()<br/>soup element</u>")
     click html href "page.py.md"
     click append href "overview.py.md"
+    class assets folder
+    class read,html,append goFile
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 SVG icons live as standalone `.svg` files in `assets/`. Reading them through this module is the one place the "never embed ad-hoc inline SVG markup" rule is implemented on the Python side (the JS equivalent is `loadSvgIcon` in `assets/icons.js`).

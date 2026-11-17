@@ -2,12 +2,18 @@
 
 ```mermaid
 flowchart LR
-    menu["sandwich menu<br/>Download Source/Site Archive"] --> api["/api/archive/source<br/>/api/archive/site"]
-    api --> fn["archive_filename()"]
-    fn --> build["create_archive()<br/>py7zr"]
-    build --> stream["server streams .7z"]
+    menu("<img src='barnacle:download.svg' width='20' alt=''/><br/><u>sandwich menu<br/>Download Source/Site Archive</u>") --> api("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/archive/source<br/>/api/archive/site</u>")
+    api --> fn("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>archive_filename()")
+    fn --> build("<img src='barnacle:package.svg' width='20' alt=''/><br/>create_archive()<br/>py7zr")
+    build --> stream("<img src='barnacle:send.svg' width='20' alt=''/><br/>server streams .7z")
     click menu href "menu.py.md"
     click api href "server.py.md"
+    class menu dlNode
+    class fn goFile
+    class build boxNode
+    classDef dlNode fill:#93e2e2,stroke:#0f766e,color:#042f2e
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef boxNode fill:#e8cf9d,stroke:#a16207,color:#33240a
 ```
 
 Builds the `.7z` downloads linked from the sandwich menu's **Download Source Archive** and **Download Site Archive** entries ([menu.py.md](menu.py.md), served by [server.py.md](server.py.md) via `/api/archive/source` and `/api/archive/site`).

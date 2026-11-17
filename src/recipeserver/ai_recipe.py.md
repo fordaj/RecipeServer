@@ -2,13 +2,15 @@
 
 ```mermaid
 flowchart TD
-    dialog["create dialog<br/>From text · URL · Images"] --> api["POST /api/ai-recipe"]
-    api --> probes["probe Ollama<br/>/api/tags · /api/ps"]
-    probes --> chat["POST /api/chat"]
-    chat --> parse["parse_model_output()"]
-    parse --> editor["prefill the editor<br/>(never writes files)"]
+    dialog("<img src='barnacle:app-window.svg' width='20' alt=''/><br/>create dialog<br/>From text · URL · Images") --> api("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>POST /api/ai-recipe</u>")
+    api --> probes("<img src='barnacle:stethoscope.svg' width='20' alt=''/><br/><u>probe Ollama<br/>/api/tags · /api/ps</u>")
+    probes --> chat("<img src='barnacle:message-circle.svg' width='20' alt=''/><br/>POST /api/chat")
+    chat --> parse("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>parse_model_output()")
+    parse --> editor("<img src='barnacle:pen-line.svg' width='20' alt=''/><br/>prefill the editor<br/>(never writes files)")
     click api href "server.py.md"
     click probes href "config.py.md"
+    class parse goFile
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 Optional, opt-in integration with a local [Ollama](https://ollama.com) server. It powers the **From text**, **From URL**, and **From Images** paths of the create dialog; it never writes recipe files. The normal create endpoint is still the only path that saves a new recipe. Called by [server.py.md](server.py.md) (`/api/ai-status`, `/api/ai-recipe`); the prompts come from `NewRecipePrompt.md` / `NewRecipeFromImagePrompt.md`, loaded via [config.py.md](config.py.md).

@@ -2,16 +2,22 @@
 
 ```mermaid
 flowchart TD
-    args["build_recipe_html(source_title, heading_color,<br/>metadata_json, recipe_scaler_html, body, …)"] --> head["head<br/>assets · KaTeX · scaler"]
-    args --> header["header<br/>home · edit · scaler"]
-    args --> body["body<br/>recipe content"]
-    args --> scripts["scripts<br/>ai-progress before recipe-editor"]
-    head --> doc["full HTML document"]
+    args("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>build_recipe_html(source_title, heading_color,<br/>metadata_json, recipe_scaler_html, body, …)") --> head("<img src='barnacle:app-window.svg' width='20' alt=''/><br/>head<br/>assets · KaTeX · scaler")
+    args --> header("<img src='barnacle:app-window.svg' width='20' alt=''/><br/><u>header<br/>home · edit · scaler</u>")
+    args --> body("<img src='barnacle:app-window.svg' width='20' alt=''/><br/>body<br/>recipe content")
+    args --> scripts("<img src='barnacle:zap.svg' width='20' alt=''/><br/>scripts<br/>ai-progress before recipe-editor")
+    head --> doc("<img src='barnacle:app-window.svg' width='20' alt=''/><br/><u>full HTML document</u>")
     header --> doc
     body --> doc
     scripts --> doc
     click doc href "converter.py.md"
     click header href "../color_utils.py.md"
+    class args goFile
+    class head,header,body,doc htmlFile
+    class scripts jsFile
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef htmlFile fill:#ffc48a,stroke:#c2410c,color:#431407
+    classDef jsFile fill:#fbe86f,stroke:#a16207,color:#423806
 ```
 
 Assembles the full HTML document for a recipe page: `<head>` asset references, the header with home/edit buttons and the recipe scaler, and the `<script>` block at the end of `<body>`.

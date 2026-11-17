@@ -2,11 +2,13 @@
 
 ```mermaid
 flowchart LR
-    serve["scripts/serve.sh"] --> entry["entry.sh → log()"]
-    serve --> uv["uv run python -m recipeserver"]
-    uv --> app["recipeserver app<br/>site + server + tray"]
+    serve("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>scripts/serve.sh") --> entry("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>entry.sh → log()</u>")
+    serve --> uv("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>uv run python -m recipeserver</u>")
+    uv --> app("<img src='barnacle:app-window.svg' width='20' alt=''/><br/>recipeserver app<br/>site + server + tray")
     click entry href "entry.sh.md"
     click uv href "../src/recipeserver/__main__.py.md"
+    class serve,entry shFile
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
 ```
 
 Starts the local recipe server. On Windows, use `serve.bat` instead (a two-line wrapper around the same `uv run python -m recipeserver`); this document covers the bash path only.

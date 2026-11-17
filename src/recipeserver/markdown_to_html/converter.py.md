@@ -2,16 +2,20 @@
 
 ```mermaid
 flowchart TD
-    md["recipe.md"] --> load["_preprocess + python-frontmatter"]
-    load --> title["title from first # heading"]
-    title --> accent["hero image → accent<br/>(fallback food_color)"]
-    accent --> body["markdown.Markdown<br/>pymdownx.extra et al."]
-    body --> shell["page.build_recipe_html()"]
-    shell --> post["_postprocess soup surgery<br/>quantities · meta groups · injections"]
+    md("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>recipe.md") --> load("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_preprocess + python-frontmatter</u>")
+    load --> title("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>title from first # heading")
+    title --> accent("<img src='barnacle:palette.svg' width='20' alt=''/><br/><u>hero image → accent<br/>(fallback food_color)</u>")
+    accent --> body("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>markdown.Markdown<br/>pymdownx.extra et al.")
+    body --> shell("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>page.build_recipe_html()</u>")
+    shell --> post("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_postprocess soup surgery<br/>quantities · meta groups · injections</u>")
     click load href "converter.py.md"
     click accent href "../image_handler.py.md"
     click shell href "page.py.md"
     click post href "quantities.py.md"
+    class md mdFile
+    class load,title,body,shell,post goFile
+    classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 `MarkdownToHTMLConverter` turns one `recipe.md` into one HTML page. It is the heart of [core.py.md](../core.py.md)'s parallel build: `Core.convert_recipe` constructs a converter per recipe and calls `convert(markdown_file, html_file)`.

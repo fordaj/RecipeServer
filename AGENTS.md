@@ -2,13 +2,21 @@
 
 ```mermaid
 flowchart LR
-    code["Edit source"] --> doc["Update sibling .md<br/>in the same change"]
-    doc --> regen["scripts/docs.sh"]
-    regen --> site["./site — git-ignored"]
-    site --> review["Self-review the<br/>changed pages"]
-    review --> commit["Commit source + doc together"]
+    code("<img src='barnacle:pen-line.svg' width='20' alt=''/><br/>Edit source") --> doc("<img src='barnacle:file-text.svg' width='20' alt=''/><br/><u>Update sibling .md<br/>in the same change</u>")
+    doc --> regen("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>scripts/docs.sh</u>")
+    regen --> site("<img src='barnacle:folder.svg' width='20' alt=''/><br/>./site — git-ignored")
+    site --> review("<img src='barnacle:check.svg' width='20' alt=''/><br/>Self-review the<br/>changed pages")
+    review --> commit("<img src='barnacle:git-commit-horizontal.svg' width='20' alt=''/><br/>Commit source + doc together")
     click doc href "src/recipeserver/README.md"
     click regen href "scripts/docs.sh.md"
+    class doc mdFile
+    class regen shFile
+    class site folder
+    class review checkNode
+    classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
+    classDef checkNode fill:#9fe8c9,stroke:#0f766e,color:#052e22
 ```
 
 ## What this is

@@ -2,13 +2,21 @@
 
 ```mermaid
 flowchart LR
-    gh["gh release view<br/>--repo formattington-lite"] --> assets["platform archives<br/>.tar.gz · .zip"]
-    assets --> verify["checksums<br/>checksums.txt / SHA256SUMS.txt"]
-    verify --> extract["extract binary"]
-    extract --> stage["stage v<tag>/<platform>/"]
-    stage --> swap["swap + delete old v*/"]
+    gh("<img src='barnacle:download.svg' width='20' alt=''/><br/><u>gh release view<br/>--repo formattington-lite</u>") --> assets("<img src='barnacle:package.svg' width='20' alt=''/><br/>platform archives<br/>.tar.gz · .zip")
+    assets --> verify("<img src='barnacle:check.svg' width='20' alt=''/><br/>checksums<br/>checksums.txt / SHA256SUMS.txt")
+    verify --> extract("<img src='barnacle:package-open.svg' width='20' alt=''/><br/>extract binary")
+    extract --> stage("<img src='barnacle:folder.svg' width='20' alt=''/><br/>stage v<tag>/<platform>/")
+    stage --> swap("<img src='barnacle:folder-sync.svg' width='20' alt=''/><br/><u>swap + delete old v*/</u>")
     click gh href "../README.md"
     click swap href "../../scripts/env.sh.md"
+    class gh dlNode
+    class assets boxNode
+    class verify checkNode
+    class stage,swap folder
+    classDef dlNode fill:#93e2e2,stroke:#0f766e,color:#042f2e
+    classDef boxNode fill:#e8cf9d,stroke:#a16207,color:#33240a
+    classDef checkNode fill:#9fe8c9,stroke:#0f766e,color:#052e22
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 [Formattington](https://github.com/fordaj/formattington) is the repository's formatter. RecipeServer uses formattington two ways: the primary path is the pinned `uv` dev dependency invoked by [format.sh](../../scripts/format.sh.md) (`uv run formattington all --config .formattington.json`), and this bundle is the committed binary fallback for environments where the uv path is unavailable. The `-lite` binaries redistribute nothing; the `NOTICE.md` and `LICENSES/` in each platform directory travel with the release archives anyway.

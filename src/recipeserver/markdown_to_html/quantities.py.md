@@ -2,12 +2,18 @@
 
 ```mermaid
 flowchart LR
-    code["inline code<br/>1 1/2 tbsp"] --> parse["parse_quantity_code()"]
-    parse --> frac["Fraction<br/>exact amounts"]
-    frac --> span["&lt;span class=quantity<br/>data-quantity data-unit&gt;"]
-    span --> scaler["assets/recipe-scaler.js<br/>scales in the browser"]
+    code("<img src='barnacle:code.svg' width='20' alt=''/><br/>inline code<br/>1 1/2 tbsp") --> parse("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>parse_quantity_code()</u>")
+    parse --> frac("<img src='barnacle:sigma.svg' width='20' alt=''/><br/>Fraction<br/>exact amounts")
+    frac --> span("<img src='barnacle:app-window.svg' width='20' alt=''/><br/><u>&lt;span class=quantity<br/>data-quantity data-unit&gt;</u>")
+    span --> scaler("<img src='barnacle:zap.svg' width='20' alt=''/><br/>assets/recipe-scaler.js<br/>scales in the browser")
     click parse href "converter.py.md"
     click span href "../shopping_list.py.md"
+    class parse goFile
+    class span htmlFile
+    class scaler jsFile
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef htmlFile fill:#ffc48a,stroke:#c2410c,color:#431407
+    classDef jsFile fill:#fbe86f,stroke:#a16207,color:#423806
 ```
 
 Parses inline-code quantities such as `` `1 1/2 tbsp` `` or `` `1-2 cups` `` and rewrites them as `<span class="quantity">` elements the browser-side recipe scaler (`assets/recipe-scaler.js`) scales.

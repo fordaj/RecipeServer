@@ -2,13 +2,21 @@
 
 ```mermaid
 flowchart LR
-    gh["gh release view<br/>--repo runner-spawner"] --> assets["platform archives<br/>.tar.gz · .zip"]
-    assets --> verify["checksums<br/>checksums.txt / SHA256SUMS.txt"]
-    verify --> extract["extract binary"]
-    extract --> stage["stage v<tag>/<platform>/"]
-    stage --> swap["swap + delete old v*/"]
+    gh("<img src='barnacle:download.svg' width='20' alt=''/><br/><u>gh release view<br/>--repo runner-spawner</u>") --> assets("<img src='barnacle:package.svg' width='20' alt=''/><br/>platform archives<br/>.tar.gz · .zip")
+    assets --> verify("<img src='barnacle:check.svg' width='20' alt=''/><br/>checksums<br/>checksums.txt / SHA256SUMS.txt")
+    verify --> extract("<img src='barnacle:package-open.svg' width='20' alt=''/><br/>extract binary")
+    extract --> stage("<img src='barnacle:folder.svg' width='20' alt=''/><br/>stage v<tag>/<platform>/")
+    stage --> swap("<img src='barnacle:folder-sync.svg' width='20' alt=''/><br/><u>swap + delete old v*/</u>")
     click gh href "../README.md"
     click swap href "../../scripts/env.sh.md"
+    class gh dlNode
+    class assets boxNode
+    class verify checkNode
+    class stage,swap folder
+    classDef dlNode fill:#93e2e2,stroke:#0f766e,color:#042f2e
+    classDef boxNode fill:#e8cf9d,stroke:#a16207,color:#33240a
+    classDef checkNode fill:#9fe8c9,stroke:#0f766e,color:#052e22
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 [runner-spawner](https://github.com/fordaj/runner-spawner) creates and manages self-hosted GitHub Actions runners. RecipeServer uses it to provision the two repository-scoped runners named in `.runner-spawner.json` (`runner01`, `runner02`; group `Default`; runner version `2.338.2`; install directory `.runners/`, gitignored) that back the self-hosted CI described in the root [README.md](../../README.md).

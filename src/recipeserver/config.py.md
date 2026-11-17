@@ -2,14 +2,18 @@
 
 ```mermaid
 flowchart TD
-    toml["recipe-server-cfg.toml<br/>(user-data dir)"] --> cfg["Configuration"]
-    legacy["legacy config.txt"] -. migrated .-> toml
-    missing{"source_directory<br/>missing/invalid?"} -->|yes| picker["Tk folder picker"]
+    toml("<img src='barnacle:file-cog.svg' width='20' alt=''/><br/>recipe-server-cfg.toml<br/>(user-data dir)") --> cfg("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Configuration</u>")
+    legacy("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>legacy config.txt") -. migrated .-> toml
+    missing{{"<img src='barnacle:hexagon.svg' width='20' alt=''/><br/>source_directory<br/>missing/invalid?"}} -->|yes| picker("<img src='barnacle:folder-search.svg' width='20' alt=''/><br/>Tk folder picker")
     picker --> cfg
     toml --> cfg
-    cfg --> startup["handle_configuration()"]
+    cfg --> startup("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>handle_configuration()</u>")
     click startup href "core.py.md"
     click cfg href "server.py.md"
+    class cfg,startup goFile
+    class missing hexNode
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef hexNode fill:#ffe08a,stroke:#a16207,color:#422006
 ```
 
 Everything about the runtime configuration lives here: the `recipe-server-cfg.toml` file in the user-data directory, the legacy `config.txt` migration, the Tk folder picker, the optional local-AI settings, and the prompt files.

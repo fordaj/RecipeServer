@@ -2,14 +2,18 @@
 
 ```mermaid
 flowchart LR
-    version["scripts/version.sh"] --> entry["entry.sh → cascade"]
-    entry --> bin["VERSIONER_BIN"]
-    bin --> out["VERSION=… TAG=… lines"]
-    out --> text["--format text<br/>(default)"]
-    out --> shell["--format shell"]
-    out --> json["--format json"]
+    version("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>scripts/version.sh</u>") --> entry("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>entry.sh → cascade</u>")
+    entry --> bin("<img src='barnacle:binary.svg' width='20' alt=''/><br/>VERSIONER_BIN")
+    bin --> out("<img src='barnacle:list.svg' width='20' alt=''/><br/>VERSION=… TAG=… lines")
+    out --> text("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>--format text<br/>(default)")
+    out --> shell("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>--format shell")
+    out --> json("<img src='barnacle:braces.svg' width='20' alt=''/><br/>--format json")
     click entry href "entry.sh.md"
     click version href "release.sh.md"
+    class version,entry,shell shFile
+    class json jsonFile
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
+    classDef jsonFile fill:#cdb9f7,stroke:#6d28d9,color:#2e1065
 ```
 
 Prints the version of this repository as computed by the pinned versioner bundle (`tools/versioner/update.sh.md`) — the same computation the release pipeline uses, so a local build and the published tag can never drift apart.

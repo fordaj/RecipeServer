@@ -2,14 +2,20 @@
 
 ```mermaid
 flowchart LR
-    meta["front matter<br/>comments · ratings"] --> has["converter computes<br/>has_comments / has_ratings"]
-    has --> comments["comments_html()<br/>#recipe-comments"]
-    has --> ratings["ratings_html()<br/>#recipe-ratings"]
-    comments --> js["assets/comments.js<br/>populates the list"]
-    ratings --> js2["assets/ratings.js<br/>populates the list"]
+    meta("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>front matter<br/>comments · ratings") --> has("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>converter computes<br/>has_comments / has_ratings</u>")
+    has --> comments("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>comments_html()<br/>#recipe-comments</u>")
+    has --> ratings("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>ratings_html()<br/>#recipe-ratings</u>")
+    comments --> js("<img src='barnacle:zap.svg' width='20' alt=''/><br/>assets/comments.js<br/>populates the list")
+    ratings --> js2("<img src='barnacle:zap.svg' width='20' alt=''/><br/>assets/ratings.js<br/>populates the list")
     click has href "converter.py.md"
     click comments href "page.py.md"
     click ratings href "page.py.md"
+    class meta mdFile
+    class has,comments,ratings goFile
+    class js,js2 jsFile
+    classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef jsFile fill:#fbe86f,stroke:#a16207,color:#423806
 ```
 
 The comments and ratings sections rendered at the bottom of every recipe page. Both share one skeleton — a heading with an add button, a hidden add-form, and an empty list that `assets/comments.js` / `assets/ratings.js` populate — differing only in naming and form fields.

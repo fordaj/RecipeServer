@@ -2,11 +2,13 @@
 
 ```mermaid
 flowchart TD
-    read["Read this guide"] --> audit["Audit the codebase<br/>for bloat"]
-    audit --> parent["Parent issue<br/>top offenders"]
-    parent --> children["One child issue<br/>per file"]
-    children --> branch["Branch + PR per issue"]
+    read("<img src='barnacle:file-text.svg' width='20' alt=''/><br/><u>Read this guide</u>") --> audit("<img src='barnacle:search-code.svg' width='20' alt=''/><br/>Audit the codebase<br/>for bloat")
+    audit --> parent("<img src='barnacle:circle-dot.svg' width='20' alt=''/><br/>Parent issue<br/>top offenders")
+    parent --> children("<img src='barnacle:circle-dot.svg' width='20' alt=''/><br/>One child issue<br/>per file")
+    children --> branch("<img src='barnacle:git-branch.svg' width='20' alt=''/><br/>Branch + PR per issue")
     click read href "prompts.md"
+    class read mdFile
+    classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
 ```
 
 ## Mission

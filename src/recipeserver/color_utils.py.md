@@ -2,10 +2,10 @@
 
 ```mermaid
 flowchart LR
-    hex["#4169E1<br/>accent hex"] --> oklch["OKLCH<br/>lightness"]
-    oklch --> remap["remap into<br/>[0.65, 0.85]"]
-    remap --> srgb["fit to sRGB"]
-    srgb --> out["#RRGGBB<br/>dark-mode accent"]
+    hex("<img src='barnacle:palette.svg' width='20' alt=''/><br/><u>#4169E1<br/>accent hex</u>") --> oklch("<img src='barnacle:palette.svg' width='20' alt=''/><br/>OKLCH<br/>lightness")
+    oklch --> remap("<img src='barnacle:sliders-horizontal.svg' width='20' alt=''/><br/>remap into<br/>[0.65, 0.85]")
+    remap --> srgb("<img src='barnacle:palette.svg' width='20' alt=''/><br/>fit to sRGB")
+    srgb --> out("<img src='barnacle:palette.svg' width='20' alt=''/><br/><u>#RRGGBB<br/>dark-mode accent</u>")
     click hex href "markdown_to_html/page.py.md"
     click out href "index_html_generator.py.md"
 ```

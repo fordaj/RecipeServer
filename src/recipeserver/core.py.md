@@ -2,16 +2,18 @@
 
 ```mermaid
 flowchart TD
-    main["core.main(cfg)"] --> regen["Core.regen()"]
-    regen --> convert["parallel convert<br/>recipe.md → html"]
-    convert --> index["_update_index()<br/>index.html"]
-    main --> server["Server(...)<br/>bind 0.0.0.0:port"]
-    main --> tray["Tray(...)<br/>menu · open · quit"]
+    main("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.main(cfg)</u>") --> regen("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>Core.regen()")
+    regen --> convert("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>parallel convert<br/>recipe.md → html</u>")
+    convert --> index("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_update_index()<br/>index.html</u>")
+    main --> server("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Server(...)<br/>bind 0.0.0.0:port</u>")
+    main --> tray("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Tray(...)<br/>menu · open · quit</u>")
     click main href "__main__.py.md"
     click convert href "markdown_to_html/converter.py.md"
     click index href "index_html_generator.py.md"
     click server href "server.py.md"
     click tray href "tray.py.md"
+    class main,regen,convert,index,server,tray goFile
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 The application spine. `main(cfg)` builds the site, starts the HTTP server, and runs the tray; `Core` owns the site directory and the parallel recipe conversion.

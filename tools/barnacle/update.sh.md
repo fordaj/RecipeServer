@@ -2,13 +2,21 @@
 
 ```mermaid
 flowchart LR
-    gh["gh release view<br/>--repo barnacle"] --> assets["platform archives<br/>.tar.gz · .zip"]
-    assets --> verify["checksums<br/>checksums.txt / SHA256SUMS.txt"]
-    verify --> extract["extract binary"]
-    extract --> stage["stage v<tag>/<platform>/"]
-    stage --> swap["swap + delete old v*/"]
+    gh("<img src='barnacle:download.svg' width='20' alt=''/><br/><u>gh release view<br/>--repo barnacle</u>") --> assets("<img src='barnacle:package.svg' width='20' alt=''/><br/>platform archives<br/>.tar.gz · .zip")
+    assets --> verify("<img src='barnacle:check.svg' width='20' alt=''/><br/>checksums<br/>checksums.txt / SHA256SUMS.txt")
+    verify --> extract("<img src='barnacle:package-open.svg' width='20' alt=''/><br/>extract binary")
+    extract --> stage("<img src='barnacle:folder.svg' width='20' alt=''/><br/>stage v<tag>/<platform>/")
+    stage --> swap("<img src='barnacle:folder-sync.svg' width='20' alt=''/><br/><u>swap + delete old v*/</u>")
     click gh href "../README.md"
     click swap href "../../scripts/env.sh.md"
+    class gh dlNode
+    class assets boxNode
+    class verify checkNode
+    class stage,swap folder
+    classDef dlNode fill:#93e2e2,stroke:#0f766e,color:#042f2e
+    classDef boxNode fill:#e8cf9d,stroke:#a16207,color:#33240a
+    classDef checkNode fill:#9fe8c9,stroke:#0f766e,color:#052e22
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 [Barnacle](https://github.com/fordaj/barnacle) is a documentation-site generator: it renders the `.md` and `.mmd` files scattered through a repository into a static, navigable HTML site. RecipeServer uses it to render *this* documentation; the site you may be reading was built by it.
@@ -18,7 +26,7 @@ flowchart LR
 ```text
 tools/barnacle/
   update.sh                     # refresh from fordaj/barnacle releases
-  v0.0.1.0.17/
+  v0.0.2.1.25/
     macos-arm64/barnacle
     macos-x86_64/barnacle
     linux-arm64/barnacle
@@ -34,7 +42,7 @@ Archives are `.tar.gz` (macOS/Linux) and `.zip` (Windows); each is expected to c
 1. Resolves the tag (latest release, or `--tag vX.Y.Z...`), validating the tag shape (`vX.Y.Z...`). `--repo`/env `BARNACLE_REPO` override the upstream repository slug (default `fordaj/barnacle`; env `BARNACLE_TAG` pins the tag, overridden by `--tag`).
 2. Downloads via `gh`, then verifies every downloaded archive against the upstream `checksums.txt` or `SHA256SUMS.txt` (`shasum -a 256 -c` or `sha256sum -c`). A missing checksum for a downloaded asset is fatal; a release without any checksums file only warns.
 3. Extracts each archive (`tar` for `.tar.gz`; `unzip`, falling back to `7z`/`7zz` for `.zip`), copies the binary into `v<tag>/<platform>/`, and makes it executable.
-4. Copies an upstream `LICENSE` into each platform directory when the archive ships one (`cp -p` preserving mode). The current `v0.0.1.0.17` bundle carries no `LICENSE`; the option exists for future releases.
+4. Copies an upstream `LICENSE` into each platform directory when the archive ships one (`cp -p` preserving mode). The current `v0.0.2.1.25` bundle carries no `LICENSE`; the option exists for future releases.
 5. Swaps in the new version directory and deletes superseded `v*/` ones, then smoke-tests the host binary (`barnacle --version`).
 
 Unknown arguments exit `2`. `--dry-run` lists assets and what would change without touching anything.
