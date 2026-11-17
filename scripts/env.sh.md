@@ -31,7 +31,7 @@ Hidden files are excluded from barnacle's default scan, so their contract is doc
   - `VERSIONER_VERSION_DIR=tools/versioner/v0.0.3.0.17`
   - `LOGAMUFFIN_VERSION_DIR=tools/logamuffin/v0.1.3.0.35`
   - `RUNNER_SPAWNER_VERSION_DIR=tools/runner-spawner/v0.0.1.2.16`
-  - `BARNACLE_VERSION_DIR=tools/barnacle/v0.0.1.0.17`
+  - `BARNACLE_VERSION_DIR=tools/barnacle/v0.0.2.1.25`
 
   When bumping a pinned tool, this file names the version directory the platform files point into.
 
