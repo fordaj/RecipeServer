@@ -86,8 +86,8 @@ def test_recipe_page_loads_the_metadata_picker_script(tmp_path: Path):
     converter.convert(recipe, html_file)
 
     html = html_file.read_text(encoding="utf-8")
-    assert 'src="/assets/recipe-editor/metadata-picker.js"' in html
-    assert 'src="/assets/recipe-editor/recipe-editor.js"' in html
+    assert 'src="/assets/recipe-editor/metadata-picker.js?v=' in html
+    assert 'src="/assets/recipe-editor/recipe-editor.js?v=' in html
     # The picker has to be loaded before the editor that uses it.
     assert html.index("metadata-picker.js") < html.index("recipe-editor.js")
     # The feedback forms use it for their name dropdowns too.

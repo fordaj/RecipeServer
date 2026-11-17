@@ -9,6 +9,7 @@ performs no hidden file I/O.
 from html import escape
 from textwrap import dedent
 
+from .._version import versioned_asset_url
 from ..color_utils import dark_mode_color
 from .icons import ASSETS_DIR, NOTEBOOK_SVG, PENCIL_SVG, icon_html
 
@@ -37,12 +38,16 @@ ICONS_JS = "/assets/icons.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 
-KATEX = """
-<link rel="stylesheet" href="/assets/katex/dist/katex.min.css">
-<script defer src="/assets/katex/dist/katex.min.js"></script>
-<script defer src="/assets/katex/dist/contrib/auto-render.min.js"></script>
-<script defer src="/assets/katex-init.js"></script>
+
+def _katex(katex_css: str, katex_js: str, auto_render_js: str, katex_init_js: str) -> str:
+    """Render the KaTeX loader block with content-hashed asset URLs."""
+    return f"""
+<link rel="stylesheet" href="{katex_css}">
+<script defer src="{katex_js}"></script>
+<script defer src="{auto_render_js}"></script>
+<script defer src="{katex_init_js}"></script>
 """
+
 
 HOME_PAGE_ICON_HTML = f"""
 <a href="/index.html" class="recipe-home">
@@ -80,6 +85,41 @@ def doc_specific_overrides(heading_color: str) -> str:
     """)
 
 
+def _versioned_assets() -> dict[str, str]:
+    """Content-hash every local asset the page references, keyed by template name."""
+    return {
+        name: versioned_asset_url(path)
+        for name, path in {
+            "logo_svg": LOGO_SVG,
+            "definitions_css": DEFINITIONS_CSS_PATH,
+            "base_css": BASE_CSS_PATH,
+            "dialog_shell_css": DIALOG_SHELL_CSS_PATH,
+            "style_css": CSS_PATH,
+            "recipe_scaler_css": RECIPE_SCALER_CSS,
+            "recipe_editor_css": RECIPE_EDITOR_CSS,
+            "feedback_css": FEEDBACK_CSS,
+            "pull_down_page_refresh_css": PULL_DOWN_PAGE_REFRESH_CSS,
+            "katex_css": "/assets/katex/dist/katex.min.css",
+            "katex_js": "/assets/katex/dist/katex.min.js",
+            "katex_auto_render_js": "/assets/katex/dist/contrib/auto-render.min.js",
+            "katex_init_js": "/assets/katex-init.js",
+            "time_js": TIME_JS,
+            "icons_js": ICONS_JS,
+            "recipe_js": RECIPE_JS,
+            "recipe_scaler_js": RECIPE_SCALER_JS,
+            "pull_down_page_refresh_js": PULL_DOWN_PAGE_REFRESH_JS,
+            "recipe_feedback_js": RECIPE_FEEDBACK_JS,
+            "metadata_picker_js": METADATA_PICKER_JS,
+            "comments_js": COMMENTS_JS,
+            "ratings_js": RATINGS_JS,
+            "ai_progress_js": AI_PROGRESS_JS,
+            "fields_js": FIELDS_JS,
+            "dialogs_js": DIALOGS_JS_PATH,
+            "recipe_editor_js": RECIPE_EDITOR_JS,
+        }.items()
+    }
+
+
 def build_recipe_html(
     *,
     source_title: str,
@@ -91,23 +131,25 @@ def build_recipe_html(
     comments_html: str,
 ) -> str:
     """Render the full recipe page HTML shell."""
+    assets = _versioned_assets()
+    katex = _katex(assets["katex_css"], assets["katex_js"], assets["katex_auto_render_js"], assets["katex_init_js"])
     return dedent(f"""<!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{escape(source_title)}</title>
-        <link rel="icon" type="image/svg+xml" href="{LOGO_SVG}">
-        <link rel="stylesheet" href="{DEFINITIONS_CSS_PATH}">
-        <link rel="stylesheet" href="{BASE_CSS_PATH}">
-        <link rel="stylesheet" href="{DIALOG_SHELL_CSS_PATH}">
-        <link rel="stylesheet" href="{CSS_PATH}">
-        <link rel="stylesheet" href="{RECIPE_SCALER_CSS}">
-        <link rel="stylesheet" href="{RECIPE_EDITOR_CSS}">
-        <link rel="stylesheet" href="{FEEDBACK_CSS}">
-        <link rel="stylesheet" href="{PULL_DOWN_PAGE_REFRESH_CSS}">
+        <link rel="icon" type="image/svg+xml" href="{assets["logo_svg"]}">
+        <link rel="stylesheet" href="{assets["definitions_css"]}">
+        <link rel="stylesheet" href="{assets["base_css"]}">
+        <link rel="stylesheet" href="{assets["dialog_shell_css"]}">
+        <link rel="stylesheet" href="{assets["style_css"]}">
+        <link rel="stylesheet" href="{assets["recipe_scaler_css"]}">
+        <link rel="stylesheet" href="{assets["recipe_editor_css"]}">
+        <link rel="stylesheet" href="{assets["feedback_css"]}">
+        <link rel="stylesheet" href="{assets["pull_down_page_refresh_css"]}">
         {doc_specific_overrides(heading_color)}
-        {KATEX}
+        {katex}
     </head>
     <body>
         <script id="recipe-metadata" type="application/json">{metadata_json}</script>
@@ -121,19 +163,19 @@ def build_recipe_html(
             {ratings_html}
             {comments_html}
         </main>
-        <script defer src="{TIME_JS}"></script>
-        <script defer src="{ICONS_JS}"></script>
-        <script defer src="{RECIPE_JS}"></script>
-        <script defer src="{RECIPE_SCALER_JS}"></script>
-        <script defer src="{PULL_DOWN_PAGE_REFRESH_JS}"></script>
-        <script defer src="{RECIPE_FEEDBACK_JS}"></script>
-        <script defer src="{METADATA_PICKER_JS}"></script>
-        <script defer src="{COMMENTS_JS}"></script>
-        <script defer src="{RATINGS_JS}"></script>
-        <script defer src="{AI_PROGRESS_JS}"></script>
-        <script defer src="{FIELDS_JS}"></script>
-        <script defer src="{DIALOGS_JS_PATH}"></script>
-        <script defer src="{RECIPE_EDITOR_JS}"></script>
+        <script defer src="{assets["time_js"]}"></script>
+        <script defer src="{assets["icons_js"]}"></script>
+        <script defer src="{assets["recipe_js"]}"></script>
+        <script defer src="{assets["recipe_scaler_js"]}"></script>
+        <script defer src="{assets["pull_down_page_refresh_js"]}"></script>
+        <script defer src="{assets["recipe_feedback_js"]}"></script>
+        <script defer src="{assets["metadata_picker_js"]}"></script>
+        <script defer src="{assets["comments_js"]}"></script>
+        <script defer src="{assets["ratings_js"]}"></script>
+        <script defer src="{assets["ai_progress_js"]}"></script>
+        <script defer src="{assets["fields_js"]}"></script>
+        <script defer src="{assets["dialogs_js"]}"></script>
+        <script defer src="{assets["recipe_editor_js"]}"></script>
     </body>
     </html>
     """)

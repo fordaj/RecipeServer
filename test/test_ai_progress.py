@@ -53,8 +53,8 @@ def test_recipe_page_loads_the_ai_progress_script_before_the_editor(tmp_path: Pa
     converter.convert(recipe, html_file)
 
     html = html_file.read_text(encoding="utf-8")
-    assert 'src="/assets/recipe-editor/ai-progress.js"' in html
-    assert 'src="/assets/recipe-editor/recipe-editor.js"' in html
+    assert 'src="/assets/recipe-editor/ai-progress.js?v=' in html
+    assert 'src="/assets/recipe-editor/recipe-editor.js?v=' in html
     # The editor reads window.RecipeAIProgress, so the module must load first.
     assert html.index("ai-progress.js") < html.index("recipe-editor.js")
 

@@ -160,16 +160,16 @@ Mix everything.
     assert "Edited Jul 20" in version.get_text(" ", strip=True)
 
     stylesheets = [link["href"] for link in soup.select('link[rel="stylesheet"]')]
-    assert stylesheets[0] == "/assets/definitions.css"
-    assert "/assets/style.css" in stylesheets
-    assert soup.select_one('script[src="/assets/time.js"]') is not None
+    assert stylesheets[0].startswith("/assets/definitions.css")
+    assert any(href.startswith("/assets/style.css") for href in stylesheets)
+    assert soup.select_one('script[src^="/assets/time.js"]') is not None
 
     assert soup.select_one("#recipe-ratings .recipe-ratings__add") is not None
     assert soup.select_one("#recipe-comments .recipe-comments__add") is not None
     assert soup.select_one("#recipe-comment-form[hidden]") is not None
-    assert soup.select_one('script[src="/assets/recipe-scaler.js"]') is not None
-    assert soup.select_one('script[src="/assets/comments.js"]') is not None
-    assert soup.select_one('script[src="/assets/ratings.js"]') is not None
+    assert soup.select_one('script[src^="/assets/recipe-scaler.js"]') is not None
+    assert soup.select_one('script[src^="/assets/comments.js"]') is not None
+    assert soup.select_one('script[src^="/assets/ratings.js"]') is not None
 
     quantities = soup.select("span.quantity")
     assert [

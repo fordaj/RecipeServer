@@ -14,8 +14,7 @@ def _wait_for_option(driver, css: str, value: str, timeout: int = 10) -> None:
     # fetch, so Python-held option references can go stale mid-poll.
     WebDriverWait(driver, timeout).until(
         lambda d: d.execute_script(
-            "const sel = document.querySelector(arguments[0]);"
-            "return !!sel && [...sel.options].some(o => o.textContent === arguments[1]);",
+            "const sel = document.querySelector(arguments[0]);" "return !!sel && [...sel.options].some(o => o.textContent === arguments[1]);",
             css,
             value,
         )

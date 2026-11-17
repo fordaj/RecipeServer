@@ -27,7 +27,7 @@ Because the repo `.gitignore` ignores `dist/` directories, `src/recipeserver/ass
 
 ## How it is used
 
-Recipe pages load `dist/katex.min.css`, `dist/katex.min.js`, and `dist/contrib/auto-render.min.js` (see `KATEX` in `markdown_to_html.py`). `src/recipeserver/assets/katex-init.js` auto-renders `\( ... \)` and `\[ ... \]` emitted by `pymdownx.arithmatex`, ignoring `.quantity` elements, which are rendered directly with `katex.render` in `recipe-scaler.js`.
+Recipe pages load `dist/katex.min.css`, `dist/katex.min.js`, and `dist/contrib/auto-render.min.js` (see `_katex` in `markdown_to_html/page.py`). `src/recipeserver/assets/katex-init.js` auto-renders `\( ... \)` and `\[ ... \]` emitted by `pymdownx.arithmatex`, ignoring `.quantity` elements, which are rendered directly with `katex.render` in `recipe-scaler.js`.
 
 ## Updating
 
