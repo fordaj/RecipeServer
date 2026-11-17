@@ -118,7 +118,7 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
         IMAGE_ANALYSIS_MODEL_KEY: "",
         RECIPE_SERVER_NAME_KEY: DEFAULT_RECIPE_SERVER_NAME,
         SERVER_PORT_KEY: "8000",
-        SERVER_BIND_ADDRESS_KEY: "127.0.0.1",
+        SERVER_BIND_ADDRESS_KEY: "0.0.0.0",
         FOOD_COLOR_KEY: "#8d5542",
         DICTATION_ENABLED_KEY: True,
         TIMELINE_RETENTION_KEY: "gfs",
@@ -566,8 +566,8 @@ def test_field_specs_expose_timeline_retention_as_a_select(tmp_path, monkeypatch
 def test_configuration_defaults_server_bind_address(tmp_path, monkeypatch):
     config, _ = _load_config(tmp_path, monkeypatch)
 
-    assert config.server_bind_address == DEFAULT_SERVER_BIND_ADDRESS == "127.0.0.1"
-    assert config.get_config_values()[SERVER_BIND_ADDRESS_KEY] == "127.0.0.1"
+    assert config.server_bind_address == DEFAULT_SERVER_BIND_ADDRESS == "0.0.0.0"
+    assert config.get_config_values()[SERVER_BIND_ADDRESS_KEY] == "0.0.0.0"
 
 
 def test_configuration_reads_and_persists_bind_address(tmp_path, monkeypatch):
@@ -594,14 +594,14 @@ def test_configuration_falls_back_to_default_for_invalid_saved_bind_address(tmp_
 def test_apply_config_values_normalizes_bind_address(tmp_path, monkeypatch):
     config, config_file = _load_config(tmp_path, monkeypatch)
 
-    changed = config.apply_config_values({SERVER_BIND_ADDRESS_KEY: " 0.0.0.0 "})
+    changed = config.apply_config_values({SERVER_BIND_ADDRESS_KEY: " 127.0.0.1 "})
 
     assert changed == [SERVER_BIND_ADDRESS_KEY]
-    assert config.server_bind_address == "0.0.0.0"
+    assert config.server_bind_address == "127.0.0.1"
     saved = _toml(config_file)
-    assert saved[SERVER_BIND_ADDRESS_KEY] == "0.0.0.0"
+    assert saved[SERVER_BIND_ADDRESS_KEY] == "127.0.0.1"
 
-    # A blank value falls back to the loopback default.
+    # A blank value falls back to the documented default.
     changed = config.apply_config_values({SERVER_BIND_ADDRESS_KEY: " "})
     assert changed == [SERVER_BIND_ADDRESS_KEY]
     assert config.server_bind_address == DEFAULT_SERVER_BIND_ADDRESS

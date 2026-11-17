@@ -72,14 +72,16 @@ RecipesDeletedCallback = Callable[[list[Path]], None]
 BULK_MAX_PATHS = 100
 ARCHIVE_STREAM_CHUNK_BYTES = 64 * 1024
 
-# The default bind address keeps the server on the loopback interface: it
-# has no authentication, and the site is meant to be reached through a local
-# reverse proxy (or tunnel) that terminates HTTPS. 127.0.0.1 is used instead
-# of "localhost" because the name may resolve to IPv6 first, which the
-# server does not listen on by default. The bind address is configurable
-# (server_bind_address); binding a non-loopback address exposes the site to
-# whatever can reach this machine.
-SERVER_BIND_ADDRESS = "127.0.0.1"
+# The default bind address accepts connections on every IPv4 interface so the
+# site is reachable from the local network (for example as
+# http://<hostname>.local:8000). The site has no authentication: anyone who
+# can reach this machine can load and edit recipes over plain HTTP. Set
+# server_bind_address to 127.0.0.1 to accept connections from this machine
+# only — that is what the HTTPS-terminating reverse proxy setup needs.
+# 127.0.0.1 is used for the *default loopback fallbacks* instead of
+# "localhost" because the name may resolve to IPv6 first, which the IPv4
+# socket does not listen on.
+SERVER_BIND_ADDRESS = "0.0.0.0"
 LOCALHOST = "127.0.0.1"
 IPV6_WILDCARD = "::"
 IPV6_LOOPBACK = "::1"
@@ -2860,7 +2862,9 @@ class Server:
         address = f"[{bind}]" if ":" in bind else bind
         logger.info(f"Address: http://{address}:{self.port}")
         if bind not in {LOCALHOST, IPV6_LOOPBACK}:
-            logger.warning(f"The site is bound to {bind} and has no authentication; anyone who can reach this machine can load and edit recipes.")
+            logger.warning(
+                f"The site is bound to {bind} and has no authentication; anyone who can reach this machine can load and edit recipes over plain HTTP. Set server_bind_address to 127.0.0.1 to restrict access to this machine."
+            )
         logger.info("Serve the site over HTTPS through a local reverse proxy to enable the dictation button.")
 
     def stop(self):

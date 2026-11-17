@@ -108,7 +108,7 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-def _server_for(tmp_path, bind_address: str) -> tuple[Server, int]:
+def _server_for(tmp_path, bind_address: str | None = None) -> tuple[Server, int]:
     site = tmp_path / "site"
     site.mkdir()
     (site / "index.html").write_text("<html><body>home</body></html>\n", encoding="utf-8", newline="\n")
@@ -117,12 +117,24 @@ def _server_for(tmp_path, bind_address: str) -> tuple[Server, int]:
         site_directory=site,
         source_directory=tmp_path,
         server_port=port,
-        server_bind_address=bind_address,
     )
+    # Omit the key entirely to exercise the built-in default bind address.
+    if bind_address is not None:
+        cfg.server_bind_address = bind_address
     return Server(cfg), port
 
 
-def test_server_binds_loopback_by_default(tmp_path):
+def test_server_binds_wildcard_by_default(tmp_path):
+    server, port = _server_for(tmp_path)
+    server.start()
+    try:
+        with urlopen(f"http://127.0.0.1:{port}/", timeout=5) as response:
+            assert response.status == 200
+    finally:
+        server.stop()
+
+
+def test_server_binds_loopback_when_configured(tmp_path):
     server, port = _server_for(tmp_path, "127.0.0.1")
     server.start()
     try:

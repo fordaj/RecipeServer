@@ -30,8 +30,9 @@ CONFIG_FILENAME = "recipe-server-cfg.toml"
 LEGACY_CONFIG_FILENAME = "config.txt"
 DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
 DEFAULT_SERVER_PORT = 8000
-# Loopback-only by default: the site has no authentication.
-DEFAULT_SERVER_BIND_ADDRESS = "127.0.0.1"
+# Accepts connections on every IPv4 interface, matching the documented
+# default in SERVER_BIND_ADDRESS. Restrict with server_bind_address = "127.0.0.1".
+DEFAULT_SERVER_BIND_ADDRESS = "0.0.0.0"
 # Dictation records a clip in the browser and transcribes it with the
 # bundled whisper-server. It is on by default; the switch only decides
 # whether the app offers the feature at all.
@@ -269,13 +270,14 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
     ConfigField(
         SERVER_BIND_ADDRESS_KEY,
         "Bind address",
-        "Address the local server listens on. The default, 127.0.0.1, accepts"
-        " connections from this machine only. Use 0.0.0.0 to also accept"
-        " connections from the local network (for example to reach the site"
-        " from another device as <hostname>.local:8000) or :: for every IPv6"
-        " interface. Takes effect the next time the app starts. The site has"
-        " no authentication; binding a non-loopback address exposes it to"
-        " anyone who can reach this machine.",
+        "Address the local server listens on. The default, 0.0.0.0, accepts"
+        " connections on every IPv4 interface, so the site is reachable from"
+        " the local network as http://<hostname>.local:8000. The site has no"
+        " authentication; anyone who can reach this machine can load and edit"
+        " recipes over plain HTTP. Set 127.0.0.1 to accept connections from"
+        " this machine only (recommended when using a reverse proxy for"
+        " remote access), or :: for every IPv6 interface. Takes effect the"
+        " next time the app starts.",
         _validate_server_bind_address,
         placeholder=DEFAULT_SERVER_BIND_ADDRESS,
         required=True,
