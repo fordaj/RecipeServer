@@ -9,6 +9,7 @@ from threading import Event, Lock
 
 from ._logger import logger, LogLevel
 from .config import Configuration
+from .https_setup import CaddyServer, HttpsSetupError, export_root_ca, start_https
 from .image_handler import IMAGE_EXTENSIONS
 from .index_html_generator import IndexHTMLGenerator, Recipe
 from .markdown_to_html import MarkdownToHTMLConverter
@@ -40,6 +41,20 @@ class Core:
         self.cfg = cfg
         self._regen_lock = Lock()
         self._recipes: dict[Path, Recipe] = {}
+        self._server: Server | None = None
+        self._caddy: CaddyServer | None = None
+        # Port the embedded server was bound to when Caddy was created;
+        # Caddy proxies there, so a change means Caddy must re-target it.
+        self._caddy_bind_port: int | None = None
+
+    def attach_server(self, server: Server) -> None:
+        """Let the core manage the HTTPS front-end around *server*.
+
+        The embedded server can change its serving mode at runtime, and the
+        Caddy instance that fronts it depends on that mode, so both are
+        managed together — see ``_reconcile_https``.
+        """
+        self._server = server
 
     @staticmethod
     def get_assets_directory() -> Path:
@@ -139,6 +154,93 @@ class Core:
             # Dictation was turned off: release the whisper-server (and its
             # model) instead of letting it linger.
             stop_transcriber()
+        self._reconcile_https()
+
+    def start_caddy(self, force: bool = False) -> CaddyServer:
+        """(Re)create the Caddy instance fronting the embedded server.
+
+        A running Caddy proxying to the server's current internal port is
+        kept; anything else is replaced so the proxy always targets the
+        right port.
+        """
+        if self._server is None:
+            raise HttpsSetupError("The server is not attached to the core")
+        bind_port = self._server.bind_port
+        if bind_port <= 0:
+            raise HttpsSetupError("The embedded server is not running")
+        if not force and self._caddy is not None and self._caddy.is_running and self._caddy_bind_port == bind_port:
+            return self._caddy
+        self.stop_caddy()
+        self._caddy = start_https(self.cfg, bind_port)
+        self._caddy_bind_port = bind_port
+        # Publish the public root CA next to the site so other devices can
+        # install it; best effort — the site works without it.
+        export_root_ca(self.cfg.site_directory)
+        return self._caddy
+
+    def stop_caddy(self) -> None:
+        if self._caddy is not None:
+            self._caddy.stop()
+            self._caddy = None
+        self._caddy_bind_port = None
+
+    def start_all(self) -> None:
+        """Start the site (the embedded server and Caddy, when enabled)."""
+        if self._server is None:
+            return
+        self._server.start()
+        if getattr(self.cfg, "https_enabled", False):
+            try:
+                self.start_caddy()
+            except Exception:
+                # Roll back to a fully stopped site rather than leaving
+                # the embedded server running where nobody can reach it.
+                self._server.stop()
+                raise
+
+    def stop_all(self) -> None:
+        """Stop the site (Caddy first, then the embedded server)."""
+        self.stop_caddy()
+        if self._server is not None:
+            self._server.stop()
+
+    def _reconcile_https(self) -> None:
+        """Match the running Caddy/server to ``cfg.https_enabled``.
+
+        Enabling HTTPS moves the embedded server to an ephemeral loopback
+        port and binds Caddy to the configured port; disabling it stops
+        Caddy and returns the configured port to plain HTTP. Both elements
+        are rebuilt against each other so the port Caddy proxies to always
+        matches the server's current one.
+        """
+        server = self._server
+        if server is None:
+            return
+        desired = bool(getattr(self.cfg, "https_enabled", False))
+        # The order matters: Caddy and the embedded server cannot both
+        # hold the configured port. Enabling moves Python out of the way
+        # first; disabling makes Caddy release it first.
+        if desired:
+            # set_https() re-binds a running listener only when the mode
+            # changed; with the server stopped it just records the mode.
+            server.set_https(True)
+            if server.is_running:
+                try:
+                    self.start_caddy()
+                except Exception:
+                    # Put plain HTTP back on the configured port and stop
+                    # the half-started front-end.
+                    self.stop_caddy()
+                    server.set_https(False)
+                    raise
+            else:
+                # Nothing to proxy to; the tray restarts both together.
+                self.stop_caddy()
+        else:
+            # Caddy holds the configured port; it must release it before
+            # the embedded server can bind it again.
+            self.stop_caddy()
+            server.set_https(False)
 
     def _regen_locked(self):
         """Full site rebuild; caller must hold ``_regen_lock``."""
@@ -180,6 +282,12 @@ class Core:
 
         self._update_index()
 
+        if getattr(self.cfg, "https_enabled", False):
+            # Best effort: the site stays usable when the root CA cannot
+            # be published, it just means other devices cannot install it
+            # from /rootCA.pem.
+            export_root_ca(self.cfg.site_directory)
+
         logger.info(f"Regenerated site with {worker_count} workers in {time.perf_counter() - start:.1f}s")
 
 
@@ -209,10 +317,22 @@ def main(cfg: Configuration):
         on_config_saved=core.on_config_save,
         on_recipes_deleted=core.on_recipes_deleted,
     )
+    core.attach_server(server)
     server.start()
 
+    if getattr(cfg, "https_enabled", False):
+        try:
+            core.start_caddy()
+        except Exception as exc:
+            # Mirror the port-in-use policy: with no HTTPS front-end there
+            # is nothing serving the configured port, so exit loudly
+            # instead of running a site nobody can reach.
+            logger.error(f"HTTPS is enabled but could not be started: {exc}")
+            server.stop()
+            sys.exit(1)
+
     shutdown_event = Event()
-    tray = Tray(server, on_quit=shutdown_event.set)
+    tray = Tray(server, on_quit=shutdown_event.set, on_start=core.start_all, on_stop=core.stop_all)
 
     try:
         if sys.platform == "darwin":
@@ -233,6 +353,6 @@ def main(cfg: Configuration):
         logger.info("Shutting down RecipeServer...")
         shutdown_event.set()
         tray.stop()
-        server.stop()
+        core.stop_all()
         stop_transcriber()
         logger.info("RecipeServer stopped.")

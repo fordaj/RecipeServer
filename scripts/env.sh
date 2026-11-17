@@ -49,5 +49,7 @@ case "${LOGAMUFFIN_BIN:-}" in "" | /*) ;; *) LOGAMUFFIN_BIN="$REPO_ROOT_DIR/$LOG
 case "${RUNNER_SPAWNER_BIN:-}" in "" | /*) ;; *) RUNNER_SPAWNER_BIN="$REPO_ROOT_DIR/$RUNNER_SPAWNER_BIN" ;; esac
 case "${BARNACLE_BIN:-}" in "" | /*) ;; *) BARNACLE_BIN="$REPO_ROOT_DIR/$BARNACLE_BIN" ;; esac
 case "${WHISPER_SERVER_BIN:-}" in "" | /*) ;; *) WHISPER_SERVER_BIN="$REPO_ROOT_DIR/$WHISPER_SERVER_BIN" ;; esac
+case "${CADDY_BIN:-}" in "" | /*) ;; *) CADDY_BIN="$REPO_ROOT_DIR/$CADDY_BIN" ;; esac
+case "${MKCERT_BIN:-}" in "" | /*) ;; *) MKCERT_BIN="$REPO_ROOT_DIR/$MKCERT_BIN" ;; esac
 
 set +a

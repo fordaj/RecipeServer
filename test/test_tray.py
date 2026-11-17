@@ -247,6 +247,18 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
         def regen(self):
             events.append("regen")
 
+        def attach_server(self, server):
+            self.server = server
+
+        def start_caddy(self):
+            events.append("caddy-start")
+
+        def stop_all(self):
+            self.server.stop()
+
+        def start_all(self):
+            self.server.start()
+
         def on_markdown_save(self, markdown):
             events.append("markdown-save")
 
@@ -270,9 +282,11 @@ def run_main_with_platform(monkeypatch, platform: str) -> list[str]:
             events.append("server-stop")
 
     class FakeTray:
-        def __init__(self, server, on_quit):
+        def __init__(self, server, on_quit, on_start=None, on_stop=None):
             self.server = server
             self.on_quit = on_quit
+            self.on_start = on_start
+            self.on_stop = on_stop
             events.append("tray-init")
 
         def run(self):

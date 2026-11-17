@@ -65,7 +65,9 @@ ARCHIVE_STREAM_CHUNK_BYTES = 64 * 1024
 # authentication, and the site is meant to be reached through a local
 # reverse proxy (or tunnel) that terminates HTTPS. 127.0.0.1 is used instead
 # of "localhost" because the name may resolve to IPv6 first, which the
-# server does not listen on.
+# server does not listen on. When HTTPS is enabled in the configuration the
+# server binds an ephemeral loopback port instead, and Caddy (see
+# https_setup.py) fronts the configured port with TLS.
 SERVER_BIND_ADDRESS = "127.0.0.1"
 LOCALHOST = "127.0.0.1"
 
@@ -1169,9 +1171,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         if self.on_config_saved is not None:
             try:
                 self.on_config_saved()
-            except Exception:
-                logger.exception("Configuration saved, but regeneration failed")
-                self._send_json(500, {"error": "Configuration saved, but regeneration failed"})
+            except Exception as exc:
+                logger.exception("Configuration saved, but applying it failed")
+                self._send_json(500, {"error": f"Configuration saved, but applying it failed: {exc}"})
                 return
 
         self._send_json(200, {"success": True, "values": self.config.get_config_values(), "changed": changed})
@@ -2308,11 +2310,38 @@ class Server:
         self.on_recipes_deleted = on_recipes_deleted
         self._http_server: ThreadingHTTPServer | None = None
         self._thread: Thread | None = None
+        # The serving mode this instance is in. It starts from
+        # ``cfg.https_enabled`` and moves with ``set_https()``; the
+        # configuration can change at runtime, the mode can not — see
+        # Core._reconcile_https.
+        self._https = bool(getattr(cfg, "https_enabled", False))
+        self._internal_port: int | None = None
 
     @property
     def port(self) -> int:
-        """Configured listen port, falling back to the default."""
+        """Public port the site is reached on, falling back to the default.
+
+        When HTTPS is enabled this is still the configured port — it is
+        served by Caddy, which proxies to the embedded server.
+        """
         return getattr(self.cfg, "server_port", DEFAULT_SERVER_PORT)
+
+    @property
+    def scheme(self) -> str:
+        """URL scheme the site is served over (``https`` behind Caddy)."""
+        return "https" if self._https else "http"
+
+    @property
+    def bind_port(self) -> int:
+        """Port the embedded server is actually bound to.
+
+        Equals :attr:`port` in HTTP mode; an ephemeral loopback port in
+        HTTPS mode, where Caddy proxies to this server. ``0`` before the
+        first start in HTTPS mode.
+        """
+        if self._internal_port is not None:
+            return self._internal_port
+        return 0 if self._https else self.port
 
     def _port_in_use(self, port: int) -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -2326,12 +2355,21 @@ class Server:
         if self.is_running:
             return
 
-        port = self.port
-        if self._port_in_use(port):
-            # Take the whole process down, tray icon included: with no HTTP
-            # server there is nothing for the tray to do.
-            logger.error(f"Port {port} is already in use; exiting")
-            sys.exit(1)
+        if self._https:
+            # Caddy fronts the configured port and terminates TLS; this
+            # process binds an ephemeral loopback port and speaks plain
+            # HTTP to it.
+            bind_port = 0
+        else:
+            port = self.port
+            if self._port_in_use(port):
+                # Take the whole process down, tray icon included: with no
+                # listener there is nothing for the tray to do. The public
+                # port is only free to bind here in HTTP mode; in HTTPS mode
+                # Caddy binds it once this server has freed it.
+                logger.error(f"Port {port} is already in use; exiting")
+                sys.exit(1)
+            bind_port = port
 
         handler = partial(
             RecipeRequestHandler,
@@ -2344,12 +2382,13 @@ class Server:
         )
 
         try:
-            http_server = ThreadingHTTPServer((SERVER_BIND_ADDRESS, self.port), handler)
+            http_server = ThreadingHTTPServer((SERVER_BIND_ADDRESS, bind_port), handler)
         except OSError:
-            logger.exception(f"Failed to start server on port {self.port}")
+            logger.exception(f"Failed to start server on port {bind_port}")
             raise
 
         self._http_server = http_server
+        self._internal_port = http_server.server_address[1]
         self._thread = Thread(
             target=http_server.serve_forever,
             name="RecipeServer",
@@ -2357,9 +2396,30 @@ class Server:
         )
         self._thread.start()
 
-        logger.info(f"Server started on port {self.port}")
-        logger.info(f"Address: http://{SERVER_BIND_ADDRESS}:{self.port}")
-        logger.info("Serve the site over HTTPS through a local reverse proxy to enable the dictation button.")
+        if self._https:
+            logger.info(f"Server started on {SERVER_BIND_ADDRESS}:{self._internal_port} (internal; served over HTTPS by Caddy)")
+            logger.info(f"Address: https://{SERVER_BIND_ADDRESS}:{self.port} (served by Caddy)")
+        else:
+            logger.info(f"Server started on port {self.port}")
+            logger.info(f"Address: http://{SERVER_BIND_ADDRESS}:{self.port}")
+            logger.info("Enable HTTPS in the Configuration dialog to serve the site over HTTPS (and use the dictation button).")
+
+    def set_https(self, enabled: bool) -> None:
+        """Switch the serving mode, restarting the listener when needed.
+
+        When the mode changed and the server is running, the embedded
+        server is stopped and re-bound: enabling HTTPS frees the configured
+        port for Caddy; disabling it returns the port to plain HTTP. When
+        the server is stopped (for example via the tray), only the mode is
+        recorded — the next start binds accordingly.
+        """
+        enabled = bool(enabled)
+        mode_changed = enabled != self._https
+        self._https = enabled
+        if not mode_changed or not self.is_running:
+            return
+        self.stop()
+        self.start()
 
     def stop(self):
         if self._http_server is None:
@@ -2377,4 +2437,5 @@ class Server:
         if thread is not None:
             thread.join()
 
+        self._internal_port = None
         logger.info("Server stopped")

@@ -6,14 +6,16 @@ flowchart TD
     core --> converter("<img src='barnacle:folder.svg' width='20' alt=''/><br/><u>markdown_to_html/<br/>per-recipe rendering</u>")
     core --> index("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>index_html_generator.py<br/>index.html</u>")
     core --> server("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>server.py<br/>site + /api/*</u>")
+    core --> https("<img src='barnacle:globe-lock.svg' width='20' alt=''/><br/><u>https_setup.py<br/>Caddy + mkcert</u>")
     core --> tray("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>tray.py<br/>system tray</u>")
     click main href "__main__.py.md"
     click core href "core.py.md"
     click converter href "markdown_to_html/converter.py.md"
     click index href "index_html_generator.py.md"
     click server href "server.py.md"
+    click https href "https_setup.py.md"
     click tray href "tray.py.md"
-    class main,core,index,server,tray goFile
+    class main,core,index,server,tray,https goFile
     class converter folder
     classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
     classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
@@ -49,6 +51,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 ## HTTP and editing
 
 - [server.py](server.py.md) — `ThreadingHTTPServer`, the `/api/*` routes
+- [https_setup.py](https_setup.py.md) — optional HTTPS front-end (Caddy + mkcert; per-machine certificate)
 - [transcriber.py](transcriber.py.md) — local Whisper transcription for the dictation button
 - [whisper_server.py](whisper_server.py.md) — the whisper-server subprocess lifecycle (bundled binary, model download)
 - [ai_recipe.py](ai_recipe.py.md) — optional Ollama integration, recipe drafting
