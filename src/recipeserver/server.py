@@ -72,13 +72,19 @@ RecipesDeletedCallback = Callable[[list[Path]], None]
 BULK_MAX_PATHS = 100
 ARCHIVE_STREAM_CHUNK_BYTES = 64 * 1024
 
-# The server only listens on the loopback interface: it has no
-# authentication, and the site is meant to be reached through a local
+# The default bind address keeps the server on the loopback interface: it
+# has no authentication, and the site is meant to be reached through a local
 # reverse proxy (or tunnel) that terminates HTTPS. 127.0.0.1 is used instead
 # of "localhost" because the name may resolve to IPv6 first, which the
-# server does not listen on.
+# server does not listen on by default. The bind address is configurable
+# (server_bind_address); binding a non-loopback address exposes the site to
+# whatever can reach this machine.
 SERVER_BIND_ADDRESS = "127.0.0.1"
 LOCALHOST = "127.0.0.1"
+IPV6_WILDCARD = "::"
+IPV6_LOOPBACK = "::1"
+IPV4_WILDCARD = "0.0.0.0"
+WILDCARD_BIND_ADDRESSES = {IPV6_WILDCARD, IPV4_WILDCARD}
 
 # Audio containers the browser can record, mapped to the file suffix the
 # recording is written to before it is transcribed.
@@ -804,7 +810,25 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self.on_config_saved = on_config_saved
         self.on_recipes_deleted = on_recipes_deleted
         self.config = config
+        self._response_status = 200
         super().__init__(*args, **kwargs)
+
+    # Speak HTTP/1.1 so a browser reuses one keep-alive connection per host
+    # instead of opening a fresh TCP connection for every asset (the
+    # HTTP/1.0 default). Through a tunnel or relay such as Tailscale each
+    # connection is round-trip-expensive and prone to being dropped; a
+    # dropped connection then surfaces as a missing stylesheet or script,
+    # which looked like the page failing to style (sometimes fully, sometimes
+    # halfway, sometimes losing only one script).
+    protocol_version = "HTTP/1.1"
+
+    def send_response_only(self, code, message=None):
+        self._response_status = code
+        super().send_response_only(code, message)
+
+    def _has_buffered_header(self, name: bytes) -> bool:
+        prefix = name.lower()
+        return any(line.lower().startswith(prefix) for line in getattr(self, "_headers_buffer", []))
 
     @property
     def source_directory(self) -> Path:
@@ -819,11 +843,33 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
         # Generated HTML must never be served from a stale cache: the editor
         # reloads the page immediately after a save and has to see the
-        # freshly generated page, but the static-file fallback sends no
-        # Cache-Control header and browsers apply heuristic caching.
+        # freshly generated page, so HTML (and directory URLs) are sent
+        # `no-store`. Everything else revalidates instead of trusting
+        # heuristic caching: the static-file fallback always sends
+        # Last-Modified, so `no-cache` still allows cheap 304s while making
+        # sure a rebuilt asset is picked up on the next load.
         path = urlsplit(self.path).path
-        if path.endswith(".html") or path.endswith("/"):
-            self.send_header("Cache-Control", "no-store")
+        if not self._has_buffered_header(b"cache-control"):
+            if path.endswith(".html") or path.endswith("/"):
+                self.send_header("Cache-Control", "no-store")
+            else:
+                self.send_header("Cache-Control", "no-cache")
+        # HTTP/1.1 keep-alive requires every response to declare its length.
+        # The directory redirect the static handler issues carries no body and
+        # no Content-Length, which would leave a keep-alive client waiting
+        # for a body that never ends. Streaming responses (SSE, archives) set
+        # Connection: close and close-delimit their body (self.close_connection),
+        # and 1xx/204/205/304 must not carry a Content-Length at all, so only
+        # fill in the empty body the other responses above never write.
+        status = self._response_status
+        if (
+            not self.close_connection
+            and not 100 <= status < 200
+            and status not in (204, 205, 304)
+            and not self._has_buffered_header(b"content-length")
+            and not self._has_buffered_header(b"transfer-encoding")
+        ):
+            self.send_header("Content-Length", "0")
         super().end_headers()
 
     def do_GET(self):
@@ -2721,6 +2767,12 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 # ---------------------------------------------------------------------------
 
 
+class _ThreadingHTTPServerIPv6(ThreadingHTTPServer):
+    """ThreadingHTTPServer that listens on IPv6 sockets."""
+
+    address_family = socket.AF_INET6
+
+
 class Server:
     def __init__(
         self,
@@ -2741,9 +2793,25 @@ class Server:
         """Configured listen port, falling back to the default."""
         return getattr(self.cfg, "server_port", DEFAULT_SERVER_PORT)
 
-    def _port_in_use(self, port: int) -> bool:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            return sock.connect_ex((LOCALHOST, port)) == 0
+    @property
+    def bind_address(self) -> str:
+        """Configured bind address, falling back to the loopback default."""
+        return getattr(self.cfg, "server_bind_address", SERVER_BIND_ADDRESS) or SERVER_BIND_ADDRESS
+
+    def _port_in_use(self, port: int, host: str) -> bool:
+        family = socket.AF_INET6 if ":" in host else socket.AF_INET
+        with socket.socket(family, socket.SOCK_STREAM) as sock:
+            return sock.connect_ex((host, port)) == 0
+
+    def _port_probe_host(self) -> str:
+        # A wildcard bind listens on every interface; probe loopback, which
+        # is how the busy-port check has always behaved.
+        bind = self.bind_address
+        if bind == IPV4_WILDCARD:
+            return LOCALHOST
+        if bind == IPV6_WILDCARD:
+            return IPV6_LOOPBACK
+        return bind
 
     @property
     def is_running(self) -> bool:
@@ -2754,7 +2822,8 @@ class Server:
             return
 
         port = self.port
-        if self._port_in_use(port):
+        bind = self.bind_address
+        if self._port_in_use(port, self._port_probe_host()):
             # Take the whole process down, tray icon included: with no HTTP
             # server there is nothing for the tray to do.
             logger.error(f"Port {port} is already in use; exiting")
@@ -2771,9 +2840,12 @@ class Server:
         )
 
         try:
-            http_server = ThreadingHTTPServer((SERVER_BIND_ADDRESS, self.port), handler)
+            if ":" in bind:
+                http_server = _ThreadingHTTPServerIPv6((bind, self.port), handler)
+            else:
+                http_server = ThreadingHTTPServer((bind, self.port), handler)
         except OSError:
-            logger.exception(f"Failed to start server on port {self.port}")
+            logger.exception(f"Failed to start server on {bind}:{self.port}")
             raise
 
         self._http_server = http_server
@@ -2784,8 +2856,11 @@ class Server:
         )
         self._thread.start()
 
-        logger.info(f"Server started on port {self.port}")
-        logger.info(f"Address: http://{SERVER_BIND_ADDRESS}:{self.port}")
+        logger.info(f"Server started on {bind}:{self.port}")
+        address = f"[{bind}]" if ":" in bind else bind
+        logger.info(f"Address: http://{address}:{self.port}")
+        if bind not in {LOCALHOST, IPV6_LOOPBACK}:
+            logger.warning(f"The site is bound to {bind} and has no authentication; anyone who can reach this machine can load and edit recipes.")
         logger.info("Serve the site over HTTPS through a local reverse proxy to enable the dictation button.")
 
     def stop(self):

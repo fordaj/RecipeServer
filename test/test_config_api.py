@@ -94,6 +94,7 @@ def test_get_config_returns_values_and_field_specs(config_server):
         "all_purpose_model_name",
         "image_analysis_model",
         "server_port",
+        "server_bind_address",
         "food_color",
         "dictation_enabled",
         "timeline_retention",

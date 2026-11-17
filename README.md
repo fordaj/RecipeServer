@@ -95,7 +95,9 @@ Open the site in either of these ways:
 - Click the tray icon and choose **Open Recipes**.
 - Visit [http://127.0.0.1:8000](http://127.0.0.1:8000) directly.
 
-The server listens on the loopback interface only, so the site is not reachable from other machines. To reach it from a phone (or any other device), put a local reverse proxy or tunnel in front of it that terminates HTTPS — for example `tailscale serve --bg http://127.0.0.1:8000`, Caddy, or a Cloudflare Tunnel. The proxy forwards to `http://127.0.0.1:8000` and sets `X-Forwarded-Proto: https`; that is what enables the dictation button (see below).
+The server listens on the loopback interface only (`127.0.0.1`), so the site is not reachable from other machines. To reach it from a phone (or any other device), put a local reverse proxy or tunnel in front of it that terminates HTTPS — for example `tailscale serve --bg http://127.0.0.1:8000`, Caddy, or a Cloudflare Tunnel. The proxy forwards to `http://127.0.0.1:8000` and sets `X-Forwarded-Proto: https`; that is what enables the dictation button (see below).
+
+If you do want the app reachable directly on your local network — for example as `http://<hostname>.local:8000` — set the **Bind address** (`server_bind_address`) in Configuration to `0.0.0.0` (all IPv4 interfaces) or `::` (all IPv6 interfaces) and restart the app. The default is `127.0.0.1` on purpose: the site has no authentication, and binding a non-loopback address lets anyone who can reach this machine load and edit your recipes over plain HTTP. Addresses must be IP literals; `localhost` is not accepted. The tray's **Open Recipes** opens the loopback address when the bind is a wildcard.
 
 Use the **+** button in the index to create a recipe. Choose an existing folder or enter a new folder path relative to the configured recipe directory, then write the recipe in Markdown. The editor can also upload supported images beside the recipe; images added while editing an existing recipe are saved to that recipe's folder.
 
@@ -306,7 +308,9 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 
 ## Troubleshooting
 
-- **The configured port is unavailable:** RecipeServer listens on the port set in Configuration (default 8000). Either stop whatever else is using that port or change `server_port` in `recipe-server-cfg.toml` (or use **Configuration**) and restart the app.
+- **The configured port is unavailable:** RecipeServer listens on the port set in Configuration (default 8000) on the configured bind address (default `127.0.0.1`). Either stop whatever else is using that port or change `server_port` in `recipe-server-cfg.toml` (or use **Configuration**) and restart the app.
+- **`http://<hostname>.local:8000` no longer loads:** Since the server binds `127.0.0.1` by default it answers on the loopback interface only; the `<hostname>.local` name also resolves to the machine's LAN address, where nothing is listening. If you want LAN access, set the **Bind address** (`server_bind_address`) to `0.0.0.0` (or `::`) in Configuration and restart — but note the site has no authentication. Prefer the reverse-proxy route above.
+- **Via Tailscale the page sometimes loads without styling or scripts:** This was caused by the HTTP/1.0 protocol default, which made the browser open a fresh TCP connection for every asset — through a relay any dropped connection lost that asset (sometimes all of them, hence raw HTML). The server now speaks HTTP/1.1 with keep-alive and sends `Cache-Control` on every response. If you still see it, check that `tailscale serve status` shows `proxy http://127.0.0.1:8000` and that no other `tailscale serve`/`funnel` configuration is overriding it.
 - **No tray icon appears:** Check that the app is running in a desktop session with tray support. On Linux, an X11-compatible `pystray` backend is required.
 - **The folder picker does not appear:** Make sure the Python installation includes Tk.
 - **A recipe is missing from the index:** Confirm that the file is named exactly `recipe.md` and lives under the configured recipe source directory.
@@ -535,7 +539,7 @@ tools/                      # bundled fordaj/* binaries + update.sh refreshers
 - The AI assistant can rewrite only the recipe being viewed (the update tool takes no path) and never deletes anything. The conversation is ephemeral.
 - The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, not when the app is built.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
-- The server uses the port set in Configuration (default `8000`), binds to `127.0.0.1`, and has no authentication. Serve it over HTTPS through a local reverse proxy or tunnel; the dictation button only appears on those pages.
+- The server uses the port set in Configuration (default `8000`) and the bind address set in Configuration (`server_bind_address`, default `127.0.0.1`), and has no authentication. Serve it over HTTPS through a local reverse proxy or tunnel; the dictation button only appears on those pages. The site is served with HTTP/1.1 keep-alive so browsers reuse one connection per host instead of opening a fresh connection per asset.
 - There is no JavaScript build step. Frontend assets are served directly, and KaTeX is vendored in `src/recipeserver/assets/katex`.
 
 ## KaTeX

@@ -6,7 +6,7 @@ flowchart TD
     regen --> ids("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_ensure_recipe_ids()<br/>stable recipe_id</u>")
     ids --> convert("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>parallel convert<br/>recipe.md → html</u>")
     convert --> index("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_update_index()<br/>index.html</u>")
-    main --> server("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Server(...)<br/>bind 127.0.0.1:port</u>")
+    main --> server("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Server(...)<br/>bind 127.0.0.1 (cfg):port</u>")
     main --> tray("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Tray(...)<br/>menu · open · quit</u>")
     main --> retention("<img src='barnacle:scissors.svg' width='20' alt=''/><br/><u>RetentionManager<br/>background retention</u>")
     click main href "__main__.py.md"
@@ -37,7 +37,7 @@ The application spine. `main(cfg)` builds the site, starts the HTTP server, and 
 - `parse_args()` — `--log-level LEVEL` (`-l`), choices from `LogLevel` ([_logger.py.md](_logger.py.md)), default `INFO`.
 - `main(cfg)` — `Core(cfg)` → `regen()` → the shared retention manager ([retention.py.md](retention.py.md)) is configured with `cfg` and started (an initial full scan plus the periodic sweep) → `Server(...)` ([server.py.md](server.py.md)) → `Tray(...)` ([tray.py.md](tray.py.md)). On macOS the tray runs on the main thread; elsewhere it runs detached and this thread polls the shutdown event. The shutdown path also stops the shared transcriber after the HTTP server and tray stop, so a whisper-server started for dictation never outlives the app; the periodic retention thread is stopped there too (in-flight prunes may finish first — they are interruption-safe).
 
-The server binds `127.0.0.1` on the configured port (default 8000); if the port is in use at startup, `Server.start()` logs an error and exits (see [server.py.md](server.py.md)).
+The server binds `127.0.0.1` on the configured port (default 8000) by default; the bind address is configurable with `server_bind_address` (see [config.py.md](config.py.md)). If the port is in use at startup, `Server.start()` logs an error and exits (see [server.py.md](server.py.md)).
 
 ## Related pages
 
