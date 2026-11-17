@@ -264,6 +264,81 @@ async function tick(times = 6) {
     assert.equal(input.files[0].type, "image/png");
   }
 
+  // iOS Safari copies a page image as its URI rather than as bytes. A data
+  // URI there is decoded directly.
+  const pngBytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+  const pngBase64 = Buffer.from(pngBytes).toString("base64");
+  function uriListItem(uri) {
+    return {
+      types: ["text/uri-list"],
+      async getType() {
+        return new Blob([uri], { type: "text/uri-list" });
+      },
+    };
+  }
+  setClipboardRead(async () => [uriListItem(`data:image/png;base64,${pngBase64}`)]);
+  {
+    const { dropzone, input, button } = buildDropzone();
+    const { notify } = notices();
+    createImagePicker({
+      input,
+      dropzone,
+      isDisabled: () => false,
+      onNotify: notify,
+    });
+    button.click();
+    await tick();
+    assert.equal(input.files.length, 1);
+    assert.match(input.files[0].name, /^pasted-image-\d+-1\.png$/);
+    assert.equal(input.files[0].type, "image/png");
+  }
+
+  // An http(s) URI is fetched; the magic bytes vouch for the image even
+  // when the response is opaque (no CORS headers).
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(url, "https://example.com/image.png");
+    return { arrayBuffer: async () => pngBytes.slice().buffer };
+  };
+  setClipboardRead(async () => [uriListItem("https://example.com/image.png")]);
+  {
+    const { dropzone, input, button } = buildDropzone();
+    const { notify } = notices();
+    createImagePicker({
+      input,
+      dropzone,
+      isDisabled: () => false,
+      onNotify: notify,
+    });
+    button.click();
+    await tick();
+    assert.equal(input.files.length, 1);
+    assert.equal(input.files[0].type, "image/png");
+    assert.match(input.files[0].name, /\.png$/);
+  }
+
+  // A link that is not an image reports that it could not be read, rather
+  // than dumping the raw page HTML into the uploader.
+  globalThis.fetch = async () => ({
+    arrayBuffer: async () => new TextEncoder().encode("<html>nope</html>").buffer,
+  });
+  setClipboardRead(async () => [uriListItem("https://example.com/not-an-image")]);
+  {
+    const { dropzone, input, button } = buildDropzone();
+    const { messages, notify } = notices();
+    createImagePicker({
+      input,
+      dropzone,
+      isDisabled: () => false,
+      onNotify: notify,
+    });
+    button.click();
+    await tick();
+    assert.equal(input.files.length, 0);
+    assert.match(messages[0], /could not be read as an image/);
+  }
+  globalThis.fetch = originalFetch;
+
   // A denied clipboard read reports the permission failure.
   setClipboardRead(async () => {
     const error = new Error("denied");

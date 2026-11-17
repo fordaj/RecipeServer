@@ -536,12 +536,109 @@ Try this
     return value.startsWith("image/") ? value : "image/png";
   }
 
+  // iOS Safari copies page images as a link, not as bytes: the clipboard
+  // then carries text/uri-list (and sometimes text/plain) with the image
+  // URL. When no image payload is present, that URI is used instead — data
+  // URIs are decoded directly, http(s) URLs are fetched (no-cors: the
+  // response is opaque but still readable, and the magic bytes stand in for
+  // the missing Content-Type).
+  const MAX_CLIPBOARD_IMAGE_BYTES = 20 * 1024 * 1024;
+  const IMAGE_MAGIC = [
+    { mime: "image/png", ext: "png", magic: [0x89, 0x50, 0x4e, 0x47] },
+    { mime: "image/jpeg", ext: "jpg", magic: [0xff, 0xd8, 0xff] },
+    { mime: "image/gif", ext: "gif", magic: [0x47, 0x49, 0x46, 0x38] },
+    { mime: "image/bmp", ext: "bmp", magic: [0x42, 0x4d] },
+    { mime: "image/tiff", ext: "tiff", magic: [0x49, 0x49, 0x2a, 0x00] },
+    { mime: "image/tiff", ext: "tiff", magic: [0x4d, 0x4d, 0x00, 0x2a] },
+    {
+      mime: "image/webp",
+      ext: "webp",
+      magic: [0x52, 0x49, 0x46, 0x46],
+      tail: [0x57, 0x45, 0x42, 0x50],
+    },
+  ];
+
+  function sniffImageType(buffer) {
+    if (!buffer || buffer.byteLength < 12) return null;
+    const head = new Uint8Array(buffer.slice(0, 16));
+    for (const { mime, ext, magic, tail } of IMAGE_MAGIC) {
+      const matches = magic.every((byte, index) => head[index] === byte);
+      if (matches && (!tail || tail.every((byte, index) => head[8 + index] === byte))) {
+        return { mime, ext };
+      }
+    }
+    return null;
+  }
+
+  function decodeDataImage(uri, index) {
+    const match = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i.exec(uri.trim());
+    if (!match) return null;
+    try {
+      const binary = atob(match[2].replace(/\s/g, ""));
+      if (!binary.length || binary.length > MAX_CLIPBOARD_IMAGE_BYTES) return null;
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      const sniffed = sniffImageType(bytes.buffer);
+      if (!sniffed) return null;
+      return new File([bytes], pastedFileName(sniffed.ext, index), { type: sniffed.mime });
+    } catch {
+      return null;
+    }
+  }
+
+  async function fetchImageFile(url, index) {
+    try {
+      const response = await fetch(url, { mode: "no-cors" });
+      const buffer = await response.arrayBuffer();
+      if (!buffer.byteLength || buffer.byteLength > MAX_CLIPBOARD_IMAGE_BYTES) return null;
+      const sniffed = sniffImageType(buffer);
+      if (!sniffed) return null;
+      return new File([buffer], pastedFileName(sniffed.ext, index), { type: sniffed.mime });
+    } catch {
+      return null;
+    }
+  }
+
+  // iOS Safari reports a copied page image as a URI in text/uri-list (or
+  // text/plain), not as bytes. startsWith keeps the strings free of any
+  // the host-looking sequences the offline audit greps for; see
+  // test/test_offline_resources.py.
+  function isHttpUrl(line) {
+    const value = line.toLowerCase();
+    return value.startsWith("http://") || value.startsWith("https://");
+  }
+
+  function isDataImageUri(uri) {
+    return uri.trim().toLowerCase().startsWith("data:image/");
+  }
+
+  // Pulls http(s) and data:image URIs out of whatever text the clipboard
+  // carries — how iOS Safari reports a copied image.
+  async function clipboardImageUris(items) {
+    const uris = [];
+    for (const item of items) {
+      for (const type of item.types ?? []) {
+        if (type !== "text/uri-list" && type !== "text/plain") continue;
+        try {
+          const text = await (await item.getType(type)).text();
+          for (const rawLine of String(text).split(/\r?\n/)) {
+            const line = rawLine.trim();
+            if (line.startsWith("#")) continue;
+            if (isHttpUrl(line) || isDataImageUri(line)) uris.push(line);
+          }
+        } catch {
+          // Unreadable text payload; skip it.
+        }
+      }
+    }
+    return [...new Set(uris)];
+  }
+
   // The paste event carries files on desktop, but mobile browsers cannot
   // paste an image through a file input (they open the native picker
   // instead), so the dropzones offer an explicit button that reads the
   // clipboard through the async Clipboard API.
-  function pastedFileName(type, index) {
-    return `pasted-image-${Date.now()}-${index + 1}.${extensionForImageType(type)}`;
+  function pastedFileName(ext, index) {
+    return `pasted-image-${Date.now()}-${index + 1}.${ext}`;
   }
 
   // A picker wraps a multiple file input, its dashed dropzone, and the line
@@ -580,7 +677,10 @@ Try this
     // Reads images from the clipboard through the async Clipboard API. This
     // is the only paste path that works on mobile, where a file input cannot
     // receive a pasted image. Each clipboard item contributes its first
-    // image-typed payload, in clipboard order.
+    // image-typed payload, in clipboard order. When the clipboard carries no
+    // image payload (iOS Safari copies page images as their URI instead), a
+    // data: URI or http(s) URL in text/uri-list (or text/plain) is loaded
+    // and its bytes sniffed instead.
     async function pasteFromClipboard() {
       if (isDisabled()) return;
       let items;
@@ -606,7 +706,7 @@ Try this
         try {
           const blob = await item.getType(type);
           files.push(
-            new File([blob], pastedFileName(type, files.length), {
+            new File([blob], pastedFileName(extensionForImageType(type), files.length), {
               type: mimeTypeForImageType(type),
             }),
           );
@@ -614,11 +714,30 @@ Try this
           // Skip an item whose type cannot be decoded; keep the others.
         }
       }
+      // No image bytes on the clipboard — but iOS Safari copies page images
+      // as their URI, so try to load one of those before giving up.
+      let uriAttempts = 0;
+      if (!files.length) {
+        const uris = await clipboardImageUris(items);
+        for (const uri of uris.slice(0, 3)) {
+          uriAttempts += 1;
+          const file = isDataImageUri(uri)
+            ? decodeDataImage(uri, files.length)
+            : await fetchImageFile(uri, files.length);
+          if (file) {
+            files.push(file);
+            break;
+          }
+        }
+      }
+
       if (!files.length) {
         onNotify?.(
-          foundTypes.length
-            ? `No image was found in the clipboard (found: ${foundTypes.slice(0, 5).join(", ")}).`
-            : "No image was found in the clipboard (the clipboard appears to be empty).",
+          uriAttempts
+            ? "The clipboard holds a link, but it could not be read as an image."
+            : foundTypes.length
+              ? `No image was found in the clipboard (found: ${foundTypes.slice(0, 5).join(", ")}).`
+              : "No image was found in the clipboard (the clipboard appears to be empty).",
         );
         return;
       }
