@@ -408,6 +408,7 @@ def test_ai_status_and_generation_from_text(tmp_path):
                 "image_model": "vision-model",
                 "image_configured": True,
                 "image_available": True,
+                "dictation_enabled": True,
             }
 
             status, result = request_json(
@@ -801,6 +802,7 @@ def test_ai_endpoints_are_disabled_without_configuration(tmp_path):
             "image_model": "",
             "image_configured": False,
             "image_available": False,
+            "dictation_enabled": True,
         }
 
         status, body = request_json(

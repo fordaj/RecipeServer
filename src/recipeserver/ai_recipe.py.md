@@ -18,7 +18,7 @@ Optional, opt-in integration with a local [Ollama](https://ollama.com) server. I
 ## Public surface
 
 - `resolve_ai_config(config)` → frozen `AIConfigView` (endpoint, models, prompts) with `is_configured` / `is_image_configured`.
-- `ai_status(config)` → the dict served by `/api/ai-status` (endpoint configured?, reachable?, which models).
+- `ai_status(config)` → the dict served by `/api/ai-status` (endpoint configured?, reachable?, which models). The server adds one more key, `dictation_enabled` (see [server.py.md](server.py.md)), before sending the response.
 - `generate_recipe(config, input_type, input_value, event_callback=None, images=None)` — the drafting pipeline. `input_type` is `text`, `url`, or `image`. Emits progress events (`status`, `metrics`, `error`, `result`) through `event_callback`; the server streams them as SSE for `stream: true` requests and blocks otherwise.
 - `normalize_ollama_base_url(endpoint)` — strips a trailing `/v1`-style suffix so an OpenAI-style configured endpoint still reaches Ollama's native API. `ollama_chat_url` / `ollama_ps_url` / `ollama_tags_url` build on it.
 - `list_models`, `resolve_model_name`, `is_available`, `is_model_loaded`, `loaded_model_names` — endpoint probes. All are best-effort: any failure means "unavailable", never a crash (`MODEL_PROBE_ERRORS`).
@@ -35,5 +35,6 @@ Exceptions: `ModelUnavailable` (not configured / unreachable), `ModelRequestErro
 ## Related pages
 
 - [server.py.md](server.py.md) — the `/api/ai-status` and `/api/ai-recipe` endpoints
+- [ai_assistant.py.md](ai_assistant.py.md) — the assistant the floating bubble talks to
 - [config.py.md](config.py.md) — endpoint/model/prompt configuration
 - [README.md](README.md) — the package hub

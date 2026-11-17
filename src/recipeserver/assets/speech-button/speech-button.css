@@ -77,6 +77,102 @@
   height: 100%;
 }
 
+/* ---------- Status pill ---------- */
+/* The same treatment as the AI assistant's microphone popup: a small pill
+   above the button that reports what the capture is doing. Informational
+   only; the button remains the press target. */
+
+.speech-button__status {
+  position: absolute;
+  right: 0.35rem;
+  bottom: calc(100% + 0.4rem);
+  z-index: 50;
+
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+
+  max-width: min(17rem, calc(100vw - 2rem));
+
+  padding: 0.45rem 0.75rem 0.45rem 0.55rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  box-shadow: var(--hover-shadow);
+
+  font-size: 0.85rem;
+  line-height: 1.3;
+
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(0.5rem) scale(0.9);
+  transform-origin: bottom right;
+
+  pointer-events: none;
+
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    visibility 180ms ease;
+}
+
+.speech-button__status--visible {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+}
+
+.speech-button__status-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 1.15rem;
+  height: 1.15rem;
+  color: currentColor;
+}
+
+.speech-button__status-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.speech-button__status-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.speech-button__status[data-state="recording"] {
+  color: var(--danger-color);
+  border-color: color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
+}
+
+.speech-button__status[data-state="transcribing"],
+.speech-button__status[data-state="complete"] {
+  color: var(--food-color);
+  border-color: var(--hover-border-color);
+}
+
+.speech-button__status[data-state="error"] {
+  color: var(--danger-color);
+  border-color: color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
+}
+
+.speech-button__status[data-state="preparing"] .speech-button__status-icon,
+.speech-button__status[data-state="recording"] .speech-button__status-icon,
+.speech-button__status[data-state="transcribing"] .speech-button__status-icon {
+  animation: speech-status-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes speech-status-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
 /* ---------- States ---------- */
 
 .speech-button.is-recording {
@@ -123,8 +219,15 @@
 
 @media (prefers-reduced-motion: reduce) {
   .speech-button,
-  .speech-button__icon {
+  .speech-button__icon,
+  .speech-button__status {
     transition: none;
     animation: none;
+  }
+}
+
+@media print {
+  .speech-button__status {
+    display: none;
   }
 }

@@ -119,6 +119,9 @@ function tick() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+// Controllable timers: the long-press test fires the hold timer manually.
+const timers = [];
+
 async function main() {
   const document = createDocument();
 
@@ -126,7 +129,11 @@ async function main() {
   // dictation button is offered.
   globalThis.window = {
     location: { protocol: "http:" },
-    setTimeout: () => 0,
+    setTimeout(callback) {
+      timers.push(callback);
+      return timers.length;
+    },
+    clearTimeout() {},
     MediaRecorder: FakeMediaRecorder,
     RecipeIcons: {
       async loadSvgIcon(url) {
@@ -220,6 +227,73 @@ async function main() {
 
   assert.equal(secure.button.dataset.state, "error");
   assert.equal(secure.button.title, "Nothing was heard. Try again.");
+
+  // ----- A long press records and transcribes on release ----- //
+  timers.length = 0;
+  fetchCalls.length = 0;
+  global.fetch = async (url, options) => {
+    fetchCalls.push({ url, options });
+
+    return {
+      ok: true,
+      async json() {
+        return { text: "chocolate cake" };
+      },
+    };
+  };
+
+  const held = buildSearch(document);
+  window.initializeSpeechInputs();
+
+  const heldInputs = [];
+  held.input.addEventListener("input", () => heldInputs.push(held.input.value));
+
+  held.button.dispatchEvent({
+    type: "pointerdown",
+    target: held.button,
+    pointerType: "mouse",
+    button: 0,
+    clientX: 10,
+    clientY: 10,
+  });
+  assert.equal(held.button.dataset.state, "idle", "a held press must not record right away");
+
+  const holdTimer = timers.shift();
+  assert.ok(holdTimer, "the long-press timer was scheduled");
+  holdTimer();
+  await tick();
+  assert.equal(held.button.dataset.state, "recording");
+
+  const heldPill = held.wrapper.querySelector(".speech-button__status");
+  assert.ok(heldPill, "the status pill exists");
+  assert.equal(heldPill.classList.contains("speech-button__status--visible"), true);
+  assert.match(
+    heldPill.querySelector(".speech-button__status-label").textContent,
+    /release to stop/i,
+  );
+
+  // Release anywhere (the press may drift off the button).
+  document.dispatchEvent({
+    type: "pointerup",
+    target: held.button,
+    pointerType: "mouse",
+    button: 0,
+  });
+  await tick();
+  await tick();
+
+  assert.equal(held.input.value, "chocolate cake");
+  assert.deepEqual(heldInputs, ["chocolate cake"]);
+  assert.equal(fetchCalls.length, 1, "the recording is posted to the server");
+  assert.equal(fetchCalls[0].url, "/api/transcribe");
+  assert.equal(held.button.dataset.state, "complete");
+  assert.equal(heldPill.dataset.state, "complete");
+  assert.match(heldPill.querySelector(".speech-button__status-label").textContent, /done/i);
+
+  // A trailing click (pointerup ends a tap-like press) must not restart.
+  held.button.click();
+  await tick();
+  assert.equal(held.button.dataset.state, "complete", "the trailing click is swallowed");
 
   console.log("speech button checks passed");
 }

@@ -37,7 +37,9 @@ ICONS_JS_PATH = "/assets/icons.js"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 BASE_CSS_PATH = "/assets/base.css"
 DIALOG_SHELL_CSS_PATH = "/assets/dialog-shell.css"
+AI_ASSISTANT_CSS_PATH = "/assets/ai-assistant/ai-assistant.css"
 DIALOGS_JS_PATH = "/assets/dialogs.js"
+AI_ASSISTANT_JS_PATH = "/assets/ai-assistant/ai-assistant.js"
 RECIPE_FEEDBACK_JS_PATH = "/assets/recipe-feedback.js"
 INDEX_CSS_PATH = "/assets/index.css"
 INDEX_JS_PATH = "/assets/index.js"
@@ -804,7 +806,9 @@ class IndexHTMLGenerator:
             "definitions_css": DEFINITIONS_CSS_PATH,
             "base_css": BASE_CSS_PATH,
             "dialog_shell_css": DIALOG_SHELL_CSS_PATH,
+            "ai_assistant_css": AI_ASSISTANT_CSS_PATH,
             "dialogs_js": DIALOGS_JS_PATH,
+            "ai_assistant_js": AI_ASSISTANT_JS_PATH,
             "recipe_feedback_js": RECIPE_FEEDBACK_JS_PATH,
             "index_css": INDEX_CSS_PATH,
             "index_js": INDEX_JS_PATH,
@@ -856,6 +860,7 @@ class IndexHTMLGenerator:
     <link rel="stylesheet" href="{urls['definitions_css']}">
     <link rel="stylesheet" href="{urls['base_css']}">
     <link rel="stylesheet" href="{urls['dialog_shell_css']}">
+    <link rel="stylesheet" href="{urls['ai_assistant_css']}">
 {food_color_style}
     <link rel="stylesheet" href="{MENU_CSS_URL}">
     <link rel="stylesheet" href="{urls['index_css']}">
@@ -866,6 +871,7 @@ class IndexHTMLGenerator:
     <link rel="stylesheet" href="{urls['pull_down_page_refresh_css']}">
     <script src="{MENU_JS_URL}" defer></script>
     <script src="{urls['icons_js']}" defer></script>
+    <script src="{urls['ai_assistant_js']}" defer></script>
     <script src="{urls['dialogs_js']}" defer></script>
     <script src="{urls['index_js']}" defer></script>
 {dictation_script}    <script src="{urls['metadata_picker_js']}" defer></script>
