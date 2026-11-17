@@ -87,12 +87,14 @@ function main() {
   assert.equal(archived.getAttribute("type"), "checkbox");
 
   // ----- Sources group ----- //
-  assert.deepEqual(names(sources), [
-    "source.author",
-    "source.title",
-    "source.format",
-    "source.url",
-  ]);
+  // The author and title fields are pickers (chip-selectable), not inputs.
+  const sourcePickers = sources.querySelectorAll(".recipe-editor__picker");
+  assert.equal(sourcePickers.length, 2, "source.author and source.title are pickers");
+  assert.deepEqual(
+    sourcePickers.map((element) => element.getAttribute("data-field")),
+    ["source.author", "source.title"],
+  );
+  assert.deepEqual(names(sources), ["source.format", "source.url"]);
   const selects = sources.querySelectorAll("select");
   assert.equal(selects.length, 1, "source.format is a select");
   assert.deepEqual(

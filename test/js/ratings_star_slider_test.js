@@ -20,6 +20,31 @@ const RECIPE_FEEDBACK_JS = path.join(
   "assets",
   "recipe-feedback.js",
 );
+const METADATA_PICKER_JS = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "recipeserver",
+  "assets",
+  "recipe-editor",
+  "metadata-picker.js",
+);
+
+function createLocalStorage() {
+  const entries = new Map();
+  const setCalls = [];
+  return {
+    setCalls,
+    getItem: (key) => (entries.has(key) ? entries.get(key) : null),
+    setItem: (key, value) => {
+      setCalls.push(String(key));
+      entries.set(key, String(value));
+    },
+    removeItem: (key) => entries.delete(key),
+    clear: () => entries.clear(),
+  };
+}
 
 const RATING = {
   name: "Avery",
@@ -45,9 +70,10 @@ function buildPage(document) {
   form.setAttribute("id", "recipe-rating-form");
   form.hidden = true;
 
-  const authorInput = document.createElement("input");
-  authorInput.setAttribute("id", "rating-author");
-  authorInput.setAttribute("aria-label", "Your name");
+  const authorPicker = document.createElement("span");
+  authorPicker.className = "recipe-editor__picker recipe-feedback__picker";
+  authorPicker.setAttribute("data-field", "raters");
+  authorPicker.setAttribute("data-max-length", "100");
 
   const scoreInput = document.createElement("input");
   scoreInput.setAttribute("id", "rating-score");
@@ -71,14 +97,14 @@ function buildPage(document) {
   const saveButton = document.createElement("button");
   saveButton.setAttribute("id", "save-rating");
 
-  form.append(authorInput, scoreInput, scoreValue, stars, status, cancelButton, saveButton);
+  form.append(authorPicker, scoreInput, scoreValue, stars, status, cancelButton, saveButton);
   root.append(form);
 
   const list = document.createElement("div");
   list.setAttribute("id", "rating-list");
   root.append(list);
 
-  return { root, addButton, form, authorInput, scoreInput, scoreValue, status, list };
+  return { root, addButton, form, authorPicker, scoreInput, scoreValue, status, list };
 }
 
 // Presses the slider at a fraction of its width, the way a pointer would.
@@ -111,23 +137,68 @@ async function main() {
   const document = createDocument();
   const page = buildPage(document);
 
-  globalThis.window = { location: { pathname: "/pancakes/recipe.html" } };
+  const localStorage = createLocalStorage();
+  // A rating posted on this device remembers who posted it.
+  localStorage.setItem("lastRater", "Kailey");
+  globalThis.window = {
+    location: { pathname: "/pancakes/recipe.html" },
+    localStorage,
+  };
   globalThis.document = document;
-  globalThis.fetch = async () => ({
-    ok: true,
-    json: async () => ({ value: [RATING] }),
-  });
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes("/api/metadata-options")) {
+      return {
+        ok: true,
+        json: async () => ({ options: { raters: [{ value: "Avery", count: 3 }] } }),
+      };
+    }
+    if (init?.method === "POST") {
+      return {
+        ok: true,
+        json: async () => ({ success: true }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({ value: [RATING] }),
+    };
+  };
 
-  // recipe-feedback.js is a hard dependency of ratings.js and must be
-  // loaded first, exactly as page.py orders the <script defer> tags.
+  // recipe-feedback.js and metadata-picker.js are hard dependencies of
+  // ratings.js and must be loaded first, exactly as page.py orders the
+  // <script defer> tags.
   require(RECIPE_FEEDBACK_JS);
   assert.equal(
     typeof window.RecipeFeedback,
     "object",
     "recipe-feedback.js exposes window.RecipeFeedback",
   );
+  require(METADATA_PICKER_JS);
+  assert.equal(
+    typeof window.RecipeMetadataPicker,
+    "object",
+    "metadata-picker.js exposes window.RecipeMetadataPicker",
+  );
   require(RATINGS_JS);
   await tick();
+
+  // The name field is prefilled with the name this device remembers, in the
+  // text input itself.
+  const authorInput = page.authorPicker.querySelector(".recipe-editor__picker-input");
+  assert.ok(authorInput, "the add form renders a text input for the name");
+  assert.equal(authorInput.value, "Kailey");
+
+  // Opening the form re-reads the library names from the server.
+  page.addButton.click();
+  await tick();
+  await tick();
+  const authorOptions = Array.from(
+    page.authorPicker.querySelectorAll(".recipe-editor__picker-select option"),
+    (option) => option.textContent,
+  );
+  assert.ok(authorOptions.includes("Avery (3)"), "the dropdown offers the library's raters");
+  assert.ok(!authorOptions.includes("Add new…"), "the combo dropdown has no Add new entry");
+  assert.ok(!page.authorPicker.querySelector(".recipe-editor__picker-chip"), "no chips");
 
   // The add form replaces its static stars with a slider.
   const formSlider = document.querySelector("#recipe-rating-form .recipe-rating__stars--slider");
@@ -214,6 +285,17 @@ async function main() {
   assert.equal(editScore.value, "1");
   editSlider.dispatchEvent({ type: "keydown", key: "End" });
   assert.equal(editScore.value, "10");
+
+  // Posting a rating is remembered on this device for the next form.
+  localStorage.setCalls.length = 0;
+  page.addButton.click();
+  page.form.dispatchEvent({ type: "submit" });
+  await tick();
+  await tick();
+  assert.ok(
+    localStorage.setCalls.includes("lastRater"),
+    "posting a rating stores lastRater in localStorage",
+  );
 
   console.log("rating star slider checks passed");
 }

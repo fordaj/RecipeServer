@@ -46,22 +46,22 @@ def declaration_block(css: str, selector: str) -> str:
     return css.split(marker, 1)[1].split("}", 1)[0]
 
 
-def test_rating_fields_are_big_enough_that_ios_does_not_zoom_in():
-    # iOS Safari zooms the page in when a focused field is smaller than 16
-    # pixels, and it never zooms back out again.
+def test_feedback_name_pickers_are_sized_and_styled():
+    # The name fields are the shared dropdown widget; the 16-pixel iOS floor
+    # is on the shared .field-input rule, which the picker controls use.
+    css = (ASSETS / "feedback.css").read_text(encoding="utf-8")
+    field_input = declaration_block((ASSETS / "dialog-shell.css").read_text(encoding="utf-8"), ".field-input")
+
+    assert ".recipe-feedback__picker" in css
+    assert "width: min(100%, 22rem);" in declaration_block(css, ".recipe-feedback__picker")
+    assert "font-size: 1rem;" in field_input
+
+
+def test_rating_score_field_is_big_enough_that_ios_does_not_zoom_in():
     css = (ASSETS / "feedback.css").read_text(encoding="utf-8")
 
-    for selector in (
-        ".recipe-rating__author-input",
-        '.recipe-rating-form__meter input[type="text"]',
-    ):
-        assert "font-size: 1rem;" in declaration_block(css, selector), selector
-
-
-def test_comment_name_field_is_big_enough_that_ios_does_not_zoom_in():
-    css = (ASSETS / "feedback.css").read_text(encoding="utf-8")
-
-    # The shared underline-name-field rule is grouped across the two features.
-    grouped = css.split(".recipe-comment__author-input,", 1)[1].split("}", 1)[0]
-    assert ".recipe-rating__author-input" in grouped
+    meter = declaration_block(css, '.recipe-rating-form__meter input[type="text"]')
+    assert "font-size: 1rem;" in meter
+    # The shared edit-form rule covers the comment textarea and the score field.
+    grouped = css.split(".recipe-comment__edit textarea,", 1)[1].split("}", 1)[0]
     assert "font-size: 1rem;" in grouped

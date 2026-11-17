@@ -17,11 +17,19 @@
   const addButton = root.querySelector(".recipe-ratings__add");
   const cancelButton = root.querySelector("#cancel-rating");
   const saveButton = root.querySelector("#save-rating");
-  const authorInput = root.querySelector("#rating-author");
+  const authorPicker = feedback.createNamePicker(
+    root.querySelector("#recipe-rating-form .recipe-editor__picker"),
+  );
   const scoreInput = root.querySelector("#rating-score");
   const scoreValue = root.querySelector("#rating-score-value");
   const status = root.querySelector("#rating-status");
   const list = root.querySelector("#rating-list");
+
+  // The device remembers who it is talking to.
+  const storedAuthor = feedback.getStoredName("lastRater");
+  if (storedAuthor) {
+    authorPicker.setValues([storedAuthor]);
+  }
 
   // Each star is worth two points, so every half star is worth one point and
   // the lowest score the slider can set is 1.
@@ -279,12 +287,14 @@
     const editForm = document.createElement("form");
     editForm.className = "recipe-rating__edit";
 
-    const nameInput = document.createElement("input");
-    nameInput.className = "recipe-rating__author-input";
-    nameInput.value = rating.name;
-    nameInput.maxLength = 100;
-    nameInput.required = true;
-    nameInput.setAttribute("aria-label", "Rating name");
+    const nameContainer = document.createElement("span");
+    nameContainer.className = "recipe-editor__picker recipe-feedback__picker";
+    nameContainer.setAttribute("data-field", "raters");
+    nameContainer.setAttribute("data-max-length", "100");
+
+    const namePicker = feedback.createNamePicker(nameContainer);
+    namePicker.setValues([rating.name]);
+    feedback.refreshNameOptions(namePicker, "raters");
 
     const scoreLine = document.createElement("div");
     scoreLine.className = "recipe-rating__meter";
@@ -329,14 +339,14 @@
     message.className = "recipe-rating__status";
     message.setAttribute("role", "status");
 
-    editForm.append(nameInput, scoreLine, actions, message);
+    editForm.append(nameContainer, scoreLine, actions, message);
     return {
       form: editForm,
-      nameInput,
+      namePicker,
       scoreInput: editScoreInput,
       cancel,
       message,
-      focus: () => nameInput.focus(),
+      focus: () => namePicker.focus(),
     };
   }
 
@@ -351,11 +361,16 @@
     buildEditForm,
     onRender: updateAverage,
     submitEdit: async ({ item, controls }) => {
-      const name = controls.nameInput.value.trim();
+      const name = (controls.namePicker.getValues()[0] ?? "").trim();
       const score = validateRatingInput(controls.scoreInput);
 
       if (!name || score === null) {
-        controls.form.reportValidity();
+        // The name dropdown has no native required state, so say what is missing.
+        if (!name) {
+          controls.message.textContent = "Please enter your name.";
+        } else {
+          controls.form.reportValidity();
+        }
         return null;
       }
 
@@ -387,7 +402,12 @@
     form.hidden = !open;
     addButton.setAttribute("aria-expanded", String(open));
     status.textContent = "";
-    if (open) authorInput.focus();
+    if (open) {
+      feedback.refreshNameOptions(authorPicker, "raters");
+      const stored = feedback.getStoredName("lastRater");
+      if (stored) authorPicker.setValues([stored]);
+      authorPicker.focus();
+    }
   }
 
   async function loadRatings() {
@@ -427,12 +447,11 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const name = authorInput.value.trim();
+    const name = (authorPicker.getValues()[0] ?? "").trim();
     const ratingValue = validateRatingInput(scoreInput);
 
     if (!name) {
       status.textContent = "Please enter your name.";
-      form.reportValidity();
       return;
     }
     if (ratingValue === null) {
@@ -461,7 +480,9 @@
         },
       ]);
       renderAll(await fetchRatings());
+      // form.reset() clears the score field; the remembered name stays selected.
       form.reset();
+      feedback.setStoredName("lastRater", name);
       setFormOpen(false);
     } catch (error) {
       console.error("Unable to save rating:", error);

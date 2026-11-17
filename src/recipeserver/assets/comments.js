@@ -17,14 +17,22 @@
   const addButton = root.querySelector(".recipe-comments__add");
   const cancelButton = root.querySelector("#cancel-comment");
   const saveButton = root.querySelector("#save-comment");
-  const authorInput = root.querySelector("#comment-author");
+  const authorPicker = feedback.createNamePicker(
+    root.querySelector("#recipe-comment-form .recipe-editor__picker"),
+  );
   const textInput = root.querySelector("#comment-text");
   const status = root.querySelector("#comment-status");
   const list = root.querySelector("#comment-list");
 
+  // The device remembers who it is talking to.
+  const storedAuthor = feedback.getStoredName("lastCommenter");
+  if (storedAuthor) {
+    authorPicker.setValues([storedAuthor]);
+  }
+
   // ----- Limits ----- //
-  // Character limits for the comment author input and message textarea.
-  const MAX_AUTHOR_LENGTH = 100;
+  // Character limit for the comment message textarea. The author field is a
+  // picker whose "Add new" input caps at the data-max-length on the element.
   const MAX_MESSAGE_LENGTH = 5000;
 
   // ----- Data helpers ----- //
@@ -107,12 +115,14 @@
     const editForm = document.createElement("form");
     editForm.className = "recipe-comment__edit";
 
-    const author = document.createElement("input");
-    author.className = "recipe-comment__author-input";
-    author.value = comment.author || "Anonymous";
-    author.maxLength = MAX_AUTHOR_LENGTH;
-    author.required = true;
-    author.setAttribute("aria-label", "Comment author");
+    const nameContainer = document.createElement("span");
+    nameContainer.className = "recipe-editor__picker recipe-feedback__picker";
+    nameContainer.setAttribute("data-field", "commenters");
+    nameContainer.setAttribute("data-max-length", "100");
+
+    const authorPicker = feedback.createNamePicker(nameContainer);
+    authorPicker.setValues([comment.author || "Anonymous"]);
+    feedback.refreshNameOptions(authorPicker, "commenters");
 
     const text = document.createElement("textarea");
     text.className = "recipe-comment__text-input";
@@ -131,8 +141,8 @@
     save.textContent = "Save";
     actions.append(cancel, save);
 
-    editForm.append(author, text, actions);
-    return { form: editForm, author, text, cancel, focus: () => author.focus() };
+    editForm.append(nameContainer, text, actions);
+    return { form: editForm, authorPicker, text, cancel, focus: () => authorPicker.focus() };
   }
 
   const { renderAll } = feedback.createFeedbackList({
@@ -145,9 +155,17 @@
     createItem: createComment,
     buildEditForm,
     submitEdit: async ({ item, index, items, controls }) => {
-      const newAuthor = controls.author.value.trim();
+      const newAuthor = (controls.authorPicker.getValues()[0] ?? "").trim();
       const newText = controls.text.value.trim();
-      if (!newAuthor || !newText) return null;
+      if (!newAuthor || !newText) {
+        // The name dropdown has no native required state, so say what is missing.
+        feedback.showInlineError(
+          controls.form,
+          !newAuthor ? "Please enter your name." : "Please enter a comment.",
+          "recipe-comment__status",
+        );
+        return null;
+      }
 
       return items.map((existing, existingIndex) =>
         existingIndex === index
@@ -163,6 +181,9 @@
     addButton.setAttribute("aria-expanded", String(open));
     status.textContent = "";
     if (open) {
+      feedback.refreshNameOptions(authorPicker, "commenters");
+      const stored = feedback.getStoredName("lastCommenter");
+      if (stored) authorPicker.setValues([stored]);
       textInput.focus();
     }
   }
@@ -188,7 +209,7 @@
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const author = authorInput.value.trim();
+    const author = (authorPicker.getValues()[0] ?? "").trim();
     const text = textInput.value.trim();
 
     if (!author || !text) {
@@ -213,7 +234,9 @@
       ];
       await saveComments(updatedComments);
       renderAll(updatedComments);
+      // form.reset() clears the textarea; the remembered name stays selected.
       form.reset();
+      feedback.setStoredName("lastCommenter", author);
       setFormOpen(false);
     } catch (error) {
       console.error("Unable to save comment:", error);

@@ -17,7 +17,10 @@
   // "select" (plain select), "checkbox" (checkbox + trailing label text).
   // saveName defaults to the lower-cased label and feeds the bulk-save
   // button's aria-label; fields sharing one metadata key (the sources) pass
-  // their own saveName. rating.score carries no MIXED chip or Save button.
+  // their own saveName. A picker may carry its own pickerField for the
+  // widget's data-field (the source pickers key on "source.author" /
+  // "source.title" while their bulk Save button keeps the shared "source"
+  // key). rating.score carries no MIXED chip or Save button.
   const DETAILS_FIELDS = [
     { label: "Contributor", field: "contributor", picker: true },
     {
@@ -52,17 +55,15 @@
       label: "Source Author",
       field: "source",
       saveName: "source",
-      input: { name: "source.author", type: "text", placeholder: "First Last" },
+      picker: true,
+      pickerField: "source.author",
     },
     {
       label: "Source Title",
       field: "source",
       saveName: "source",
-      input: {
-        name: "source.title",
-        type: "text",
-        placeholder: "Book Title, Website Name, AI Model, etc.",
-      },
+      picker: true,
+      pickerField: "source.title",
     },
     {
       label: "Source Format",
@@ -137,7 +138,7 @@
     if (descriptor.picker) {
       const picker = document.createElement("span");
       picker.className = "recipe-editor__picker";
-      picker.dataset.field = descriptor.field;
+      picker.dataset.field = descriptor.pickerField ?? descriptor.field;
       return picker;
     }
     if (descriptor.select) {

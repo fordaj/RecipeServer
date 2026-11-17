@@ -401,7 +401,9 @@ Try this
       typeof createdOn === "string" ? createdOn.slice(0, 10) : "";
 
     const source = firstSource(metadata.source);
-    for (const field of ["author", "title", "format", "url"]) {
+    refs.pickers.setValues("source.author", source.author ? [source.author] : []);
+    refs.pickers.setValues("source.title", source.title ? [source.title] : []);
+    for (const field of ["format", "url"]) {
       refs.form.elements.namedItem(`source.${field}`).value = source[field] ?? "";
     }
   }
@@ -440,15 +442,15 @@ Try this
       status: readSingle("status"),
       createdOn: get("createdOn") || null,
       archived: Boolean(refs.form.elements.namedItem("archived")?.checked),
-      source: readSource(refs.form),
+      source: readSource(refs),
     };
   }
 
-  function readSource(form) {
-    const get = (field) => form.elements.namedItem(field).value.trim();
+  function readSource(refs) {
+    const get = (field) => refs.form.elements.namedItem(field).value.trim();
     const source = {
-      author: get("source.author") || null,
-      title: get("source.title") || null,
+      author: refs.pickers.values("source.author")[0] || null,
+      title: refs.pickers.values("source.title")[0] || null,
       format: get("source.format") || null,
       url: get("source.url") || null,
     };

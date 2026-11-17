@@ -282,7 +282,6 @@
   width: 100%;
 }
 
-.recipe-comment__edit input,
 .recipe-comment__edit textarea,
 .recipe-rating__edit input[type="text"],
 .recipe-rating-form__meter input[type="text"] {
@@ -303,7 +302,6 @@
   text-align: center;
 }
 
-.recipe-comment__edit input,
 .recipe-comment__edit textarea {
   width: 100%;
   padding: 0.4rem 0.5rem;
@@ -320,28 +318,11 @@
   outline: 1px solid var(--food-color);
 }
 
-/* Underline text fields (comment add form, name fields, comment textarea) */
+/* Name pickers (the same dropdown the editor uses for contributors) */
 
-.recipe-comment__author-input,
-.recipe-rating__author-input {
+.recipe-feedback__picker {
   box-sizing: border-box;
-  width: min(100%, 16rem);
-  padding: 0;
-  border: 0;
-  border-bottom: 1px solid var(--border-color);
-  border-radius: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  /* 16 pixels is the smallest a field may be, or iOS zooms the page in. */
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.recipe-comment__author-input:focus,
-.recipe-rating__author-input:focus {
-  border-bottom-color: var(--food-color);
-  outline: none;
+  width: min(100%, 22rem);
 }
 
 .recipe-comment__text-input {
@@ -365,11 +346,8 @@
   outline: none;
 }
 
-.recipe-comment__text-input::placeholder,
-.recipe-comment__author-input::placeholder,
-.recipe-rating__author-input::placeholder {
+.recipe-comment__text-input::placeholder {
   color: var(--text-muted);
-  font-weight: 400;
 }
 
 /* Status lines */

@@ -18,7 +18,7 @@ _COMMENT_FORM_BODY = f"""\
 
         <div class="recipe-comment__content">
             <div class="recipe-comment__meta">
-            <input id="comment-author" class="recipe-comment__author-input" type="text" placeholder="Your name" aria-label="Your name" required/>
+            <span class="recipe-editor__picker recipe-feedback__picker" data-field="commenters" data-max-length="100"></span>
             <span class="recipe-comment__date">Posting today</span>
             </div>
 
@@ -38,7 +38,7 @@ _RATING_FORM_BODY = f"""\
         </div>
         <div class="recipe-rating-form__content">
             <div class="recipe-rating-form__meta">
-                <input id="rating-author" class="recipe-rating__author-input" type="text" placeholder="Your name" aria-label="Your name" maxlength="100" required />
+                <span class="recipe-editor__picker recipe-feedback__picker" data-field="raters" data-max-length="100"></span>
             </div>
             <div class="recipe-rating__meter recipe-rating-form__meter">
                 <input id="rating-score" type="text" inputmode="decimal" maxlength="16" value="5" aria-label="Rating out of 10" required />
