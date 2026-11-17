@@ -32,6 +32,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Filters recipe ratings by reviewer (up to 30 reviewers, most active first) without hiding any recipe cards.
 - Creates recipes from the index in an existing folder or a new folder.
 - Optionally drafts recipes from pasted text or a URL with a local AI model, then fills the recipe editor for review.
+- Floats a one-tap AI assistant on every page that answers general questions, edits the recipe on screen, and transcribes a long-press as a message when dictation is available.
 - Uploads supported images directly into a recipe folder from the recipe editor.
 - Edits recipe Markdown, metadata, ratings, and comments in the browser.
 - Writes browser edits back to the recipe's YAML front matter and Markdown body.
@@ -141,6 +142,27 @@ The AI controls behave as follows:
 While a recipe is generated, the dialog reports each step: checking the model, loading it into memory, preparing the source, thinking (when the model emits reasoning), generating, and complete or error. The generated Markdown is written to the recipe editor when generation finishes, and the final model load time, generation time, token count, and tokens per second are shown when Ollama reports them.
 
 The model prompt requirements are read from `src/recipeserver/NewRecipePrompt.md` on every app run, so edits to that file take effect the next time you start RecipeServer. For **From URL**, RecipeServer fetches the page and sends its readable text (not the raw HTML) to the model. For **From Images**, every chosen image is sent to the configured `image_analysis_model` with the prompt from `src/recipeserver/NewRecipeFromImagePrompt.md`, in the order the images were added; the transcriptions are concatenated and sent to the `all_purpose_model_name` model with `NewRecipePrompt.md` to draft the recipe. The generated Markdown and front matter only pre-fill the editor; review them before creating the recipe.
+
+## The AI assistant
+
+Every page carries a small circle in the bottom-right corner. It appears when the local AI endpoint is configured; on a phone it hides itself while you scroll down and comes back when you scroll up. Click it to open the chat panel — on a phone it pops out upper-left of the bubble, leaving the corner free for your thumb.
+
+The assistant answers questions and edits the recipe on screen:
+
+- General knowledge — "how many tablespoons are in a cup?"
+- Questions about other recipes in the library — "what does the tomato soup do, step by step?"
+- Edits to the recipe you are viewing — "adjust the recipe to use half as much salt" rewrites the recipe and regenerates the page; the chat then offers a Reload button.
+
+When dictation is enabled and the page is served over HTTPS (the same conditions the search dictation button needs), the bubble is also long-pressable: press and hold it and a microphone pops up directly above the bubble showing when the microphone is ready, listening, transcribing, done, or failed. Let go and the recording stops, is transcribed on this machine, and the transcript is sent to the assistant exactly as if you had typed and sent it.
+
+Boundaries are deliberate:
+
+- The assistant can never delete a recipe, and it cannot edit any recipe other than the one you are viewing. There is no bulk edit — asking for one gets an explanation, not an edit.
+- On the index page the assistant answers questions and looks recipes up, but there is no edit control: the edit tool is not offered, and a request for one is refused.
+- Edits rewrite the recipe body wholesale but only change front matter through the editor's field rules; `updatedOn` is refreshed automatically. Ratings, comments, and any other front-matter fields are preserved.
+- The conversation is kept only for the open page; reloading or navigating starts fresh.
+
+The endpoint, the all-purpose model, and availability are the same settings the create dialog uses — if the create dialog shows the AI controls disabled, the assistant reports itself as unavailable instead of answering.
 
 ## Dictating a search
 
@@ -460,6 +482,7 @@ tools/                      # bundled fordaj/* binaries + update.sh refreshers
 - `GET /api/metadata-options` returns the metadata values that are already used in the library (meals, categories, cuisine, tags, status, contributor, plus source author and title) with the number of recipes that use each of them, so the editor can offer them as dropdown options. The values are read from the recipe Markdown files on request; they are never hard-coded into generated pages or front matter.
 - Recipe creation writes `recipe.md` into the selected folder and rejects folder paths outside the source directory or existing recipes.
 - AI recipe generation never writes files. It returns Markdown and metadata to the editor, which saves only when the user submits the create form.
+- The AI assistant can rewrite only the recipe being viewed (the update tool takes no path) and never deletes anything. The conversation is ephemeral.
 - The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, not when the app is built.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
 - The server uses the port set in Configuration (default `8000`), binds to `127.0.0.1`, and has no authentication. Serve it over HTTPS through a local reverse proxy or tunnel; the dictation button only appears on those pages.

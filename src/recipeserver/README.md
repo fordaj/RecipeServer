@@ -52,6 +52,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 - [transcriber.py](transcriber.py.md) — local Whisper transcription for the dictation button
 - [whisper_server.py](whisper_server.py.md) — the whisper-server subprocess lifecycle (bundled binary, model download)
 - [ai_recipe.py](ai_recipe.py.md) — optional Ollama integration, recipe drafting
+- [ai_assistant.py](ai_assistant.py.md) — optional Ollama chat assistant behind the floating bubble
 - [metadata_options.py](metadata_options.py.md) — in-use metadata and feedback-name values for the dropdowns
 - [metadata_linter.py](metadata_linter.py.md) — required-field warnings
 - [recipe_utils.py](recipe_utils.py.md) — shared metadata/JSON/markup helpers

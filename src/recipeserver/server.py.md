@@ -6,10 +6,10 @@ flowchart TD
     handler --> static("<img src='barnacle:folder.svg' width='20' alt=''/><br/>static files<br/>from site dir")
     handler --> api("<img src='barnacle:route.svg' width='20' alt=''/><br/>/api/* routes")
     api --> edit("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>recipe-editor · metadata<br/>markdown · bulk-*")
-    api --> ai("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/ai-status · /api/ai-recipe</u>")
+    api --> ai("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/ai-status · /api/ai-recipe<br/>/api/ai-assistant</u>")
     api --> misc("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/config · /api/metadata-options<br/>/api/shopping-list · /api/archive · /api/transcribe</u>")
     edit --> callbacks("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>on_markdown_save → core.py<br/>re-render page + index</u>")
-    click ai href "ai_recipe.py.md"
+    click ai href "ai_assistant.py.md"
     click misc href "metadata_options.py.md"
     click callbacks href "core.py.md"
     class handler,edit,callbacks goFile
@@ -28,30 +28,31 @@ flowchart TD
 
 ## Routes
 
-| Method   | Path                                       | Handler                                                                                                  |
-| -------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| GET      | `/health`                                  | health check                                                                                             |
-| GET      | `/api/ai-status`                           | AI configured/reachable probe ([ai_recipe.py.md](ai_recipe.py.md))                                       |
-| GET      | `/api/config`                              | current configuration values + field specs                                                               |
-| POST     | `/api/config`                              | validate + persist configuration; triggers full rebuild                                                  |
-| GET      | `/api/recipe-folders`                      | list folders under the source directory                                                                  |
-| GET      | `/api/metadata-options`                    | in-use metadata values and feedback names with counts ([metadata_options.py.md](metadata_options.py.md)) |
-| GET      | `/api/markdown?path=…`                     | raw Markdown of a recipe                                                                                 |
-| POST     | `/api/markdown`                            | write raw Markdown back to the recipe file (content only, no front-matter rewrite)                       |
-| GET/POST | `/api/recipe-editor?path=…`                | load/save the editor form (save updates `updatedOn`)                                                     |
-| GET/POST | `/api/metadata/<field>?path=…`             | per-field metadata read/save                                                                             |
-| GET      | `/api/shopping-list?path=…`                | ingredients per selected recipe ([shopping_list.py.md](shopping_list.py.md))                             |
-| GET      | `/api/bulk-editor?path=…`                  | metadata for several recipes at once                                                                     |
-| POST     | `/api/bulk-editor`                         | apply fields to several recipes                                                                          |
-| POST     | `/api/bulk-delete`                         | delete several recipes                                                                                   |
-| DELETE   | `/api/recipe?path=…`                       | delete one recipe                                                                                        |
-| POST     | `/api/recipe`                              | create a recipe in an existing/new folder                                                                |
-| POST     | `/api/ai-recipe`                           | draft a recipe (SSE `text/event-stream` when `stream: true`)                                             |
-| POST     | `/api/transcribe`                          | transcribe a recorded clip ([transcriber.py.md](transcriber.py.md))                                      |
-| POST     | `/api/recipe-images/upload`                | upload images next to a recipe                                                                           |
-| POST     | `/api/recipe-images/rename`                | rename an image; rewrites Markdown references                                                            |
-| POST     | `/api/recipe-images/delete`                | delete an image; main-image fallback logic                                                               |
-| GET      | `/api/archive/source`, `/api/archive/site` | stream a 7z archive ([archive.py.md](archive.py.md))                                                     |
+| Method   | Path                                       | Handler                                                                                                                                              |
+| -------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET      | `/health`                                  | health check                                                                                                                                         |
+| GET      | `/api/ai-status`                           | AI configured/reachable probe; also reports `dictation_enabled` ([ai_recipe.py.md](ai_recipe.py.md))                                                 |
+| GET      | `/api/config`                              | current configuration values + field specs                                                                                                           |
+| POST     | `/api/config`                              | validate + persist configuration; triggers full rebuild                                                                                              |
+| GET      | `/api/recipe-folders`                      | list folders under the source directory                                                                                                              |
+| GET      | `/api/metadata-options`                    | in-use metadata values and feedback names with counts ([metadata_options.py.md](metadata_options.py.md))                                             |
+| GET      | `/api/markdown?path=…`                     | raw Markdown of a recipe                                                                                                                             |
+| POST     | `/api/markdown`                            | write raw Markdown back to the recipe file (content only, no front-matter rewrite)                                                                   |
+| GET/POST | `/api/recipe-editor?path=…`                | load/save the editor form (save updates `updatedOn`)                                                                                                 |
+| GET/POST | `/api/metadata/<field>?path=…`             | per-field metadata read/save                                                                                                                         |
+| GET      | `/api/shopping-list?path=…`                | ingredients per selected recipe ([shopping_list.py.md](shopping_list.py.md))                                                                         |
+| GET      | `/api/bulk-editor?path=…`                  | metadata for several recipes at once                                                                                                                 |
+| POST     | `/api/bulk-editor`                         | apply fields to several recipes                                                                                                                      |
+| POST     | `/api/bulk-delete`                         | delete several recipes                                                                                                                               |
+| DELETE   | `/api/recipe?path=…`                       | delete one recipe                                                                                                                                    |
+| POST     | `/api/recipe`                              | create a recipe in an existing/new folder                                                                                                            |
+| POST     | `/api/ai-recipe`                           | draft a recipe (SSE `text/event-stream` when `stream: true`)                                                                                         |
+| POST     | `/api/ai-assistant`                        | chat with the local model; `path` binds the editable recipe (SSE `text/event-stream` when `stream: true`) ([ai_assistant.py.md](ai_assistant.py.md)) |
+| POST     | `/api/transcribe`                          | transcribe a recorded clip ([transcriber.py.md](transcriber.py.md))                                                                                  |
+| POST     | `/api/recipe-images/upload`                | upload images next to a recipe                                                                                                                       |
+| POST     | `/api/recipe-images/rename`                | rename an image; rewrites Markdown references                                                                                                        |
+| POST     | `/api/recipe-images/delete`                | delete an image; main-image fallback logic                                                                                                           |
+| GET      | `/api/archive/source`, `/api/archive/site` | stream a 7z archive ([archive.py.md](archive.py.md))                                                                                                 |
 
 Unknown `/api/*` paths return 404. `path` must be a relative `.md` path inside the configured source directory; anything else is rejected.
 
@@ -68,6 +69,17 @@ HTML responses (generated `.html` pages and directory paths) are sent with `Cach
 - The body is the recording; its `Content-Type` selects the container (`audio/webm`, `audio/ogg`, `audio/mp4`, `audio/wav`, `audio/mpeg`) and the suffix the recording is written to. Unknown types answer 415, an empty body 400, and a body over `MAX_TRANSCRIPTION_SIZE` 413.
 - The recording is decoded with PyAV into a 16 kHz mono WAV and posted to the locally managed [whisper-server](whisper_server.py.md) ([fordaj/whisper-native](https://github.com/fordaj/whisper-native)); the managed process is started on the first transcription and stopped on app shutdown. A missing binary or model answers 503 and a recording that cannot be decoded answers 400 with the reason; anything else is a 500.
 
+## The AI assistant
+
+`POST /api/ai-assistant` powers the floating bubble on every page.
+
+- The request body is `{message, history?, path?, stream?}`: `message` is a non-empty string capped at 4000 characters, `history` is clamped to the last 20 `user`/`assistant` turns, `path` is the recipe being viewed (rejected with 404 when missing, 400 when invalid), and `stream: true` answers `text/event-stream` instead of plain JSON.
+- Without `path` (the index page) the model is offered only the read tools; a `path` enables `update_current_recipe`, whose edits are bound server-side to the one recipe being viewed — there is no delete tool and no bulk edit anywhere.
+- The stream mirrors `/api/ai-recipe`: `status` (`state` + `message`), `metrics`, `error` (`state` + `message`) and `result` (`result`: `{reply, edited, path, metrics}`). Without `stream`, the endpoint returns the same object as JSON. Agent details (tool schemas, loop cap, fallback for non-tool models) live in [ai_assistant.py.md](ai_assistant.py.md).
+- When the assistant edits the recipe, the handler rewrites `recipe.md` through the same front-matter pipeline as the manual editor (editor-fields-only `metadata`, `updatedOn` refreshed) and regenerates that page plus the index; the browser then offers a Reload button.
+- Errors map like the other AI endpoints: 503 when the model is not configured or unreachable, 502 on model/endpoint failures, 400 on invalid input, 404 for an unknown `path`.
+- `GET /api/ai-status` additionally reports `dictation_enabled` (from `_dictation_enabled`), which the bubble reads to decide whether a long press starts dictation. On plain HTTP, or when dictation is disabled, a long press degrades to a normal tap.
+
 ## Limits and conventions
 
 - `MAX_REQUEST_SIZE` 5 MiB; `MAX_IMAGE_UPLOAD_SIZE` 25 MiB; `MAX_IMAGE_UPLOAD_COUNT` 20; `MAX_TRANSCRIPTION_SIZE` 25 MiB; `BULK_MAX_PATHS` 100.
@@ -78,5 +90,5 @@ HTML responses (generated `.html` pages and directory paths) are sent with `Cach
 ## Related pages
 
 - [core.py.md](core.py.md) — wires the callbacks
-- [ai_recipe.py.md](ai_recipe.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) · [whisper_server.py.md](whisper_server.py.md) — backing modules
+- [ai_recipe.py.md](ai_recipe.py.md) · [ai_assistant.py.md](ai_assistant.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) · [whisper_server.py.md](whisper_server.py.md) — backing modules
 - [README.md](README.md) — the package hub

@@ -19,6 +19,9 @@ CSS_PATH = "/assets/style.css"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 BASE_CSS_PATH = "/assets/base.css"
 DIALOG_SHELL_CSS_PATH = "/assets/dialog-shell.css"
+AI_ASSISTANT_CSS_PATH = "/assets/ai-assistant/ai-assistant.css"
+DIALOGS_JS_PATH = "/assets/dialogs.js"
+AI_ASSISTANT_JS_PATH = "/assets/ai-assistant/ai-assistant.js"
 DIALOGS_JS_PATH = "/assets/dialogs.js"
 RECIPE_JS = "/assets/recipe.js"
 RECIPE_SCALER_CSS = "/assets/recipe-scaler.css"
@@ -94,6 +97,7 @@ def _versioned_assets() -> dict[str, str]:
             "definitions_css": DEFINITIONS_CSS_PATH,
             "base_css": BASE_CSS_PATH,
             "dialog_shell_css": DIALOG_SHELL_CSS_PATH,
+            "ai_assistant_css": AI_ASSISTANT_CSS_PATH,
             "style_css": CSS_PATH,
             "recipe_scaler_css": RECIPE_SCALER_CSS,
             "recipe_editor_css": RECIPE_EDITOR_CSS,
@@ -115,6 +119,7 @@ def _versioned_assets() -> dict[str, str]:
             "ai_progress_js": AI_PROGRESS_JS,
             "fields_js": FIELDS_JS,
             "dialogs_js": DIALOGS_JS_PATH,
+            "ai_assistant_js": AI_ASSISTANT_JS_PATH,
             "recipe_editor_js": RECIPE_EDITOR_JS,
         }.items()
     }
@@ -143,6 +148,7 @@ def build_recipe_html(
         <link rel="stylesheet" href="{assets["definitions_css"]}">
         <link rel="stylesheet" href="{assets["base_css"]}">
         <link rel="stylesheet" href="{assets["dialog_shell_css"]}">
+        <link rel="stylesheet" href="{assets["ai_assistant_css"]}">
         <link rel="stylesheet" href="{assets["style_css"]}">
         <link rel="stylesheet" href="{assets["recipe_scaler_css"]}">
         <link rel="stylesheet" href="{assets["recipe_editor_css"]}">
@@ -165,6 +171,7 @@ def build_recipe_html(
         </main>
         <script defer src="{assets["time_js"]}"></script>
         <script defer src="{assets["icons_js"]}"></script>
+        <script defer src="{assets["ai_assistant_js"]}"></script>
         <script defer src="{assets["recipe_js"]}"></script>
         <script defer src="{assets["recipe_scaler_js"]}"></script>
         <script defer src="{assets["pull_down_page_refresh_js"]}"></script>

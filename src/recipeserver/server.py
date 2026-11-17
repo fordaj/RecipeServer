@@ -30,7 +30,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 import frontmatter
 from PIL import Image, UnidentifiedImageError
 
-from . import ai_recipe
+from . import ai_assistant, ai_recipe
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import Configuration, DEFAULT_SERVER_PORT
@@ -318,6 +318,32 @@ def _validate_editor_metadata(metadata: object) -> dict:
             validated[field] = None
         else:
             validated[field] = _validate_editor_field(field, expected_type, value)
+
+    return validated
+
+
+def _validate_assistant_metadata(metadata: object) -> dict:
+    """Validate a partial editor-metadata object for the AI assistant.
+
+    Only the keys present are validated and returned; ``updatedOn`` (which
+    the server always manages) and unknown fields are rejected, so a
+    misbehaving model cannot sneak in an arbitrary front-matter key. A
+    value of null clears the field, matching the editor's semantics.
+    """
+    if not isinstance(metadata, dict):
+        raise ValueError("Expected a metadata object")
+
+    validated = {}
+    for key, value in metadata.items():
+        if key == "updatedOn":
+            raise ValueError("'updatedOn' is managed by the server")
+        expected_type = EDITOR_METADATA_FIELDS.get(key)
+        if expected_type is None:
+            raise ValueError(f"Unknown metadata field: {key}")
+        if value is None:
+            validated[key] = None
+        else:
+            validated[key] = _validate_editor_field(key, expected_type, value)
 
     return validated
 
@@ -663,8 +689,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     @property
     def source_directory(self) -> Path:
         """Recipe source directory, following live configuration changes."""
-        if self.config is not None and str(self.config.source_directory):
-            return Path(self.config.source_directory).resolve()
+        configured = getattr(self.config, "source_directory", "") if self.config is not None else ""
+        if str(configured):
+            return Path(configured).resolve()
         return self._source_directory
 
     # ----- routing ---------------------------------------------------------
@@ -736,6 +763,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/bulk-delete": self._handle_bulk_delete,
             "/api/config": self._handle_config_update,
             "/api/ai-recipe": self._handle_ai_recipe,
+            "/api/ai-assistant": self._handle_ai_assistant,
             "/api/recipe": self._handle_recipe_create,
             "/api/recipe-editor": self._handle_recipe_editor_post,
             "/api/recipe-images/rename": self._handle_recipe_images_rename_post,
@@ -831,6 +859,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(500, {"error": "Unable to check local model status"})
             return
 
+        # The browser needs this to decide whether the AI bubble is
+        # long-pressable for dictation.
+        status["dictation_enabled"] = self._dictation_enabled()
         logger.debug(f"Responding to /api/ai-status with {status}")
         self._send_json(200, status)
 
@@ -1268,6 +1299,158 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             request["input_value"],
             event_callback=event_callback,
         )
+
+    # ----- POST handlers: the AI assistant ----------------------------------
+    # The assistant (assets/ai-assistant/) answers free-form questions and may
+    # rewrite the recipe the user is viewing. It never creates, deletes, or
+    # edits any other recipe: the update tool it is given has no path
+    # argument and is only offered when the request carries one.
+
+    def _handle_ai_assistant(self) -> None:
+        try:
+            request = self._validate_ai_assistant_request()
+        except (_RequestTooLarge, ValueError) as exc:
+            logger.warning(f"Invalid AI assistant request: {exc}")
+            self._send_payload_error(exc)
+            return
+        if request is None:
+            # The response was already sent (a missing recipe answers 404).
+            return
+
+        if request["stream"]:
+            self._stream_ai_assistant(request)
+        else:
+            self._run_ai_assistant(request)
+
+    def _validate_ai_assistant_request(self) -> dict | None:
+        payload = self._read_json_payload()
+        message = ai_assistant.sanitize_message(payload.get("message"))
+        history = ai_assistant.sanitize_history(payload.get("history"))
+
+        current_file = None
+        current_path_display = None
+        raw_path = payload.get("path")
+        if raw_path is not None:
+            if not isinstance(raw_path, str):
+                raise ValueError("Expected a string path parameter")
+            current_file = self._resolve_markdown_path(raw_path)
+            if not self._require_markdown_file(current_file):
+                return None
+            current_path_display = ai_assistant.display_path(self.source_directory, current_file)
+            logger.info(f"AI assistant request for {current_path_display}")
+
+        return {
+            "message": message,
+            "history": history,
+            "current_file": current_file,
+            "current_path_display": current_path_display,
+            "stream": payload.get("stream") is True,
+        }
+
+    def _make_assistant_edit(self, file_path: Path) -> Callable[[str, dict], str]:
+        """Return the edit callback bound to the one recipe being viewed.
+
+        The assistant tool calls this with the replacement body (and any
+        metadata fields to change); there is intentionally no way for the
+        model to address another file.
+        """
+
+        def apply_edit(content: str, metadata: dict) -> str:
+            validated = _validate_assistant_metadata(metadata)
+            try:
+                recipe_post = _read_recipe_post(file_path)
+                _apply_editor_metadata(recipe_post.metadata, validated)
+                _drop_legacy_category(recipe_post.metadata)
+                recipe_post.metadata["updatedOn"] = _now_utc_iso()
+                recipe_post.content = content
+                self._write_recipe_post_with_images(file_path, recipe_post, [], exclusive=False)
+            except OSError as exc:
+                logger.exception(f"The assistant could not save {file_path}")
+                raise ValueError("Unable to save the recipe file") from exc
+
+            logger.info(f"Saved recipe assistant edit: {file_path}")
+            try:
+                self._notify_markdown_saved(file_path)
+            except Exception:
+                logger.exception(f"The assistant edited {file_path} but HTML regeneration failed")
+                return "The recipe was saved, but regenerating it failed; the page may be stale until the next rebuild."
+            return f"Saved {ai_assistant.display_path(self.source_directory, file_path)} and regenerated the page."
+
+        return apply_edit
+
+    def _generate_ai_assistant(self, request: dict, event_callback=None):
+        apply_edit = self._make_assistant_edit(request["current_file"]) if request["current_file"] is not None else None
+        return ai_assistant.run_assistant(
+            self.config,
+            request["message"],
+            request["history"],
+            source_directory=self.source_directory,
+            current_file=request["current_file"],
+            current_path_display=request["current_path_display"],
+            apply_edit=apply_edit,
+            event_callback=event_callback,
+        )
+
+    def _run_ai_assistant(self, request: dict) -> None:
+        try:
+            result = self._generate_ai_assistant(request)
+        except ai_recipe.ModelUnavailable as exc:
+            logger.warning(f"AI assistant model unavailable: {exc}")
+            self._send_json(503, {"error": str(exc)})
+        except ai_recipe.ModelRequestError as exc:
+            logger.warning(f"AI assistant request failed: {exc}")
+            self._send_json(502, {"error": str(exc)})
+        except ValueError as exc:
+            logger.warning(f"Invalid AI assistant input: {exc}")
+            self._send_json(400, {"error": str(exc)})
+        except Exception:
+            logger.exception("Failed to run the AI assistant")
+            self._send_json(500, {"error": "Unable to run the assistant"})
+        else:
+            self._send_json(200, result)
+
+    def _stream_ai_assistant(self, request: dict) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Connection", "close")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        self.close_connection = True
+
+        def send_event(event: dict) -> None:
+            event_type = str(event.get("type", "message")).replace("\n", "")
+            body = json.dumps(event, default=json_default).encode("utf-8")
+            try:
+                self.wfile.write(f"event: {event_type}\n".encode("utf-8"))
+                self.wfile.write(b"data: " + body + b"\n\n")
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError) as exc:
+                raise _StreamClosed from exc
+
+        try:
+            result = self._generate_ai_assistant(request, event_callback=send_event)
+        except _StreamClosed:
+            logger.debug("AI assistant stream closed by the browser")
+            return
+        except (ai_recipe.ModelUnavailable, ai_recipe.ModelRequestError, ValueError) as exc:
+            logger.warning(f"AI assistant failed: {exc}")
+            try:
+                send_event({"type": ai_assistant.EVENT_ERROR, "state": ai_assistant.STATUS_ERROR, "message": str(exc)})
+            except _StreamClosed:
+                pass
+        except Exception:
+            logger.exception("Failed to run the AI assistant")
+            try:
+                send_event({"type": ai_assistant.EVENT_ERROR, "state": ai_assistant.STATUS_ERROR, "message": "Unable to run the assistant"})
+            except _StreamClosed:
+                pass
+        else:
+            logger.info(f"AI assistant replied ({len(result.get('reply', ''))} characters, edited={result.get('edited')})")
+            try:
+                send_event({"type": ai_assistant.EVENT_RESULT, "result": result})
+            except _StreamClosed:
+                logger.debug("AI assistant result was not delivered because the browser closed the stream")
 
     # ----- POST handlers: recipe creation and editing ----------------------
 
