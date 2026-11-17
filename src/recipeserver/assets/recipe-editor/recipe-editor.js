@@ -589,11 +589,17 @@ Try this
     try {
       const response = await fetch(url, { mode: "no-cors" });
       const buffer = await response.arrayBuffer();
-      if (!buffer.byteLength || buffer.byteLength > MAX_CLIPBOARD_IMAGE_BYTES) return null;
+      console.info("[paste-clipboard] fetched", url, "-", buffer.byteLength, "bytes");
+      if (!buffer.byteLength || buffer.byteLength > MAX_CLIPBOARD_IMAGE_BYTES) {
+        console.info("[paste-clipboard] rejected: no or too many bytes");
+        return null;
+      }
       const sniffed = sniffImageType(buffer);
+      console.info("[paste-clipboard] sniff:", sniffed ? sniffed.mime : "not an image");
       if (!sniffed) return null;
       return new File([buffer], pastedFileName(sniffed.ext, index), { type: sniffed.mime });
-    } catch {
+    } catch (error) {
+      console.error("[paste-clipboard] fetch failed for", url, error);
       return null;
     }
   }
@@ -625,11 +631,12 @@ Try this
             if (line.startsWith("#")) continue;
             if (isHttpUrl(line) || isDataImageUri(line)) uris.push(line);
           }
-        } catch {
-          // Unreadable text payload; skip it.
+        } catch (error) {
+          console.error("[paste-clipboard] failed to read the clipboard text payload:", error);
         }
       }
     }
+    console.info("[paste-clipboard] candidate URIs:", uris);
     return [...new Set(uris)];
   }
 
@@ -714,6 +721,7 @@ Try this
           // Skip an item whose type cannot be decoded; keep the others.
         }
       }
+      console.info("[paste-clipboard] clipboard types:", foundTypes);
       // No image bytes on the clipboard — but iOS Safari copies page images
       // as their URI, so try to load one of those before giving up.
       let uriAttempts = 0;
