@@ -473,7 +473,10 @@ Try this
     return [...(list ?? [])].filter((file) => file.type.startsWith("image/"));
   }
 
-  const MIME_TYPE_EXTENSIONS = {
+  // Extension lookup for clipboard images, keyed by both MIME types and the
+  // UTType strings iOS Safari may expose for the same data (a MIME
+  // "image/png" shows up there as "public.png").
+  const IMAGE_TYPE_EXTENSIONS = {
     "image/png": "png",
     "image/jpeg": "jpg",
     "image/pjpeg": "jpg",
@@ -483,13 +486,54 @@ Try this
     "image/tiff": "tiff",
     "image/svg+xml": "svg",
     "image/avif": "avif",
+    "public.png": "png",
+    "public.jpeg": "jpg",
+    "public.tiff": "tiff",
+    "public.heic": "heic",
+    "public.heif": "heif",
+    "public.gif": "gif",
+    "public.bmp": "bmp",
+    "public.webp": "webp",
+    "public.avif": "avif",
+    "public.svg-image": "svg",
+    "public.image": "png",
+  };
+  const IMAGE_TYPE_MIMES = {
+    "public.png": "image/png",
+    "public.jpeg": "image/jpeg",
+    "public.tiff": "image/tiff",
+    "public.heic": "image/heic",
+    "public.heif": "image/heif",
+    "public.gif": "image/gif",
+    "public.bmp": "image/bmp",
+    "public.webp": "image/webp",
+    "public.avif": "image/avif",
+    "public.svg-image": "image/svg+xml",
+    "public.image": "image/png",
   };
 
-  function extensionForMimeType(type) {
-    const known = MIME_TYPE_EXTENSIONS[type];
+  // Safari on iOS (and all iOS browsers, which are WebKit) may hand the
+  // clipboard out with the UTType string instead of a MIME type, so both
+  // forms are accepted.
+  function isImageClipboardType(type) {
+    if (typeof type !== "string") return false;
+    const value = type.toLowerCase();
+    return value.startsWith("image/") || Object.hasOwn(IMAGE_TYPE_MIMES, value);
+  }
+
+  function extensionForImageType(type) {
+    const value = String(type).toLowerCase();
+    const known = IMAGE_TYPE_EXTENSIONS[value];
     if (known) return known;
-    const subtype = (type.split("/")[1] ?? "").replace(/[^a-z0-9]/gi, "").toLowerCase();
-    return subtype || "png";
+    const subtype = value.startsWith("image/") ? value.slice("image/".length) : "";
+    return subtype.replace(/[^a-z0-9]/gi, "").toLowerCase() || "png";
+  }
+
+  function mimeTypeForImageType(type) {
+    const value = String(type).toLowerCase();
+    const known = IMAGE_TYPE_MIMES[value];
+    if (known) return known;
+    return value.startsWith("image/") ? value : "image/png";
   }
 
   // The paste event carries files on desktop, but mobile browsers cannot
@@ -497,7 +541,7 @@ Try this
   // instead), so the dropzones offer an explicit button that reads the
   // clipboard through the async Clipboard API.
   function pastedFileName(type, index) {
-    return `pasted-image-${Date.now()}-${index + 1}.${extensionForMimeType(type)}`;
+    return `pasted-image-${Date.now()}-${index + 1}.${extensionForImageType(type)}`;
   }
 
   // A picker wraps a multiple file input, its dashed dropzone, and the line
@@ -552,18 +596,30 @@ Try this
         return;
       }
       const files = [];
+      const foundTypes = [];
       for (const item of items) {
-        const type = item.types.find((entry) => entry.startsWith("image/"));
+        for (const entry of item.types ?? []) {
+          if (!foundTypes.includes(entry)) foundTypes.push(entry);
+        }
+        const type = (item.types ?? []).find(isImageClipboardType);
         if (!type) continue;
         try {
           const blob = await item.getType(type);
-          files.push(new File([blob], pastedFileName(type, files.length), { type }));
+          files.push(
+            new File([blob], pastedFileName(type, files.length), {
+              type: mimeTypeForImageType(type),
+            }),
+          );
         } catch {
           // Skip an item whose type cannot be decoded; keep the others.
         }
       }
       if (!files.length) {
-        onNotify?.("No image was found in the clipboard.");
+        onNotify?.(
+          foundTypes.length
+            ? `No image was found in the clipboard (found: ${foundTypes.slice(0, 5).join(", ")}).`
+            : "No image was found in the clipboard (the clipboard appears to be empty).",
+        );
         return;
       }
       if (!append(files)) {

@@ -221,7 +221,7 @@ async function tick(times = 6) {
     assert.notEqual(input.files[0].name, input.files[1].name);
   }
 
-  // A clipboard without an image reports it and stages nothing.
+  // A clipboard without an image reports what is actually on it.
   setClipboardRead(async () => [
     {
       types: ["text/plain"],
@@ -242,7 +242,26 @@ async function tick(times = 6) {
     button.click();
     await tick();
     assert.equal(input.files.length, 0);
-    assert.equal(messages[0], "No image was found in the clipboard.");
+    assert.equal(messages[0], "No image was found in the clipboard (found: text/plain).");
+  }
+
+  // iOS Safari may expose the UTType string instead of the MIME type; both
+  // forms are accepted.
+  setClipboardRead(async () => [clipboardItem("public.png", "png-bytes")]);
+  {
+    const { dropzone, input, button } = buildDropzone();
+    const { notify } = notices();
+    createImagePicker({
+      input,
+      dropzone,
+      isDisabled: () => false,
+      onNotify: notify,
+    });
+    button.click();
+    await tick();
+    assert.equal(input.files.length, 1);
+    assert.match(input.files[0].name, /^pasted-image-\d+-1\.png$/);
+    assert.equal(input.files[0].type, "image/png");
   }
 
   // A denied clipboard read reports the permission failure.
