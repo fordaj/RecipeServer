@@ -10,7 +10,16 @@ from test.e2e.helpers import open_page, wait_clickable, wait_visible
 
 
 def _wait_for_option(driver, css: str, value: str, timeout: int = 10) -> None:
-    WebDriverWait(driver, timeout).until(lambda d: value in [o.text for o in Select(d.find_element(By.CSS_SELECTOR, css)).options])
+    # Read the options through JS: the picker re-renders its <select> on every
+    # fetch, so Python-held option references can go stale mid-poll.
+    WebDriverWait(driver, timeout).until(
+        lambda d: d.execute_script(
+            "const sel = document.querySelector(arguments[0]);"
+            "return !!sel && [...sel.options].some(o => o.textContent === arguments[1]);",
+            css,
+            value,
+        )
+    )
 
 
 def _post_comment(url, path, author, text, comment_id):
