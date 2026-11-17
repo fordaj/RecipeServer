@@ -11,6 +11,8 @@ from recipeserver.config import (
     FOOD_COLOR_KEY,
     DICTATION_ENABLED_KEY,
     DEFAULT_DICTATION_ENABLED,
+    HTTPS_ENABLED_KEY,
+    HTTPS_EXTRA_NAMES_KEY,
     IMAGE_ANALYSIS_MODEL_KEY,
     MODEL_ENDPOINT_KEY,
     MODEL_NAME_KEY,
@@ -116,6 +118,8 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
         SERVER_PORT_KEY: "8000",
         FOOD_COLOR_KEY: "#8d5542",
         DICTATION_ENABLED_KEY: True,
+        HTTPS_ENABLED_KEY: False,
+        HTTPS_EXTRA_NAMES_KEY: "",
     }
 
     def unexpected_input(prompt=""):

@@ -11,6 +11,7 @@ from tkinter import Tk, filedialog
 from urllib.parse import urlsplit
 
 from ._logger import logger
+from .https_setup import parse_extra_names
 
 MODEL_ENDPOINT_KEY = "model_endpoint"
 MODEL_NAME_KEY = "model_name"  # Legacy key, read-only compatibility for the all-purpose model.
@@ -21,11 +22,16 @@ SERVER_NAME_KEY = "server_name"
 SERVER_PORT_KEY = "server_port"
 FOOD_COLOR_KEY = "food_color"
 DICTATION_ENABLED_KEY = "dictation_enabled"
+HTTPS_ENABLED_KEY = "https_enabled"
+HTTPS_EXTRA_NAMES_KEY = "https_extra_names"
 SOURCE_DIRECTORY_KEY = "source_directory"
 CONFIG_FILENAME = "recipe-server-cfg.toml"
 LEGACY_CONFIG_FILENAME = "config.txt"
 DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
 DEFAULT_SERVER_PORT = 8000
+# HTTPS is opt-in: with it off the app serves plain HTTP on the loopback
+# interface, as it always has.
+DEFAULT_HTTPS_ENABLED = False
 # Dictation records a clip in the browser and transcribes it with the
 # bundled whisper-server. It is on by default; the switch only decides
 # whether the app offers the feature at all.
@@ -144,8 +150,7 @@ _TRUE_VALUES = {"1", "true", "yes", "on"}
 _FALSE_VALUES = {"0", "false", "no", "off"}
 
 
-def _normalize_dictation_enabled(value) -> bool:
-    """Normalize a dictation_enabled value to a boolean."""
+def _normalize_bool(value, default: bool, name: str) -> bool:
     if isinstance(value, bool):
         return value
     text = str(value).strip().lower()
@@ -154,8 +159,13 @@ def _normalize_dictation_enabled(value) -> bool:
     if text in _FALSE_VALUES:
         return False
     if not text:
-        return DEFAULT_DICTATION_ENABLED
-    raise ValueError(f"Dictation must be true or false, not {value!r}.")
+        return default
+    raise ValueError(f"{name} must be true or false, not {value!r}.")
+
+
+def _normalize_dictation_enabled(value) -> bool:
+    """Normalize a dictation_enabled value to a boolean."""
+    return _normalize_bool(value, DEFAULT_DICTATION_ENABLED, "Dictation")
 
 
 def _validate_dictation_enabled(value: str, label: str) -> str:
@@ -163,6 +173,33 @@ def _validate_dictation_enabled(value: str, label: str) -> str:
         return "true" if _normalize_dictation_enabled(value) else "false"
     except ValueError:
         raise ValueError(f"{label} must be true or false.") from None
+
+
+def _normalize_https_enabled(value) -> bool:
+    """Normalize a https_enabled value to a boolean."""
+    return _normalize_bool(value, DEFAULT_HTTPS_ENABLED, "HTTPS")
+
+
+def _validate_https_enabled(value: str, label: str) -> str:
+    try:
+        return "true" if _normalize_https_enabled(value) else "false"
+    except ValueError:
+        raise ValueError(f"{label} must be true or false.") from None
+
+
+def _normalize_https_extra_names(value) -> str:
+    """Normalize the extra certificate names to a canonical space-separated value."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return " ".join(parse_extra_names(text))
+
+
+def _validate_https_extra_names(value: str, label: str) -> str:
+    try:
+        return _normalize_https_extra_names(value)
+    except ValueError as exc:
+        raise ValueError(f"{label}: {exc}") from None
 
 
 @dataclass(frozen=True)
@@ -255,6 +292,30 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         _validate_dictation_enabled,
         input_type="checkbox",
     ),
+    ConfigField(
+        HTTPS_ENABLED_KEY,
+        "HTTPS",
+        "Serve the site over HTTPS instead of plain HTTP, using a locally"
+        " generated certificate (mkcert) fronted by the bundled Caddy server."
+        " The configured port then serves HTTPS for every address this"
+        " machine has — its .local name, its IP addresses and its Tailscale"
+        " name — and the site works on devices that cannot reach it over"
+        " plain HTTP. The first enable installs the local CA (one prompt);"
+        " other devices install the public CA from /rootCA.pem.",
+        _validate_https_enabled,
+        input_type="checkbox",
+    ),
+    ConfigField(
+        HTTPS_EXTRA_NAMES_KEY,
+        "Extra certificate names",
+        "Additional host names or IP addresses to include in the HTTPS"
+        " certificate, separated by spaces, commas or new lines. Only needed"
+        " for connections the automatic list does not cover; the certificate"
+        " already covers localhost, this machine's host name and .local name,"
+        " its IPv4/IPv6 addresses and its Tailscale name.",
+        _validate_https_extra_names,
+        placeholder="recipes.example.com, 192.168.1.25",
+    ),
 )
 
 _CONFIG_FIELDS_BY_KEY = {field.key: field for field in CONFIG_FIELDS}
@@ -302,6 +363,8 @@ class Configuration:
         self._server_port: int = DEFAULT_SERVER_PORT
         self._food_color: str = DEFAULT_FOOD_COLOR
         self._dictation_enabled: bool = DEFAULT_DICTATION_ENABLED
+        self._https_enabled: bool = DEFAULT_HTTPS_ENABLED
+        self._https_extra_names: str = ""
         self.new_recipe_prompt: str = ""
         self.new_recipe_from_image_prompt: str = ""
         self._config_file: Path | None = None
@@ -390,6 +453,30 @@ class Configuration:
         except ValueError:
             logger.warning(f"Ignoring invalid {DICTATION_ENABLED_KEY} value {value!r}; using default {DEFAULT_DICTATION_ENABLED}")
             self._dictation_enabled = DEFAULT_DICTATION_ENABLED
+
+    @property
+    def https_enabled(self) -> bool:
+        return self._https_enabled
+
+    @https_enabled.setter
+    def https_enabled(self, value) -> None:
+        try:
+            self._https_enabled = _normalize_https_enabled(value)
+        except ValueError:
+            logger.warning(f"Ignoring invalid {HTTPS_ENABLED_KEY} value {value!r}; using default {DEFAULT_HTTPS_ENABLED}")
+            self._https_enabled = DEFAULT_HTTPS_ENABLED
+
+    @property
+    def https_extra_names(self) -> str:
+        return self._https_extra_names
+
+    @https_extra_names.setter
+    def https_extra_names(self, value) -> None:
+        try:
+            self._https_extra_names = _normalize_https_extra_names(value)
+        except ValueError:
+            logger.warning(f"Ignoring invalid {HTTPS_EXTRA_NAMES_KEY} value {value!r}; using no extra certificate names")
+            self._https_extra_names = ""
 
     @property
     def site_directory(self) -> Path:
@@ -529,8 +616,11 @@ class Configuration:
             if key == SERVER_PORT_KEY and isinstance(value, int) and not isinstance(value, bool):
                 settings[key] = str(value)
                 continue
-            # dictation_enabled is written as a TOML boolean; accept both.
+            # dictation_enabled and https_enabled are written as TOML booleans; accept both.
             if key == DICTATION_ENABLED_KEY and isinstance(value, bool):
+                settings[key] = "true" if value else "false"
+                continue
+            if key == HTTPS_ENABLED_KEY and isinstance(value, bool):
                 settings[key] = "true" if value else "false"
                 continue
             if not isinstance(value, str):
@@ -639,7 +729,7 @@ class Configuration:
             "# Edit through the Configuration dialog in the app, or by hand here.",
         ]
         for key, value in values.items():
-            if key == DICTATION_ENABLED_KEY:
+            if key in (DICTATION_ENABLED_KEY, HTTPS_ENABLED_KEY):
                 # Write a real TOML boolean instead of a quoted string.
                 lines.append(f"{key} = {value}")
             else:
@@ -652,7 +742,7 @@ class Configuration:
             f" image analysis model={self.image_analysis_model or '(auto)'},"
             f" server name={self.recipe_server_name!r},"
             f" port={self.server_port}, food color={self.food_color},"
-            f" dictation={self.dictation_enabled})"
+            f" dictation={self.dictation_enabled}, https={self.https_enabled})"
         )
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
@@ -705,7 +795,13 @@ class Configuration:
             self.food_color = settings[FOOD_COLOR_KEY]
         if DICTATION_ENABLED_KEY in settings:
             self.dictation_enabled = settings[DICTATION_ENABLED_KEY]
-        logger.debug(f"Configured server port: {self.server_port}, food color: {self.food_color}, dictation: {self.dictation_enabled}")
+        if HTTPS_ENABLED_KEY in settings:
+            self.https_enabled = settings[HTTPS_ENABLED_KEY]
+        if HTTPS_EXTRA_NAMES_KEY in settings:
+            self.https_extra_names = settings[HTTPS_EXTRA_NAMES_KEY]
+        logger.debug(
+            f"Configured server port: {self.server_port}, food color: {self.food_color}, dictation: {self.dictation_enabled}, https: {self.https_enabled}"
+        )
 
         if MODEL_ENDPOINT_KEY in settings:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")

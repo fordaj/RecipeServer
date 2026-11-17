@@ -18,13 +18,15 @@ flowchart TD
     classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
-`ThreadingHTTPServer` serving the generated site plus the JSON editing APIs. The handler (`RecipeRequestHandler`, a `SimpleHTTPRequestHandler`) serves static files out of the site directory and dispatches `/api/*` routes; the `Server` wrapper owns the thread lifecycle. There is no authentication — the server binds `127.0.0.1` on the configured port (default 8000) and is meant to be reached from this machine, usually through a local reverse proxy that terminates HTTPS.
+`ThreadingHTTPServer` serving the generated site plus the JSON editing APIs. The handler (`RecipeRequestHandler`, a `SimpleHTTPRequestHandler`) serves static files out of the site directory and dispatches `/api/*` routes; the `Server` wrapper owns the thread lifecycle. There is no authentication — by default the server binds `127.0.0.1` on the configured port (default 8000) and is meant to be reached from this machine, usually through the optional built-in HTTPS front-end ([https_setup.py.md](https_setup.py.md)) or a local reverse proxy that terminates HTTPS.
 
 ## `Server`
 
-`__init__(cfg, on_markdown_saved=None, on_config_saved=None, on_recipes_deleted=None)`. `start()` checks the port is free (`_port_in_use`); if it is not, it logs an error and `sys.exit(1)`. Otherwise it binds `SERVER_BIND_ADDRESS = "127.0.0.1"`, serves from `cfg.site_directory`, and runs `serve_forever()` on a daemon thread named `RecipeServer`. `stop()` calls `shutdown()`/`server_close()` and joins. `is_running` reports whether the thread is alive; `port` reads `cfg.server_port`.
+`__init__(cfg, on_markdown_saved=None, on_config_saved=None, on_recipes_deleted=None)`. `start()` checks the port is free (`_port_in_use`); if it is not, it logs an error and `sys.exit(1)`. Otherwise it binds `SERVER_BIND_ADDRESS = "127.0.0.1"`, serves from `cfg.site_directory`, and runs `serve_forever()` on a daemon thread named `RecipeServer`. `stop()` calls `shutdown()`/`server_close()` and joins, and clears the tracked internal port. `is_running` reports whether the thread is alive; `port` reads `cfg.server_port` (the _public_ port), `scheme` reports `https` in HTTPS mode, and `bind_port` reports the port the embedded server actually bound — the configured port in HTTP mode, or an ephemeral loopback port in HTTPS mode, where Caddy proxies to it.
 
-`127.0.0.1` is used instead of `0.0.0.0` and `localhost`: the site has no authentication, so it stays on the loopback interface, and the name `localhost` may resolve to IPv6 first, which the server does not listen on. The site is served over HTTPS by a local reverse proxy (or tunnel) that forwards to `http://127.0.0.1:<port>`; that proxy is what makes the dictation button available (see below).
+`127.0.0.1` is used instead of `0.0.0.0` and `localhost`: the site has no authentication, so it stays on the loopback interface, and the name `localhost` may resolve to IPv6 first, which the server does not listen on. The site is served over HTTPS either by the built-in mode ([https_setup.py.md](https_setup.py.md): Caddy on the configured port, this server on an ephemeral loopback port) or by a local reverse proxy (or tunnel) that forwards to `http://127.0.0.1:<port>`; that proxy is what makes the dictation button available (see below).
+
+`set_https(enabled)` switches the serving mode at runtime, only when the mode changed; it stops and re-binds the listener so HTTPS and plain HTTP can take the configured port in turn (enabling frees the port for Caddy; disabling returns it to this server). `Core._reconcile_https()` ([core.py.md](core.py.md)) drives it together with the Caddy lifecycle.
 
 ## Routes
 
@@ -33,7 +35,7 @@ flowchart TD
 | GET      | `/health`                                  | health check                                                                                                                                         |
 | GET      | `/api/ai-status`                           | AI configured/reachable probe; also reports `dictation_enabled` ([ai_recipe.py.md](ai_recipe.py.md))                                                 |
 | GET      | `/api/config`                              | current configuration values + field specs                                                                                                           |
-| POST     | `/api/config`                              | validate + persist configuration; triggers full rebuild                                                                                              |
+| POST     | `/api/config`                              | validate + persist configuration; triggers full rebuild and HTTPS reconciliation                                                                     |
 | GET      | `/api/recipe-folders`                      | list folders under the source directory                                                                                                              |
 | GET      | `/api/metadata-options`                    | in-use metadata values and feedback names with counts ([metadata_options.py.md](metadata_options.py.md))                                             |
 | GET      | `/api/markdown?path=…`                     | raw Markdown of a recipe                                                                                                                             |

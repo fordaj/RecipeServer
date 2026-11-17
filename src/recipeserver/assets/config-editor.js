@@ -170,6 +170,17 @@ async function saveEditor(event) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Unable to save configuration.");
 
+    const savedValues = data.values || {};
+    // Switching HTTPS on or off rebinds the configured port, so the page
+    // can no longer be reloaded over the current scheme; navigate to the
+    // new one instead (the port stays the configured one either way).
+    const wantsHttps = savedValues.https_enabled === "true";
+    const isHttps = window.location.protocol === "https:";
+    const port = savedValues.server_port || window.location.port;
+    if (wantsHttps !== isHttps && port) {
+      window.location.href = `${wantsHttps ? "https" : "http"}://${window.location.hostname}:${port}/`;
+      return;
+    }
     // The server regenerates the site on save; reload to show it.
     window.location.reload();
   } catch (error) {
