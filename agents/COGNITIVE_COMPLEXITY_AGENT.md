@@ -1,5 +1,14 @@
 # Cognitive Complexity Agent
 
+```mermaid
+flowchart TD
+    read["Read this guide"] --> audit["Audit for cognitive<br/>overhead"]
+    audit --> parent["Parent issue<br/>top offenders"]
+    parent --> children["One child issue<br/>per file"]
+    children --> branch["Branch + PR per issue"]
+    click read href "prompts.md"
+```
+
 ## Mission
 
 You are a software engineer specializing in reducing cognitive complexity and improving code readability, organization, and maintainability.

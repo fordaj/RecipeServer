@@ -1,5 +1,20 @@
 # RecipeServer
 
+```mermaid
+flowchart LR
+    md["my-recipes/<br/>recipe.md files"] --> core["RecipeServer core<br/>regen()"]
+    core --> site["site/<br/>static HTML"]
+    site --> browser["Browser"]
+    browser -->|"saves edits"| server["HTTP server<br/>/api/*"]
+    server --> core
+    tray["System tray"] --> core
+    click core href "src/recipeserver/core.py.md"
+    click site href "src/recipeserver/index_html_generator.py.md"
+    click browser href "src/recipeserver/server.py.md"
+    click server href "src/recipeserver/server.py.md"
+    click tray href "src/recipeserver/tray.py.md"
+```
+
 RecipeServer turns a folder of Markdown recipes into a local recipe website and serves it in your browser. Each recipe becomes its own page, and everything is collected into a searchable, sortable index.
 
 The app runs as a desktop process with a system tray icon. There is no database and no build pipeline: your Markdown files remain the source of truth, and edits made in the browser are written back to them.
@@ -395,4 +410,4 @@ Updated last on 11/08/2026 to KaTeX 0.19.1 using `pnpm install katex` (see `src/
 
 ## Documentation
 
-Every module, script, and pinned tool carries a sibling Markdown page next to its source. [AGENTS.md](AGENTS.md) documents the sources and the rules for keeping them current; run `scripts/docs.sh` to render the set into `./site/` with the bundled [barnacle](https://github.com/fordaj/barnacle) binary.
+Every module, script, and pinned tool carries a sibling Markdown page next to its source, named after the source file it documents — `server.py` → `server.py.md`, `scripts/docs.sh` → `scripts/docs.sh.md` — so files that share a base name stay individually documentable. Hub pages (`README.md`) keep their plain names, and every page opens with a Mermaid diagram: a map of what the page covers, right under its `#` heading, with clickable nodes (`click Node href "page.md"`) and clickable transitions (inline anchors in edge labels) that navigate the rendered site. [AGENTS.md](AGENTS.md) documents the sources and the rules for keeping them current; run `scripts/docs.sh` to render the set into `./site/` with the bundled [barnacle](https://github.com/fordaj/barnacle) binary.
