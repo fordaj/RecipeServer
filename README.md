@@ -176,10 +176,13 @@ In the app, open the home page's menu → **Configuration** → tick **HTTPS** �
 
 Opening the site from this machine needs nothing new — the tray's **Open Recipes** and `https://127.0.0.1:8000` just work (the local CA is now trusted by your browser).
 
-To use HTTPS from **another device**, install the public root CA there once:
+To use HTTPS from **another device**, install the public root CA there once. Until you do, expect iOS Safari (and every other browser) to stop at a red **"This Connection Is Not Private"** screen — on iOS there is no "visit this site anyway" button for a certificate signed by an unknown local CA, so this step is not optional. The flow:
 
 1. On that device, open `https://<any of this machine's addresses>:8000/rootCA.pem` (for example `https://maestro.local:8000/rootCA.pem` or your Tailscale address).
 2. Install it as a CA certificate — on iOS: install the profile, then enable **Full Trust for Root Certificates** in Settings → General → About → Certificate Trust Settings; on Android: install a CA certificate from Settings → Security; on another computer: import it into the system trust store the same way `mkcert -install` does.
+3. Reopen the same URL — the page loads without the warning. The profile alone is not enough on iOS; full trust must be enabled for that CA.
+
+If a device shows a "name mismatch"-style error rather than "not private", you are reaching the machine at an address that is not in the certificate (for example a VPN interface the app could not see). Add it to `https_extra_names` in `recipe-server-cfg.toml` (or type it in the Configuration dialog), restart or Save, and the certificate gains that name.
 
 The same checkbox turns HTTPS back off: the configured port returns to plain HTTP, and the embedded server takes it back.
 
@@ -323,7 +326,7 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **HTTPS fails to start with "Port 8000 is already in use; exiting":** Something else owns the configured port — possibly a stale `caddy` from a previous run (see above) or another reverse proxy or tunnel (including `tailscale serve`). Stop it, or disable **HTTPS** and use that setup instead.
 - **HTTPS fails to start with "mkcert could not generate the certificate" or "Unable to install the mkcert local CA":** The bundled mkcert binary could not issue or install the local CA. On macOS the CA install needs your password (`sudo`); run `./scripts/serve.sh` from a terminal and try again, or run `mkcert -install` manually with sudo. On Windows, if the system store refuses the CA, run `mkcert -install` as Administrator (the bundled binary is `tools/mkcert/v*/windows-x86_64/mkcert.exe`).
 - **HTTPS fails to start with "caddy did not become ready":** Check the log (`.logs/recipeserver.py.log`) for Caddy's own error lines. A port that looks free but is blocked by another process, or a certificate the filesystem cannot read, are the usual causes.
-- **A device shows a certificate warning for the site:** That device does not trust the local CA yet. Open `https://<any of this machine's addresses>:8000/rootCA.pem` from that device and install it as a CA certificate (on iOS also enable Full Trust for Root Certificates), or point the device at the literal IP with a warning bypass if you just want to look once.
+- **A device shows a certificate warning for the site:** That device does not trust the local CA yet (iOS Safari shows a red **"This Connection Is Not Private"** screen and offers no "visit anyway" button, so the CA must be installed and full trust enabled for it). Open `https://<any of this machine's addresses>:8000/rootCA.pem` from that device and install it as a CA certificate (on iOS also enable Full Trust for Root Certificates), or point the device at the literal IP with a warning bypass if you just want to look once.
 - **The certificate expired or the machine's addresses changed:** Nothing to do — the certificate is reissued automatically when the SAN list changes or it nears expiry, on the next start or configuration save.
 - **Switching HTTPS on or off in Configuration appears to fail:** The page's connection drops as the port switches schemes; the dialog navigates to the other scheme automatically. If the Configuration dialog reports an error instead, read the message — it names the failing step (certificate generation, CA install, or Caddy failing to bind the port).
 - **No tray icon appears:** Check that the app is running in a desktop session with tray support. On Linux, an X11-compatible `pystray` backend is required.
