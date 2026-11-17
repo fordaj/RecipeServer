@@ -9,7 +9,8 @@ away.
 
 Besides the editor's metadata fields, the collector also reports the names
 of everyone who has commented or rated a recipe, so the feedback forms can
-offer them as options.
+offer them as options, and the source author and title values, so the source
+fields in the editor can offer them too.
 """
 
 from __future__ import annotations
@@ -19,13 +20,21 @@ from pathlib import Path
 import frontmatter
 
 from ._logger import logger
-from .recipe_utils import normalize_reviewer_name, read_categories
+from .recipe_utils import normalize_reviewer_name, normalize_source_dict, read_categories
 
 # Fields the editor fills from a dropdown. Multi-value fields hold a list of
 # values; single-value fields hold exactly one.
 MULTI_VALUE_FIELDS = ("meals", "categories", "cuisine", "tags")
 SINGLE_VALUE_FIELDS = ("status", "contributor")
 OPTION_FIELDS = (*MULTI_VALUE_FIELDS, *SINGLE_VALUE_FIELDS)
+
+# The source fields the editor offers as dropdowns. The response keys match
+# the pickers' data-field values; the inner keys read the normalized source
+# dict (a legacy list source is coerced the same way the editor reads it).
+SOURCE_OPTION_FIELDS = {
+    "source.author": "author",
+    "source.title": "title",
+}
 
 # The feedback forms fill their name dropdowns from these. Each maps to the
 # front matter list it reads and the key inside each entry that holds the name.
@@ -76,6 +85,18 @@ def _feedback_names(metadata: dict, field: str) -> list[str]:
     return names
 
 
+def _source_values(metadata: dict, key: str) -> list[str]:
+    """Return the non-empty source sub-field values one recipe stores."""
+    source = normalize_source_dict(metadata.get("source"))
+    if not source:
+        return []
+    value = source.get(key)
+    if not isinstance(value, str):
+        return []
+    value = value.strip()
+    return [value] if value else []
+
+
 def _recipe_files(root: Path) -> list[Path]:
     """Return the recipe Markdown files in the source tree."""
     if not root.is_dir():
@@ -90,9 +111,11 @@ def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str,
     Every value is reported with the number of recipes that use it, so the
     dropdowns can show how popular a value is next to the value itself. The
     ``commenters`` and ``raters`` lists report the names attached to the
-    ``comments`` and ``ratings`` front matter entries the same way.
+    ``comments`` and ``ratings`` front matter entries the same way. The
+    ``source.author`` and ``source.title`` lists report the values stored in
+    the source dict.
     """
-    counts: dict[str, dict[str, int]] = {field: {} for field in (*OPTION_FIELDS, *FEEDBACK_OPTION_FIELDS)}
+    counts: dict[str, dict[str, int]] = {field: {} for field in (*OPTION_FIELDS, *FEEDBACK_OPTION_FIELDS, *SOURCE_OPTION_FIELDS)}
     root = Path(source_directory)
 
     for recipe_file in _recipe_files(root):
@@ -108,6 +131,11 @@ def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str,
         for field in OPTION_FIELDS:
             # A recipe counts once for every value it uses.
             for value in dict.fromkeys(_field_values(metadata, field)):
+                counts[field][value] = counts[field].get(value, 0) + 1
+
+        for field, key in SOURCE_OPTION_FIELDS.items():
+            # A recipe reports at most one value per source sub-field.
+            for value in dict.fromkeys(_source_values(metadata, key)):
                 counts[field][value] = counts[field].get(value, 0) + 1
 
         for field in FEEDBACK_OPTION_FIELDS:

@@ -164,9 +164,17 @@ function main() {
   status.setValues(["In Rotation", "Try Me"]);
   assert.deepEqual(status.getValues(), ["In Rotation"]);
 
+  // The source fields are single-value chip pickers too.
+  const { MetadataPicker } = window.RecipeMetadataPicker;
+  const sourceAuthor = new MetadataPicker(buildPicker(document, "source.author"));
+  assert.equal(sourceAuthor.config.mode, "single");
+  assert.equal(sourceAuthor.config.variant, undefined);
+  sourceAuthor.setValues(["Kailey"]);
+  assert.deepEqual(sourceAuthor.getValues(), ["Kailey"]);
+  assert.deepEqual(chipValues(sourceAuthor), ["Kailey"]);
+
   // The feedback name fields are combo pickers: a typeable input plus the
   // library dropdown, with no chips and no "Add new" swap.
-  const { MetadataPicker } = window.RecipeMetadataPicker;
   const raters = new MetadataPicker(buildPicker(document, "raters"));
   assert.equal(raters.config.mode, "single");
   assert.ok(!raters.valuesElement, "the combo variant renders no chip row");

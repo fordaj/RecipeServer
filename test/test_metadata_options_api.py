@@ -10,7 +10,18 @@ from pathlib import Path
 
 from test.helpers import request_json, running_recipe_server, write_recipe
 
-DROPDOWN_FIELDS = ("meals", "categories", "cuisine", "tags", "status", "contributor", "commenters", "raters")
+DROPDOWN_FIELDS = (
+    "meals",
+    "categories",
+    "cuisine",
+    "tags",
+    "status",
+    "contributor",
+    "commenters",
+    "raters",
+    "source.author",
+    "source.title",
+)
 
 
 def test_metadata_options_collects_the_values_used_by_every_recipe(tmp_path: Path):
@@ -30,6 +41,9 @@ meals:
   - Dinner
 contributor: Avery
 status: In Rotation
+source:
+  author: Kailey
+  title: The Baking Book
 """,
     )
     write_recipe(
@@ -43,6 +57,9 @@ meals:
   - Dessert
 contributor: Avery
 status: Try Me
+source:
+  author: Kailey
+  title: Some Website
 """,
     )
 
@@ -64,6 +81,8 @@ status: Try Me
             "contributor": [{"value": "Avery", "count": 2}],
             "commenters": [],
             "raters": [],
+            "source.author": [{"value": "Kailey", "count": 2}],
+            "source.title": [{"value": "Some Website", "count": 1}, {"value": "The Baking Book", "count": 1}],
         }
     }
 
@@ -87,6 +106,28 @@ def test_metadata_options_count_how_many_recipes_use_a_value(tmp_path: Path):
         {"value": "Breakfast", "count": 2},
         {"value": "Dinner", "count": 3},
     ]
+
+
+def test_metadata_options_collect_source_author_and_title(tmp_path: Path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    write_recipe(source / "book" / "recipe.md", "source:\n  author: Kailey\n  title: The Baking Book\n")
+    # Older recipes may store the source as a one-item list.
+    write_recipe(source / "legacy" / "recipe.md", "source:\n  - author: Avery\n    title: The Baking Book\n")
+    # A recipe with no usable source contributes nothing.
+    write_recipe(source / "empty" / "recipe.md", "source:\n  author: ''\n")
+    write_recipe(source / "missing" / "recipe.md", "meals:\n  - Dinner\n")
+
+    with running_recipe_server(source) as (base_url, _, _):
+        status, body = request_json(f"{base_url}/api/metadata-options")
+
+    assert status == 200
+    assert body["options"]["source.author"] == [
+        {"value": "Avery", "count": 1},
+        {"value": "Kailey", "count": 1},
+    ]
+    assert body["options"]["source.title"] == [{"value": "The Baking Book", "count": 2}]
 
 
 def test_metadata_options_include_the_legacy_singular_category_field(tmp_path: Path):

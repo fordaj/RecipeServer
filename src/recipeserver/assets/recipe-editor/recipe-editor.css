@@ -675,6 +675,8 @@
   cursor: pointer;
   padding-right: 2.5rem;
 
+  line-height: 1.4;
+
   background-image: url("/assets/chevron-down.svg");
   background-repeat: no-repeat;
   background-position: right 0.65rem center;
@@ -729,7 +731,7 @@
   align-items: center;
   gap: 0.35rem;
 
-  padding: 0.2rem 0.3rem 0.2rem 0.6rem;
+  padding: 0.15rem 0.25rem 0.15rem 0.5rem;
   border: 1px solid var(--food-color);
   border-radius: 999px;
   background: color-mix(in srgb, var(--food-color) 10%, transparent);
@@ -756,10 +758,14 @@
   background: transparent;
   color: var(--food-color);
 
-  font: inherit;
-  font-size: 1rem;
-  line-height: 1;
   cursor: pointer;
+}
+
+.recipe-editor__picker-chip-remove svg {
+  display: block;
+
+  width: 0.9rem;
+  height: 0.9rem;
 }
 
 .recipe-editor__picker-chip-remove:hover:not(:disabled) {

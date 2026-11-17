@@ -12,6 +12,35 @@
 
   const NEW_VALUE = "__new__";
 
+  // The chip remove button uses the shared x.svg asset. It is fetched once
+  // and reused for every chip; if it cannot be loaded the buttons fall back
+  // to the "×" character.
+  const X_ICON_URL = "/assets/x.svg";
+  let xIconMarkup = null;
+  const pendingXIconButtons = new Set();
+
+  function applyXIcon(button) {
+    if (xIconMarkup === null) {
+      pendingXIconButtons.add(button);
+      return;
+    }
+    if (xIconMarkup) {
+      button.innerHTML = xIconMarkup;
+    } else {
+      button.textContent = "×";
+    }
+  }
+
+  if (typeof window !== "undefined" && window.RecipeIcons?.loadSvgIcon) {
+    window.RecipeIcons.loadSvgIcon(X_ICON_URL).then((svg) => {
+      xIconMarkup = svg || "";
+      for (const button of pendingXIconButtons) applyXIcon(button);
+      pendingXIconButtons.clear();
+    });
+  } else {
+    xIconMarkup = "";
+  }
+
   const FIELDS = {
     meals: { label: "meal", mode: "multi" },
     categories: { label: "category", mode: "multi" },
@@ -19,6 +48,8 @@
     tags: { label: "tag", mode: "multi" },
     status: { label: "status", mode: "single" },
     contributor: { label: "contributor", mode: "single" },
+    "source.author": { label: "source author", mode: "single" },
+    "source.title": { label: "source title", mode: "single" },
     commenters: { label: "commenter", mode: "single", variant: "combo", placeholder: "Your name" },
     raters: { label: "rater", mode: "single", variant: "combo", placeholder: "Your name" },
   };
@@ -252,7 +283,7 @@
         remove.type = "button";
         remove.className = "recipe-editor__picker-chip-remove";
         remove.setAttribute("aria-label", `Remove ${value}`);
-        remove.textContent = "×";
+        applyXIcon(remove);
         remove.disabled = this.disabled;
         remove.addEventListener("click", () => this.removeValue(value));
 

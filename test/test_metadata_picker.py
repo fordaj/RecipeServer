@@ -47,6 +47,22 @@ def test_editor_details_use_dropdowns_for_the_metadata_fields():
         assert f'data-field-group="{group}"' in fragment
 
 
+def test_source_author_and_title_are_chip_pickers():
+    fields = (EDITOR_ASSETS / "fields.js").read_text(encoding="utf-8")
+    script = (EDITOR_ASSETS / "recipe-editor.js").read_text(encoding="utf-8")
+
+    # The source sub-fields are single-value pickers keyed on the sub-field,
+    # while their bulk Save buttons keep the shared "source" key.
+    assert 'pickerField: "source.author"' in fields
+    assert 'pickerField: "source.title"' in fields
+    assert 'name: "source.author"' not in fields
+    assert 'name: "source.title"' not in fields
+    assert "picker.dataset.field = descriptor.pickerField ?? descriptor.field" in fields
+    # The editor reads and writes the values through the pickers.
+    assert 'refs.pickers.values("source.author")' in script
+    assert 'refs.pickers.setValues("source.author", source.author ? [source.author] : [])' in script
+
+
 def test_editor_reads_the_dropdown_options_from_the_api():
     script = (EDITOR_ASSETS / "recipe-editor.js").read_text(encoding="utf-8")
 
