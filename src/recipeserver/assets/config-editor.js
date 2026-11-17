@@ -42,10 +42,16 @@ function setStatus(message) {
   statusLine.textContent = message || "";
 }
 
+// The serialised value of a field: checkboxes are "true"/"false",
+// everything else is the input's text value.
+function fieldValue(input) {
+  return input.type === "checkbox" ? (input.checked ? "true" : "false") : input.value;
+}
+
 function refreshChanged() {
   for (const [key, input] of state.inputs) {
     const field = input.closest(".config-editor__field");
-    const changed = input.value !== (state.original[key] ?? "");
+    const changed = fieldValue(input) !== (state.original[key] ?? "");
     if (field) field.classList.toggle("is-changed", changed);
   }
 }
@@ -59,35 +65,56 @@ function buildFields(fields, values) {
     const label = element("label");
     const inputId = `config-editor-${field.key}`;
     label.htmlFor = inputId;
-    label.append(element("span", null, field.label));
-    if (field.required) {
-      label.append(element("span", "config-editor__required", "required"));
-    }
 
     const input = element("input", "field-input");
     input.id = inputId;
     input.name = field.key;
     input.spellcheck = false;
-    if (field.placeholder) input.placeholder = field.placeholder;
-    // Browser-level validation for URL and number fields; the server
-    // validates strictly and reports the real rules in the help text.
-    input.type =
-      field.input_type === "url" ? "url" : field.input_type === "number" ? "number" : "text";
-    if (input.type === "number") {
-      input.min = "1";
-      input.max = String(MAX_SERVER_PORT);
-      input.step = "1";
-      input.inputMode = "numeric";
+
+    if (field.input_type === "checkbox") {
+      // Checkboxes render inside the label so clicking the text toggles them.
+      wrapper.classList.add("config-editor__field--checkbox");
+      label.classList.add("config-editor__checkbox-label");
+      input.type = "checkbox";
+      input.className = "config-editor__checkbox";
+      input.checked = values[field.key] === "true";
+      label.append(input, element("span", null, field.label));
+    } else {
+      label.append(element("span", null, field.label));
+      if (field.required) {
+        label.append(element("span", "config-editor__required", "required"));
+      }
+
+      if (field.placeholder) input.placeholder = field.placeholder;
+      // Browser-level validation for URL and number fields; the server
+      // validates strictly and reports the real rules in the help text.
+      input.type =
+        field.input_type === "url" ? "url" : field.input_type === "number" ? "number" : "text";
+      if (input.type === "number") {
+        input.min = "1";
+        input.max = String(MAX_SERVER_PORT);
+        input.step = "1";
+        input.inputMode = "numeric";
+      }
+      if (field.required) input.required = true;
+      input.value = values[field.key] ?? "";
     }
-    if (field.required) input.required = true;
-    input.value = values[field.key] ?? "";
+
     input.addEventListener("input", () => {
+      refreshChanged();
+      setStatus("");
+    });
+    input.addEventListener("change", () => {
       refreshChanged();
       setStatus("");
     });
 
     const help = element("p", "config-editor__help", field.help || "");
-    wrapper.append(label, input, help);
+    if (field.input_type === "checkbox") {
+      wrapper.append(label, help);
+    } else {
+      wrapper.append(label, input, help);
+    }
     fieldsContainer.append(wrapper);
     state.inputs.set(field.key, input);
   }
@@ -129,7 +156,7 @@ async function saveEditor(event) {
   }
 
   const values = {};
-  for (const [key, input] of state.inputs) values[key] = input.value;
+  for (const [key, input] of state.inputs) values[key] = fieldValue(input);
 
   setBusy(true);
   setStatus("");

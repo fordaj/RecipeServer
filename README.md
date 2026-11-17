@@ -28,6 +28,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 
 - Renders every `recipe.md` in a source tree to a standalone recipe page.
 - Builds a searchable, sortable `index.html` with ratings, meals, categories, difficulty, and last-edited information.
+- Dictates a search instead of asking for the keyboard, when the site is served over HTTPS.
 - Filters recipe ratings by reviewer (up to 30 reviewers, most active first) without hiding any recipe cards.
 - Creates recipes from the index in an existing folder or a new folder.
 - Optionally drafts recipes from pasted text or a URL with a local AI model, then fills the recipe editor for review.
@@ -84,12 +85,14 @@ On Windows, run `serve.bat`. The equivalent cross-platform command is:
 uv run python -m recipeserver
 ```
 
-On first launch, RecipeServer asks you to choose the directory that contains your recipes. The selected path is saved, the site is generated, and the server starts on `http://localhost:8000`.
+On first launch, RecipeServer asks you to choose the directory that contains your recipes. The selected path is saved, the site is generated, and the server starts on `http://127.0.0.1:8000`.
 
 Open the site in either of these ways:
 
 - Click the tray icon and choose **Open Recipes**.
-- Visit [http://localhost:8000](http://localhost:8000) directly.
+- Visit [http://127.0.0.1:8000](http://127.0.0.1:8000) directly.
+
+The server listens on the loopback interface only, so the site is not reachable from other machines. To reach it from a phone (or any other device), put a local reverse proxy or tunnel in front of it that terminates HTTPS — for example `tailscale serve --bg http://127.0.0.1:8000`, Caddy, or a Cloudflare Tunnel. The proxy forwards to `http://127.0.0.1:8000` and sets `X-Forwarded-Proto: https`; that is what enables the dictation button (see below).
 
 Use the **+** button in the index to create a recipe. Choose an existing folder or enter a new folder path relative to the configured recipe directory, then write the recipe in Markdown. The editor can also upload supported images beside the recipe; images added while editing an existing recipe are saved to that recipe's folder.
 
@@ -110,7 +113,7 @@ Recipe creation from text, URL, or image uses an [Ollama](https://ollama.com) se
 ```toml
 # In recipe-server-cfg.toml:
 source_directory = "/path/to/recipes"
-model_endpoint = "http://localhost:11434"
+model_endpoint = "http://127.0.0.1:11434"
 all_purpose_model_name = "llama3.2"
 image_analysis_model = "llava3"
 recipe_server_name = "My Recipe Server"
@@ -121,7 +124,7 @@ RecipeServer talks to Ollama's native API (`/api/chat`, `/api/ps`, and `/api/tag
 The TOML file lives in your user data directory (`recipe-server-cfg.toml`). Configuration can also be edited in the browser: choose **Configuration** from the menu on the home page, then Save and Cancel. Saving rebuilds the site immediately. If the `model_endpoint` key is absent, the app asks for the endpoint on startup:
 
 ```text
-Ollama endpoint (for example http://localhost:11434). Press Enter to skip:
+Ollama endpoint (for example http://127.0.0.1:11434). Press Enter to skip:
 All-purpose model name (press Enter to auto-detect from the endpoint):
 Image analysis model name (press Enter to auto-detect from the endpoint):
 ```
@@ -138,6 +141,27 @@ The AI controls behave as follows:
 While a recipe is generated, the dialog reports each step: checking the model, loading it into memory, preparing the source, thinking (when the model emits reasoning), generating, and complete or error. The generated Markdown is written to the recipe editor when generation finishes, and the final model load time, generation time, token count, and tokens per second are shown when Ollama reports them.
 
 The model prompt requirements are read from `src/recipeserver/NewRecipePrompt.md` on every app run, so edits to that file take effect the next time you start RecipeServer. For **From URL**, RecipeServer fetches the page and sends its readable text (not the raw HTML) to the model. For **From Images**, every chosen image is sent to the configured `image_analysis_model` with the prompt from `src/recipeserver/NewRecipeFromImagePrompt.md`, in the order the images were added; the transcriptions are concatenated and sent to the `all_purpose_model_name` model with `NewRecipePrompt.md` to draft the recipe. The generated Markdown and front matter only pre-fill the editor; review them before creating the recipe.
+
+## Dictating a search
+
+The index has a microphone button next to the search field. Tap it, say what you are looking for, tap it again, and the transcript is typed into the search field — no keyboard needed, which is the point on a phone.
+
+The button is only offered when the site is served over HTTPS. Browsers hand out the microphone to secure pages only, so the button stays hidden on a plain `http://127.0.0.1:8000` page, and the server refuses transcription requests that did not arrive over HTTPS.
+
+To use it from another device, run a local reverse proxy or tunnel in front of the app:
+
+```bash
+# Tailscale: serves https://<machine>.<tailnet>.ts.net and forwards to the app.
+tailscale serve --bg http://127.0.0.1:8000
+```
+
+The proxy must forward to `http://127.0.0.1:8000` and set `X-Forwarded-Proto: https` (Caddy and Tailscale do this by default). Caddy and Cloudflare Tunnel work the same way.
+
+The recording is transcribed on this machine with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) through the `whisper-server` binary in the [fordaj/whisper-native](https://github.com/fordaj/whisper-native) release, bundled under `tools/whisper-native/`; no audio leaves the machine. The `base` model is used by default and its weights are downloaded from Hugging Face the first time a recording is transcribed, so the first dictation needs an internet connection and can take a minute or two. Set `RECIPE_SERVER_WHISPER_MODEL` to another model size (`tiny`, `base.en`, `small`, …) to trade accuracy for speed. RecipeServer manages the `whisper-server` process for you: it starts on the first transcription and stops when the app shuts down.
+
+Dictation is on by default and can be switched off with the **Dictation** checkbox in the Configuration dialog (or the `dictation_enabled` key in `recipe-server-cfg.toml`). When it is off, no button is rendered, `POST /api/transcribe` answers 403, and no Whisper model is downloaded or loaded.
+
+If the first dictation fails because the proxy gave up waiting for the model to download, raise the proxy's read timeout — nginx, for example, defaults to 60 seconds — or dictate again: the model stays loaded in memory after the first attempt.
 
 ## Recipe layout
 
@@ -257,6 +281,13 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **The From text, From URL, and From Images inputs are disabled:** The configured model endpoint could not be reached. Start the model server, check the endpoint URL, and reopen the create dialog.
 - **The From Images input is disabled while text/URL work:** The image prompt could not be loaded. Check `src/recipeserver/NewRecipeFromImagePrompt.md` exists, and that the endpoint serves a vision-capable `image_analysis_model`.
 - **AI generation fails with an HTTP error:** Confirm the Ollama server is running and reachable, and that it exposes `/api/chat` and `/api/ps`. Set `all_purpose_model_name` explicitly if auto-detection picks the wrong model.
+- **The microphone button is missing from the search field:** The site is not being served over HTTPS. Put a local reverse proxy or tunnel in front of `http://127.0.0.1:8000` that sets `X-Forwarded-Proto: https`, and open the site through that address.
+- **Dictation returns "Speech transcription requires an HTTPS connection":** The proxy forwarded the request without the `X-Forwarded-Proto` header (or with `http`). Configure the proxy to forward the original protocol.
+- **Dictation returns "Nothing was heard. Try again.":** The model did not recognise anything in the recording. Speak closer to the microphone and hold the button a little longer.
+- **Dictation returns "Dictation is disabled in the server configuration":** Dictation is switched off. Enable the **Dictation** checkbox in **Configuration** on the home page, or set `dictation_enabled = true` in `recipe-server-cfg.toml`.
+- **Dictation fails with "whisper-server was not found":** The bundled binary is missing for this platform. Run `tools/whisper-native/update.sh` to download the release, or set `WHISPER_SERVER_BIN` to a `whisper-server` binary.
+- **Dictation fails when the model cannot be downloaded:** The first transcription downloads the ggml weights from Hugging Face. Check the network connection, or download `ggml-base.bin` manually and place it in `<user-data>/recipe-server/models/`.
+- **The first dictation takes a long time and the proxy times out:** The model weights are downloaded on the first transcription. Raise the proxy's read timeout (nginx defaults to 60 seconds) or dictate again — the model stays loaded after that.
 
 ## Development
 
@@ -323,6 +354,29 @@ log are saved to `.e2e-artifacts/` and attached to the pytest failure report;
 CI uploads them as a workflow artifact. When the browser cannot be started the
 tests fail in CI and skip locally (set `CI=true` to force the failure).
 
+### Speech transcription tests
+
+The dictation feature is covered by tests that need no model: `test/test_transcriber.py`
+decodes real recordings (Opus in WebM, AAC in MP4, and WAV) with the installed
+PyAV, `test/test_whisper_server.py` covers the subprocess lifecycle against a
+stub server, and `test/test_speech_button.py` posts those recordings through the
+`/api/transcribe` endpoint. The recorded phrase lives in `test/fixtures/speech/`.
+
+The tests that run the real Whisper model are skipped by default, because they
+download the model weights. Run them with:
+
+```bash
+RECIPE_SERVER_TEST_WHISPER=1 uv run pytest test/test_speech_model.py
+```
+
+| Variable                           | Default                            | Purpose                                                  |
+| ---------------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| `RECIPE_SERVER_TEST_WHISPER`       | unset                              | Set to `1` to run the tests that use the real model.     |
+| `RECIPE_SERVER_TEST_WHISPER_MODEL` | `tiny`                             | Model size for those tests (`tiny`, `base`, `small`, …). |
+| `RECIPE_SERVER_WHISPER_MODEL`      | `base`                             | Model size the app uses.                                 |
+| `RECIPE_SERVER_WHISPER_MODEL_DIR`  | `<user-data>/recipe-server/models` | Where the downloaded ggml weights are kept.              |
+| `WHISPER_SERVER_BIN`               | bundled `tools/whisper-native/…`   | Points at the `whisper-server` binary to manage.         |
+
 Writing new tests:
 
 - Use the `recipe_server` fixture for a running server against temporary
@@ -382,6 +436,8 @@ src/recipeserver/
 ├── metadata_linter.py      # required-field list and warning text
 ├── image_handler.py        # supported images, hero selection, accent colors
 ├── server.py               # HTTP server and JSON APIs
+├── transcriber.py          # dictation: PyAV decode + whisper-server HTTP client
+├── whisper_server.py       # whisper-server subprocess lifecycle and model download
 ├── tray.py                 # system tray icon and menu
 ├── NewRecipePrompt.md      # model prompt requirements, reloaded at startup
 └── assets/                 # CSS, JavaScript, icons, and vendored KaTeX
@@ -400,13 +456,13 @@ tools/                      # bundled fordaj/* binaries + update.sh refreshers
 - One broken recipe is skipped with a logged error so the rest of the site can still build.
 - Metadata warnings are advisory and never block generation, serving, or saving.
 - The HTTP API uses relative `.md` paths inside the configured source directory. Paths outside it are rejected.
-- APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/ai-status`, `POST /api/ai-recipe`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, `GET|POST /api/metadata/<field>`, `GET /api/metadata-options`, and `GET /api/shopping-list`.
+- APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/ai-status`, `POST /api/ai-recipe`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, `GET|POST /api/metadata/<field>`, `GET /api/metadata-options`, `GET /api/shopping-list`, and `POST /api/transcribe`.
 - `GET /api/metadata-options` returns the metadata values that are already used in the library (meals, categories, cuisine, tags, status, contributor, plus source author and title) with the number of recipes that use each of them, so the editor can offer them as dropdown options. The values are read from the recipe Markdown files on request; they are never hard-coded into generated pages or front matter.
 - Recipe creation writes `recipe.md` into the selected folder and rejects folder paths outside the source directory or existing recipes.
 - AI recipe generation never writes files. It returns Markdown and metadata to the editor, which saves only when the user submits the create form.
 - The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, not when the app is built.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
-- The server uses the port set in Configuration (default `8000`), binds to `0.0.0.0`, and has no authentication. Run it only on a trusted local network.
+- The server uses the port set in Configuration (default `8000`), binds to `127.0.0.1`, and has no authentication. Serve it over HTTPS through a local reverse proxy or tunnel; the dictation button only appears on those pages.
 - There is no JavaScript build step. Frontend assets are served directly, and KaTeX is vendored in `src/recipeserver/assets/katex`.
 
 ## KaTeX

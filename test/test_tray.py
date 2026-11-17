@@ -168,7 +168,9 @@ def test_tray_menu_opens_the_recipes_page(tray_factory, monkeypatch):
 
     get_menu_item(tray, "Open Recipes")(icon)
 
-    assert opened_urls == ["http://localhost:8000"]
+    # The server listens on the IPv4 loopback address only, so the tray
+    # opens 127.0.0.1 rather than "localhost" (which may resolve to IPv6).
+    assert opened_urls == ["http://127.0.0.1:8000"]
 
 
 def test_tray_menu_reports_server_status(tray_factory):

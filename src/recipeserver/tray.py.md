@@ -18,7 +18,7 @@ The `pystray`-based tray icon: open the site, see server status, start/stop the 
 
 `__init__(server, on_quit)` builds a `pystray.Icon("RecipeServer", …)` with a menu:
 
-- **Open Recipes** (default action) — opens `http://localhost:<port>` in the browser; the port is read from `server.port` (falls back to 8000).
+- **Open Recipes** (default action) — opens `http://127.0.0.1:<port>` in the browser; the port is read from `server.port` (falls back to 8000). The address is the IPv4 loopback address, not `localhost`, which may resolve to IPv6 first.
 - **Server: Running/Stopped** — disabled status item, refreshed via `icon.update_menu()` after start/stop.
 - **Start Server** / **Stop Server** — visible only when applicable; start failures (e.g. port in use) are logged, and `Server.start()` itself exits the process when the port is taken.
 - **Quit** — sets the shutdown event (`on_quit`), which stops the tray and the server.

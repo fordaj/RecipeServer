@@ -13,6 +13,7 @@ from .image_handler import IMAGE_EXTENSIONS
 from .index_html_generator import IndexHTMLGenerator, Recipe
 from .markdown_to_html import MarkdownToHTMLConverter
 from .server import Server
+from .transcriber import stop_transcriber
 from .tray import Tray
 
 # Recipe conversion is mostly I/O (reading Markdown, copying images) with some
@@ -134,6 +135,10 @@ class Core:
         with self._regen_lock:
             self._regen_locked()
             logger.info("Regenerated site after configuration change")
+        if not getattr(self.cfg, "dictation_enabled", True):
+            # Dictation was turned off: release the whisper-server (and its
+            # model) instead of letting it linger.
+            stop_transcriber()
 
     def _regen_locked(self):
         """Full site rebuild; caller must hold ``_regen_lock``."""
@@ -229,4 +234,5 @@ def main(cfg: Configuration):
         shutdown_event.set()
         tray.stop()
         server.stop()
+        stop_transcriber()
         logger.info("RecipeServer stopped.")

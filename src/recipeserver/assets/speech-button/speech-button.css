@@ -1,0 +1,130 @@
+/* ---------- Speech input wrapper ---------- */
+
+.speech-input {
+  position: relative;
+  margin-bottom: 0.7rem;
+}
+
+/* The button is positioned against the field, so the label keeps no
+   margin of its own. */
+.speech-input .search-control {
+  margin-bottom: 0;
+}
+
+/* Leave room for the button so the text never runs underneath it. */
+.speech-input .search-control input {
+  padding-right: 3.25rem;
+}
+
+/* ---------- Speech button ---------- */
+
+.speech-button {
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  transform: translateY(-50%);
+
+  display: grid;
+  place-items: center;
+
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-color);
+
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.speech-button:hover {
+  background-color: var(--hover-bg);
+  color: var(--heading-color);
+}
+
+.speech-button:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+/* The button is hidden until the page knows it is served over HTTPS. */
+.speech-button[hidden] {
+  display: none;
+}
+
+.speech-button:disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+
+/* ---------- Icon ---------- */
+
+.speech-button__icon {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  pointer-events: none;
+}
+
+.speech-button__icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- States ---------- */
+
+.speech-button.is-recording {
+  color: var(--danger-color);
+}
+
+.speech-button.is-complete {
+  color: var(--food-color);
+}
+
+.speech-button.is-transcribing .speech-button__icon,
+.speech-button.is-recording .speech-button__icon {
+  animation: speech-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes speech-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---------- Responsive layout ---------- */
+
+@media (min-width: 750px) {
+  .speech-input {
+    margin-bottom: 0.8rem;
+  }
+}
+
+/* Bigger touch target on phones. */
+@media (pointer: coarse) {
+  .speech-button {
+    width: 2.75rem;
+    height: 2.75rem;
+    right: 0.35rem;
+  }
+
+  .speech-input .search-control input {
+    padding-right: 3.75rem;
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .speech-button,
+  .speech-button__icon {
+    transition: none;
+    animation: none;
+  }
+}

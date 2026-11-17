@@ -8,10 +8,13 @@ authors = [
 ]
 requires-python = ">=3.14"
 dependencies = [
+  "av>=15.0.0",
   "beautifulsoup4>=4.15.0",
   "coloraide>=8.13.1",
   "loguru>=0.7.3",
   "markdown>=3.11",
+  # PyAV needs NumPy to turn decoded frames into arrays.
+  "numpy>=2.3.2",
   "pillow==12.3.0",
   "platformdirs>=4.13.0",
   "py7zr>=1.1.4",

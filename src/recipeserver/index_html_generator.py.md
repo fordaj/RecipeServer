@@ -22,6 +22,7 @@ Builds `index.html`: the searchable, sortable grid of recipe cards with filter m
 - `_prepare_card(recipe, filter_values)` → `_RecipeCard` — computes everything one card needs: title (heading → front-matter `title` → directory name), hero image URL, average rating, filter values, `data-*` attributes, and the metadata warnings from [metadata_linter.py.md](metadata_linter.py.md).
 - `convert()` — aggregates filter option counts, renders the page shell (`_render_page`), and writes `index.html`.
 - Page chrome: `_page_head_html`, `_page_header_html`, `_toolbar_html`, `_results_bar_html`, `_version_footer_html`. The toolbar includes the sandwich menu ([menu.py.md](menu.py.md)), filter menus, and the **Metadata Status** toggle — warnings are advisory and hidden by default.
+- The search field sits in a `.speech-input` wrapper with a `.speech-button` next to it: the dictation button that records a search phrase instead of asking for the keyboard. The button is generated `hidden` and only revealed by `assets/speech-button/speech-button.js` when the page was loaded over HTTPS, because the browser only hands out the microphone to secure pages. The recording is transcribed by the server ([transcriber.py.md](transcriber.py.md)). When dictation is disabled in the configuration (`dictation_enabled`, see [config.py.md](config.py.md)), the button, its CSS/JS, and the `.speech-input` wrapper are omitted from the generated page and the search field renders as a plain control.
 - Stable test hooks: the search input carries `data-testid="recipe-search"`, the list carries `data-testid="recipe-list"`, and every recipe item carries `data-testid="recipe-item"`. The Selenium browser tests under `test/e2e/` select on these.
 - Accent color: `_food_color_style` emits a per-page `--food-color` override with a `prefers-color-scheme: dark` variant via [color_utils.py.md](color_utils.py.md); `FOOD_COLOR_HOVER_MIX_PERCENT = 82` weights the hover `color-mix()`.
 - Assets URLs are content-hashed via `versioned_asset_url` ([_version.py.md](_version.py.md)); icons are inlined from `assets/*.svg` (never inline ad-hoc SVG).
@@ -34,4 +35,5 @@ The filter UI (`data-*` attributes, `filter-*` controls) is consumed by `assets/
 - [metadata_linter.py.md](metadata_linter.py.md) — the warnings rendered on cards
 - [menu.py.md](menu.py.md) — the sandwich menu markup used in the toolbar
 - [sources.py.md](sources.py.md) — shared source-list rendering rules
+- [transcriber.py.md](transcriber.py.md) — the transcription behind the dictation button
 - [README.md](README.md) — the package hub

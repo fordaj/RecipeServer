@@ -20,11 +20,16 @@ RECIPE_SERVER_NAME_KEY = "recipe_server_name"
 SERVER_NAME_KEY = "server_name"
 SERVER_PORT_KEY = "server_port"
 FOOD_COLOR_KEY = "food_color"
+DICTATION_ENABLED_KEY = "dictation_enabled"
 SOURCE_DIRECTORY_KEY = "source_directory"
 CONFIG_FILENAME = "recipe-server-cfg.toml"
 LEGACY_CONFIG_FILENAME = "config.txt"
 DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
 DEFAULT_SERVER_PORT = 8000
+# Dictation records a clip in the browser and transcribes it with the
+# bundled whisper-server. It is on by default; the switch only decides
+# whether the app offers the feature at all.
+DEFAULT_DICTATION_ENABLED = True
 MAX_PORT = 65535
 # Matches the --food-color default in assets/definitions.css.
 DEFAULT_FOOD_COLOR = "#8d5542"
@@ -135,6 +140,31 @@ def _validate_food_color(value: str, label: str) -> str:
         raise ValueError(f"{label} must be a hex string such as #8d5542.") from None
 
 
+_TRUE_VALUES = {"1", "true", "yes", "on"}
+_FALSE_VALUES = {"0", "false", "no", "off"}
+
+
+def _normalize_dictation_enabled(value) -> bool:
+    """Normalize a dictation_enabled value to a boolean."""
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in _TRUE_VALUES:
+        return True
+    if text in _FALSE_VALUES:
+        return False
+    if not text:
+        return DEFAULT_DICTATION_ENABLED
+    raise ValueError(f"Dictation must be true or false, not {value!r}.")
+
+
+def _validate_dictation_enabled(value: str, label: str) -> str:
+    try:
+        return "true" if _normalize_dictation_enabled(value) else "false"
+    except ValueError:
+        raise ValueError(f"{label} must be true or false.") from None
+
+
 @dataclass(frozen=True)
 class ConfigField:
     """One editable configuration value.
@@ -177,10 +207,10 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
     ConfigField(
         MODEL_ENDPOINT_KEY,
         "Local model endpoint",
-        "Ollama server endpoint, for example http://localhost:11434. Leave blank to disable AI recipe creation. A scheme is added if omitted.",
+        "Ollama server endpoint, for example http://127.0.0.1:11434. Leave blank to disable AI recipe creation. A scheme is added if omitted.",
         _validate_model_endpoint,
         input_type="url",
-        placeholder="http://localhost:11434",
+        placeholder="http://127.0.0.1:11434",
     ),
     ConfigField(
         ALL_PURPOSE_MODEL_NAME_KEY,
@@ -213,6 +243,17 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         " still derive their own accent from that photo.",
         _validate_food_color,
         placeholder=DEFAULT_FOOD_COLOR,
+    ),
+    ConfigField(
+        DICTATION_ENABLED_KEY,
+        "Dictation",
+        "Enable the dictation button in the search field. A short clip is"
+        " recorded in the browser and transcribed locally with Whisper,"
+        " served by the managed whisper-server process. Disable to hide the"
+        " button and turn the transcription API off; while disabled the"
+        " Whisper model is never downloaded or loaded.",
+        _validate_dictation_enabled,
+        input_type="checkbox",
     ),
 )
 
@@ -260,6 +301,7 @@ class Configuration:
         self._recipe_server_name: str = DEFAULT_RECIPE_SERVER_NAME
         self._server_port: int = DEFAULT_SERVER_PORT
         self._food_color: str = DEFAULT_FOOD_COLOR
+        self._dictation_enabled: bool = DEFAULT_DICTATION_ENABLED
         self.new_recipe_prompt: str = ""
         self.new_recipe_from_image_prompt: str = ""
         self._config_file: Path | None = None
@@ -338,6 +380,18 @@ class Configuration:
             self._food_color = DEFAULT_FOOD_COLOR
 
     @property
+    def dictation_enabled(self) -> bool:
+        return self._dictation_enabled
+
+    @dictation_enabled.setter
+    def dictation_enabled(self, value) -> None:
+        try:
+            self._dictation_enabled = _normalize_dictation_enabled(value)
+        except ValueError:
+            logger.warning(f"Ignoring invalid {DICTATION_ENABLED_KEY} value {value!r}; using default {DEFAULT_DICTATION_ENABLED}")
+            self._dictation_enabled = DEFAULT_DICTATION_ENABLED
+
+    @property
     def site_directory(self) -> Path:
         return user_data_path("recipe-server", appauthor=False) / "site"
 
@@ -414,7 +468,16 @@ class Configuration:
 
     def get_config_values(self) -> dict[str, str]:
         """Current values of every editable configuration field."""
-        return {field.key: str(getattr(self, field.key)) for field in CONFIG_FIELDS}
+        values: dict[str, str] = {}
+        for field in CONFIG_FIELDS:
+            value = getattr(self, field.key)
+            # TOML booleans round-trip as lowercase strings; everything else
+            # stringifies.
+            if isinstance(value, bool):
+                values[field.key] = "true" if value else "false"
+            else:
+                values[field.key] = str(value)
+        return values
 
     def apply_config_values(self, values: dict) -> list[str]:
         """Validate and apply edited values, then persist them.
@@ -466,6 +529,10 @@ class Configuration:
             if key == SERVER_PORT_KEY and isinstance(value, int) and not isinstance(value, bool):
                 settings[key] = str(value)
                 continue
+            # dictation_enabled is written as a TOML boolean; accept both.
+            if key == DICTATION_ENABLED_KEY and isinstance(value, bool):
+                settings[key] = "true" if value else "false"
+                continue
             if not isinstance(value, str):
                 logger.warning(f"Ignoring non-text configuration value for {key!r}")
                 continue
@@ -513,7 +580,7 @@ class Configuration:
         """
         logger.info("Optionally configure a local AI model so recipes can be created from text, a URL, or an image.")
 
-        endpoint = self._prompt_user("Ollama endpoint (for example http://localhost:11434). Press Enter to skip: ")
+        endpoint = self._prompt_user("Ollama endpoint (for example http://127.0.0.1:11434). Press Enter to skip: ")
         if not endpoint:
             logger.info("No local model configured; AI recipe creation is disabled")
             self.model_endpoint = ""
@@ -570,8 +637,13 @@ class Configuration:
         lines = [
             "# RecipeServer configuration.",
             "# Edit through the Configuration dialog in the app, or by hand here.",
-            *(f"{key} = {_toml_string(value)}" for key, value in values.items()),
         ]
+        for key, value in values.items():
+            if key == DICTATION_ENABLED_KEY:
+                # Write a real TOML boolean instead of a quoted string.
+                lines.append(f"{key} = {value}")
+            else:
+                lines.append(f"{key} = {_toml_string(value)}")
 
         logger.debug(
             f"Saving configuration to {config_file}"
@@ -579,7 +651,8 @@ class Configuration:
             f" all-purpose model={self.all_purpose_model_name or '(auto)'},"
             f" image analysis model={self.image_analysis_model or '(auto)'},"
             f" server name={self.recipe_server_name!r},"
-            f" port={self.server_port}, food color={self.food_color})"
+            f" port={self.server_port}, food color={self.food_color},"
+            f" dictation={self.dictation_enabled})"
         )
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
@@ -630,7 +703,9 @@ class Configuration:
             self.server_port = settings[SERVER_PORT_KEY]
         if FOOD_COLOR_KEY in settings:
             self.food_color = settings[FOOD_COLOR_KEY]
-        logger.debug(f"Configured server port: {self.server_port}, food color: {self.food_color}")
+        if DICTATION_ENABLED_KEY in settings:
+            self.dictation_enabled = settings[DICTATION_ENABLED_KEY]
+        logger.debug(f"Configured server port: {self.server_port}, food color: {self.food_color}, dictation: {self.dictation_enabled}")
 
         if MODEL_ENDPOINT_KEY in settings:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")
