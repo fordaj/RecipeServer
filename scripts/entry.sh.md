@@ -2,14 +2,16 @@
 
 ```mermaid
 flowchart TD
-    caller["task script or tools/*/update.sh"] --> entry["entry.sh"]
-    entry --> env["env.sh"]
-    env --> common[".common.env"]
-    env --> platform[".<os>-<arch>.env"]
-    entry --> log["log()"]
-    log --> bin["logamuffin binary<br/>via LOGAMUFFIN_BIN"]
+    caller("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>task script or tools/*/update.sh</u>") --> entry("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>entry.sh")
+    entry --> env("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>env.sh</u>")
+    env --> common("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>.common.env")
+    env --> platform("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>.<os>-<arch>.env")
+    entry --> log("<img src='barnacle:logs.svg' width='20' alt=''/><br/>log()")
+    log --> bin("<img src='barnacle:binary.svg' width='20' alt=''/><br/>logamuffin binary<br/>via LOGAMUFFIN_BIN")
     click env href "env.sh.md"
     click caller href "README.md"
+    class caller,entry,env,common,platform shFile
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
 ```
 
 Every repository script sources `scripts/entry.sh` instead of the individual cascade files, because it does two jobs at once:

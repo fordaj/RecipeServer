@@ -2,12 +2,14 @@
 
 ```mermaid
 flowchart LR
-    dir["recipe folder"] --> sorted["filename-sorted<br/>IMAGE_EXTENSIONS"]
-    sorted --> hero["first image<br/>= hero"]
-    hero --> color["ImageToColorConverter<br/>accent #RRGGBB"]
-    hero --> page["page accent color"]
+    dir("<img src='barnacle:folder.svg' width='20' alt=''/><br/>recipe folder") --> sorted("<img src='barnacle:arrow-down-a-z.svg' width='20' alt=''/><br/>filename-sorted<br/>IMAGE_EXTENSIONS")
+    sorted --> hero("<img src='barnacle:image.svg' width='20' alt=''/><br/><u>first image<br/>= hero</u>")
+    hero --> color("<img src='barnacle:palette.svg' width='20' alt=''/><br/>ImageToColorConverter<br/>accent #RRGGBB")
+    hero --> page("<img src='barnacle:palette.svg' width='20' alt=''/><br/><u>page accent color</u>")
     click page href "markdown_to_html/converter.py.md"
     click hero href "index_html_generator.py.md"
+    class dir folder
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 Supported-image rules and the hero-image → accent-color derivation.

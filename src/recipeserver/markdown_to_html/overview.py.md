@@ -2,16 +2,22 @@
 
 ```mermaid
 flowchart TD
-    meta["front matter metadata"] --> primary["primary row<br/>rating · makes · difficulty · meals"]
-    meta --> secondary["secondary row<br/>status · cuisine · categories · tags"]
-    meta --> tertiary["tertiary row<br/>Archived badge"]
-    primary --> fragment["recipe-overview fragment"]
+    meta("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>front matter metadata") --> primary("<img src='barnacle:app-window.svg' width='20' alt=''/><br/><u>primary row<br/>rating · makes · difficulty · meals</u>")
+    meta --> secondary("<img src='barnacle:app-window.svg' width='20' alt=''/><br/>secondary row<br/>status · cuisine · categories · tags")
+    meta --> tertiary("<img src='barnacle:app-window.svg' width='20' alt=''/><br/><u>tertiary row<br/>Archived badge</u>")
+    primary --> fragment("<img src='barnacle:app-window.svg' width='20' alt=''/><br/>recipe-overview fragment")
     secondary --> fragment
     tertiary --> fragment
-    fragment --> inject["inject_recipe_overview()<br/>before hero image"]
+    fragment --> inject("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>inject_recipe_overview()<br/>before hero image</u>")
     click inject href "converter.py.md"
     click primary href "../recipe_utils.py.md"
     click tertiary href "extras.py.md"
+    class meta mdFile
+    class primary,secondary,tertiary,fragment htmlFile
+    class inject goFile
+    classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
+    classDef htmlFile fill:#ffc48a,stroke:#c2410c,color:#431407
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 Builds the three-row "overview" strip injected into recipe pages above the hero image:

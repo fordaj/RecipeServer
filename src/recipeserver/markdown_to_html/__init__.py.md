@@ -2,16 +2,20 @@
 
 ```mermaid
 flowchart LR
-    md["recipe.md"] --> parse["1. load + parse<br/>front matter · title"]
-    parse --> appearance["2. appearance + lint"]
-    appearance --> body["3. render body<br/>pymdownx"]
-    body --> shell["4. page shell"]
-    shell --> post["5. postprocess<br/>quantities · injections"]
+    md("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>recipe.md") --> parse("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>1. load + parse<br/>front matter · title</u>")
+    parse --> appearance("<img src='barnacle:eye.svg' width='20' alt=''/><br/><u>2. appearance + lint</u>")
+    appearance --> body("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>3. render body<br/>pymdownx</u>")
+    body --> shell("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>4. page shell</u>")
+    shell --> post("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>5. postprocess<br/>quantities · injections</u>")
     click parse href "converter.py.md"
     click appearance href "../image_handler.py.md"
     click body href "converter.py.md"
     click shell href "page.py.md"
     click post href "quantities.py.md"
+    class md mdFile
+    class parse,body,shell,post goFile
+    classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 Renders recipe Markdown files to full HTML pages. The pipeline stages live in sibling modules; this package's `__init__.py` re-exports the orchestrator and the package version.

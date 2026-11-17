@@ -2,17 +2,21 @@
 
 ```mermaid
 flowchart TD
-    main["__main__.py<br/>python -m recipeserver"] --> core["core.py<br/>Core.regen()"]
-    core --> converter["markdown_to_html/<br/>per-recipe rendering"]
-    core --> index["index_html_generator.py<br/>index.html"]
-    core --> server["server.py<br/>site + /api/*"]
-    core --> tray["tray.py<br/>system tray"]
+    main("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>__main__.py<br/>python -m recipeserver</u>") --> core("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.py<br/>Core.regen()</u>")
+    core --> converter("<img src='barnacle:folder.svg' width='20' alt=''/><br/><u>markdown_to_html/<br/>per-recipe rendering</u>")
+    core --> index("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>index_html_generator.py<br/>index.html</u>")
+    core --> server("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>server.py<br/>site + /api/*</u>")
+    core --> tray("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>tray.py<br/>system tray</u>")
     click main href "__main__.py.md"
     click core href "core.py.md"
     click converter href "markdown_to_html/converter.py.md"
     click index href "index_html_generator.py.md"
     click server href "server.py.md"
     click tray href "tray.py.md"
+    class main,core,index,server,tray goFile
+    class converter folder
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 All of RecipeServer's implementation lives here: the startup pipeline, the `recipe.md` → HTML renderers, the index generator, the HTTP server, the tray, and the asset tree. The console script declared in `pyproject.toml` (`recipeserver = "recipeserver:main"`) resolves through this package.

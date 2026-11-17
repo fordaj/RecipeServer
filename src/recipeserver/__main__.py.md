@@ -2,14 +2,16 @@
 
 ```mermaid
 flowchart TD
-    start["python -m recipeserver"] --> parse["parse_args()<br/>--log-level"]
-    parse --> setup["setup_logger()<br/>loguru sinks"]
-    setup --> cfg["Configuration()<br/>handle_configuration()"]
-    cfg --> main["core.main(cfg)<br/>build · serve · tray"]
+    start("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>python -m recipeserver") --> parse("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>parse_args()<br/>--log-level</u>")
+    parse --> setup("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>setup_logger()<br/>loguru sinks</u>")
+    setup --> cfg("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Configuration()<br/>handle_configuration()</u>")
+    cfg --> main("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.main(cfg)<br/>build · serve · tray</u>")
     click parse href "core.py.md"
     click setup href "_logger.py.md"
     click cfg href "config.py.md"
     click main href "core.py.md"
+    class parse,setup,cfg,main goFile
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 Enables `python -m recipeserver`. Ten lines, no logic of its own — it just wires the startup sequence together:

@@ -2,13 +2,21 @@
 
 ```mermaid
 flowchart LR
-    gh["gh release view<br/>--repo barnacle"] --> assets["platform archives<br/>.tar.gz · .zip"]
-    assets --> verify["checksums<br/>checksums.txt / SHA256SUMS.txt"]
-    verify --> extract["extract binary"]
-    extract --> stage["stage v<tag>/<platform>/"]
-    stage --> swap["swap + delete old v*/"]
+    gh("<img src='barnacle:download.svg' width='20' alt=''/><br/><u>gh release view<br/>--repo barnacle</u>") --> assets("<img src='barnacle:package.svg' width='20' alt=''/><br/>platform archives<br/>.tar.gz · .zip")
+    assets --> verify("<img src='barnacle:check.svg' width='20' alt=''/><br/>checksums<br/>checksums.txt / SHA256SUMS.txt")
+    verify --> extract("<img src='barnacle:package-open.svg' width='20' alt=''/><br/>extract binary")
+    extract --> stage("<img src='barnacle:folder.svg' width='20' alt=''/><br/>stage v<tag>/<platform>/")
+    stage --> swap("<img src='barnacle:folder-sync.svg' width='20' alt=''/><br/><u>swap + delete old v*/</u>")
     click gh href "../README.md"
     click swap href "../../scripts/env.sh.md"
+    class gh dlNode
+    class assets boxNode
+    class verify checkNode
+    class stage,swap folder
+    classDef dlNode fill:#93e2e2,stroke:#0f766e,color:#042f2e
+    classDef boxNode fill:#e8cf9d,stroke:#a16207,color:#33240a
+    classDef checkNode fill:#9fe8c9,stroke:#0f766e,color:#052e22
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 [Barnacle](https://github.com/fordaj/barnacle) is a documentation-site generator: it renders the `.md` and `.mmd` files scattered through a repository into a static, navigable HTML site. RecipeServer uses it to render *this* documentation; the site you may be reading was built by it.

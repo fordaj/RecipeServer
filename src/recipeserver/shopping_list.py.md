@@ -2,12 +2,16 @@
 
 ```mermaid
 flowchart LR
-    pages["generated recipe pages<br/>(HTML)"] --> scrape["scrape_ingredients()"]
-    scrape --> parse["parse_ingredient()<br/>name · unit · range"]
-    parse --> api["GET /api/shopping-list"]
-    api --> browser["browser<br/>per-recipe scaler + checklist"]
+    pages("<img src='barnacle:app-window.svg' width='20' alt=''/><br/>generated recipe pages<br/>(HTML)") --> scrape("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>scrape_ingredients()</u>")
+    scrape --> parse("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>parse_ingredient()<br/>name · unit · range</u>")
+    parse --> api("<img src='barnacle:globe.svg' width='20' alt=''/><br/>GET /api/shopping-list")
+    api --> browser("<img src='barnacle:globe.svg' width='20' alt=''/><br/>browser<br/>per-recipe scaler + checklist")
     click scrape href "server.py.md"
     click parse href "markdown_to_html/quantities.py.md"
+    class pages htmlFile
+    class scrape,parse goFile
+    classDef htmlFile fill:#ffc48a,stroke:#c2410c,color:#431407
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 Ingredient scraping for the shopping list. The shopping list opens from the index in selection mode; `GET /api/shopping-list?path=…` (repeated) returns each selected recipe's ingredients, and the browser combines them with per-recipe scaling.

@@ -2,11 +2,15 @@
 
 ```mermaid
 flowchart TD
-    recipes["Recipe triples<br/>(metadata, html_file, title)"] --> cards["_RecipeCard<br/>title · hero · rating · warnings"]
-    cards --> page["index.html<br/>search · sort · filter"]
-    page --> menu["sandwich menu<br/>+ Metadata Status toggle"]
+    recipes("<img src='barnacle:database.svg' width='20' alt=''/><br/>Recipe triples<br/>(metadata, html_file, title)") --> cards("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_RecipeCard<br/>title · hero · rating · warnings</u>")
+    cards --> page("<img src='barnacle:app-window.svg' width='20' alt=''/><br/><u>index.html<br/>search · sort · filter</u>")
+    page --> menu("<img src='barnacle:menu.svg' width='20' alt=''/><br/>sandwich menu<br/>+ Metadata Status toggle")
     click cards href "metadata_linter.py.md"
     click page href "menu.py.md"
+    class cards goFile
+    class page htmlFile
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef htmlFile fill:#ffc48a,stroke:#c2410c,color:#431407
 ```
 
 Builds `index.html`: the searchable, sortable grid of recipe cards with filter menus, a reviewer filter, and advisory metadata warnings. Called by [core.py.md](core.py.md) after every regeneration (`Core._update_index`); output goes to `<site>/index.html`.

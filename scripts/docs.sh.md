@@ -2,13 +2,19 @@
 
 ```mermaid
 flowchart LR
-    docs["scripts/docs.sh"] --> entry["entry.sh"]
-    entry --> env["env.sh + hidden<br/>.*.env cascade"]
-    env --> bin["BARNACLE_BIN<br/>tools/barnacle/v…/barnacle"]
-    bin --> config[".barnacle.json"]
-    config --> site["./site/"]
+    docs("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>scripts/docs.sh") --> entry("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>entry.sh</u>")
+    entry --> env("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>env.sh + hidden<br/>.*.env cascade</u>")
+    env --> bin("<img src='barnacle:binary.svg' width='20' alt=''/><br/>BARNACLE_BIN<br/>tools/barnacle/v…/barnacle")
+    bin --> config("<img src='barnacle:braces.svg' width='20' alt=''/><br/>.barnacle.json")
+    config --> site("<img src='barnacle:folder.svg' width='20' alt=''/><br/>./site/")
     click entry href "entry.sh.md"
     click env href "env.sh.md"
+    class docs,entry,env shFile
+    class config jsonFile
+    class site folder
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
+    classDef jsonFile fill:#cdb9f7,stroke:#6d28d9,color:#2e1065
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 Generates the documentation site you are reading: it runs the pinned barnacle binary (`tools/barnacle/update.sh.md`) against this repository.

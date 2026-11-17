@@ -2,13 +2,15 @@
 
 ```mermaid
 flowchart LR
-    fmt["scripts/format.sh"] --> entry["entry.sh → log()"]
-    fmt --> uv["uv run formattington all<br/>--config .formattington.json"]
-    uv --> prettier["prettier<br/>css · js · html · md · yml"]
-    uv --> black["black<br/>py (line-length 150)"]
-    uv --> shfmt["shfmt -i 2<br/>bash"]
-    uv --> taplo["taplo<br/>toml"]
+    fmt("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>scripts/format.sh") --> entry("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>entry.sh → log()</u>")
+    fmt --> uv("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>uv run formattington all<br/>--config .formattington.json")
+    uv --> prettier("<img src='barnacle:paintbrush.svg' width='20' alt=''/><br/>prettier<br/>css · js · html · md · yml")
+    uv --> black("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>black<br/>py (line-length 150)")
+    uv --> shfmt("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>shfmt -i 2<br/>bash")
+    uv --> taplo("<img src='barnacle:braces.svg' width='20' alt=''/><br/>taplo<br/>toml")
     click entry href "entry.sh.md"
+    class fmt,entry shFile
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
 ```
 
 Runs [formattington](https://github.com/fordaj/formattington) over the repository with logging via logamuffin. It is the repo's one-command formatter.

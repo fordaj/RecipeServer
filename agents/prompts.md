@@ -2,11 +2,11 @@
 
 ```mermaid
 flowchart TD
-    create["Create issues"] --> audit["Agent audits the<br/>whole codebase"]
-    audit --> parent["Parent issue"]
-    parent --> children["Child issue per<br/>top offender"]
-    work["Work on an issue"] --> branch["Branch per issue"]
-    branch --> pr["Pull request"]
+    create("<img src='barnacle:circle-dot.svg' width='20' alt=''/><br/>Create issues") --> audit("<img src='barnacle:search.svg' width='20' alt=''/><br/><u>Agent audits the<br/>whole codebase</u>")
+    audit --> parent("<img src='barnacle:circle-dot.svg' width='20' alt=''/><br/>Parent issue")
+    parent --> children("<img src='barnacle:circle-dot.svg' width='20' alt=''/><br/>Child issue per<br/>top offender")
+    work("<img src='barnacle:pen-line.svg' width='20' alt=''/><br/>Work on an issue") --> branch("<img src='barnacle:git-branch.svg' width='20' alt=''/><br/><u>Branch per issue</u>")
+    branch --> pr("<img src='barnacle:git-pull-request.svg' width='20' alt=''/><br/>Pull request")
     click audit href "CODE_DISTILLATION_AGENT.md"
     click branch href "COGNITIVE_COMPLEXITY_AGENT.md"
 ```

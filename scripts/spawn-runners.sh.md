@@ -2,11 +2,15 @@
 
 ```mermaid
 flowchart LR
-    spawn["scripts/spawn-runners.sh"] --> entry["entry.sh → log()"]
-    entry --> bin["RUNNER_SPAWNER_BIN"]
-    bin --> create["runner-spawner create<br/>--config .runner-spawner.json"]
-    create --> runners[".runners/<br/>runner01 · runner02"]
+    spawn("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>scripts/spawn-runners.sh") --> entry("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>entry.sh → log()</u>")
+    entry --> bin("<img src='barnacle:binary.svg' width='20' alt=''/><br/>RUNNER_SPAWNER_BIN")
+    bin --> create("<img src='barnacle:rocket.svg' width='20' alt=''/><br/>runner-spawner create<br/>--config .runner-spawner.json")
+    create --> runners("<img src='barnacle:folder.svg' width='20' alt=''/><br/>.runners/<br/>runner01 · runner02")
     click entry href "entry.sh.md"
+    class spawn,entry shFile
+    class runners folder
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 Creates the repository-scoped self-hosted CI runners described by `.runner-spawner.json` (two runners, `runner01`/`runner02`, registered to `fordaj/RecipeServer`, installed under `.runners/`, gitignored). The runners are used by the `.github/workflows/check-formatting.yml` "PR Checks" workflow that runs on macOS and Windows.

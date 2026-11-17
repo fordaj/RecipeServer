@@ -2,12 +2,20 @@
 
 ```mermaid
 flowchart LR
-    walk["recipe.md files<br/>under source dir"] --> parse["front matter per file"]
-    parse --> counts["{field: [{value, count}]}<br/>case-insensitive sort"]
-    counts --> api["GET /api/metadata-options"]
-    api --> dropdown["editor + feedback dropdowns<br/>metadata-picker.js"]
+    walk("<img src='barnacle:folder.svg' width='20' alt=''/><br/>recipe.md files<br/>under source dir") --> parse("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>front matter per file")
+    parse --> counts("<img src='barnacle:braces.svg' width='20' alt=''/><br/><u>{field: [{value, count}]}<br/>case-insensitive sort</u>")
+    counts --> api("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>GET /api/metadata-options</u>")
+    api --> dropdown("<img src='barnacle:zap.svg' width='20' alt=''/><br/>editor + feedback dropdowns<br/>metadata-picker.js")
     click api href "server.py.md"
     click counts href "recipe_utils.py.md"
+    class walk folder
+    class parse goFile
+    class counts jsonFile
+    class dropdown jsFile
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef jsonFile fill:#cdb9f7,stroke:#6d28d9,color:#2e1065
+    classDef jsFile fill:#fbe86f,stroke:#a16207,color:#423806
 ```
 
 Collects the values already used in the recipe library for the dropdowns — meals, categories, cuisine, tags (multi-value) and status, contributor (single-value) for the editor, plus commenters and raters for the feedback forms and source author and title for the editor's source fields — so they can be offered with the number of recipes that use each.

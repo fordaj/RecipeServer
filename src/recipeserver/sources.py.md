@@ -2,12 +2,16 @@
 
 ```mermaid
 flowchart LR
-    source["front matter<br/>source: {...}"] --> norm["normalize_sources()<br/>list of dicts"]
-    norm --> fmt["source_format()<br/>lower-cased"]
-    fmt --> icon["source_icon_key()<br/>website · book · ai · user"]
-    fmt --> title["source_title()<br/>title or company"]
+    source("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>front matter<br/>source: {...}") --> norm("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>normalize_sources()<br/>list of dicts")
+    norm --> fmt("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>source_format()<br/>lower-cased")
+    fmt --> icon("<img src='barnacle:image.svg' width='20' alt=''/><br/><u>source_icon_key()<br/>website · book · ai · user</u>")
+    fmt --> title("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>source_title()<br/>title or company</u>")
     click icon href "markdown_to_html/extras.py.md"
     click title href "index_html_generator.py.md"
+    class source mdFile
+    class norm,fmt,title goFile
+    classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 Shared rendering rules for the recipe's `source` front matter, used by both the recipe page and the index card so the two never drift.

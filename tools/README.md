@@ -2,14 +2,22 @@
 
 ```mermaid
 flowchart TD
-    update["tools/<name>/update.sh"] --> release["gh release download<br/>fordaj/* repos"]
-    release --> verify["checksum verification"]
-    verify --> swap["stage → swap →<br/>delete superseded v*/"]
-    swap --> bundle["tools/<name>/v<version>/<platform>/"]
-    bundle --> cascade["scripts/*_BIN via env cascade"]
+    update("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>tools/<name>/update.sh</u>") --> release("<img src='barnacle:download.svg' width='20' alt=''/><br/>gh release download<br/>fordaj/* repos")
+    release --> verify("<img src='barnacle:check.svg' width='20' alt=''/><br/>checksum verification")
+    verify --> swap("<img src='barnacle:folder-sync.svg' width='20' alt=''/><br/>stage → swap →<br/>delete superseded v*/")
+    swap --> bundle("<img src='barnacle:folder.svg' width='20' alt=''/><br/><u>tools/<name>/v<version>/<platform>/</u>")
+    bundle --> cascade("<img src='barnacle:binary.svg' width='20' alt=''/><br/><u>scripts/*_BIN via env cascade</u>")
     click update href "barnacle/update.sh.md"
     click bundle href "versioner/update.sh.md"
     click cascade href "../scripts/env.sh.md"
+    class update shFile
+    class release dlNode
+    class verify checkNode
+    class swap,bundle folder
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
+    classDef dlNode fill:#93e2e2,stroke:#0f766e,color:#042f2e
+    classDef checkNode fill:#9fe8c9,stroke:#0f766e,color:#052e22
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 `tools/` carries the repository's pinned helper binaries — build, release, logging, and docs tooling — plus one `update.sh` per tool that refreshes them. These are **not** the formatters [format.sh](../scripts/format.sh.md) orchestrates (formattington is the primary path, as a pinned `uv` dev dependency; formattington-lite here is the fallback); they are the tools used to build, test, log, and document this repository itself, consumed by the scripts via the [env cascade](../scripts/env.sh.md).

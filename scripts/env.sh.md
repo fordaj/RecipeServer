@@ -2,14 +2,16 @@
 
 ```mermaid
 flowchart TD
-    env["env.sh"] --> detect["uname -s / uname -m"]
-    detect --> common[".common.env<br/>TOOLS_DIR + pinned *_VERSION_DIRs"]
-    detect --> platform[".<os>-<arch>.env<br/>PROJECT_PLATFORM + *_BIN paths"]
-    common --> anchor["every *_BIN anchored<br/>to REPO_ROOT_DIR"]
+    env("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>env.sh</u>") --> detect("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>uname -s / uname -m")
+    detect --> common("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>.common.env<br/>TOOLS_DIR + pinned *_VERSION_DIRs")
+    detect --> platform("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>.<os>-<arch>.env<br/>PROJECT_PLATFORM + *_BIN paths")
+    common --> anchor("<img src='barnacle:anchor.svg' width='20' alt=''/><br/>every *_BIN anchored<br/>to REPO_ROOT_DIR")
     platform --> anchor
-    anchor --> caller["callers: entry.sh, docs.sh, …"]
+    anchor --> caller("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>callers: entry.sh, docs.sh, …</u>")
     click env href "entry.sh.md"
     click caller href "docs.sh.md"
+    class env,common,platform,caller shFile
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
 ```
 
 `scripts/env.sh` is the plumbing that makes the pinned helper tools resolvable from any script, in any working directory, on every supported platform. It is sourced — never executed — and it works from both bash and zsh.

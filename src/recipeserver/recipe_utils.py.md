@@ -2,15 +2,19 @@
 
 ```mermaid
 flowchart LR
-    meta["recipe front matter"] --> lists["as_list()<br/>categories fallback"]
-    meta --> ratings["iter_valid_rating_entries()"]
-    meta --> times["parse_metadata_datetime()"]
-    lists --> consumers["linter · index · converter"]
+    meta("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>recipe front matter") --> lists("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>as_list()<br/>categories fallback</u>")
+    meta --> ratings("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>iter_valid_rating_entries()")
+    meta --> times("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>parse_metadata_datetime()</u>")
+    lists --> consumers("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>linter · index · converter</u>")
     ratings --> consumers
     times --> consumers
     click consumers href "metadata_linter.py.md"
     click lists href "sources.py.md"
     click times href "markdown_to_html/extras.py.md"
+    class meta mdFile
+    class lists,ratings,times,consumers goFile
+    classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 Small, deliberately narrow helpers shared across the renderers and the server. Kept stable on purpose — add behavior rather than abstraction.

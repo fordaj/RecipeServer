@@ -2,16 +2,20 @@
 
 ```mermaid
 flowchart TD
-    req["browser / curl"] --> handler["RecipeRequestHandler"]
-    handler --> static["static files<br/>from site dir"]
-    handler --> api["/api/* routes"]
-    api --> edit["recipe-editor · metadata<br/>markdown · bulk-*"]
-    api --> ai["/api/ai-status · /api/ai-recipe"]
-    api --> misc["/api/config · /api/metadata-options<br/>/api/shopping-list · /api/archive"]
-    edit --> callbacks["on_markdown_save → core.py<br/>re-render page + index"]
+    req("<img src='barnacle:globe.svg' width='20' alt=''/><br/>browser / curl") --> handler("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>RecipeRequestHandler")
+    handler --> static("<img src='barnacle:folder.svg' width='20' alt=''/><br/>static files<br/>from site dir")
+    handler --> api("<img src='barnacle:route.svg' width='20' alt=''/><br/>/api/* routes")
+    api --> edit("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>recipe-editor · metadata<br/>markdown · bulk-*")
+    api --> ai("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/ai-status · /api/ai-recipe</u>")
+    api --> misc("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/config · /api/metadata-options<br/>/api/shopping-list · /api/archive</u>")
+    edit --> callbacks("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>on_markdown_save → core.py<br/>re-render page + index</u>")
     click ai href "ai_recipe.py.md"
     click misc href "metadata_options.py.md"
     click callbacks href "core.py.md"
+    class handler,edit,callbacks goFile
+    class static folder
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
 `ThreadingHTTPServer` serving the generated site plus the JSON editing APIs. The handler (`RecipeRequestHandler`, a `SimpleHTTPRequestHandler`) serves static files out of the site directory and dispatches `/api/*` routes; the `Server` wrapper owns the thread lifecycle. There is no authentication — the server binds `0.0.0.0` on the configured port (default 8000) and is meant for a trusted local network.

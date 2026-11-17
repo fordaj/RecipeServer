@@ -2,16 +2,18 @@
 
 ```mermaid
 flowchart TD
-    task["A task script<br/>serve.sh, format.sh, …"] --> entry["entry.sh"]
-    entry --> env["env.sh"]
-    env --> common[".common.env"]
-    env --> platform[".<os>-<arch>.env"]
-    entry --> log["log()<br/>logamuffin or printf fallback"]
-    common --> bins["VERSIONER_BIN · LOGAMUFFIN_BIN<br/>RUNNER_SPAWNER_BIN · BARNACLE_BIN"]
+    task("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>A task script<br/>serve.sh, format.sh, …</u>") --> entry("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>entry.sh</u>")
+    entry --> env("<img src='barnacle:terminal.svg' width='20' alt=''/><br/><u>env.sh</u>")
+    env --> common("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>.common.env")
+    env --> platform("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>.<os>-<arch>.env")
+    entry --> log("<img src='barnacle:logs.svg' width='20' alt=''/><br/>log()<br/>logamuffin or printf fallback")
+    common --> bins("<img src='barnacle:binary.svg' width='20' alt=''/><br/><u>VERSIONER_BIN · LOGAMUFFIN_BIN<br/>RUNNER_SPAWNER_BIN · BARNACLE_BIN</u>")
     click entry href "entry.sh.md"
     click env href "env.sh.md"
     click task href "serve.sh.md"
     click bins href "docs.sh.md"
+    class task,entry,env,common,platform shFile
+    classDef shFile fill:#abe07a,stroke:#3f6212,color:#16280a
 ```
 
 The `scripts/` directory carries the repository's build/release/docs tooling: an environment cascade the other scripts source, plus one entry point per task. Everything here is bash; nothing requires a global install beyond what each script documents.

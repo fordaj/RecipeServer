@@ -2,17 +2,22 @@
 
 ```mermaid
 flowchart LR
-    md["my-recipes/<br/>recipe.md files"] --> core["RecipeServer core<br/>regen()"]
-    core --> site["site/<br/>static HTML"]
-    site --> browser["Browser"]
-    browser -->|"saves edits"| server["HTTP server<br/>/api/*"]
+    md("<img src='barnacle:folder.svg' width='20' alt=''/><br/>my-recipes/<br/>recipe.md files") --> core("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>RecipeServer core<br/>regen()</u>")
+    core --> site("<img src='barnacle:folder.svg' width='20' alt=''/><br/><u>site/<br/>static HTML</u>")
+    site --> browser("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>Browser</u>")
+    browser -->|"saves edits"| server("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>HTTP server<br/>/api/*</u>")
     server --> core
-    tray["System tray"] --> core
+    tray("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>System tray</u>") --> core
     click core href "src/recipeserver/core.py.md"
     click site href "src/recipeserver/index_html_generator.py.md"
     click browser href "src/recipeserver/server.py.md"
     click server href "src/recipeserver/server.py.md"
     click tray href "src/recipeserver/tray.py.md"
+    class md folder
+    class core,server,tray goFile
+    class site folder
+    classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
 RecipeServer turns a folder of Markdown recipes into a local recipe website and serves it in your browser. Each recipe becomes its own page, and everything is collected into a searchable, sortable index.

@@ -2,11 +2,17 @@
 
 ```mermaid
 flowchart LR
-    meta["recipe front matter"] --> required["_REQUIRED_FIELDS<br/>ratings … difficulty"]
-    required --> lint["lint_recipe_metadata()"]
-    lint --> warnings["MetadataWarning[]<br/>advisory only"]
+    meta("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>recipe front matter") --> required("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>_REQUIRED_FIELDS<br/>ratings … difficulty")
+    required --> lint("<img src='barnacle:check.svg' width='20' alt=''/><br/><u>lint_recipe_metadata()</u>")
+    lint --> warnings("<img src='barnacle:info.svg' width='20' alt=''/><br/><u>MetadataWarning[]<br/>advisory only</u>")
     click lint href "recipe_utils.py.md"
     click warnings href "index_html_generator.py.md"
+    class meta mdFile
+    class required goFile
+    class lint checkNode
+    classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
+    classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
+    classDef checkNode fill:#9fe8c9,stroke:#0f766e,color:#052e22
 ```
 
 The required-field list and the warning text behind the index's **Metadata Status** chips. Warnings are advisory: they are logged during conversion, shown in the hidden Metadata Status section of the index, and never block building, serving, or saving.
