@@ -19,14 +19,30 @@
   // Containers the browser can record, most preferred first.
   const MIME_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
 
+  // How long a press must be held to be treated as hold-to-dictate (a
+  // shorter press is a normal tap that toggles the recording).
+  const LONG_PRESS_MS = 450;
+  const MOVE_TOLERANCE_PX = 10;
+
   // How long the "complete" and "error" states stay visible before the
   // button returns to idle.
   const COMPLETE_STATE_MS = 1500;
   const ERROR_STATE_MS = 2500;
 
+  // The label of the pill above the button for each live state.
+  const PILL_LABELS = {
+    preparing: "Starting microphone…",
+    recording: "Listening… tap the mic to stop",
+    recordingHold: "Listening — release to stop",
+    transcribing: "Transcribing…",
+    complete: "Done",
+    error: "Dictation failed",
+  };
+
   // The label and title of the button for each state.
   const BUTTON_LABELS = {
     idle: "Start dictation",
+    preparing: "Starting microphone",
     recording: "Stop dictation",
     transcribing: "Transcribing audio",
     complete: "Dictation complete",
@@ -80,6 +96,57 @@
     let originalValue = "";
     let originalSelectionStart = 0;
     let originalSelectionEnd = 0;
+    let longPressTimer = null;
+    let longPressStart = null;
+    let suppressTimer = null;
+    // True while a hold-to-dictate press is being captured or is waiting on
+    // the microphone permission; cleared when the capture resolves or is
+    // cancelled.
+    let dictationCancelled = false;
+    // True when the recording was started by holding the press; false when
+    // it was started by a tap (toggle mode). Decides the pill's label.
+    let holdToTalk = false;
+    // Set when the release of a hold must not also trigger the click toggle.
+    let suppressClick = false;
+
+    // The status pill above the button (the same treatment the AI assistant
+    // popup gets): a small pill that shows what the recording is doing.
+    const pill = document.createElement("div");
+    pill.className = "speech-button__status";
+    pill.setAttribute("role", "status");
+    pill.setAttribute("aria-hidden", "true");
+    pill.dataset.state = "idle";
+    const pillIcon = document.createElement("span");
+    pillIcon.className = "speech-button__status-icon";
+    const pillLabel = document.createElement("span");
+    pillLabel.className = "speech-button__status-label";
+    pillLabel.textContent = PILL_LABELS.preparing;
+    pill.append(pillIcon, pillLabel);
+    wrapper.append(pill);
+
+    const setPillState = (state, message = "") => {
+      if (state === "idle") {
+        pill.dataset.state = "idle";
+        pill.classList.remove("speech-button__status--visible");
+        pill.setAttribute("aria-hidden", "true");
+        return;
+      }
+
+      let label = message || PILL_LABELS[state] || PILL_LABELS.error;
+      if (state === "recording" && holdToTalk) {
+        label = PILL_LABELS.recordingHold;
+      }
+
+      pill.dataset.state = state;
+      pillLabel.textContent = label;
+      pill.classList.add("speech-button__status--visible");
+      pill.setAttribute("aria-hidden", "false");
+
+      const iconUrl = state === "complete" ? CHECKMARK_ICON_URL : MICROPHONE_ICON_URL;
+      iconMarkup(iconUrl).then((markup) => {
+        if (markup) pillIcon.innerHTML = markup;
+      });
+    };
 
     const setState = (state, message = "") => {
       button.dataset.state = state;
@@ -96,6 +163,12 @@
 
       // The checkmark shows that the transcript made it into the field.
       showIcon(state === "complete" ? CHECKMARK_ICON_URL : MICROPHONE_ICON_URL);
+      setPillState(state, message);
+
+      if (state === "idle") {
+        // A hold that completed (or failed) ends here.
+        holdToTalk = false;
+      }
     };
 
     const resetAfterDelay = (state, delay) => {
@@ -198,6 +271,7 @@
     };
 
     const startRecording = async () => {
+      dictationCancelled = false;
       originalValue = input.value;
 
       try {
@@ -210,6 +284,14 @@
 
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        if (dictationCancelled) {
+          // The user let go before the microphone came up.
+          stream.getTracks().forEach((track) => track.stop());
+          stream = null;
+          setState("idle");
+          return;
+        }
 
         const mimeType = supportedMimeType();
 
@@ -248,7 +330,86 @@
       }
     };
 
+    const cancelLongPress = () => {
+      if (longPressTimer) {
+        window.clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      longPressStart = null;
+    };
+
+    button.addEventListener("pointerdown", (event) => {
+      // Right-clicks and non-primary buttons never dictate.
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      // Starting a new dictation is only possible from idle: a press while
+      // recording stops through the click path (handled below), and a press
+      // while transcribing is ignored.
+      if (button.dataset.state !== "idle") return;
+
+      longPressStart = { x: event.clientX, y: event.clientY };
+      longPressTimer = window.setTimeout(() => {
+        longPressTimer = null;
+        longPressStart = null;
+        holdToTalk = true;
+        setState("preparing");
+        startRecording();
+      }, LONG_PRESS_MS);
+    });
+
+    button.addEventListener("pointermove", (event) => {
+      if (!longPressStart) return;
+
+      const moved = Math.hypot(event.clientX - longPressStart.x, event.clientY - longPressStart.y);
+      if (moved > MOVE_TOLERANCE_PX) {
+        cancelLongPress();
+      }
+    });
+
+    const suppressTrailingClick = () => {
+      suppressClick = true;
+      window.clearTimeout(suppressTimer);
+      suppressTimer = window.setTimeout(() => {
+        suppressClick = false;
+      }, 600);
+    };
+
+    // Release anywhere stops the recording (a hold can drift off the button).
+    const handleRelease = () => {
+      if (holdToTalk && recorder?.state === "recording") {
+        suppressTrailingClick();
+        recorder.stop();
+        return;
+      }
+
+      if (holdToTalk) {
+        const state = button.dataset.state;
+        if (state === "transcribing" || state === "complete" || state === "error") {
+          // The capture is already finished; swallow the trailing click and
+          // let the pill hide itself.
+          suppressTrailingClick();
+          return;
+        }
+
+        // Released before the microphone came up: cancel the capture quietly.
+        dictationCancelled = true;
+        holdToTalk = false;
+        suppressTrailingClick();
+        setState("idle");
+        return;
+      }
+
+      cancelLongPress();
+    };
+    document.addEventListener("pointerup", handleRelease);
+    document.addEventListener("pointercancel", handleRelease);
+
     button.addEventListener("click", () => {
+      if (suppressClick) {
+        // The click that ends a hold must not toggle anything.
+        suppressClick = false;
+        return;
+      }
+
       if (recorder?.state === "recording") {
         recorder.stop();
         return;

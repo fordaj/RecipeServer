@@ -75,17 +75,13 @@
   transform: scale(1.05);
 }
 
-/* ---------- Microphone popup ---------- */
-/* Pops up directly above the bubble because the thumb covers the bubble
-   while the user is talking. Informational only (the press target is the
-   bubble); positioned like the chat panel but smaller. */
+/* ---------- Microphone popups ---------- */
+/* Shown while a dictation is in progress. The bubble's popup sits directly
+   above the bubble (the thumb covers the bubble); the composer's popup sits
+   directly above the field. Informational only. */
 
-.ai-assistant__mic {
-  position: fixed;
-  right: 1.25rem;
-  bottom: calc(1.25rem + 4rem + env(safe-area-inset-bottom));
-  z-index: 9001;
-
+.ai-assistant__mic,
+.ai-assistant__field-status {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -115,7 +111,22 @@
     visibility 180ms ease;
 }
 
-.ai-assistant__mic--visible {
+.ai-assistant__mic {
+  position: fixed;
+  right: 1.25rem;
+  bottom: calc(1.25rem + 4rem + env(safe-area-inset-bottom));
+  z-index: 9001;
+}
+
+.ai-assistant__field-status {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  right: 0.5rem;
+  z-index: 5;
+}
+
+.ai-assistant__mic--visible,
+.ai-assistant__field-status--visible {
   visibility: visible;
   opacity: 1;
   transform: none;
@@ -144,26 +155,33 @@
 
 .ai-assistant__mic[data-state="preparing"] .ai-assistant__mic-icon,
 .ai-assistant__mic[data-state="recording"] .ai-assistant__mic-icon,
-.ai-assistant__mic[data-state="transcribing"] .ai-assistant__mic-icon {
+.ai-assistant__mic[data-state="transcribing"] .ai-assistant__mic-icon,
+.ai-assistant__field-status[data-state="preparing"] .ai-assistant__mic-icon,
+.ai-assistant__field-status[data-state="recording"] .ai-assistant__mic-icon,
+.ai-assistant__field-status[data-state="transcribing"] .ai-assistant__mic-icon {
   animation: ai-assistant-mic-pulse 1.2s ease-in-out infinite;
 }
 
-.ai-assistant__mic[data-state="recording"] {
+.ai-assistant__mic[data-state="recording"],
+.ai-assistant__field-status[data-state="recording"] {
   color: var(--danger-color);
   border-color: color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
 }
 
-.ai-assistant__mic[data-state="transcribing"] {
+.ai-assistant__mic[data-state="transcribing"],
+.ai-assistant__field-status[data-state="transcribing"] {
   color: var(--food-color);
   border-color: var(--hover-border-color);
 }
 
-.ai-assistant__mic[data-state="complete"] {
+.ai-assistant__mic[data-state="complete"],
+.ai-assistant__field-status[data-state="complete"] {
   color: var(--food-color);
   border-color: var(--hover-border-color);
 }
 
-.ai-assistant__mic[data-state="error"] {
+.ai-assistant__mic[data-state="error"],
+.ai-assistant__field-status[data-state="error"] {
   color: var(--danger-color);
   border-color: color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
 }
@@ -418,8 +436,19 @@
   background: var(--card-bg);
 }
 
-.ai-assistant__input {
+.ai-assistant__field {
+  position: relative;
   flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ai-assistant__field--dictation .ai-assistant__input {
+  padding-right: 2.4rem;
+}
+
+.ai-assistant__input {
+  display: block;
+  width: 100%;
   min-width: 0;
   resize: none;
 
@@ -479,6 +508,50 @@
 .ai-assistant__send:disabled {
   opacity: 0.5;
   cursor: wait;
+}
+
+/* ---------- Inline dictation microphone ---------- */
+
+.ai-assistant__mic-button {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  z-index: 6;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted-color);
+
+  transform: translateY(-50%);
+
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.ai-assistant__mic-button:hover {
+  background: var(--hover-bg);
+  color: var(--food-color);
+}
+
+.ai-assistant__mic-button:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 2px;
+}
+
+.ai-assistant__mic-button svg {
+  width: 1.15rem;
+  height: 1.15rem;
 }
 
 .ai-assistant__send svg {

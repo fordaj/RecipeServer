@@ -47,6 +47,7 @@
   const MIC_LABELS = {
     preparing: "Starting microphone…",
     recording: "Listening… release to send",
+    recordingTap: "Listening… tap the mic to stop",
     transcribing: "Transcribing…",
     complete: "Sending…",
     error: "Dictation failed",
@@ -93,15 +94,19 @@
       this.lastScrollY = window.scrollY;
       this.scrollTicking = false;
 
-      // Dictation (long-press on the bubble).
+      // Dictation (long press on the bubble, or the inline mic in the composer).
       this.dictationAvailable = false;
       this.longPressTimer = null;
       this.longPressStart = null;
-      this.suppressClick = false;
+      // Which press-consuming click to swallow ("bubble" | "field").
+      this.suppressClickFor = null;
       this.suppressClickTimer = null;
-      this.micHideTimer = null;
+      this.pillHideTimer = null;
       this.dictating = false;
       this.dictationCancelled = false;
+      this.dictationSource = null;
+      this.dictationViaHold = false;
+      this.pillState = "idle";
       this.mediaRecorder = null;
       this.micStream = null;
       this.chunks = [];
@@ -192,6 +197,7 @@
 
       this.loadIcons();
       this.bindPointerControls();
+      this.bindMicButton();
       this.bindDismiss();
 
       this.closeButton.addEventListener("click", () => this.setOpen(false));
@@ -217,7 +223,10 @@
 
       this.microphoneIcon = micIcon;
       this.checkmarkIcon = checkmarkIcon;
-      this.setMicIcon("preparing");
+      this.setPillIcon("preparing");
+      if (this.micButton && micIcon) {
+        this.micButton.innerHTML = micIcon;
+      }
 
       if (aiIcon) {
         this.button.innerHTML = aiIcon;
@@ -238,6 +247,8 @@
     buildComposer() {
       const form = createElement("form", "ai-assistant__composer");
 
+      this.field = createElement("div", "ai-assistant__field");
+
       this.input = createElement("textarea", "ai-assistant__input");
       this.input.rows = 1;
       this.input.maxLength = MAX_MESSAGE_CHARS;
@@ -246,12 +257,39 @@
         : "Ask anything…";
       this.input.setAttribute("aria-label", "Message the assistant");
 
+      this.field.append(this.input);
+
+      // The inline dictation microphone, sitting inside the field. It is
+      // only offered under the same conditions as the bubble's long press.
+      if (this.dictationAvailable) {
+        this.field.classList.add("ai-assistant__field--dictation");
+        this.micButton = createElement("button", "ai-assistant__mic-button");
+        this.micButton.type = "button";
+        this.micButton.setAttribute("aria-label", "Dictate a message");
+        this.micButton.title = "Dictate a message";
+        this.field.append(this.micButton);
+      }
+
+      // The microphone popup for the inline button (the bubble has its own).
+      this.fieldStatus = createElement("div", "ai-assistant__field-status");
+      this.fieldStatus.setAttribute("role", "status");
+      this.fieldStatus.setAttribute("aria-hidden", "true");
+      this.fieldStatus.dataset.state = "idle";
+      this.fieldStatusIcon = createElement("span", "ai-assistant__mic-icon");
+      this.fieldStatusLabel = createElement(
+        "span",
+        "ai-assistant__mic-label",
+        MIC_LABELS.preparing,
+      );
+      this.fieldStatus.append(this.fieldStatusIcon, this.fieldStatusLabel);
+      this.field.append(this.fieldStatus);
+
       this.sendButton = createElement("button", "ai-assistant__send");
       this.sendButton.type = "submit";
       this.sendButton.setAttribute("aria-label", "Send message");
       this.sendButton.title = "Send";
 
-      form.append(this.input, this.sendButton);
+      form.append(this.field, this.sendButton);
 
       form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -357,25 +395,25 @@
 
     // ----- Long-press dictation ----- //
 
-    bindPointerControls() {
-      this.button.addEventListener("pointerdown", (event) => {
-        // Without dictation the bubble is a plain button: a press (however
-        // long) just toggles the panel. Right-clicks never start dictation.
+    bindPressHandler(element, source) {
+      // Shared long-press plumbing for the bubble and the inline mic: hold
+      // far enough and dictation starts; otherwise the press falls through
+      // to the element's own click behavior.
+      element.addEventListener("pointerdown", (event) => {
         if (event.pointerType === "mouse" && event.button !== 0) {
           return;
         }
 
-        if (!this.dictationAvailable || this.busy) {
+        if (!this.dictationAvailable || this.busy || this.dictating) {
           return;
         }
 
-        this.longPressStart = { x: event.clientX, y: event.clientY };
+        this.dictationViaHold = false;
         this.dictationCancelled = false;
-
-        this.longPressTimer = window.setTimeout(() => this.beginDictation(), LONG_PRESS_MS);
+        this.armDictation(source, event);
       });
 
-      this.button.addEventListener("pointermove", (event) => {
+      element.addEventListener("pointermove", (event) => {
         if (!this.longPressStart) {
           return;
         }
@@ -388,6 +426,20 @@
           this.cancelLongPress();
         }
       });
+    }
+
+    armDictation(source, event) {
+      this.longPressStart = { x: event.clientX, y: event.clientY };
+      this.longPressTimer = window.setTimeout(() => {
+        this.longPressTimer = null;
+        this.longPressStart = null;
+        this.dictationViaHold = true;
+        this.beginDictation(source, true);
+      }, LONG_PRESS_MS);
+    }
+
+    bindPointerControls() {
+      this.bindPressHandler(this.button, "bubble");
 
       const release = () => this.handlePointerRelease();
       window.addEventListener("pointerup", release);
@@ -399,9 +451,9 @@
       }
 
       this.button.addEventListener("click", () => {
-        if (this.suppressClick) {
+        if (this.suppressClickFor === "bubble") {
           // The click that ends a dictation press must not toggle the panel.
-          this.suppressClick = false;
+          this.suppressClickFor = null;
           return;
         }
 
@@ -409,10 +461,41 @@
       });
     }
 
+    bindMicButton() {
+      if (!this.micButton) {
+        return;
+      }
+
+      this.bindPressHandler(this.micButton, "field");
+
+      if (this.dictationAvailable) {
+        this.micButton.addEventListener("contextmenu", (event) => event.preventDefault());
+      }
+
+      this.micButton.addEventListener("click", () => {
+        if (this.suppressClickFor === "field") {
+          // The click that ends a dictation press must not toggle the mic.
+          this.suppressClickFor = null;
+          return;
+        }
+
+        if (this.dictating) {
+          // Tap toggles the recording off; transcription states ignore taps.
+          if (this.pillState === "recording") {
+            this.stopDictation();
+          }
+          return;
+        }
+
+        this.dictationViaHold = false;
+        this.beginDictation("field", false);
+      });
+    }
+
     scheduleClickSuppressionReset() {
       window.clearTimeout(this.suppressClickTimer);
       this.suppressClickTimer = window.setTimeout(() => {
-        this.suppressClick = false;
+        this.suppressClickFor = null;
       }, 600);
     }
 
@@ -461,8 +544,8 @@
       // fallback every time the press ends.
       this.scheduleClickSuppressionReset();
 
-      const micState = this.mic?.dataset.state;
-      const capturing = this.dictating && (micState === "preparing" || micState === "recording");
+      const capturing =
+        this.dictating && (this.pillState === "preparing" || this.pillState === "recording");
 
       if (capturing) {
         this.stopDictation();
@@ -471,57 +554,89 @@
 
       if (this.dictating) {
         // Transcribing/complete is already detached from the press; the
-        // mic hides itself when it is done.
+        // pill hides itself when it is done.
         return;
       }
 
       this.cancelLongPress();
     }
 
-    setMicIcon(state) {
-      if (!this.micIcon) {
+    pillParts() {
+      if (this.dictationSource === "field" && this.fieldStatus) {
+        return {
+          container: this.fieldStatus,
+          label: this.fieldStatusLabel,
+          icon: this.fieldStatusIcon,
+          extraClass: "ai-assistant__field-status--visible",
+        };
+      }
+
+      return {
+        container: this.mic,
+        label: this.micLabel,
+        icon: this.micIcon,
+        extraClass: "ai-assistant__mic--visible",
+      };
+    }
+
+    pillLabelFor(state) {
+      if (state === "recording" && !this.dictationViaHold) {
+        return MIC_LABELS.recordingTap;
+      }
+
+      return MIC_LABELS[state] || MIC_LABELS.preparing;
+    }
+
+    setPillIcon(state) {
+      const markup = state === "complete" ? this.checkmarkIcon : this.microphoneIcon;
+      if (!markup) {
         return;
       }
 
-      const markup = state === "complete" ? this.checkmarkIcon : this.microphoneIcon;
-      if (markup) {
-        this.micIcon.innerHTML = markup;
+      const { icon } = this.pillParts();
+      if (icon) {
+        icon.innerHTML = markup;
       }
     }
 
-    showMic(state, message = "") {
-      window.clearTimeout(this.micHideTimer);
+    showPill(state, message = "") {
+      window.clearTimeout(this.pillHideTimer);
+      this.pillState = state;
 
-      this.mic.dataset.state = state;
-      this.mic.classList.add("ai-assistant__mic--visible");
-      this.mic.setAttribute("aria-hidden", "false");
-      this.micLabel.textContent = message || MIC_LABELS[state] || MIC_LABELS.preparing;
-      this.setMicIcon(state);
+      const { container, label } = this.pillParts();
+      container.dataset.state = state;
+      container.classList.add(this.pillParts().extraClass);
+      container.setAttribute("aria-hidden", "false");
+      label.textContent = message || this.pillLabelFor(state);
+      this.setPillIcon(state);
     }
 
-    hideMic(delay = 0) {
-      window.clearTimeout(this.micHideTimer);
+    hidePill(delay = 0) {
+      window.clearTimeout(this.pillHideTimer);
 
       const hide = () => {
-        this.mic.classList.remove("ai-assistant__mic--visible");
-        this.mic.setAttribute("aria-hidden", "true");
-        this.mic.dataset.state = "idle";
+        const { container, extraClass } = this.pillParts();
+        container.classList.remove(extraClass);
+        container.setAttribute("aria-hidden", "true");
+        container.dataset.state = "idle";
 
+        this.pillState = "idle";
         this.dictating = false;
+        this.dictationSource = null;
         this.wrapper.classList.remove("ai-assistant--dictating");
       };
 
       if (delay > 0) {
-        this.micHideTimer = window.setTimeout(hide, delay);
+        this.pillHideTimer = window.setTimeout(hide, delay);
       } else {
         hide();
       }
     }
 
     dictationError(message) {
-      this.showMic("error", message);
+      this.showPill("error", message);
       this.cancelDictationCapture();
-      this.hideMic(ERROR_STATE_MS);
+      this.hidePill(ERROR_STATE_MS);
     }
 
     cancelDictationCapture() {
@@ -535,19 +650,27 @@
       this.mediaRecorder = null;
     }
 
-    beginDictation() {
+    beginDictation(source, viaHold) {
       this.longPressTimer = null;
       this.longPressStart = null;
 
+      this.dictationSource = source;
+      this.dictationViaHold = viaHold;
       this.dictating = true;
       this.dictationCancelled = false;
-      this.suppressClick = true;
-      this.wrapper.classList.add("ai-assistant--dictating");
-      // The press target is now the release of the press; it must not be
-      // hidden by the scroll behavior.
-      this.wrapper.classList.remove("ai-assistant--hidden");
+      this.pillState = "preparing";
+      // Only a hold produces a trailing click to swallow; a tap toggles and
+      // must not eat the next press.
+      this.suppressClickFor = viaHold ? source : null;
 
-      this.showMic("preparing");
+      if (source === "bubble") {
+        this.wrapper.classList.add("ai-assistant--dictating");
+        // The press target is now the release of the press; it must not be
+        // hidden by the scroll behavior.
+        this.wrapper.classList.remove("ai-assistant--hidden");
+      }
+
+      this.showPill("preparing");
       this.startRecording();
     }
 
@@ -560,6 +683,7 @@
         if (this.dictationCancelled || !this.dictating) {
           // The user already let go before the microphone came up.
           stream.getTracks().forEach((track) => track.stop());
+          this.hidePill();
           return;
         }
 
@@ -591,7 +715,8 @@
         };
 
         recorder.start();
-        this.showMic("recording");
+        this.pillState = "recording";
+        this.showPill("recording");
       } catch (error) {
         console.error("Unable to start recording:", error);
         this.dictationError("Unable to access the microphone.");
@@ -600,7 +725,8 @@
 
     stopDictation() {
       if (this.mediaRecorder?.state === "recording") {
-        this.showMic("transcribing");
+        this.pillState = "transcribing";
+        this.showPill("transcribing");
         this.mediaRecorder.stop();
         return;
       }
@@ -609,7 +735,7 @@
       // recorder was already gone): cancel quietly. The trailing click is
       // still swallowed because the press was a dictation press.
       this.cancelDictationCapture();
-      this.hideMic();
+      this.hidePill();
     }
 
     async transcribeDictation(blob) {
@@ -618,7 +744,8 @@
         return;
       }
 
-      this.showMic("transcribing");
+      this.pillState = "transcribing";
+      this.showPill("transcribing");
 
       let text = "";
       try {
@@ -654,8 +781,9 @@
       this.input.value = text;
       this.autoResize();
 
-      this.showMic("complete");
-      this.hideMic(COMPLETE_STATE_MS);
+      this.pillState = "complete";
+      this.showPill("complete");
+      this.hidePill(COMPLETE_STATE_MS);
 
       this.send();
     }

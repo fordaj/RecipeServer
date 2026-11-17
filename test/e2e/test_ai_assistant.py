@@ -192,6 +192,25 @@ def test_assistant_panel_survives_drag_out_of_dialogue(driver, ai_configured_ser
     assert panel.get_attribute("aria-hidden") == "false"
 
 
+def test_assistant_inline_mic_hidden_on_plain_http(driver, ai_configured_server):
+    # The site under test is plain HTTP, so the inline dictation mic is not
+    # offered (same gate as the long press).
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__input")
+    assert not driver.find_elements("css selector", ".ai-assistant__mic-button")
+
+
+def test_assistant_inline_mic_hidden_when_dictation_disabled(driver, ai_configured_server):
+    ai_configured_server.cfg.dictation_enabled = False
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__input")
+    assert not driver.find_elements("css selector", ".ai-assistant__mic-button")
+
+
 def test_assistant_bubble_stays_visible_on_wide_screens(driver, ai_configured_server):
     driver.set_window_size(1280, 800)
     open_page(driver, f"{ai_configured_server.url}/index.html")
