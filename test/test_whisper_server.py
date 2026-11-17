@@ -86,10 +86,11 @@ def test_resolve_binary_uses_the_env_override(monkeypatch: pytest.MonkeyPatch, t
 
 def test_resolve_binary_finds_the_newest_bundle(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     tools = tmp_path / "tools" / "whisper-native"
+    # The test pins the platform to macos-arm64 below, whose binary name has no .exe.
     for version in ("v1.0.0", "v1.9.5", "v1.2.3"):
         directory = tools / version / "macos-arm64"
         directory.mkdir(parents=True)
-        (directory / whisper_server._binary_filename()).write_text("", encoding="utf-8")
+        (directory / "whisper-server").write_text("", encoding="utf-8")
     monkeypatch.setattr(whisper_server, "_bundled_tools_root", lambda: tools)
     monkeypatch.setattr(whisper_server, "_platform_dir_name", lambda: "macos-arm64")
     monkeypatch.delenv(BINARY_ENV_VAR, raising=False)
