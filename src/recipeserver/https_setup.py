@@ -290,6 +290,8 @@ def tailscale_status() -> dict:
             [exe, "status", "--json"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=TAILSCALE_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -428,6 +430,8 @@ def _run_caroot(mkcert: Path) -> Path | None:
             [str(mkcert), "-CAROOT"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=MKCERT_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -512,6 +516,8 @@ def ensure_certificate(cfg) -> HttpsCertificate:
             [str(mkcert_path), "-cert-file", str(cert_file), "-key-file", str(key_file), *sans],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=MKCERT_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
