@@ -157,9 +157,9 @@ tailscale serve --bg http://127.0.0.1:8000
 
 The proxy must forward to `http://127.0.0.1:8000` and set `X-Forwarded-Proto: https` (Caddy and Tailscale do this by default). Caddy and Cloudflare Tunnel work the same way.
 
-The recording is transcribed on this machine with a local [faster-whisper](https://github.com/SYSTRAN/faster-whisper) model; no audio leaves the machine. The `base` model is used by default and its weights are downloaded from Hugging Face the first time a recording is transcribed, so the first dictation needs an internet connection and can take a minute or two. Set `RECIPE_SERVER_WHISPER_MODEL` to another model size (`tiny`, `small`, `medium`, …) to trade accuracy for speed.
+The recording is transcribed on this machine with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) through the `whisper-server` binary in the [fordaj/whisper-native](https://github.com/fordaj/whisper-native) release, bundled under `tools/whisper-native/`; no audio leaves the machine. The `base` model is used by default and its weights are downloaded from Hugging Face the first time a recording is transcribed, so the first dictation needs an internet connection and can take a minute or two. Set `RECIPE_SERVER_WHISPER_MODEL` to another model size (`tiny`, `base.en`, `small`, …) to trade accuracy for speed. RecipeServer manages the `whisper-server` process for you: it starts on the first transcription and stops when the app shuts down.
 
-The model runs on the CPU by default, which works everywhere. Set `RECIPE_SERVER_WHISPER_DEVICE` to `cuda` (or `cuda:0`) to use the GPU, or to `auto` to use the GPU when it can be initialised and the CPU when it cannot.
+Dictation is on by default and can be switched off with the **Dictation** checkbox in the Configuration dialog (or the `dictation_enabled` key in `recipe-server-cfg.toml`). When it is off, no button is rendered, `POST /api/transcribe` answers 403, and no Whisper model is downloaded or loaded.
 
 If the first dictation fails because the proxy gave up waiting for the model to download, raise the proxy's read timeout — nginx, for example, defaults to 60 seconds — or dictate again: the model stays loaded in memory after the first attempt.
 
@@ -284,7 +284,9 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **The microphone button is missing from the search field:** The site is not being served over HTTPS. Put a local reverse proxy or tunnel in front of `http://127.0.0.1:8000` that sets `X-Forwarded-Proto: https`, and open the site through that address.
 - **Dictation returns "Speech transcription requires an HTTPS connection":** The proxy forwarded the request without the `X-Forwarded-Proto` header (or with `http`). Configure the proxy to forward the original protocol.
 - **Dictation returns "Nothing was heard. Try again.":** The model did not recognise anything in the recording. Speak closer to the microphone and hold the button a little longer.
-- **Dictation fails with "Unable to load the Whisper model":** The model could not be initialised. Check the log for the reason; `RECIPE_SERVER_WHISPER_DEVICE=cpu` runs the model on the CPU, which works on every machine.
+- **Dictation returns "Dictation is disabled in the server configuration":** Dictation is switched off. Enable the **Dictation** checkbox in **Configuration** on the home page, or set `dictation_enabled = true` in `recipe-server-cfg.toml`.
+- **Dictation fails with "whisper-server was not found":** The bundled binary is missing for this platform. Run `tools/whisper-native/update.sh` to download the release, or set `WHISPER_SERVER_BIN` to a `whisper-server` binary.
+- **Dictation fails when the model cannot be downloaded:** The first transcription downloads the ggml weights from Hugging Face. Check the network connection, or download `ggml-base.bin` manually and place it in `<user-data>/recipe-server/models/`.
 - **The first dictation takes a long time and the proxy times out:** The model weights are downloaded on the first transcription. Raise the proxy's read timeout (nginx defaults to 60 seconds) or dictate again — the model stays loaded after that.
 
 ## Development
@@ -356,7 +358,8 @@ tests fail in CI and skip locally (set `CI=true` to force the failure).
 
 The dictation feature is covered by tests that need no model: `test/test_transcriber.py`
 decodes real recordings (Opus in WebM, AAC in MP4, and WAV) with the installed
-PyAV, and `test/test_speech_button.py` posts those recordings through the
+PyAV, `test/test_whisper_server.py` covers the subprocess lifecycle against a
+stub server, and `test/test_speech_button.py` posts those recordings through the
 `/api/transcribe` endpoint. The recorded phrase lives in `test/fixtures/speech/`.
 
 The tests that run the real Whisper model are skipped by default, because they
@@ -366,13 +369,13 @@ download the model weights. Run them with:
 RECIPE_SERVER_TEST_WHISPER=1 uv run pytest test/test_speech_model.py
 ```
 
-| Variable                           | Default | Purpose                                                     |
-| ---------------------------------- | ------- | ----------------------------------------------------------- |
-| `RECIPE_SERVER_TEST_WHISPER`       | unset   | Set to `1` to run the tests that use the real model.        |
-| `RECIPE_SERVER_TEST_WHISPER_MODEL` | `tiny`  | Model size for those tests (`tiny`, `base`, `small`, …).    |
-| `RECIPE_SERVER_WHISPER_MODEL`      | `base`  | Model size the app uses.                                    |
-| `RECIPE_SERVER_WHISPER_DEVICE`     | `cpu`   | Device the model runs on (`cpu`, `cuda`, `cuda:0`, `auto`). |
-| `HF_HOME`                          | default | Where the downloaded model weights are cached.              |
+| Variable                           | Default                            | Purpose                                                  |
+| ---------------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| `RECIPE_SERVER_TEST_WHISPER`       | unset                              | Set to `1` to run the tests that use the real model.     |
+| `RECIPE_SERVER_TEST_WHISPER_MODEL` | `tiny`                             | Model size for those tests (`tiny`, `base`, `small`, …). |
+| `RECIPE_SERVER_WHISPER_MODEL`      | `base`                             | Model size the app uses.                                 |
+| `RECIPE_SERVER_WHISPER_MODEL_DIR`  | `<user-data>/recipe-server/models` | Where the downloaded ggml weights are kept.              |
+| `WHISPER_SERVER_BIN`               | bundled `tools/whisper-native/…`   | Points at the `whisper-server` binary to manage.         |
 
 Writing new tests:
 
@@ -433,6 +436,8 @@ src/recipeserver/
 ├── metadata_linter.py      # required-field list and warning text
 ├── image_handler.py        # supported images, hero selection, accent colors
 ├── server.py               # HTTP server and JSON APIs
+├── transcriber.py          # dictation: PyAV decode + whisper-server HTTP client
+├── whisper_server.py       # whisper-server subprocess lifecycle and model download
 ├── tray.py                 # system tray icon and menu
 ├── NewRecipePrompt.md      # model prompt requirements, reloaded at startup
 └── assets/                 # CSS, JavaScript, icons, and vendored KaTeX

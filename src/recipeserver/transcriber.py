@@ -1,81 +1,72 @@
 """Local speech-to-text for the dictation button.
 
 The browser records a short clip with ``MediaRecorder`` and posts it to
-``/api/transcribe``; this module turns that clip into text with a local
-Whisper model (through ``faster-whisper``).
+``/api/transcribe``; this module turns that clip into text.
 
-Both the import of ``faster-whisper`` and the loading of the model happen
-lazily, on the first transcription, so starting the application never pays
-for them and a missing model is reported as a clear error instead of a
-crash at import time.
+The transcription engine is the ``whisper-server`` binary from
+fordaj/whisper-native (bundled under ``tools/whisper-native/``), which
+RecipeServer manages through :mod:`recipeserver.whisper_server`. This
+module is a thin client:
 
-The recording is decoded here, with PyAV, instead of by
-``faster-whisper.decode_audio``: that helper calls ``av.open()`` with a
-keyword argument that PyAV 19 removed, which made every transcription fail
-with ``TypeError: open() got an unexpected keyword argument
-'metadata_errors'``. Decoding here keeps the app working with the PyAV
-version that is installed and makes the decode step testable on its own.
+1. The recording is decoded here, with PyAV, into a 16 kHz mono WAV — the
+   one format every ``whisper-server`` build decodes from memory without
+   extra tooling. (miniaudio cannot read the WebM/MP4 containers the
+   browsers record, so letting the server decode the original upload
+   answers 400.)
+2. The WAV is posted as multipart form data to ``/inference`` on the
+   locally managed server, and the ``text`` field of the JSON response is
+   returned.
+
+Decoding stays in this repository (and not in a helper library) because
+the recordings are produced by this app for this app.
 """
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-from tempfile import NamedTemporaryFile
+import io
+import json
+import wave
 from threading import Lock
-from typing import TYPE_CHECKING
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from ._logger import logger
+from .whisper_server import WhisperServer, WhisperServerUnavailable, normalize_model_name
 
-if TYPE_CHECKING:  # pragma: no cover - only for the type checker
-    import numpy as np
-
-# Model size used when nothing else is configured. "base" transcribes short
-# search phrases quickly without the lag of the larger models.
-DEFAULT_MODEL_SIZE = "base"
-
-# Environment variable that overrides the model size ("tiny", "base",
-# "small", "medium", ...). Any size the local Whisper build supports works.
-MODEL_SIZE_ENV_VAR = "RECIPE_SERVER_WHISPER_MODEL"
-
-# The model runs on the CPU by default: a short dictation phrase takes a
-# couple of seconds there, and the CPU backend works on every machine.
-# "cuda" (or "cuda:0") uses the GPU, and "auto" picks the GPU when it can be
-# initialised and falls back to the CPU when it cannot.
-DEFAULT_DEVICE = "cpu"
-DEVICE_ENV_VAR = "RECIPE_SERVER_WHISPER_DEVICE"
-
-# Beam width and voice-activity detection trade accuracy for speed; a short
-# dictation phrase does not need a wide search.
-BEAM_SIZE = 1
-USE_VAD = True
+# The transcription failures the HTTP layer surfaces as 503 (the feature is
+# down) versus 400 (the recording is bad). Re-exported so the server can
+# catch a single family of errors.
+TranscriberUnavailable = WhisperServerUnavailable
 
 # Sample rate the Whisper model expects. The recording is resampled to it.
 SAMPLE_RATE = 16000
 
+# Beam width and the HTTP read timeout; a short dictation phrase takes a
+# couple of seconds on a CPU.
+REQUEST_TIMEOUT_SECONDS = 120.0
 
-class TranscriberUnavailable(RuntimeError):
-    """Raised when the local Whisper model cannot be loaded."""
+# Multipart fields posted to /inference. response_format=json keeps the
+# answer to a single {"text": "..."} object.
+INFERENCE_PATH = "/inference"
+RESPONSE_FORMAT = "json"
 
 
 class TranscriptionError(RuntimeError):
     """Raised when a recording cannot be decoded into audio."""
 
 
-def decode_audio(path: Path) -> "np.ndarray":
-    """Decode the recording at *path* into mono 16 kHz float32 samples.
+def decode_audio_to_wav(data: bytes) -> bytes:
+    """Decode a recording into 16 kHz mono signed-16-bit WAV bytes.
 
-    Returns a NumPy array of samples, the format the Whisper model takes.
     Raises :class:`TranscriptionError` when the recording cannot be read.
     """
     try:
         import av
-        import numpy as np
     except ImportError as exc:  # pragma: no cover - the dependency is required
         raise TranscriberUnavailable("PyAV is not installed. Run 'uv sync' to install it.") from exc
 
     try:
-        with av.open(str(path)) as container:
+        with av.open(io.BytesIO(data)) as container:
             if not container.streams.audio:
                 raise TranscriptionError("The recording has no audio track")
 
@@ -84,106 +75,138 @@ def decode_audio(path: Path) -> "np.ndarray":
             frames = []
             for frame in container.decode(audio=0):
                 for resampled in resampler.resample(frame):
-                    frames.append(resampled.to_ndarray())
+                    frames.append(resampled.to_ndarray().tobytes())
 
             # The resampler may hold samples back until it is flushed.
             for resampled in resampler.resample(None):
-                frames.append(resampled.to_ndarray())
+                frames.append(resampled.to_ndarray().tobytes())
     except TranscriptionError:
         raise
     except Exception as exc:
         raise TranscriptionError(f"Unable to decode the recording: {exc}") from exc
 
-    if not frames:
+    pcm = b"".join(frames)
+    if not pcm:
         raise TranscriptionError("The recording has no audio samples")
 
-    # The frames have different lengths, so they are flattened before they are
-    # joined into one array of samples.
-    samples = np.concatenate([frame.reshape(-1) for frame in frames]).astype(np.float32) / 32768.0
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(SAMPLE_RATE)
+        wav.writeframes(pcm)
+    return buffer.getvalue()
 
-    if samples.size == 0:
-        raise TranscriptionError("The recording has no audio samples")
 
-    return samples
+def _multipart_body(fields: dict[str, str], file_field: str, file_name: str, file_content: bytes, file_content_type: str) -> tuple[bytes, str]:
+    boundary = "----RecipeServerTranscriptionBoundary7MA4YWxkTrZu0gW"
+    parts: list[bytes] = []
+    for name, value in fields.items():
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode("utf-8"))
+    parts.append(
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{file_field}"; filename="{file_name}"\r\n'
+        f"Content-Type: {file_content_type}\r\n\r\n".encode("utf-8") + file_content + b"\r\n"
+    )
+    parts.append(f"--{boundary}--\r\n".encode("utf-8"))
+    return b"".join(parts), boundary
+
+
+def post_inference(base_url: str, wav_audio: bytes, file_name: str = "recording.wav") -> str:
+    """Post a WAV recording to whisper-server and return the transcribed text."""
+    body, boundary = _multipart_body(
+        {"response_format": RESPONSE_FORMAT, "temperature": "0.0"},
+        "file",
+        file_name,
+        wav_audio,
+        "audio/wav",
+    )
+    request = Request(
+        f"{base_url}{INFERENCE_PATH}",
+        data=body,
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(len(body)),
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+            payload = response.read()
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace").strip()
+        raise TranscriberUnavailable(f"whisper-server refused the recording (HTTP {exc.code}): {detail or exc.reason}") from exc
+    except URLError as exc:
+        raise TranscriberUnavailable(f"whisper-server is not reachable: {exc.reason}") from exc
+
+    try:
+        result = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        raise TranscriberUnavailable(f"whisper-server answered with something that is not JSON: {payload[:200]!r}") from exc
+
+    text = result.get("text")
+    if not isinstance(text, str):
+        raise TranscriberUnavailable(f"whisper-server answered without a 'text' field: {payload[:200]!r}")
+    return text.strip()
 
 
 class Transcriber:
-    """Transcribe recorded audio into text with a local Whisper model."""
+    """Transcribe recorded audio into text with the managed whisper-server."""
 
-    def __init__(self, model_size: str | None = None, model=None, device: str | None = None):
-        self.model_size = (model_size or os.environ.get(MODEL_SIZE_ENV_VAR) or DEFAULT_MODEL_SIZE).strip()
-        self.device = (device or os.environ.get(DEVICE_ENV_VAR) or DEFAULT_DEVICE).strip().lower()
-        self._model = model
+    def __init__(self, model: str | None = None, server: WhisperServer | None = None):
+        # *model* is the ggml model name ("tiny", "base", ...). It only
+        # takes effect when *server* is not supplied.
+        self.model = normalize_model_name(model)
+        self._server = server
         self._lock = Lock()
 
-    def _load_model(self):
-        """Load the Whisper model on first use and return it."""
-        if self._model is not None:
-            return self._model
-
-        try:
-            from faster_whisper import WhisperModel
-        except ImportError as exc:
-            raise TranscriberUnavailable("faster-whisper is not installed. Run 'uv sync' to install it.") from exc
-
-        logger.info(f"Loading the Whisper model '{self.model_size}' on {self.device}")
-
-        try:
-            self._model = self._build_model(WhisperModel, self.device)
-        except Exception as exc:
-            if self.device != "auto":
-                raise TranscriberUnavailable(
-                    f"Unable to load the Whisper model '{self.model_size}' on {self.device}: {exc}. "
-                    f"Set {DEVICE_ENV_VAR}=cpu to run the model on the CPU."
-                ) from exc
-
-            # "auto" means "the GPU when it works": a machine with a GPU whose
-            # runtime libraries are missing still gets a working transcriber.
-            logger.warning(f"The GPU could not be initialised ({exc}); falling back to the CPU")
-            try:
-                self._model = self._build_model(WhisperModel, "cpu")
-            except Exception as cpu_exc:
-                raise TranscriberUnavailable(f"Unable to load the Whisper model '{self.model_size}': {cpu_exc}") from cpu_exc
-
-        return self._model
-
-    def _build_model(self, whisper_model, device: str):
-        return whisper_model(self.model_size, device=device, compute_type="default")
+    def _get_server(self) -> WhisperServer:
+        if self._server is None:
+            self._server = WhisperServer(model=self.model)
+        return self._server
 
     def transcribe(self, audio: bytes, suffix: str = ".webm") -> str:
         """Return the spoken text in *audio*.
 
-        *suffix* is the file suffix the recording is written to; it tells the
-        decoder which container the audio uses.
+        *suffix* is kept for API compatibility with the browser pipeline;
+        decoding is content-based, so it is not used.
         """
         if not audio:
             raise ValueError("Audio recording is empty")
 
         with self._lock:
-            model = self._load_model()
+            wav_audio = decode_audio_to_wav(audio)
+            server = self._get_server().ensure_running()
+            return post_inference(server.base_url, wav_audio)
 
-            with NamedTemporaryFile(suffix=suffix, delete=False) as audio_file:
-                audio_file.write(audio)
-                audio_path = Path(audio_file.name)
-
-            try:
-                samples = decode_audio(audio_path)
-                segments, _info = model.transcribe(samples, beam_size=BEAM_SIZE, vad_filter=USE_VAD)
-                return " ".join(segment.text.strip() for segment in segments if segment.text.strip())
-            finally:
-                audio_path.unlink(missing_ok=True)
+    def stop(self) -> None:
+        """Stop the managed whisper-server, if any was started."""
+        with self._lock:
+            if self._server is not None:
+                self._server.stop()
 
 
-# The shared transcriber: the model is expensive to load, so every request
-# reuses the same instance.
+# The shared transcriber: starting whisper-server (and loading the model) is
+# expensive, so every request reuses the same instance.
 _transcriber: Transcriber | None = None
+_transcriber_lock = Lock()
 
 
 def get_transcriber() -> Transcriber:
     """Return the shared transcriber, creating it on first use."""
     global _transcriber
 
-    if _transcriber is None:
-        _transcriber = Transcriber()
-
+    with _transcriber_lock:
+        if _transcriber is None:
+            _transcriber = Transcriber()
     return _transcriber
+
+
+def stop_transcriber() -> None:
+    """Stop the shared transcriber's whisper-server, if it is running."""
+    global _transcriber
+
+    with _transcriber_lock:
+        transcriber = _transcriber
+        _transcriber = None
+    if transcriber is not None:
+        transcriber.stop()

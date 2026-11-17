@@ -83,7 +83,8 @@ TRANSCRIPTION_AUDIO_SUFFIXES = {
 # Longest recording the transcription endpoint accepts.
 MAX_TRANSCRIPTION_SIZE = 25 * 1024 * 1024
 
-# The shared transcriber; the Whisper model behind it loads on first use.
+# The shared transcriber; whisper-server is started on the first
+# transcription and stopped when the app shuts down.
 transcriber = get_transcriber()
 
 # ----- Filename and metadata-field rules -----------------------------------
@@ -1056,8 +1057,16 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         return False
 
+    def _dictation_enabled(self) -> bool:
+        """Report whether dictation is enabled in the saved configuration."""
+        return getattr(self.config, "dictation_enabled", True) if self.config is not None else True
+
     def _handle_transcription(self) -> None:
         """Transcribe a recorded audio clip into text."""
+        if not self._dictation_enabled():
+            self._send_json(403, {"error": "Dictation is disabled in the server configuration"})
+            return
+
         if not self._request_is_secure():
             self._send_json(403, {"error": "Speech transcription requires an HTTPS connection"})
             return

@@ -1,12 +1,14 @@
-"""Transcription with the real Whisper model.
+"""Transcription with the real whisper-server.
 
-These tests download the model weights (about 75 MB for "tiny"), so they only
-run when they are asked for:
+These tests download the ggml model weights (about 75 MB for "tiny"), so
+they only run when they are asked for:
 
     RECIPE_SERVER_TEST_WHISPER=1 uv run pytest test/test_speech_model.py
 
 Set ``RECIPE_SERVER_TEST_WHISPER_MODEL`` to use another model size, and
-``HF_HOME`` to keep the downloaded weights out of the home directory.
+``RECIPE_SERVER_WHISPER_MODEL_DIR`` to keep the downloaded weights out of
+the user data directory. The test machine must be able to reach
+huggingface.co and run the bundled whisper-server for this platform.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def _model_size() -> str:
+def _model_name() -> str:
     return os.environ.get("RECIPE_SERVER_TEST_WHISPER_MODEL", "tiny").strip() or "tiny"
 
 
@@ -53,21 +55,26 @@ def _post_audio(url: str, body: bytes) -> tuple[int, dict]:
         return error.code, parsed
 
 
-def test_the_recorded_phrase_is_transcribed():
-    transcriber = Transcriber(model_size=_model_size())
+@pytest.fixture()
+def transcriber():
+    instance = Transcriber(model=_model_name())
+    yield instance
+    instance.stop()
 
+
+def test_the_recorded_phrase_is_transcribed(transcriber):
     text = transcriber.transcribe(FIXTURE.read_bytes(), suffix=".webm")
 
     assert "chocolate" in text.lower()
     assert "cake" in text.lower()
 
 
-def test_the_api_transcribes_the_recorded_phrase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_the_api_transcribes_the_recorded_phrase(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, transcriber):
     source = tmp_path / "recipes"
     (source / "soup").mkdir(parents=True)
     (source / "soup" / "recipe.md").write_text("---\nmeals:\n  - Dinner\n---\n# Soup\n\nBody.\n", encoding="utf-8")
 
-    monkeypatch.setattr(server_module, "transcriber", Transcriber(model_size=_model_size()))
+    monkeypatch.setattr(server_module, "transcriber", transcriber)
 
     from test.helpers import running_recipe_server
 

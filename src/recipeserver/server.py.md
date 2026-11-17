@@ -63,10 +63,10 @@ HTML responses (generated `.html` pages and directory paths) are sent with `Cach
 
 `POST /api/transcribe` takes the raw audio of a recording and returns `{"text": "…"}`.
 
+- The feature can be turned off with the **Dictation** field in the configuration ([config.py.md](config.py.md)). When dictation is disabled the endpoint answers 403, the generated index pages do not render the button ([index_html_generator.py.md](index_html_generator.py.md)), and a running whisper-server is stopped on the configuration save.
 - The request must have arrived over HTTPS. The server itself speaks plain HTTP, so the protocol is taken from the `X-Forwarded-Proto` (or `Forwarded`) header the reverse proxy sets; without it the endpoint answers 403. The header can only come from a local process, because the server listens on the loopback interface only.
 - The body is the recording; its `Content-Type` selects the container (`audio/webm`, `audio/ogg`, `audio/mp4`, `audio/wav`, `audio/mpeg`) and the suffix the recording is written to. Unknown types answer 415, an empty body 400, and a body over `MAX_TRANSCRIPTION_SIZE` 413.
-- A recording that cannot be decoded answers 400 with the reason; it is the caller's mistake, not a server error.
-- The transcription itself is done by the module-level `transcriber` ([transcriber.py.md](transcriber.py.md)); a missing model answers 503 and a failed transcription 500.
+- The recording is decoded with PyAV into a 16 kHz mono WAV and posted to the locally managed [whisper-server](whisper_server.py.md) ([fordaj/whisper-native](https://github.com/fordaj/whisper-native)); the managed process is started on the first transcription and stopped on app shutdown. A missing binary or model answers 503 and a recording that cannot be decoded answers 400 with the reason; anything else is a 500.
 
 ## Limits and conventions
 
@@ -78,5 +78,5 @@ HTML responses (generated `.html` pages and directory paths) are sent with `Cach
 ## Related pages
 
 - [core.py.md](core.py.md) — wires the callbacks
-- [ai_recipe.py.md](ai_recipe.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) — backing modules
+- [ai_recipe.py.md](ai_recipe.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) · [whisper_server.py.md](whisper_server.py.md) — backing modules
 - [README.md](README.md) — the package hub

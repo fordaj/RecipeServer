@@ -50,6 +50,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 
 - [server.py](server.py.md) — `ThreadingHTTPServer`, the `/api/*` routes
 - [transcriber.py](transcriber.py.md) — local Whisper transcription for the dictation button
+- [whisper_server.py](whisper_server.py.md) — the whisper-server subprocess lifecycle (bundled binary, model download)
 - [ai_recipe.py](ai_recipe.py.md) — optional Ollama integration, recipe drafting
 - [metadata_options.py](metadata_options.py.md) — in-use metadata and feedback-name values for the dropdowns
 - [metadata_linter.py](metadata_linter.py.md) — required-field warnings

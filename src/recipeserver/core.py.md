@@ -27,9 +27,9 @@ The application spine. `main(cfg)` builds the site, starts the HTTP server, and 
   - `regen()` / `_regen_locked()` — full rebuild: deletes and recreates the site directory, copies `assets/`, finds every `recipe.md` under the source tree, converts them in parallel, then rebuilds `index.html`. One broken recipe is logged and skipped so the rest of the site still builds.
   - `on_markdown_save(markdown)` — re-render one recipe and rebuild the index (called after editor saves).
   - `on_recipes_deleted(paths)` — drop deleted recipes from the index and unlink their pages.
-  - `on_config_save()` — full rebuild after a configuration change.
+  - `on_config_save()` — full rebuild after a configuration change. When the saved configuration disables dictation, the shared transcriber is torn down ([transcriber.py.md](transcriber.py.md)), which stops the managed whisper-server ([whisper_server.py.md](whisper_server.py.md)).
 - `parse_args()` — `--log-level LEVEL` (`-l`), choices from `LogLevel` ([_logger.py.md](_logger.py.md)), default `INFO`.
-- `main(cfg)` — `Core(cfg)` → `regen()` → `Server(...)` ([server.py.md](server.py.md)) → `Tray(...)` ([tray.py.md](tray.py.md)). On macOS the tray runs on the main thread; elsewhere it runs detached and this thread polls the shutdown event.
+- `main(cfg)` — `Core(cfg)` → `regen()` → `Server(...)` ([server.py.md](server.py.md)) → `Tray(...)` ([tray.py.md](tray.py.md)). On macOS the tray runs on the main thread; elsewhere it runs detached and this thread polls the shutdown event. The shutdown path also stops the shared transcriber after the HTTP server and tray stop, so a whisper-server started for dictation never outlives the app.
 
 The server binds `127.0.0.1` on the configured port (default 8000); if the port is in use at startup, `Server.start()` logs an error and exits (see [server.py.md](server.py.md)).
 
@@ -40,4 +40,5 @@ The server binds `127.0.0.1` on the configured port (default 8000); if the port 
 - [tray.py.md](tray.py.md) — the tray icon wired up here
 - [index_html_generator.py.md](index_html_generator.py.md) — builds `index.html`
 - [markdown_to_html/converter.py.md](markdown_to_html/converter.py.md) — renders each recipe page
+- [transcriber.py.md](transcriber.py.md) · [whisper_server.py.md](whisper_server.py.md) — the dictation transcription and its managed process
 - [README.md](README.md) — the package hub

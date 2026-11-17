@@ -1,28 +1,29 @@
 """Tests for the local speech-to-text transcriber.
 
 These tests cover the parts of the dictation feature that run on this
-machine: decoding the recording the browser sends, handing the decoded
-samples to the Whisper model, and the rules that decide which model and
-which device are used.
+machine: decoding the recording the browser sends into a WAV the
+whisper-server understands, and handing that WAV to the managed server.
+
+The lifecycle of the whisper-server process itself is covered in
+test_whisper_server.py.
 """
 
 from __future__ import annotations
 
-import sys
-import types
+import io
+import json
+import wave
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from recipeserver.transcriber import (
-    DEFAULT_DEVICE,
-    DEVICE_ENV_VAR,
     SAMPLE_RATE,
     Transcriber,
     TranscriberUnavailable,
     TranscriptionError,
-    decode_audio,
+    decode_audio_to_wav,
+    post_inference,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures" / "speech"
@@ -34,222 +35,227 @@ MP4_FIXTURE = FIXTURES / "chocolate-cake.mp4"
 FIXTURE_SECONDS = 1.66
 
 
-class FakeSegment:
-    def __init__(self, text: str):
-        self.text = text
+class FakeWhisperServer:
+    """Stand-in for the managed whisper-server process."""
+
+    def __init__(self):
+        self.ensure_calls = 0
+        self.started = 0
+        self.stopped = 0
+        self._running = False
+
+    def ensure_running(self):
+        self.ensure_calls += 1
+        if not self._running:
+            self.started += 1
+            self._running = True
+        return self
+
+    @property
+    def base_url(self):
+        return "http://127.0.0.1:9"
+
+    def stop(self):
+        self.stopped += 1
 
 
-class FakeModel:
-    """Stand-in for the Whisper model."""
-
-    def __init__(self, segments=("chocolate cake",)):
-        self.segments = list(segments)
-        self.calls: list[dict] = []
-        self.samples = None
-
-    def transcribe(self, samples, **kwargs):
-        self.calls.append(kwargs)
-        self.samples = samples
-        return [FakeSegment(text) for text in self.segments], None
-
-
-@pytest.fixture()
-def fake_faster_whisper(monkeypatch: pytest.MonkeyPatch):
-    """Install a stand-in for the faster-whisper package.
-
-    The factory records the arguments it is called with, so the tests can
-    assert which model and device are used.
-    """
-    module = types.ModuleType("faster_whisper")
-    module.calls = []
-
-    def whisper_model(model_size, device="auto", compute_type="default"):
-        module.calls.append({"model_size": model_size, "device": device, "compute_type": compute_type})
-        return FakeModel()
-
-    module.WhisperModel = whisper_model
-    monkeypatch.setitem(sys.modules, "faster_whisper", module)
-    return module
+def _read_wav(wav_bytes: bytes) -> tuple[int, int, int, int]:
+    with wave.open(io.BytesIO(wav_bytes), "rb") as wav:
+        return wav.getframerate(), wav.getnchannels(), wav.getsampwidth(), wav.getnframes()
 
 
 # ----- Decoding ----- #
 
 
-def test_decode_audio_reads_a_wav_recording():
-    samples = decode_audio(WAV_FIXTURE)
+def test_decode_audio_to_wav_reads_a_wav_recording():
+    wav_bytes = decode_audio_to_wav(WAV_FIXTURE.read_bytes())
 
-    assert isinstance(samples, np.ndarray)
-    assert samples.dtype == np.float32
-    assert samples.ndim == 1
-    assert samples.size == pytest.approx(FIXTURE_SECONDS * SAMPLE_RATE, abs=100)
-    # The samples are normalized audio, not raw 16-bit values.
-    assert samples.min() >= -1.0
-    assert samples.max() <= 1.0
+    assert wav_bytes[:4] == b"RIFF"
+    rate, channels, sampwidth, frames = _read_wav(wav_bytes)
+    assert (rate, channels, sampwidth) == (SAMPLE_RATE, 1, 2)
+    assert frames == pytest.approx(FIXTURE_SECONDS * SAMPLE_RATE, abs=100)
 
 
-def test_decode_audio_reads_the_webm_the_browser_records():
+def test_decode_audio_to_wav_reads_the_webm_the_browser_records():
     """The browser records Opus in WebM; that is what has to decode."""
-    samples = decode_audio(WEBM_FIXTURE)
+    wav_bytes = decode_audio_to_wav(WEBM_FIXTURE.read_bytes())
 
-    assert samples.dtype == np.float32
-    assert samples.size == pytest.approx(FIXTURE_SECONDS * SAMPLE_RATE, abs=100)
+    rate, channels, sampwidth, frames = _read_wav(wav_bytes)
+    assert (rate, channels, sampwidth) == (SAMPLE_RATE, 1, 2)
+    assert frames == pytest.approx(FIXTURE_SECONDS * SAMPLE_RATE, abs=100)
+
+
+def test_decode_audio_to_wav_reads_the_mp4_safari_records():
+    """Safari records AAC in MP4 instead of Opus in WebM."""
+    wav_bytes = decode_audio_to_wav(MP4_FIXTURE.read_bytes())
+
+    rate, _channels, _sampwidth, frames = _read_wav(wav_bytes)
+    assert rate == SAMPLE_RATE
+    # The AAC encoder pads the clip, so the length is approximate.
+    assert frames == pytest.approx(FIXTURE_SECONDS * SAMPLE_RATE, abs=1500)
 
 
 def test_both_recordings_hold_the_same_audio():
-    assert decode_audio(WEBM_FIXTURE).size == decode_audio(WAV_FIXTURE).size
+    webm_bytes = decode_audio_to_wav(WEBM_FIXTURE.read_bytes())
+    wav_bytes = decode_audio_to_wav(WAV_FIXTURE.read_bytes())
+
+    assert _read_wav(webm_bytes)[3] == _read_wav(wav_bytes)[3]
 
 
-def test_decode_audio_reads_the_mp4_safari_records():
-    """Safari records AAC in MP4 instead of Opus in WebM."""
-    samples = decode_audio(MP4_FIXTURE)
-
-    assert samples.dtype == np.float32
-    # The AAC encoder pads the clip, so the length is approximate.
-    assert samples.size == pytest.approx(FIXTURE_SECONDS * SAMPLE_RATE, abs=1500)
-
-
-def test_decode_audio_rejects_a_recording_that_is_not_audio(tmp_path: Path):
-    broken = tmp_path / "broken.webm"
-    broken.write_bytes(b"this is not audio at all")
-
+def test_decode_audio_rejects_a_recording_that_is_not_audio():
     with pytest.raises(TranscriptionError):
-        decode_audio(broken)
+        decode_audio_to_wav(b"this is not audio at all")
 
 
-def test_decode_audio_rejects_an_empty_recording(tmp_path: Path):
-    empty = tmp_path / "empty.webm"
-    empty.write_bytes(b"")
-
+def test_decode_audio_rejects_an_empty_recording():
     with pytest.raises(TranscriptionError):
-        decode_audio(empty)
+        decode_audio_to_wav(b"")
 
 
-def test_decode_audio_rejects_a_recording_without_audio(tmp_path: Path):
+def test_decode_audio_rejects_a_recording_without_audio():
     """A file that decodes but carries no audio track is not a recording."""
-    video_only = tmp_path / "video.mp4"
-    video_only.write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64)
+    video_only = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64
 
     with pytest.raises(TranscriptionError):
-        decode_audio(video_only)
+        decode_audio_to_wav(video_only)
 
 
 # ----- Transcribing ----- #
 
 
-def test_transcribe_hands_the_model_the_decoded_samples():
-    model = FakeModel()
-    transcriber = Transcriber(model=model)
+def test_transcribe_posts_the_decoded_wav_to_the_server(monkeypatch: pytest.MonkeyPatch):
+    server = FakeWhisperServer()
+    transcriber = Transcriber(server=server)
+    posted = {}
+
+    def fake_post_inference(base_url, wav_audio, file_name="recording.wav"):
+        posted["base_url"] = base_url
+        posted["wav_audio"] = wav_audio
+        return "chocolate cake"
+
+    monkeypatch.setattr("recipeserver.transcriber.post_inference", fake_post_inference)
 
     text = transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
 
     assert text == "chocolate cake"
-    # The model gets the samples, not a file name: faster-whisper decodes
-    # files with a PyAV call that no longer works with PyAV 19.
-    assert isinstance(model.samples, np.ndarray)
-    assert model.samples.dtype == np.float32
-    assert model.samples.size == pytest.approx(FIXTURE_SECONDS * SAMPLE_RATE, abs=100)
+    assert posted["base_url"] == "http://127.0.0.1:9"
+    rate, channels, sampwidth, frames = _read_wav(posted["wav_audio"])
+    assert (rate, channels, sampwidth) == (SAMPLE_RATE, 1, 2)
+    assert frames > 0
+    assert server.started == 1
 
 
-def test_transcribe_joins_the_segments():
-    model = FakeModel(segments=("chocolate", "cake", "please"))
-    transcriber = Transcriber(model=model)
+def test_transcribe_starts_the_server_once(monkeypatch: pytest.MonkeyPatch):
+    server = FakeWhisperServer()
+    transcriber = Transcriber(server=server)
 
-    assert transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm") == "chocolate cake please"
+    monkeypatch.setattr("recipeserver.transcriber.post_inference", lambda _url, _wav, file_name="recording.wav": "chocolate cake")
 
+    transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
+    transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
 
-def test_transcribe_skips_empty_segments():
-    model = FakeModel(segments=("chocolate", "", "  ", "cake"))
-    transcriber = Transcriber(model=model)
-
-    assert transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm") == "chocolate cake"
+    assert server.ensure_calls == 2
+    assert server.started == 1
 
 
 def test_transcribe_rejects_an_empty_recording():
-    transcriber = Transcriber(model=FakeModel())
+    transcriber = Transcriber(server=FakeWhisperServer())
 
     with pytest.raises(ValueError):
         transcriber.transcribe(b"", suffix=".webm")
 
 
 def test_transcribe_reports_a_recording_it_cannot_decode():
-    transcriber = Transcriber(model=FakeModel())
+    transcriber = Transcriber(server=FakeWhisperServer())
 
     with pytest.raises(TranscriptionError):
         transcriber.transcribe(b"not audio", suffix=".webm")
 
 
-def test_the_model_is_loaded_once(fake_faster_whisper):
-    transcriber = Transcriber(model_size="tiny")
+def test_stop_stops_the_managed_server():
+    server = FakeWhisperServer()
+    transcriber = Transcriber(server=server)
 
-    transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
-    transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
+    transcriber.stop()
 
-    assert len(fake_faster_whisper.calls) == 1
-
-
-# ----- Model and device ----- #
+    assert server.stopped == 1
 
 
-def test_the_model_runs_on_the_cpu_by_default(fake_faster_whisper):
-    transcriber = Transcriber(model_size="tiny")
-
-    transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
-
-    assert fake_faster_whisper.calls[0]["device"] == DEFAULT_DEVICE == "cpu"
+# ----- The HTTP client ----- #
 
 
-def test_the_device_can_be_configured(fake_faster_whisper, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setenv(DEVICE_ENV_VAR, "cuda")
+def test_post_inference_sends_multipart_form_data(monkeypatch: pytest.MonkeyPatch):
+    captured = {}
 
-    transcriber = Transcriber(model_size="tiny")
-    transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
+    class FakeResponse:
+        def __init__(self, payload: bytes):
+            self.payload = payload
 
-    assert fake_faster_whisper.calls[0]["device"] == "cuda"
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return self.payload
+
+    def fake_urlopen(request, timeout=0):
+        captured["url"] = request.full_url
+        captured["body"] = request.data
+        captured["content_type"] = request.headers["Content-type"]
+        return FakeResponse(json.dumps({"text": "chocolate cake"}).encode("utf-8"))
+
+    monkeypatch.setattr("recipeserver.transcriber.urlopen", fake_urlopen)
+
+    assert post_inference("http://127.0.0.1:1234", b"RIFF-wav-bytes") == "chocolate cake"
+    assert captured["url"] == "http://127.0.0.1:1234/inference"
+    assert captured["content_type"].startswith("multipart/form-data; boundary=")
+    assert b'name="file"; filename="recording.wav"' in captured["body"]
+    assert b"RIFF-wav-bytes" in captured["body"]
+    assert b'name="response_format"' in captured["body"]
+    assert b"json" in captured["body"]
 
 
-def test_a_broken_device_reports_how_to_run_on_the_cpu(monkeypatch: pytest.MonkeyPatch):
-    """A GPU whose runtime libraries are missing must not fail the request."""
-    module = types.ModuleType("faster_whisper")
+def test_post_inference_surfaces_the_servers_error_message(monkeypatch: pytest.MonkeyPatch):
+    from urllib.error import HTTPError
 
-    def whisper_model(model_size, device="auto", compute_type="default"):
-        raise RuntimeError("Library cublas64_12.dll is not found or cannot be loaded")
+    def fake_urlopen(request, timeout=0):
+        raise HTTPError(request.full_url, 400, "Bad Request", {}, io.BytesIO(b"Invalid request"))
 
-    module.WhisperModel = whisper_model
-    monkeypatch.setitem(sys.modules, "faster_whisper", module)
-
-    transcriber = Transcriber(model_size="tiny")
+    monkeypatch.setattr("recipeserver.transcriber.urlopen", fake_urlopen)
 
     with pytest.raises(TranscriberUnavailable) as error:
-        transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
+        post_inference("http://127.0.0.1:1234", b"RIFF-wav-bytes")
 
-    assert DEVICE_ENV_VAR in str(error.value)
-    assert "cpu" in str(error.value)
-
-
-def test_auto_falls_back_to_the_cpu_when_the_gpu_is_unusable(monkeypatch: pytest.MonkeyPatch):
-    module = types.ModuleType("faster_whisper")
-    module.calls = []
-
-    def whisper_model(model_size, device="auto", compute_type="default"):
-        module.calls.append(device)
-        if device != "cpu":
-            raise RuntimeError("Library cublas64_12.dll is not found or cannot be loaded")
-        return FakeModel()
-
-    module.WhisperModel = whisper_model
-    monkeypatch.setitem(sys.modules, "faster_whisper", module)
-
-    transcriber = Transcriber(model_size="tiny", device="auto")
-    text = transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
-
-    assert text == "chocolate cake"
-    assert module.calls == ["auto", "cpu"]
+    assert "400" in str(error.value)
+    assert "Invalid request" in str(error.value)
 
 
-def test_a_missing_faster_whisper_is_reported(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setitem(sys.modules, "faster_whisper", None)
+def test_post_inference_reports_an_unreachable_server(monkeypatch: pytest.MonkeyPatch):
+    from urllib.error import URLError
 
-    transcriber = Transcriber(model_size="tiny")
+    def fake_urlopen(request, timeout=0):
+        raise URLError("Connection refused")
+
+    monkeypatch.setattr("recipeserver.transcriber.urlopen", fake_urlopen)
 
     with pytest.raises(TranscriberUnavailable):
-        transcriber.transcribe(WEBM_FIXTURE.read_bytes(), suffix=".webm")
+        post_inference("http://127.0.0.1:1234", b"RIFF-wav-bytes")
+
+
+def test_post_inference_rejects_a_response_without_text(monkeypatch: pytest.MonkeyPatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def read(self):
+            return b"{}"
+
+    monkeypatch.setattr("recipeserver.transcriber.urlopen", lambda request, timeout=0: FakeResponse())
+
+    with pytest.raises(TranscriberUnavailable):
+        post_inference("http://127.0.0.1:1234", b"RIFF-wav-bytes")

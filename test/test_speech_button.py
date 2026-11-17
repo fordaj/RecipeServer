@@ -16,7 +16,6 @@ from types import SimpleNamespace
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-import numpy as np
 import pytest
 
 from recipeserver import server as server_module
@@ -52,23 +51,41 @@ class FakeTranscriber:
         return self.text
 
 
-class FakeSegment:
-    def __init__(self, text: str):
-        self.text = text
+class FakeWhisperServer:
+    """Stand-in for the managed whisper-server process."""
+
+    def __init__(self):
+        self.started = 0
+        self.stopped = 0
+        self._running = False
+
+    def ensure_running(self):
+        if not self._running:
+            self.started += 1
+            self._running = True
+        return self
+
+    @property
+    def base_url(self):
+        return "http://127.0.0.1:9"
+
+    def stop(self):
+        self.stopped += 1
+        self._running = False
 
 
-class RecordingModel:
-    """Stand-in for the Whisper model that records what it is given."""
+@pytest.fixture()
+def fake_whisper_server(monkeypatch: pytest.MonkeyPatch) -> FakeWhisperServer:
+    """Stub the HTTP call to whisper-server; returns the fake process."""
+    server = FakeWhisperServer()
+    server.posts = []
 
-    def __init__(self, text: str = "chocolate cake"):
-        self.text = text
-        self.samples = None
-        self.calls: list[dict] = []
+    def fake_post(base_url, wav_audio, file_name="recording.wav"):
+        server.posts.append((base_url, wav_audio, file_name))
+        return "chocolate cake"
 
-    def transcribe(self, samples, **kwargs):
-        self.calls.append(kwargs)
-        self.samples = samples
-        return [FakeSegment(self.text)], None
+    monkeypatch.setattr("recipeserver.transcriber.post_inference", fake_post)
+    return server
 
 
 def _post_audio(url: str, *, headers: dict | None = None, body: bytes = AUDIO, content_type: str = "audio/webm") -> tuple[int, dict]:
@@ -106,12 +123,15 @@ def source(tmp_path: Path) -> Path:
 # ----- The generated index page ----- #
 
 
-def _generate_index(tmp_path: Path) -> str:
+def _generate_index(tmp_path: Path, dictation_enabled: bool | None = None) -> str:
     recipe_path = tmp_path / "soup" / "recipe.html"
     recipe_path.parent.mkdir(parents=True, exist_ok=True)
     recipe_path.write_text("<h1>Soup</h1>", encoding="utf-8")
 
-    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path))
+    cfg_kwargs = {"site_directory": tmp_path}
+    if dictation_enabled is not None:
+        cfg_kwargs["dictation_enabled"] = dictation_enabled
+    generator = IndexHTMLGenerator(SimpleNamespace(**cfg_kwargs))
     generator.add(Recipe({"categories": ["Soup"]}, recipe_path))
     generator.convert()
 
@@ -129,6 +149,16 @@ def test_index_page_offers_the_dictation_button(tmp_path: Path):
     # The button starts hidden: the script only reveals it over HTTPS.
     speech_button = index.split('data-testid="speech-button"', 1)[1]
     assert "hidden" in speech_button.split(">", 1)[0]
+
+
+def test_index_page_hides_the_dictation_button_when_disabled(tmp_path: Path):
+    index = _generate_index(tmp_path, dictation_enabled=False)
+
+    assert 'data-testid="speech-button"' not in index
+    assert "speech-button.js" not in index
+    assert "speech-button.css" not in index
+    # The search field itself is still there.
+    assert 'id="recipe-search"' in index
 
 
 def test_index_page_loads_the_dictation_assets(tmp_path: Path):
@@ -160,6 +190,16 @@ def test_transcription_requires_https(source: Path, fake_transcriber: FakeTransc
 
     assert status == 403
     assert "HTTPS" in body["error"]
+    # Nothing was transcribed.
+    assert fake_transcriber.calls == []
+
+
+def test_transcription_is_rejected_when_dictation_is_disabled(source: Path, fake_transcriber: FakeTranscriber):
+    with running_recipe_server(source, config=SimpleNamespace(dictation_enabled=False)) as (base_url, _, _):
+        status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"})
+
+    assert status == 403
+    assert "disabled" in body["error"]
     # Nothing was transcribed.
     assert fake_transcriber.calls == []
 
@@ -218,13 +258,13 @@ def test_transcription_rejects_an_oversized_recording(source: Path, fake_transcr
 def test_transcription_reports_a_missing_transcriber(source: Path, monkeypatch: pytest.MonkeyPatch):
     from recipeserver.transcriber import TranscriberUnavailable
 
-    monkeypatch.setattr(server_module, "transcriber", FakeTranscriber(error=TranscriberUnavailable("faster-whisper is not installed.")))
+    monkeypatch.setattr(server_module, "transcriber", FakeTranscriber(error=TranscriberUnavailable("whisper-server was not found.")))
 
     with running_recipe_server(source) as (base_url, _, _):
         status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"})
 
     assert status == 503
-    assert "faster-whisper" in body["error"]
+    assert "whisper-server" in body["error"]
 
 
 def test_transcription_reports_a_failed_transcription(source: Path, monkeypatch: pytest.MonkeyPatch):
@@ -240,14 +280,13 @@ def test_transcription_reports_a_failed_transcription(source: Path, monkeypatch:
 # ----- The recording the browser sends ----- #
 
 
-def test_transcription_decodes_the_recorded_clip(source: Path, monkeypatch: pytest.MonkeyPatch):
-    """The whole path: a recorded clip in, the decoded samples in the model.
+def test_transcription_decodes_the_recorded_clip(source: Path, monkeypatch: pytest.MonkeyPatch, fake_whisper_server: FakeWhisperServer):
+    """The whole path: a recorded clip in, a WAV post to whisper-server out.
 
     This is the test that catches a broken audio decoder: the recording is
     a real Opus/WebM clip, the way the browser records it.
     """
-    model = RecordingModel()
-    monkeypatch.setattr(server_module, "transcriber", Transcriber(model=model))
+    monkeypatch.setattr(server_module, "transcriber", Transcriber(server=fake_whisper_server))
 
     with running_recipe_server(source) as (base_url, _, _):
         status, body = _post_audio(
@@ -260,16 +299,17 @@ def test_transcription_decodes_the_recorded_clip(source: Path, monkeypatch: pyte
     assert status == 200
     assert body == {"text": "chocolate cake"}
 
-    # The model is given the decoded samples, not a file name.
-    assert isinstance(model.samples, np.ndarray)
-    assert model.samples.dtype == np.float32
-    assert model.samples.ndim == 1
-    assert model.samples.size > 0
+    # The server is handed a WAV file, not the original WebM container.
+    assert len(fake_whisper_server.posts) == 1
+    _url, wav_audio, file_name = fake_whisper_server.posts[0]
+    assert file_name == "recording.wav"
+    assert wav_audio[:4] == b"RIFF"
+    assert len(wav_audio) > 1000
 
 
-def test_transcription_reports_a_recording_it_cannot_decode(source: Path, monkeypatch: pytest.MonkeyPatch):
+def test_transcription_reports_a_recording_it_cannot_decode(source: Path, monkeypatch: pytest.MonkeyPatch, fake_whisper_server: FakeWhisperServer):
     """A clip that is not audio is the caller's mistake, not a server error."""
-    monkeypatch.setattr(server_module, "transcriber", Transcriber(model=RecordingModel()))
+    monkeypatch.setattr(server_module, "transcriber", Transcriber(server=fake_whisper_server))
 
     with running_recipe_server(source) as (base_url, _, _):
         status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"}, body=b"not audio at all")
@@ -278,10 +318,9 @@ def test_transcription_reports_a_recording_it_cannot_decode(source: Path, monkey
     assert "decode" in body["error"].lower()
 
 
-def test_transcription_decodes_the_clip_safari_records(source: Path, monkeypatch: pytest.MonkeyPatch):
+def test_transcription_decodes_the_clip_safari_records(source: Path, monkeypatch: pytest.MonkeyPatch, fake_whisper_server: FakeWhisperServer):
     """Safari records AAC in MP4; that recording has to transcribe as well."""
-    model = RecordingModel()
-    monkeypatch.setattr(server_module, "transcriber", Transcriber(model=model))
+    monkeypatch.setattr(server_module, "transcriber", Transcriber(server=fake_whisper_server))
 
     with running_recipe_server(source) as (base_url, _, _):
         status, body = _post_audio(
@@ -293,7 +332,7 @@ def test_transcription_decodes_the_clip_safari_records(source: Path, monkeypatch
 
     assert status == 200
     assert body == {"text": "chocolate cake"}
-    assert model.samples.size > 0
+    assert fake_whisper_server.posts[0][1].startswith(b"RIFF")
 
 
 # ----- The browser script ----- #

@@ -27,7 +27,9 @@ Everything about the runtime configuration lives here: the `recipe-server-cfg.to
 
 ## `Configuration`
 
-Mutable bag of settings with property setters that normalize and validate (assignment never raises; invalid non-blank typed values fall back to defaults with a logged warning). Keys and their `CONFIG_FIELDS` entries — `recipe_server_name`, `source_directory`, `model_endpoint`, `all_purpose_model_name`, `image_analysis_model`, `server_port` (default 8000), `food_color` — are the single source of truth for the Configuration editor UI: `field_specs()`, `get_config_values()`, and `apply_config_values()` all derive from `CONFIG_FIELDS`, so adding a field means appending one `ConfigField`.
+Mutable bag of settings with property setters that normalize and validate (assignment never raises; invalid non-blank typed values fall back to defaults with a logged warning). Keys and their `CONFIG_FIELDS` entries — `recipe_server_name`, `source_directory`, `model_endpoint`, `all_purpose_model_name`, `image_analysis_model`, `server_port` (default 8000), `food_color`, `dictation_enabled` — are the single source of truth for the Configuration editor UI: `field_specs()`, `get_config_values()`, and `apply_config_values()` all derive from `CONFIG_FIELDS`, so adding a field means appending one `ConfigField`.
+
+`dictation_enabled` is the one boolean field. It is stored in the TOML file as a real TOML boolean (`dictation_enabled = true`), round-trips through `get_config_values()` as the string `"true"`/`"false"`, is edited in the UI as a checkbox (`input_type="checkbox"`), and defaults to `true`. `_parse_toml_config` accepts either the TOML boolean or a quoted `"true"`/`"false"` string; `_normalize_dictation_enabled` accepts the usual truthy spellings for hand-edited values. When dictation is saved as disabled, [core.py.md](core.py.md) stops the managed whisper-server ([transcriber.py.md](transcriber.py.md)) and generated index pages omit the dictation button ([index_html_generator.py.md](index_html_generator.py.md)).
 
 Legacy read-only keys: `model_name` → `all_purpose_model_name`, `server_name` → `recipe_server_name` (normalized on save). `categories`-style singular field handling lives in [recipe_utils.py](recipe_utils.py.md), not here.
 
@@ -37,7 +39,7 @@ Legacy read-only keys: `model_name` → `all_purpose_model_name`, `server_name` 
 
 ## Validation helpers
 
-`_normalize_model_endpoint` (adds a scheme if omitted, requires http/https), `_normalize_server_port` (1–65535), `_normalize_food_color` (`#rgb`/`#rrggbb`, normalized to lowercase `#rrggbb`), `_validate_source_directory` (must be an existing directory). `_parse_toml_config` accepts a bare-integer `server_port`; `_parse_config` reads the legacy line-based format.
+`_normalize_model_endpoint` (adds a scheme if omitted, requires http/https), `_normalize_server_port` (1–65535), `_normalize_food_color` (`#rgb`/`#rrggbb`, normalized to lowercase `#rrggbb`), `_normalize_dictation_enabled` (TOML boolean or truthy/falsy spelling), `_validate_source_directory` (must be an existing directory). `_parse_toml_config` accepts a bare-integer `server_port` and a boolean `dictation_enabled`; `_parse_config` reads the legacy line-based format.
 
 ## Where it is used
 

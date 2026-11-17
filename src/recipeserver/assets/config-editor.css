@@ -69,6 +69,27 @@
   cursor: wait;
 }
 
+/* Checkbox rows (e.g. Dictation): the checkbox sits inside the label. */
+.config-editor__checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--metadata-color);
+  cursor: pointer;
+}
+
+.config-editor__checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--food-color);
+  cursor: pointer;
+}
+
+.config-editor__checkbox:disabled {
+  cursor: wait;
+}
+
 /* Fields whose value differs from the loaded configuration. */
 .config-editor__field.is-changed input {
   border-color: var(--food-color);

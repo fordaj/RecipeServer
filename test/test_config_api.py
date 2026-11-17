@@ -95,6 +95,7 @@ def test_get_config_returns_values_and_field_specs(config_server):
         "image_analysis_model",
         "server_port",
         "food_color",
+        "dictation_enabled",
     }
     for field in data["fields"]:
         assert field["label"] and (field["help"] or field["input_type"])

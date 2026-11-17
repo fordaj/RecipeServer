@@ -834,7 +834,19 @@ class IndexHTMLGenerator:
         return "\n".join(self._build_filter_menu_html(field, filter_values[field.key], total_count=total_count) for field in FILTER_FIELDS)
 
     @staticmethod
-    def _page_head_html(server_name_html: str, food_color_style: str, urls: dict[str, str]) -> str:
+    def _page_head_html(server_name_html: str, food_color_style: str, urls: dict[str, str], dictation_enabled: bool = True) -> str:
+        dictation_assets = (
+            f"""    <link rel="stylesheet" href="{urls['speech_button_css']}">
+"""
+            if dictation_enabled
+            else ""
+        )
+        dictation_script = (
+            f"""    <script src="{urls['speech_button_js']}" defer></script>
+"""
+            if dictation_enabled
+            else ""
+        )
         return dedent(f"""\
 <head>
     <meta charset="UTF-8">
@@ -850,15 +862,13 @@ class IndexHTMLGenerator:
     <link rel="stylesheet" href="{urls['recipe_editor_css']}">
     <link rel="stylesheet" href="{urls['recipe_scaler_css']}">
     <link rel="stylesheet" href="{urls['shopping_list_css']}">
-    <link rel="stylesheet" href="{urls['speech_button_css']}">
-    <link rel="stylesheet" href="{urls['config_editor_css']}">
+{dictation_assets}    <link rel="stylesheet" href="{urls['config_editor_css']}">
     <link rel="stylesheet" href="{urls['pull_down_page_refresh_css']}">
     <script src="{MENU_JS_URL}" defer></script>
     <script src="{urls['icons_js']}" defer></script>
     <script src="{urls['dialogs_js']}" defer></script>
     <script src="{urls['index_js']}" defer></script>
-    <script src="{urls['speech_button_js']}" defer></script>
-    <script src="{urls['metadata_picker_js']}" defer></script>
+{dictation_script}    <script src="{urls['metadata_picker_js']}" defer></script>
     <script src="{urls['ai_progress_js']}" defer></script>
     <script src="{urls['fields_js']}" defer></script>
     <script src="{urls['recipe_feedback_js']}" defer></script>
@@ -925,10 +935,9 @@ class IndexHTMLGenerator:
 </details>
 """).rstrip("\n")
 
-    def _toolbar_html(self, filter_menus_html: str, reviewer_options_html: str) -> str:
-        return dedent(f"""\
-<section class="recipe-toolbar" aria-label="Recipe search and filters">
-    <div class="speech-input">
+    def _toolbar_html(self, filter_menus_html: str, reviewer_options_html: str, dictation_enabled: bool = True) -> str:
+        if dictation_enabled:
+            search_field_html = f"""    <div class="speech-input">
         <label class="search-control">
             <span class="visually-hidden">Search recipes</span>
             <input
@@ -949,7 +958,21 @@ class IndexHTMLGenerator:
         >
             <span class="speech-button__icon"></span>
         </button>
-    </div>
+    </div>"""
+        else:
+            search_field_html = """    <label class="search-control">
+        <span class="visually-hidden">Search recipes</span>
+        <input
+            id="recipe-search"
+            data-testid="recipe-search"
+            type="search"
+            placeholder="Search recipes, ingredients, tags..."
+            aria-label="Search recipes"
+        >
+    </label>"""
+        return dedent(f"""\
+<section class="recipe-toolbar" aria-label="Recipe search and filters">
+{search_field_html}
     <details class="recipe-advanced">
         <summary>
             <span>Advanced</span>
@@ -1050,15 +1073,16 @@ class IndexHTMLGenerator:
         food_color_style = self._food_color_style(food_color)
         filter_menus_html = self._filter_menus_html(filter_values)
         asset_urls = self._versioned_asset_urls()
+        dictation_enabled = getattr(self.cfg, "dictation_enabled", True)
 
         return dedent(f"""\
 <!DOCTYPE html>
 <html lang="en">
-{self._page_head_html(server_name_html, food_color_style, asset_urls)}
+{self._page_head_html(server_name_html, food_color_style, asset_urls, dictation_enabled)}
 <body>
 <main class="recipes">
 {self._page_header_html(server_name_html)}
-{self._toolbar_html(filter_menus_html, reviewer_options_html)}
+{self._toolbar_html(filter_menus_html, reviewer_options_html, dictation_enabled)}
 {self._results_bar_html()}
 <ul id="recipe-list" data-testid="recipe-list" class="list-view">
 {recipe_items_html}

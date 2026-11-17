@@ -9,6 +9,8 @@ from recipeserver.config import (
     DEFAULT_RECIPE_SERVER_NAME,
     DEFAULT_SERVER_PORT,
     FOOD_COLOR_KEY,
+    DICTATION_ENABLED_KEY,
+    DEFAULT_DICTATION_ENABLED,
     IMAGE_ANALYSIS_MODEL_KEY,
     MODEL_ENDPOINT_KEY,
     MODEL_NAME_KEY,
@@ -113,6 +115,7 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
         RECIPE_SERVER_NAME_KEY: DEFAULT_RECIPE_SERVER_NAME,
         SERVER_PORT_KEY: "8000",
         FOOD_COLOR_KEY: "#8d5542",
+        DICTATION_ENABLED_KEY: True,
     }
 
     def unexpected_input(prompt=""):
@@ -426,3 +429,62 @@ def test_apply_config_values_rejects_invalid_port_and_food_color(tmp_path, monke
 
     assert config.server_port == DEFAULT_SERVER_PORT
     assert config.food_color == DEFAULT_FOOD_COLOR
+
+
+def test_configuration_defaults_to_dictation_enabled(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    assert config.dictation_enabled is DEFAULT_DICTATION_ENABLED is True
+    assert config.get_config_values()[DICTATION_ENABLED_KEY] == "true"
+    assert _toml(config_file)[DICTATION_ENABLED_KEY] is True
+
+
+def test_configuration_reads_and_persists_dictation_disabled(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch, f"{DICTATION_ENABLED_KEY} = false\n")
+
+    assert config.dictation_enabled is False
+    assert config.get_config_values()[DICTATION_ENABLED_KEY] == "false"
+
+    saved = _toml(config_file)
+    assert saved[DICTATION_ENABLED_KEY] is False
+
+
+def test_configuration_reads_dictation_enabled_as_quoted_string(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch, f'{DICTATION_ENABLED_KEY} = "false"\n')
+
+    assert config.dictation_enabled is False
+
+
+def test_apply_config_values_round_trips_dictation(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    changed = config.apply_config_values({DICTATION_ENABLED_KEY: "false"})
+
+    assert changed == [DICTATION_ENABLED_KEY]
+    assert config.dictation_enabled is False
+    assert _toml(config_file)[DICTATION_ENABLED_KEY] is False
+
+    changed = config.apply_config_values({DICTATION_ENABLED_KEY: "true"})
+    assert changed == [DICTATION_ENABLED_KEY]
+    assert config.dictation_enabled is True
+
+
+def test_apply_config_values_rejects_a_non_boolean_dictation_value(tmp_path, monkeypatch):
+    import pytest
+
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    with pytest.raises(ValueError, match="Dictation"):
+        config.apply_config_values({DICTATION_ENABLED_KEY: "maybe"})
+
+    # Nothing was applied on failure.
+    assert config.dictation_enabled is True
+
+
+def test_field_specs_expose_dictation_as_a_checkbox(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    specs = {field["key"]: field for field in config.field_specs()}
+
+    assert specs[DICTATION_ENABLED_KEY]["input_type"] == "checkbox"
+    assert specs[DICTATION_ENABLED_KEY]["label"] == "Dictation"
