@@ -9,9 +9,11 @@ from threading import Event, Lock
 
 from ._logger import logger, LogLevel
 from .config import Configuration
+from .history import write_file_atomic
 from .image_handler import IMAGE_EXTENSIONS
 from .index_html_generator import IndexHTMLGenerator, Recipe
 from .markdown_to_html import MarkdownToHTMLConverter
+from .recipe_utils import extract_recipe_id, new_recipe_id, set_recipe_id
 from .server import Server
 from .transcriber import stop_transcriber
 from .tray import Tray
@@ -143,6 +145,52 @@ class Core:
             # model) instead of letting it linger.
             stop_transcriber()
 
+    @staticmethod
+    def _ensure_recipe_ids(markdown_files: list[Path]) -> None:
+        """Give every recipe a unique ``recipe_id``, assigning them in place.
+
+        Existing recipes that already carry a valid identifier keep it.
+        Recipes without one get a fresh UUIDv4 injected into their front
+        matter (or a new block prepended), preserving the rest of the file
+        byte-for-byte. Duplicate identifiers — such as when a recipe file is
+        copied — are resolved deterministically: the path that sorts first
+        keeps the identifier, the copies get fresh ones. Identity assignments
+        are not content modifications, so they create no history snapshots.
+        """
+        owners: dict[str, list[Path]] = {}
+        missing: list[Path] = []
+        contents: dict[Path, str] = {}
+
+        for markdown in sorted(markdown_files):
+            try:
+                content = markdown.read_text(encoding="utf-8")
+            except OSError:
+                logger.exception(f'Unable to read recipe "{markdown}" to check its recipe_id')
+                continue
+            contents[markdown] = content
+            recipe_id = extract_recipe_id(content)
+            if recipe_id is None:
+                missing.append(markdown)
+            else:
+                owners.setdefault(recipe_id, []).append(markdown)
+
+        assignments: dict[Path, str] = {markdown: new_recipe_id() for markdown in missing}
+        for paths in owners.values():
+            if len(paths) <= 1:
+                continue
+            # The first (sorted) holder keeps the id; the copies get fresh ones.
+            for duplicate in sorted(paths)[1:]:
+                assignments[duplicate] = new_recipe_id()
+
+        for markdown, recipe_id in assignments.items():
+            try:
+                write_file_atomic(markdown, set_recipe_id(contents[markdown], recipe_id))
+            except OSError:
+                logger.exception(f'Unable to assign a recipe_id to "{markdown}"')
+
+        if assignments:
+            logger.info(f"Assigned recipe_id to {len(assignments)} recipe(s)")
+
     def _regen_locked(self):
         """Full site rebuild; caller must hold ``_regen_lock``."""
         start = time.perf_counter()
@@ -160,6 +208,8 @@ class Core:
         timings["assets_copy"] = time.perf_counter() - assets_start
 
         markdown_files = [markdown for markdown in working_dir.rglob("recipe.md") if markdown.is_file()]
+
+        self._ensure_recipe_ids(markdown_files)
 
         self._recipes.clear()
 

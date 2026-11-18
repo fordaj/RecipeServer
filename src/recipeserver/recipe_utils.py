@@ -11,6 +11,7 @@ import html
 import math
 import re
 import unicodedata
+import uuid
 from collections.abc import Iterable, Mapping
 from datetime import date, datetime, time, timezone
 
@@ -18,6 +19,10 @@ from datetime import date, datetime, time, timezone
 # singular spelling, accepted on read and dropped on save.
 CATEGORIES_FIELD = "categories"
 LEGACY_CATEGORY_FIELD = "category"
+
+# Every recipe carries a stable UUIDv4 in its front matter as ``recipe_id``.
+# Identity never depends on the file path, so renames and moves keep history.
+RECIPE_ID_FIELD = "recipe_id"
 
 # Source fields the editor and the AI drafts know how to render and save.
 SOURCE_FIELDS = ("author", "title", "format", "url")
@@ -210,3 +215,84 @@ def meta_time_html(raw_value: object, text_prefix: str = "") -> str | None:
 def slug_to_title(slug: str) -> str:
     """Fallback title from a recipe directory slug."""
     return slug.replace("-", " ").replace("_", " ").title()
+
+
+# ----- Recipe identity (``recipe_id``) ----- #
+#
+# The helpers here work textually on the Markdown source instead of rounding
+# through a YAML parser, so inserting or replacing the ``recipe_id`` line
+# never reformats the author's front matter. Snapshots in the history store
+# are preserved byte-for-byte, which is why these functions keep newline
+# style and surrounding formatting intact.
+
+_FRONTMATTER_RE = re.compile(
+    r"\A(?P<open>---[ \t]*\r?\n)(?P<frontmatter>.*?)(?P<close>\r?\n---[ \t]*(?:\r?\n|\Z))",
+    re.DOTALL,
+)
+
+_RECIPE_ID_LINE_RE = re.compile(r"(?m)^recipe_id:[ \t]*[\"']?(?P<value>[^\"'\r\n]+?)[\"']?[ \t]*$")
+
+
+def new_recipe_id() -> str:
+    """Return a fresh UUIDv4 recipe identifier."""
+    return str(uuid.uuid4())
+
+
+def is_valid_recipe_id(value: object) -> bool:
+    """Return True when *value* is a parseable UUID."""
+    if not isinstance(value, str):
+        return False
+    try:
+        uuid.UUID(value.strip())
+    except ValueError, AttributeError, TypeError:
+        return False
+    return True
+
+
+def canonical_recipe_id(value: str) -> str:
+    """Return the canonical lower-case spelling of a valid UUID."""
+    return str(uuid.UUID(value.strip()))
+
+
+def _detect_newline(content: str) -> str:
+    return "\r\n" if "\r\n" in content else "\n"
+
+
+def extract_recipe_id(content: str) -> str | None:
+    """Return the ``recipe_id`` from the front matter, or ``None``.
+
+    A present but invalid value is treated as missing so callers assign a
+    fresh identifier instead of trusting it.
+    """
+    match = _FRONTMATTER_RE.match(content)
+    if match is None:
+        return None
+    id_match = _RECIPE_ID_LINE_RE.search(match.group("frontmatter"))
+    if id_match is None:
+        return None
+    value = id_match.group("value").strip()
+    return canonical_recipe_id(value) if is_valid_recipe_id(value) else None
+
+
+def set_recipe_id(content: str, recipe_id: str) -> str:
+    """Return *content* with ``recipe_id`` set to *recipe_id*.
+
+    The rest of the document is preserved byte-for-byte: the line is inserted
+    right after the opening ``---`` of an existing front matter block, or a
+    new block is prepended when the document has none. An existing
+    ``recipe_id`` line (even an invalid one) is replaced.
+    """
+    recipe_id = canonical_recipe_id(recipe_id)
+    newline = _detect_newline(content)
+    id_line = f"recipe_id: {recipe_id}"
+
+    match = _FRONTMATTER_RE.match(content)
+    if match is None:
+        return f"---{newline}{id_line}{newline}---{newline}" + content
+
+    frontmatter_text = match.group("frontmatter")
+    if _RECIPE_ID_LINE_RE.search(frontmatter_text):
+        new_frontmatter = _RECIPE_ID_LINE_RE.sub(id_line, frontmatter_text, count=1)
+    else:
+        new_frontmatter = id_line + newline + frontmatter_text
+    return content[: match.start("frontmatter")] + new_frontmatter + content[match.end("frontmatter") :]

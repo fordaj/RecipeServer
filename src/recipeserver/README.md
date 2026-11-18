@@ -49,6 +49,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 ## HTTP and editing
 
 - [server.py](server.py.md) — `ThreadingHTTPServer`, the `/api/*` routes
+- [history.py](history.py.md) — recipe revision history (immutable snapshots in the user-data directory)
 - [transcriber.py](transcriber.py.md) — local Whisper transcription for the dictation button
 - [whisper_server.py](whisper_server.py.md) — the whisper-server subprocess lifecycle (bundled binary, model download)
 - [ai_recipe.py](ai_recipe.py.md) — optional Ollama integration, recipe drafting

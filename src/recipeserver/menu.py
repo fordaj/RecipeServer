@@ -5,9 +5,9 @@ returns the markup, ``MENU_CSS_URL``/``MENU_JS_URL`` point at the shared
 assets, and both read every colour from ``definitions.css`` so the menu picks
 up the light/dark themes automatically. The index page includes the default
 menu; a recipe page can include the same helper with ``recipe_page=True`` to
-get the menu carrying just the **Edit Recipe** entry (it just needs a
-positioned ancestor, e.g. a ``position: relative`` page header, for the
-top-left anchoring in ``menu.css``).
+get the menu carrying the **Edit Recipe** and **Timeline** entries (it just
+needs a positioned ancestor, e.g. a ``position: relative`` page header, for
+the top-left anchoring in ``menu.css``).
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ SETTINGS_SVG = ASSETS_DIR / "settings.svg"
 FILE_DATABASE_SVG = ASSETS_DIR / "file-database.svg"
 FILE_CODE_CORNER_SVG = ASSETS_DIR / "file-code-corner.svg"
 PENCIL_SVG = ASSETS_DIR / "pencil.svg"
+ROTATE_CW_CLOCK_SVG = ASSETS_DIR / "rotate-cw-clock.svg"
 
 MENU_CSS_URL = versioned_asset_url(MENU_CSS_PATH)
 MENU_JS_URL = versioned_asset_url(MENU_JS_PATH)
@@ -59,14 +60,18 @@ def _menu_item_html(icon_path: Path, label: str, **attributes: str) -> str:
 def sandwich_menu_html(*, recipe_page: bool = False) -> str:
     """Render the sandwich menu markup for any page that wants it.
 
-    ``recipe_page=True`` renders the recipe-page menu: a single **Edit
-    Recipe** entry (pencil icon) for pages that host the recipe editor; its
-    ``id="edit-recipe"`` is wired to open the editor by
-    ``recipe-editor.js``. The default menu renders the entries used by the
-    index page (Configuration and the two archive downloads).
+    ``recipe_page=True`` renders the recipe-page menu: an **Edit Recipe**
+    entry (pencil icon), wired to open the editor by ``recipe-editor.js``
+    (its ``id="edit-recipe"``), and a **Timeline** entry (rotate-cw-clock
+    icon), wired to open the Version History dialog by ``timeline.js`` (its
+    ``data-timeline="open"``). The default menu renders the entries used by
+    the index page (Configuration and the two archive downloads).
     """
     if recipe_page:
-        items = [_menu_item_html(PENCIL_SVG, "Edit Recipe", id="edit-recipe")]
+        items = [
+            _menu_item_html(PENCIL_SVG, "Edit Recipe", id="edit-recipe"),
+            _menu_item_html(ROTATE_CW_CLOCK_SVG, "Timeline", data_timeline="open"),
+        ]
     else:
         items = [
             _menu_item_html(SETTINGS_SVG, "Configuration", data_config="open"),

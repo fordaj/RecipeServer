@@ -8,11 +8,13 @@ flowchart TD
     api --> edit("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>recipe-editor · metadata<br/>markdown · bulk-*")
     api --> ai("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/ai-status · /api/ai-recipe<br/>/api/ai-assistant</u>")
     api --> misc("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/config · /api/metadata-options<br/>/api/shopping-list · /api/archive · /api/transcribe</u>")
+    api --> hist("<img src='barnacle:archive.svg' width='20' alt=''/><br/><u>/api/history/*<br/>list · preview · compare · restore</u>")
     edit --> callbacks("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>on_markdown_save → core.py<br/>re-render page + index</u>")
     click ai href "ai_assistant.py.md"
     click misc href "metadata_options.py.md"
+    click hist href "history.py.md"
     click callbacks href "core.py.md"
-    class handler,edit,callbacks goFile
+    class handler,edit,callbacks,hist goFile
     class static folder
     classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
     classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
@@ -52,6 +54,10 @@ flowchart TD
 | POST     | `/api/recipe-images/upload`                | upload images next to a recipe                                                                                                                       |
 | POST     | `/api/recipe-images/rename`                | rename an image; rewrites Markdown references                                                                                                        |
 | POST     | `/api/recipe-images/delete`                | delete an image; main-image fallback logic                                                                                                           |
+| GET      | `/api/history?path=…`                      | list a recipe's snapshots (newest first); `recipeId` is accepted when the file is gone (deleted recipe)                                              |
+| GET      | `/api/history/preview?path=…&snapshot=…`   | render the snapshot through the recipe pipeline (scripts stripped) as `text/html` for the history dialog's preview frame                             |
+| GET      | `/api/history/compare?path=…&snapshot=…`   | a unified diff (`snapshot` → `current`) for the history dialog                                                                                       |
+| POST     | `/api/history/restore`                     | restore a snapshot; snapshots the current recipe first so the restore is reversible (`{"path", "snapshot", "recipeId"?}`)                            |
 | GET      | `/api/archive/source`, `/api/archive/site` | stream a 7z archive ([archive.py.md](archive.py.md))                                                                                                 |
 
 Unknown `/api/*` paths return 404. `path` must be a relative `.md` path inside the configured source directory; anything else is rejected.
@@ -59,6 +65,24 @@ Unknown `/api/*` paths return 404. `path` must be a relative `.md` path inside t
 ## Response headers
 
 HTML responses (generated `.html` pages and directory paths) are sent with `Cache-Control: no-store` so a browser reload right after a save always shows the freshly generated page — the static-file fallback sends no caching headers and browsers apply heuristic caching otherwise. JSON API responses also send `no-store`; vendored KaTeX and other assets keep the static-file defaults.
+
+## Version history and the common save mechanism
+
+Every RecipeServer-managed modification of a recipe — editor saves, raw `/api/markdown` writes, per-field metadata saves, bulk edits, assistant edits, image rename/delete reference rewrites, restores — flows through one module-level function, `_save_recipe_contents(path, new_content, …)`, which ([history.py.md](history.py.md)):
+
+1. reads the existing file and computes whether the new content is **equivalent** (byte-equal, or equal after ignoring `updatedOn` and explicit-null editor fields — so a save that changes nothing writes nothing and snapshots nothing);
+2. resolves the recipe's `recipe_id` (the existing one, else a fresh UUIDv4 for a new recipe, else the caller-forced id for a deleted-recipe restore) and forces it into the saved content textually — identity never depends on the path;
+3. snapshots the existing content into the history directory (raising `history.HistoryError`, which aborts the save, when the snapshot cannot be written);
+4. writes the file atomically, rolling the snapshot back only if the write itself failed.
+
+Recipe history endpoints (the recipe page's **Version History** dialog consumes them; see `assets/recipe-history/timeline.js`):
+
+- `GET /api/history?path=…[&recipeId=…]` — `{path, recipeId, snapshots: [{id, created, size}]}`, newest first. A missing recipe file (deleted recipe) needs `recipeId`. A recipe without `recipe_id` is assigned one in place (no snapshot).
+- `GET /api/history/preview?path=…&snapshot=…` — renders the snapshot through the same `MarkdownToHTMLConverter` pipeline as a scratch copy and returns it as `text/html` with scripts and the page header stripped; the current recipe is untouched.
+- `GET /api/history/compare?path=…&snapshot=…` — a unified diff (`snapshot` → `current`) for read-only comparison.
+- `POST /api/history/restore` `{path, snapshot[, recipeId]}` — snapshots the current recipe first (so the restore is itself reversible), then writes the snapshot content back, forcing the current recipe's identity. For a deleted recipe (no file), passing `path` + `recipeId` recreates the file and its parent directories — this is the supported recovery path.
+
+Deleting a recipe never touches the history directory; metadata saves make snapshots of the pre-change file exactly as editor saves do.
 
 ## Speech transcription
 
@@ -84,11 +108,12 @@ HTML responses (generated `.html` pages and directory paths) are sent with `Cach
 
 - `MAX_REQUEST_SIZE` 5 MiB; `MAX_IMAGE_UPLOAD_SIZE` 25 MiB; `MAX_IMAGE_UPLOAD_COUNT` 20; `MAX_TRANSCRIPTION_SIZE` 25 MiB; `BULK_MAX_PATHS` 100.
 - Recipe files are always `recipe.md`; uploaded image names are validated (`_validate_image_name`, SVG content screened for `script`/`foreignobject`).
-- Saves notify the callbacks: `on_markdown_save` for Markdown/editor saves (re-render page + index), `on_config_save` for configuration (full rebuild), `on_recipes_deleted` for deletes. A full editor save rewrites `recipe.md` through python-frontmatter and updates `updatedOn`; the per-field metadata endpoint does not.
+- Saves notify the callbacks: `on_markdown_save` for Markdown/editor saves (re-render page + index), `on_config_save` for configuration (full rebuild), `on_recipes_deleted` for deletes. Saves whose content is unchanged skip the write and the callback entirely. A full editor save rewrites `recipe.md` through python-frontmatter and updates `updatedOn`; the per-field metadata endpoint does not. Every save goes through the common save mechanism above, which snapshots the replaced version into the recipe's history first.
 - Request bodies are read with size caps (`_read_body`); multipart is parsed with the stdlib `email` parser (`_parse_multipart_message`).
 
 ## Related pages
 
 - [core.py.md](core.py.md) — wires the callbacks
+- [history.py.md](history.py.md) — the snapshot store and the history directory
 - [ai_recipe.py.md](ai_recipe.py.md) · [ai_assistant.py.md](ai_assistant.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) · [whisper_server.py.md](whisper_server.py.md) — backing modules
 - [README.md](README.md) — the package hub

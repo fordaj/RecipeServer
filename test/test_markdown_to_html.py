@@ -122,8 +122,11 @@ Mix everything.
     edit_item = menu.select_one("button#edit-recipe")
     assert edit_item is not None
     assert edit_item.select_one("span").get_text(strip=True) == "Edit Recipe"
-    # The recipe page menu contains Edit Recipe only.
-    assert [item.get_text(strip=True) for item in menu.select(".sandwich-menu__item")] == ["Edit Recipe"]
+    timeline_item = menu.select_one('button[data-timeline="open"]')
+    assert timeline_item is not None
+    assert timeline_item.select_one("span").get_text(strip=True) == "Timeline"
+    # The recipe page menu contains Edit Recipe and Timeline.
+    assert [item.get_text(strip=True) for item in menu.select(".sandwich-menu__item")] == ["Edit Recipe", "Timeline"]
     hrefs = [link["href"] for link in soup.select('link[rel="stylesheet"]')]
     assert MENU_CSS_URL in hrefs
     srcs = [script["src"] for script in soup.select("script[src]")]

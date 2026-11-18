@@ -8,7 +8,10 @@ metadata updates.
 
 from __future__ import annotations
 
+import base64
+import difflib
 import json
+import shutil
 import re
 import socket
 import sys
@@ -23,6 +26,7 @@ from email.policy import default
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
+from mimetypes import guess_type
 from pathlib import Path, PureWindowsPath
 from threading import Thread
 from urllib.parse import parse_qs, quote, unquote, urlsplit
@@ -31,6 +35,7 @@ import frontmatter
 from PIL import Image, UnidentifiedImageError
 
 from . import ai_assistant, ai_recipe
+from . import history as recipe_history
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import Configuration, DEFAULT_SERVER_PORT
@@ -40,13 +45,18 @@ from .shopping_list import scrape_ingredients
 from .recipe_utils import (
     CATEGORIES_FIELD,
     LEGACY_CATEGORY_FIELD,
+    canonical_recipe_id,
     clean_source_fields,
     collapse_status,
+    extract_recipe_id,
     is_finite_rating_score,
+    is_valid_recipe_id,
     json_default,
+    new_recipe_id,
     normalize_legacy_category,
     normalize_reviewer_name,
     normalize_source_dict,
+    set_recipe_id,
 )
 from .transcriber import TranscriberUnavailable, TranscriptionError, get_transcriber
 
@@ -114,17 +124,123 @@ class _StreamClosed(Exception):
     """Raised when the browser closes an in-progress event stream."""
 
 
+def _contents_equivalent(old: str, new: str) -> bool:
+    """Return True when two recipe documents carry the same content.
+
+    ``updatedOn`` is ignored so a save that only bumps the edit timestamp
+    counts as unchanged. Documents that fail to parse fall back to a byte
+    comparison.
+    """
+    if old == new:
+        return True
+    try:
+        old_post = frontmatter.loads(old)
+        new_post = frontmatter.loads(new)
+    except Exception:
+        return False
+    old_metadata = dict(old_post.metadata)
+    new_metadata = dict(new_post.metadata)
+    old_metadata.pop("updatedOn", None)
+    new_metadata.pop("updatedOn", None)
+    # The editor round-trips every editor-managed field, including ones the
+    # user never set, writing explicit nulls. A null-valued key carries no
+    # more information than an absent one, so it is ignored for change
+    # detection. (Clearing a field changes it from a value to null, which
+    # still counts as a change.)
+    old_metadata = {key: value for key, value in old_metadata.items() if value is not None}
+    new_metadata = {key: value for key, value in new_metadata.items() if value is not None}
+    return old_metadata == new_metadata and old_post.content == new_post.content
+
+
+def _save_recipe_contents(
+    path: Path, new_content: str, *, exclusive: bool = False, force_recipe_id: str | None = None, create_parents: bool = False
+) -> bool:
+    """Write *new_content* to *path*, snapshotting the previous version.
+
+    This is the common save mechanism for every RecipeServer-managed
+    modification of a recipe: the existing document is preserved as an
+    immutable history snapshot immediately before its contents are replaced,
+    and the recipe's identity (``recipe_id``) is preserved across the write.
+    An unchanged save writes nothing and creates no snapshot.
+
+    Returns True when the file was written, False when it was unchanged.
+
+    Raises:
+        recipe_history.HistoryError: the previous version could not be snapshotted;
+            the save is aborted so the recipe file is left untouched.
+        FileExistsError: *exclusive* was set and *path* already exists.
+        OSError: the file could not be written; any snapshot created for this
+            save is rolled back so the history holds no duplicate of the
+            unchanged recipe.
+    """
+    old_content = path.read_text(encoding="utf-8") if path.exists() else None
+
+    if exclusive and old_content is not None:
+        raise FileExistsError(f"Recipe already exists: {path}")
+
+    if old_content is not None and _contents_equivalent(old_content, new_content):
+        logger.info(f"Skipping unchanged save for {path}")
+        return False
+
+    # Resolve identity: keep the existing recipe's id, or mint a fresh one for
+    # a new recipe (or honor *force_recipe_id*, used when restoring a deleted
+    # recipe whose current file is gone), and force it into the saved content.
+    existing_id = extract_recipe_id(old_content) if old_content is not None else None
+    resolved_id = existing_id or force_recipe_id or new_recipe_id()
+    new_content = set_recipe_id(new_content, resolved_id)
+
+    snapshot_path: Path | None = None
+    if old_content is not None:
+        snapshot_path = recipe_history.create_snapshot(resolved_id, old_content)
+
+    try:
+        if exclusive:
+            if create_parents:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("x", encoding="utf-8", newline="") as recipe_file:
+                recipe_file.write(new_content)
+        else:
+            if create_parents:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            recipe_history.write_file_atomic(path, new_content)
+    except BaseException:
+        # The recipe was not replaced; drop the snapshot so an unchanged
+        # recipe never occupies a history slot.
+        if snapshot_path is not None:
+            snapshot_path.unlink(missing_ok=True)
+        raise
+    return True
+
+
+_PREVIEW_SCRIPT_RE = re.compile(r"<script\b[^>]*>.*?</script>", re.DOTALL | re.IGNORECASE)
+_PREVIEW_HEADER_RE = re.compile(r"<header class=\"recipe-header\">.*?</header>", re.DOTALL | re.IGNORECASE)
+
+
+def _sanitize_preview_html(rendered: str) -> str:
+    """Neutralize a rendered recipe page for use as a historical preview.
+
+    The preview must not run any scripts (the current recipe's page would be
+    mutated by them) and hides the page chrome, since the historical version
+    is being shown inside the history dialog.
+    """
+    without_scripts = _PREVIEW_SCRIPT_RE.sub("", rendered)
+    return _PREVIEW_HEADER_RE.sub("", without_scripts)
+
+
 def _read_recipe_post(path: Path) -> frontmatter.Post:
     """Parse a recipe file's front matter, raising on failure."""
     return frontmatter.loads(path.read_text(encoding="utf-8"))
 
 
-def _update_recipe_post(path: Path, mutate: Callable[[frontmatter.Post], None]) -> frontmatter.Post:
-    """Read a recipe's front matter, apply *mutate*, and rewrite the file."""
+def _update_recipe_post(path: Path, mutate: Callable[[frontmatter.Post], None]) -> tuple[frontmatter.Post, bool]:
+    """Read a recipe's front matter, apply *mutate*, and rewrite the file.
+
+    Returns the updated post and whether the file was actually written.
+    """
     post = _read_recipe_post(path)
     mutate(post)
-    path.write_text(frontmatter.dumps(post), encoding="utf-8", newline="")
-    return post
+    changed = _save_recipe_contents(path, frontmatter.dumps(post))
+    return post, changed
 
 
 def _now_utc_iso() -> str:
@@ -737,6 +853,15 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         if path in ("/api/archive/source", "/api/archive/site"):
             self._handle_archive(parsed)
             return True
+        if path == "/api/history":
+            self._handle_history_list(parsed)
+            return True
+        if path == "/api/history/preview":
+            self._handle_history_preview(parsed)
+            return True
+        if path == "/api/history/compare":
+            self._handle_history_compare(parsed)
+            return True
         if path == "/api/markdown":
             self._handle_markdown_read(parsed)
             return True
@@ -770,6 +895,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/recipe-images/upload": self._handle_recipe_images_upload_post,
             "/api/recipe-images/delete": self._handle_recipe_images_delete_post,
             "/api/markdown": self._handle_markdown_post,
+            "/api/history/restore": self._handle_history_restore,
             "/api/transcribe": self._handle_transcription,
         }
 
@@ -1364,7 +1490,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 recipe_post.metadata["updatedOn"] = _now_utc_iso()
                 recipe_post.content = content
                 self._write_recipe_post_with_images(file_path, recipe_post, [], exclusive=False)
-            except OSError as exc:
+            except (OSError, recipe_history.HistoryError) as exc:
                 logger.exception(f"The assistant could not save {file_path}")
                 raise ValueError("Unable to save the recipe file") from exc
 
@@ -1559,13 +1685,16 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             recipe_post.metadata["updatedOn"] = _now_utc_iso()
             recipe_post.content = content
 
-            self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=False)
+            changed = self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=False)
             logger.info(f"Saved recipe editor content: {file_path}")
-            if not self._notify_recipe_saved(file_path, "Recipe saved, but HTML regeneration failed"):
+            if (changed or images) and not self._notify_recipe_saved(file_path, "Recipe saved, but HTML regeneration failed"):
                 return
             self._send_json(200, {"success": True})
         except FileExistsError as exc:
             self._send_json(409, {"error": str(exc)})
+        except recipe_history.HistoryError:
+            logger.exception("Failed to snapshot the recipe before saving")
+            self._send_json(500, {"error": "Unable to save the recipe history; the recipe was not changed"})
         except OSError:
             logger.exception("Failed to save recipe")
             self._send_json(500, {"error": "Unable to save recipe"})
@@ -1573,15 +1702,17 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             logger.exception("Failed to save or regenerate recipe HTML")
             self._send_json(500, {"error": "Recipe saved, but HTML regeneration failed"})
 
-    def _write_recipe_post_with_images(self, file_path: Path, recipe_post, images, *, exclusive: bool) -> None:
+    def _write_recipe_post_with_images(self, file_path: Path, recipe_post, images, *, exclusive: bool) -> bool:
+        """Save the recipe and its staged images.
+
+        Returns True when the recipe file was written. Raises
+        :class:`recipe_history.HistoryError` when the previous version cannot be
+        snapshotted; in that case the recipe is left untouched and no staged
+        images are kept.
+        """
         written_images = self._write_uploaded_images(file_path.parent, images)
         try:
-            new_content = frontmatter.dumps(recipe_post)
-            if exclusive:
-                with file_path.open("x", encoding="utf-8", newline="") as recipe_file:
-                    recipe_file.write(new_content)
-            else:
-                file_path.write_text(new_content, encoding="utf-8", newline="")
+            return _save_recipe_contents(file_path, frontmatter.dumps(recipe_post), exclusive=exclusive)
         except Exception:
             self._remove_uploaded_images(written_images)
             raise
@@ -1633,7 +1764,15 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             content = file_path.read_text(encoding="utf-8")
             updated = _replace_image_reference(content, source_name, target_name)
             if updated != content:
-                file_path.write_text(updated, encoding="utf-8", newline="")
+                _save_recipe_contents(file_path, updated)
+        except recipe_history.HistoryError:
+            logger.exception("Failed to snapshot the recipe before updating the image references")
+            try:
+                target_path.rename(source_path)
+            except OSError:
+                logger.exception(f"Failed to roll back image rename of {target_path}")
+            self._send_json(500, {"error": "Unable to update the recipe history; the image was not renamed"})
+            return
         except OSError:
             # Best-effort rollback so the Markdown never points at a missing file.
             try:
@@ -1743,8 +1882,19 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             remaining = [image["name"] for image in self._list_recipe_images(file_path)]
             updated, fallback_target = _fallback_main_image(content, image_name, remaining)
             if updated is not None and updated != content:
-                file_path.write_text(updated, encoding="utf-8", newline="")
+                _save_recipe_contents(file_path, updated)
                 logger.info(f"Main image fell back to {fallback_target if fallback_target else 'nothing (image link removed)'}")
+        except recipe_history.HistoryError:
+            logger.exception("Failed to snapshot the recipe before updating the main image")
+            self._send_json(
+                500,
+                {
+                    "error": "Image deleted, but the Markdown could not be updated",
+                    "images": self._list_recipe_images(file_path),
+                    "referenced": referenced,
+                },
+            )
+            return
         except OSError:
             logger.exception(f"Failed to update the Markdown after deleting {target}")
             self._send_json(
@@ -1809,13 +1959,17 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 if field_name == CATEGORIES_FIELD:
                     _drop_legacy_category(metadata)
 
-            _update_recipe_post(file_path, mutate)
+            _, changed = _update_recipe_post(file_path, mutate)
             logger.info(f"Updated metadata field '{field_name}' in file: {file_path}")
 
-            if not self._notify_recipe_saved(file_path, "Metadata saved, but recipe regeneration failed"):
+            if changed and not self._notify_recipe_saved(file_path, "Metadata saved, but recipe regeneration failed"):
                 return
 
             self._send_json(200, {"success": True, "field": field_name})
+        except recipe_history.HistoryError:
+            logger.exception("Failed to snapshot the recipe before saving")
+            self._send_json(500, {"error": "Unable to save the recipe history; the recipe was not changed"})
+            return
         except OSError:
             logger.exception("Failed to save Markdown file")
             self._send_json(500, {"error": "Unable to save Markdown file"})
@@ -1841,11 +1995,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if not self._require_markdown_file(file_path):
                 return
 
-            file_path.write_text(content, encoding="utf-8", newline="")
+            changed = _save_recipe_contents(file_path, content)
             logger.info(f"Saved Markdown file: {file_path}")
-            if not self._notify_recipe_saved(file_path, "Markdown saved, but HTML regeneration failed"):
+            if changed and not self._notify_recipe_saved(file_path, "Markdown saved, but HTML regeneration failed"):
                 return
             self._send_json(200, {"success": True})
+        except recipe_history.HistoryError:
+            logger.exception("Failed to snapshot the recipe before saving")
+            self._send_json(500, {"error": "Unable to save the recipe history; the recipe was not changed"})
         except OSError:
             logger.exception("Failed to save Markdown file")
             self._send_json(500, {"error": "Unable to save Markdown file"})
@@ -1879,7 +2036,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 return
 
         try:
-            saved = self._apply_bulk_edit(file_paths, fields, metadata, rating_override)
+            changed_paths = self._apply_bulk_edit(file_paths, fields, metadata, rating_override)
+        except recipe_history.HistoryError:
+            logger.exception("Failed to snapshot a recipe before saving")
+            self._send_json(500, {"error": "Unable to save the recipe history; no recipes were changed"})
+            return
         except OSError:
             logger.exception("Failed to save bulk edit")
             self._send_json(500, {"error": "Unable to save recipes"})
@@ -1889,7 +2050,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(500, {"error": "Unable to parse recipe data"})
             return
 
-        for file_path in saved:
+        for file_path in changed_paths:
             if not self._notify_recipe_saved(file_path, "Recipes saved, but HTML regeneration failed"):
                 return
 
@@ -1897,7 +2058,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     @staticmethod
     def _apply_bulk_edit(file_paths: list[Path], fields: list[str], metadata: dict, rating_override) -> list[Path]:
-        saved: list[Path] = []
+        changed_paths: list[Path] = []
         for file_path in file_paths:
 
             def mutate(post: frontmatter.Post) -> None:
@@ -1911,10 +2072,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 if metadata or rating_override is not None:
                     post.metadata["updatedOn"] = _now_utc_iso()
 
-            _update_recipe_post(file_path, mutate)
-            saved.append(file_path)
-            logger.info(f"Bulk-saved recipe: {file_path}")
-        return saved
+            _, changed = _update_recipe_post(file_path, mutate)
+            if changed:
+                changed_paths.append(file_path)
+                logger.info(f"Bulk-saved recipe: {file_path}")
+        return changed_paths
 
     def _handle_bulk_delete(self) -> None:
         try:
@@ -1978,6 +2140,263 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 logger.exception("Recipe deleted, but index regeneration failed")
                 self._send_json(500, {"error": "Recipe deleted, but index regeneration failed"})
                 return
+        self._send_json(200, {"success": True})
+
+    # ----- history API -------------------------------------------------------
+    # Snapshots of every RecipeServer-managed modification live in the
+    # history directory (see ``history.py``); these endpoints let the
+    # recipe page browse, preview, compare, and restore them.
+
+    def _history_query(self, parsed) -> tuple[str | None, str | None, str | None]:
+        query = parse_qs(parsed.query)
+
+        def one(key: str) -> str | None:
+            values = query.get(key, [])
+            return values[0] if len(values) == 1 and values[0] else None
+
+        return one("path"), one("snapshot"), one("recipeId")
+
+    def _resolve_history_target(self, path: str | None, recipe_id: str | None) -> tuple[Path, str] | None:
+        """Resolve the (file path, recipe_id) pair a history request addresses.
+
+        An existing recipe keeps its own identity (a missing identifier is
+        assigned in place, without a snapshot). A deleted recipe has no file;
+        its ``recipe_id`` must then be supplied by the caller.
+        """
+        if path is None:
+            self._send_json(400, {"error": "Expected a path parameter"})
+            return None
+        try:
+            file_path = self._resolve_markdown_path(path)
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return None
+
+        if file_path.is_file():
+            resolved_id = self._ensure_recipe_id(file_path)
+            if resolved_id is None:
+                return None
+            return file_path, resolved_id
+
+        candidate = (recipe_id or "").strip()
+        if not candidate:
+            self._send_json(404, {"error": MARKDOWN_NOT_FOUND_ERROR})
+            return None
+        if not is_valid_recipe_id(candidate):
+            self._send_json(400, {"error": "Expected a valid recipeId"})
+            return None
+        return file_path, canonical_recipe_id(candidate)
+
+    def _ensure_recipe_id(self, file_path: Path) -> str | None:
+        """Return the recipe's ``recipe_id``, assigning one in place when missing."""
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except OSError:
+            logger.exception(f"Failed to read {file_path}")
+            self._send_json(500, {"error": "Unable to read the recipe file"})
+            return None
+
+        recipe_id = extract_recipe_id(content)
+        if recipe_id is not None:
+            return recipe_id
+
+        recipe_id = new_recipe_id()
+        try:
+            # Identity assignment is not a content modification, so it creates
+            # no history snapshot.
+            recipe_history.write_file_atomic(file_path, set_recipe_id(content, recipe_id))
+            logger.info(f"Assigned recipe_id to {file_path}")
+        except OSError:
+            logger.exception(f"Unable to assign a recipe_id to {file_path}")
+            self._send_json(500, {"error": "Unable to assign the recipe an identity"})
+            return None
+        return recipe_id
+
+    @staticmethod
+    def _snapshot_payload(recipe_id: str) -> list[dict]:
+        return [
+            {
+                "id": snapshot.id,
+                "created": snapshot.created.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                "size": snapshot.size,
+            }
+            for snapshot in recipe_history.list_snapshots(recipe_id)
+        ]
+
+    def _history_snapshot_for(self, recipe_id: str, snapshot_id: str | None) -> str | None:
+        """Read a snapshot, sending the error response and returning None on failure."""
+        if snapshot_id is None:
+            self._send_json(400, {"error": "Expected a snapshot parameter"})
+            return None
+        if not recipe_history.is_valid_snapshot_id(snapshot_id):
+            self._send_json(400, {"error": "Expected a valid snapshot"})
+            return None
+        try:
+            return recipe_history.read_snapshot(recipe_id, snapshot_id)
+        except FileNotFoundError:
+            self._send_json(404, {"error": "Snapshot not found"})
+            return None
+        except recipe_history.HistoryError:
+            self._send_json(400, {"error": "Expected a valid snapshot"})
+            return None
+
+    def _handle_history_list(self, parsed) -> None:
+        path, _, recipe_id_param = self._history_query(parsed)
+        target = self._resolve_history_target(path, recipe_id_param)
+        if target is None:
+            return
+        file_path, recipe_id = target
+
+        payload = {"path": path, "recipeId": recipe_id, "snapshots": self._snapshot_payload(recipe_id)}
+        self._send_json(200, payload)
+
+    def _handle_history_preview(self, parsed) -> None:
+        path, snapshot_id, recipe_id_param = self._history_query(parsed)
+        target = self._resolve_history_target(path, recipe_id_param)
+        if target is None:
+            return
+        file_path, recipe_id = target
+        content = self._history_snapshot_for(recipe_id, snapshot_id)
+        if content is None:
+            return
+
+        try:
+            rendered = self._render_history_preview(content, file_path)
+        except Exception:
+            logger.exception("Failed to render the historical preview")
+            self._send_json(500, {"error": "Unable to render the historical version"})
+            return
+        self._send_bytes(200, rendered.encode("utf-8"), "text/html; charset=utf-8")
+
+    def _render_history_preview(self, snapshot_content: str, current_recipe: Path | None) -> str:
+        """Render *snapshot_content* through the recipe pipeline, scripts stripped.
+
+        The snapshot is converted in a scratch directory, so the current
+        recipe is never touched. The current recipe's images are copied into
+        the scratch directory (so the hero image and accent color resolve like
+        any other render) and inlined as data URIs in the output (so the
+        preview frame is self-contained). The returned document is a full
+        HTML page suitable for embedding in the history dialog's preview frame.
+        """
+        from types import SimpleNamespace
+
+        from bs4 import BeautifulSoup
+
+        from .markdown_to_html import MarkdownToHTMLConverter
+
+        recipe_directory = current_recipe.parent if current_recipe is not None and current_recipe.is_file() else None
+
+        with tempfile.TemporaryDirectory(prefix="recipeserver-history-preview-") as temp_dir:
+            temp_path = Path(temp_dir)
+            recipe_path = temp_path / RECIPE_FILENAME
+            recipe_path.write_text(snapshot_content, encoding="utf-8")
+            if recipe_directory is not None:
+                for candidate in recipe_directory.iterdir():
+                    if candidate.is_file() and candidate.suffix.lower() in IMAGE_EXTENSIONS:
+                        shutil.copy2(candidate, temp_path / candidate.name)
+            html_path = temp_path / "recipe.html"
+            preview_cfg = SimpleNamespace(source_directory=temp_path, site_directory=temp_path)
+            MarkdownToHTMLConverter(preview_cfg).convert(recipe_path, html_path)
+            rendered = html_path.read_text(encoding="utf-8")
+
+        if recipe_directory is None:
+            return _sanitize_preview_html(rendered)
+
+        soup = BeautifulSoup(_sanitize_preview_html(rendered), "html.parser")
+        for image in soup.find_all("img"):
+            source = image.get("src")
+            if not source or source.startswith(("http://", "https://", "data:", "/assets/")):
+                continue
+            name = unquote(source.split("?", 1)[0]).rsplit("/", 1)[-1]
+            candidate = recipe_directory / name
+            if candidate.is_file() and candidate.suffix.lower() in IMAGE_EXTENSIONS:
+                mime_type = guess_type(candidate.name)[0] or "application/octet-stream"
+                encoded = base64.b64encode(candidate.read_bytes()).decode("ascii")
+                image["src"] = f"data:{mime_type};base64,{encoded}"
+        return str(soup)
+
+    def _handle_history_compare(self, parsed) -> None:
+        path, snapshot_id, recipe_id_param = self._history_query(parsed)
+        target = self._resolve_history_target(path, recipe_id_param)
+        if target is None:
+            return
+        file_path, recipe_id = target
+        content = self._history_snapshot_for(recipe_id, snapshot_id)
+        if content is None:
+            return
+
+        try:
+            current = file_path.read_text(encoding="utf-8") if file_path.is_file() else ""
+        except OSError:
+            logger.exception(f"Failed to read the current recipe at {file_path}")
+            self._send_json(500, {"error": "Unable to read the current recipe"})
+            return
+
+        diff = "\n".join(
+            difflib.unified_diff(
+                content.splitlines(),
+                current.splitlines(),
+                fromfile="snapshot",
+                tofile="current",
+                n=3,
+                lineterm="",
+            )
+        )
+        snapshot_info = next((snapshot for snapshot in recipe_history.list_snapshots(recipe_id) if snapshot.id == snapshot_id), None)
+        created = snapshot_info.created.isoformat(timespec="milliseconds").replace("+00:00", "Z") if snapshot_info else None
+        payload = {
+            "path": path,
+            "recipeId": recipe_id,
+            "snapshot": {"id": snapshot_id, "created": created},
+            "diff": diff,
+        }
+        self._send_json(200, payload)
+
+    def _handle_history_restore(self) -> None:
+        try:
+            payload = self._read_json_payload()
+            path = payload.get("path")
+            snapshot_id = payload.get("snapshot")
+            recipe_id_param = payload.get("recipeId")
+            if not isinstance(path, str) or not isinstance(snapshot_id, str):
+                raise ValueError("Expected string fields: path and snapshot")
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
+            return
+
+        if not recipe_history.is_valid_snapshot_id(snapshot_id):
+            self._send_json(400, {"error": "Expected a valid snapshot"})
+            return
+        target = self._resolve_history_target(path, recipe_id_param if isinstance(recipe_id_param, str) else None)
+        if target is None:
+            return
+        file_path, recipe_id = target
+
+        content = self._history_snapshot_for(recipe_id, snapshot_id)
+        if content is None:
+            return
+
+        try:
+            # The common save mechanism snapshots the current recipe before
+            # replacing it, so the restore is itself reversible.
+            _save_recipe_contents(
+                file_path,
+                content,
+                force_recipe_id=recipe_id,
+                create_parents=not file_path.is_file(),
+            )
+        except recipe_history.HistoryError:
+            logger.exception("Failed to snapshot the current recipe before restoring")
+            self._send_json(500, {"error": "Unable to snapshot the current recipe; nothing was restored"})
+            return
+        except OSError:
+            logger.exception(f"Failed to restore snapshot {snapshot_id} to {file_path}")
+            self._send_json(500, {"error": "Unable to restore the recipe"})
+            return
+
+        logger.info(f"Restored snapshot {snapshot_id} to {file_path}")
+        if not self._notify_recipe_saved(file_path, "Version restored, but HTML regeneration failed"):
+            return
         self._send_json(200, {"success": True})
 
     # ----- archive handling ------------------------------------------------

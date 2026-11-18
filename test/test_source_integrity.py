@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 import frontmatter
 
 from recipeserver.core import Core
+from recipeserver.recipe_utils import is_valid_recipe_id
 from test.helpers import request_json, running_recipe_server, write_png
 
 EDITOR_METADATA = {
@@ -380,7 +381,20 @@ def test_regen_builds_site_without_modifying_the_source_tree(tmp_path: Path, mon
     core.regen()
 
     after = snapshot_tree(source)
-    assert after == before
+    assert after.keys() == before.keys()
+    for path, previous in before.items():
+        if not path.endswith("recipe.md"):
+            assert after[path] == previous, path
+            continue
+        # regen assigns a stable recipe_id to recipes that lack one, touching
+        # nothing else in the file.
+        previous_post = frontmatter.loads(previous.decode("utf-8"))
+        current_text = after[path].decode("utf-8")
+        current_post = frontmatter.loads(current_text)
+        assert is_valid_recipe_id(current_post.metadata.get("recipe_id"))
+        del current_post.metadata["recipe_id"]
+        assert current_post.metadata == previous_post.metadata
+        assert current_post.content == previous_post.content
 
     assert not (site / "stale.txt").exists()
     assert not (site / "dinner" / "notes.txt").exists()
