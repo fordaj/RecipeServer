@@ -36,7 +36,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Uploads supported images directly into a recipe folder from the recipe editor.
 - Edits recipe Markdown, metadata, ratings, and comments in the browser.
 - Writes browser edits back to the recipe's YAML front matter and Markdown body.
-- Keeps a local, per-recipe version history: every managed edit snapshots the previous version, browsable in the recipe's Version History dialog (preview, diff against the current version, reversible restore).
+- Keeps a local, per-recipe version history: every managed edit snapshots the previous version, browsable in the recipe's Version History dialog (preview, diff against the current version, reversible restore), pruned automatically by a configurable GFS retention policy.
 - Scales quantities inside inline code, such as `1 1/2 cups` or `1-2 tbsp`.
 - Combines the ingredients of the recipes selected in the index into a shopping list, with a scale control per recipe.
 - Downloads the shopping list as Markdown, copies it to the clipboard, or prints it as a checklist.
@@ -277,6 +277,8 @@ Every recipe carries a stable `recipe_id` UUID in its front matter (assigned aut
 
 Open the recipe and use **Timeline** to browse previous versions (newest first, current version marked): preview any version rendered as that version of the recipe, compare it against the current recipe as a Markdown diff, or restore it. Restoring snapshots the current recipe first, so a restore is itself undoable. Snapshots are plain Markdown files and are never modified.
 
+History is pruned automatically in the background according to the **Timeline retention** setting in **Configuration** (or the `timeline_retention` key in `recipe-server-cfg.toml`). The default, **GFS**, keeps every revision from the last 24 hours, one revision per hour for the last 7 days, one per day for the last 30 days, one per week for the last 12 months, and one per month older than that; older, redundant revisions are removed automatically, and the newest revision of every recipe is always kept. **Unlimited** keeps every revision forever (the pre-existing behavior). Existing installations default to GFS as well; switching policies never resets or migrates history, and the timeline, preview, diff, and restore all work the same either way.
+
 This is an application-managed revision history, not a backup system — keep backing up your recipe library the way you always have.
 
 ## Where files live
@@ -291,9 +293,9 @@ RecipeServer uses the operating system's application-data directory:
 
 Inside that directory:
 
-- `recipe-server-cfg.toml` (TOML) holds the configuration: the `source_directory` path, the `recipe_server_name`, and optional `model_endpoint`, `all_purpose_model_name`, and `image_analysis_model` keys for the local AI integration. A legacy `config.txt` file is migrated automatically on startup.
+- `recipe-server-cfg.toml` (TOML) holds the configuration: the `source_directory` path, the `recipe_server_name`, optional `model_endpoint`, `all_purpose_model_name`, and `image_analysis_model` keys for the local AI integration, the `dictation_enabled` switch, and the `timeline_retention` policy (`gfs` by default, or `unlimited`). A legacy `config.txt` file is migrated automatically on startup.
 - `site/` contains the generated website.
-- `history/recipes/<recipe-id>/` holds the version history: one immutable `<snapshot-id>.md` per saved version. It is an application-managed revision history — not a backup — and is never placed in your recipe folders. See [Recipe version history](#recipe-version-history).
+- `history/recipes/<recipe-id>/` holds the version history: one `<snapshot-id>.md` per saved version. It is an application-managed revision history — not a backup — and is never placed in your recipe folders. Revisions are pruned automatically in the background according to the `timeline_retention` policy (GFS by default). See [Recipe version history](#recipe-version-history).
 
 The site directory is disposable. It is deleted and rebuilt every time RecipeServer starts. Never store source content or manual edits there.
 
@@ -502,6 +504,7 @@ src/recipeserver/
 ├── image_handler.py        # supported images, hero selection, accent colors
 ├── server.py               # HTTP server and JSON APIs
 ├── history.py              # recipe version history (snapshots in the user-data directory)
+├── retention.py            # timeline revision retention (GFS default / Unlimited)
 ├── transcriber.py          # dictation: PyAV decode + whisper-server HTTP client
 ├── whisper_server.py       # whisper-server subprocess lifecycle and model download
 ├── tray.py                 # system tray icon and menu
@@ -524,6 +527,7 @@ tools/                      # bundled fordaj/* binaries + update.sh refreshers
 - The HTTP API uses relative `.md` paths inside the configured source directory. Paths outside it are rejected.
 - APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/ai-status`, `POST /api/ai-recipe`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, `GET|POST /api/metadata/<field>`, `GET /api/metadata-options`, `GET /api/shopping-list`, `POST /api/transcribe`, and `GET /api/history` (plus `GET /api/history/preview`, `GET /api/history/compare`, `POST /api/history/restore`).
 - Every RecipeServer-managed recipe save (editor, raw Markdown, metadata, bulk, assistant, image reference rewrites, restore) snapshots the replaced version into `<user-data>/recipe-server/history/recipes/<recipe-id>/` before writing, keyed by the recipe's stable `recipe_id` front-matter UUID — identity never depends on the file path. Unchanged saves write nothing and snapshot nothing; deletes preserve history.
+- A background retention pass prunes history according to the server-level `timeline_retention` policy (`gfs` by default, `unlimited` optional): it runs periodically, at startup, after saves (throttled), and after configuration changes, never inside HTTP requests, and it never edits retained snapshots, never deletes the newest revision of a timeline, and never empties one. Restored snapshots are read under the same per-recipe lock the pruner uses, so a restore is never raced by retention.
 - `GET /api/metadata-options` returns the metadata values that are already used in the library (meals, categories, cuisine, tags, status, contributor, plus source author and title) with the number of recipes that use each of them, so the editor can offer them as dropdown options. The values are read from the recipe Markdown files on request; they are never hard-coded into generated pages or front matter.
 - Recipe creation writes `recipe.md` into the selected folder and rejects folder paths outside the source directory or existing recipes.
 - AI recipe generation never writes files. It returns Markdown and metadata to the editor, which saves only when the user submits the create form.

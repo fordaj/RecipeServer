@@ -11,6 +11,7 @@ from tkinter import Tk, filedialog
 from urllib.parse import urlsplit
 
 from ._logger import logger
+from .retention import DEFAULT_RETENTION_POLICY, RETENTION_POLICIES, RETENTION_POLICY_LABELS, normalize_retention_policy
 
 MODEL_ENDPOINT_KEY = "model_endpoint"
 MODEL_NAME_KEY = "model_name"  # Legacy key, read-only compatibility for the all-purpose model.
@@ -21,6 +22,7 @@ SERVER_NAME_KEY = "server_name"
 SERVER_PORT_KEY = "server_port"
 FOOD_COLOR_KEY = "food_color"
 DICTATION_ENABLED_KEY = "dictation_enabled"
+TIMELINE_RETENTION_KEY = "timeline_retention"
 SOURCE_DIRECTORY_KEY = "source_directory"
 CONFIG_FILENAME = "recipe-server-cfg.toml"
 LEGACY_CONFIG_FILENAME = "config.txt"
@@ -30,6 +32,10 @@ DEFAULT_SERVER_PORT = 8000
 # bundled whisper-server. It is on by default; the switch only decides
 # whether the app offers the feature at all.
 DEFAULT_DICTATION_ENABLED = True
+# Timeline revision retention: how historical snapshots are pruned. GFS is
+# the default for new and existing installations; "unlimited" keeps every
+# revision, preserving the historical behavior.
+DEFAULT_TIMELINE_RETENTION = DEFAULT_RETENTION_POLICY
 MAX_PORT = 65535
 # Matches the --food-color default in assets/definitions.css.
 DEFAULT_FOOD_COLOR = "#8d5542"
@@ -165,6 +171,15 @@ def _validate_dictation_enabled(value: str, label: str) -> str:
         raise ValueError(f"{label} must be true or false.") from None
 
 
+def _validate_timeline_retention(value: str, label: str) -> str:
+    text = value.strip().lower()
+    if not text:
+        return DEFAULT_TIMELINE_RETENTION
+    if text in RETENTION_POLICIES:
+        return text
+    raise ValueError(f"{label} must be one of: {', '.join(RETENTION_POLICIES)}.")
+
+
 @dataclass(frozen=True)
 class ConfigField:
     """One editable configuration value.
@@ -181,9 +196,10 @@ class ConfigField:
     label: str
     help_text: str
     validate: Callable[[str, str], str]
-    input_type: str = "text"  # "text", "url", "path", or "number"
+    input_type: str = "text"  # "text", "url", "path", "number", "checkbox", or "select"
     placeholder: str = ""
     required: bool = False
+    options: tuple[tuple[str, str], ...] = ()  # (value, label) pairs for input_type="select"
 
 
 CONFIG_FIELDS: tuple[ConfigField, ...] = (
@@ -255,6 +271,19 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         _validate_dictation_enabled,
         input_type="checkbox",
     ),
+    ConfigField(
+        TIMELINE_RETENTION_KEY,
+        "Timeline retention",
+        "How historical revisions are kept. 'GFS' (default) keeps every revision"
+        " from the last 24 hours, one per hour for the last 7 days, one per day"
+        " for the last 30 days, one per week for the last 12 months, and one per"
+        " month beyond that, removing older redundant revisions automatically in"
+        " the background. 'Unlimited' keeps every revision forever. Switching"
+        " policies never resets or migrates history.",
+        _validate_timeline_retention,
+        input_type="select",
+        options=tuple((policy, RETENTION_POLICY_LABELS[policy]) for policy in RETENTION_POLICIES),
+    ),
 )
 
 _CONFIG_FIELDS_BY_KEY = {field.key: field for field in CONFIG_FIELDS}
@@ -302,6 +331,7 @@ class Configuration:
         self._server_port: int = DEFAULT_SERVER_PORT
         self._food_color: str = DEFAULT_FOOD_COLOR
         self._dictation_enabled: bool = DEFAULT_DICTATION_ENABLED
+        self._timeline_retention: str = DEFAULT_TIMELINE_RETENTION
         self.new_recipe_prompt: str = ""
         self.new_recipe_from_image_prompt: str = ""
         self._config_file: Path | None = None
@@ -392,6 +422,14 @@ class Configuration:
             self._dictation_enabled = DEFAULT_DICTATION_ENABLED
 
     @property
+    def timeline_retention(self) -> str:
+        return self._timeline_retention
+
+    @timeline_retention.setter
+    def timeline_retention(self, value) -> None:
+        self._timeline_retention = normalize_retention_policy(value)
+
+    @property
     def site_directory(self) -> Path:
         return user_data_path("recipe-server", appauthor=False) / "site"
 
@@ -462,6 +500,7 @@ class Configuration:
                 "input_type": field.input_type,
                 "placeholder": field.placeholder,
                 "required": field.required,
+                **({"options": [{"value": value, "label": label} for value, label in field.options]} if field.options else {}),
             }
             for field in CONFIG_FIELDS
         ]
@@ -652,7 +691,7 @@ class Configuration:
             f" image analysis model={self.image_analysis_model or '(auto)'},"
             f" server name={self.recipe_server_name!r},"
             f" port={self.server_port}, food color={self.food_color},"
-            f" dictation={self.dictation_enabled})"
+            f" dictation={self.dictation_enabled}, timeline retention={self.timeline_retention})"
         )
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
@@ -705,7 +744,12 @@ class Configuration:
             self.food_color = settings[FOOD_COLOR_KEY]
         if DICTATION_ENABLED_KEY in settings:
             self.dictation_enabled = settings[DICTATION_ENABLED_KEY]
-        logger.debug(f"Configured server port: {self.server_port}, food color: {self.food_color}, dictation: {self.dictation_enabled}")
+        if TIMELINE_RETENTION_KEY in settings:
+            self.timeline_retention = settings[TIMELINE_RETENTION_KEY]
+        logger.debug(
+            f"Configured server port: {self.server_port}, food color: {self.food_color},"
+            f" dictation: {self.dictation_enabled}, timeline retention: {self.timeline_retention}"
+        )
 
         if MODEL_ENDPOINT_KEY in settings:
             self.model_endpoint = settings.get(MODEL_ENDPOINT_KEY, "")

@@ -8,6 +8,7 @@ from recipeserver.config import (
     DEFAULT_FOOD_COLOR,
     DEFAULT_RECIPE_SERVER_NAME,
     DEFAULT_SERVER_PORT,
+    DEFAULT_TIMELINE_RETENTION,
     FOOD_COLOR_KEY,
     DICTATION_ENABLED_KEY,
     DEFAULT_DICTATION_ENABLED,
@@ -16,6 +17,7 @@ from recipeserver.config import (
     MODEL_NAME_KEY,
     RECIPE_SERVER_NAME_KEY,
     SERVER_PORT_KEY,
+    TIMELINE_RETENTION_KEY,
     Configuration,
 )
 
@@ -116,6 +118,7 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
         SERVER_PORT_KEY: "8000",
         FOOD_COLOR_KEY: "#8d5542",
         DICTATION_ENABLED_KEY: True,
+        TIMELINE_RETENTION_KEY: "gfs",
     }
 
     def unexpected_input(prompt=""):
@@ -488,3 +491,70 @@ def test_field_specs_expose_dictation_as_a_checkbox(tmp_path, monkeypatch):
 
     assert specs[DICTATION_ENABLED_KEY]["input_type"] == "checkbox"
     assert specs[DICTATION_ENABLED_KEY]["label"] == "Dictation"
+
+
+def test_configuration_defaults_to_gfs_timeline_retention(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    assert config.timeline_retention == DEFAULT_TIMELINE_RETENTION == "gfs"
+    assert config.get_config_values()[TIMELINE_RETENTION_KEY] == "gfs"
+    assert _toml(config_file)[TIMELINE_RETENTION_KEY] == "gfs"
+
+
+def test_configuration_migrates_an_installation_without_the_key_to_gfs(tmp_path, monkeypatch):
+    # An existing config file with no timeline_retention key migrates to GFS.
+    config, config_file = _load_config(tmp_path, monkeypatch, 'food_color = "#123456"\n')
+
+    assert config.timeline_retention == "gfs"
+    assert _toml(config_file)[TIMELINE_RETENTION_KEY] == "gfs"
+
+
+def test_configuration_reads_and_persists_unlimited_timeline_retention(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch, f'{TIMELINE_RETENTION_KEY} = "unlimited"\n')
+
+    assert config.timeline_retention == "unlimited"
+
+    saved = _toml(config_file)
+    assert saved[TIMELINE_RETENTION_KEY] == "unlimited"
+
+
+def test_apply_config_values_round_trips_timeline_retention(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    changed = config.apply_config_values({TIMELINE_RETENTION_KEY: "unlimited"})
+
+    assert changed == [TIMELINE_RETENTION_KEY]
+    assert config.timeline_retention == "unlimited"
+    assert _toml(config_file)[TIMELINE_RETENTION_KEY] == "unlimited"
+
+
+def test_apply_config_values_rejects_an_unknown_timeline_retention(tmp_path, monkeypatch):
+    import pytest
+
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    with pytest.raises(ValueError, match="Timeline retention"):
+        config.apply_config_values({TIMELINE_RETENTION_KEY: "weekly"})
+
+    assert config.timeline_retention == "gfs"
+
+
+def test_unknown_timeline_retention_in_the_file_falls_back_to_gfs(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch, f'{TIMELINE_RETENTION_KEY} = "sometimes"\n')
+
+    assert config.timeline_retention == "gfs"
+
+
+def test_field_specs_expose_timeline_retention_as_a_select(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    specs = {field["key"]: field for field in config.field_specs()}
+
+    spec = specs[TIMELINE_RETENTION_KEY]
+    assert spec["input_type"] == "select"
+    assert spec["label"] == "Timeline retention"
+    assert spec["options"] == [
+        {"value": "gfs", "label": "GFS (recommended)"},
+        {"value": "unlimited", "label": "Unlimited"},
+    ]
+    assert "24 hours" in spec["help"]
