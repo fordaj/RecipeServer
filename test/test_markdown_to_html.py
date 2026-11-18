@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from PIL import Image
 
 from recipeserver.markdown_to_html import VERSION, MarkdownToHTMLConverter
+from recipeserver.menu import MENU_CSS_URL, MENU_JS_URL
 
 
 def write_png(path: Path, color: tuple[int, int, int] = (200, 70, 30)) -> None:
@@ -115,7 +116,21 @@ Mix everything.
     assert header.select_one("a.recipe-home[href='/index.html']") is not None
     assert header.select_one("select.recipe-scale-select") is not None
     assert header.select_one("input.recipe-scale-custom") is not None
-    assert header.select_one("button#edit-recipe") is not None
+    menu = header.select_one("nav.sandwich-menu")
+    assert menu is not None
+    assert menu.select_one(".sandwich-menu__toggle") is not None
+    edit_item = menu.select_one("button#edit-recipe")
+    assert edit_item is not None
+    assert edit_item.select_one("span").get_text(strip=True) == "Edit Recipe"
+    # The recipe page menu contains Edit Recipe only.
+    assert [item.get_text(strip=True) for item in menu.select(".sandwich-menu__item")] == ["Edit Recipe"]
+    hrefs = [link["href"] for link in soup.select('link[rel="stylesheet"]')]
+    assert MENU_CSS_URL in hrefs
+    srcs = [script["src"] for script in soup.select("script[src]")]
+    assert MENU_JS_URL in srcs
+    # Header order: sandwich menu, home/logo link, scaler.
+    children = header.find_all(recursive=False)
+    assert [element["class"] for element in children] == [["sandwich-menu"], ["recipe-home"], ["recipe-scaler"]]
 
     overview = soup.select_one(".recipe-overview")
     assert overview is not None

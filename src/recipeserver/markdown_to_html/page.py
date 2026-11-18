@@ -11,7 +11,8 @@ from textwrap import dedent
 
 from .._version import versioned_asset_url
 from ..color_utils import dark_mode_color
-from .icons import ASSETS_DIR, NOTEBOOK_SVG, PENCIL_SVG, icon_html
+from ..menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
+from .icons import ASSETS_DIR, NOTEBOOK_SVG, icon_html
 
 RECIPE_SCALER_HTML = ASSETS_DIR / "recipe-scaler.html"
 
@@ -56,12 +57,6 @@ HOME_PAGE_ICON_HTML = f"""
 <a href="/index.html" class="recipe-home">
     {icon_html(NOTEBOOK_SVG, "recipe-icon")}
 </a>
-"""
-
-EDIT_RECIPE_HTML = f"""
-<button id="edit-recipe"class="recipe-home" type="button" aria-label="Edit recipe" title="Edit recipe">
-    {icon_html(PENCIL_SVG, "recipe-icon")}
-</button>
 """
 
 
@@ -149,6 +144,7 @@ def build_recipe_html(
         <link rel="stylesheet" href="{assets["base_css"]}">
         <link rel="stylesheet" href="{assets["dialog_shell_css"]}">
         <link rel="stylesheet" href="{assets["ai_assistant_css"]}">
+        <link rel="stylesheet" href="{MENU_CSS_URL}">
         <link rel="stylesheet" href="{assets["style_css"]}">
         <link rel="stylesheet" href="{assets["recipe_scaler_css"]}">
         <link rel="stylesheet" href="{assets["recipe_editor_css"]}">
@@ -161,14 +157,15 @@ def build_recipe_html(
         <script id="recipe-metadata" type="application/json">{metadata_json}</script>
         <main class="recipe">
             <header class="recipe-header">
+                {sandwich_menu_html(recipe_page=True)}
                 {HOME_PAGE_ICON_HTML}
                 {recipe_scaler_html}
-                {EDIT_RECIPE_HTML}
             </header>
             {body}
             {ratings_html}
             {comments_html}
         </main>
+        <script defer src="{MENU_JS_URL}"></script>
         <script defer src="{assets["time_js"]}"></script>
         <script defer src="{assets["icons_js"]}"></script>
         <script defer src="{assets["ai_assistant_js"]}"></script>

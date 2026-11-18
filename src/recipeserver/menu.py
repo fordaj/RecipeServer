@@ -3,10 +3,11 @@
 The menu is deliberately independent of any one page: ``sandwich_menu_html()``
 returns the markup, ``MENU_CSS_URL``/``MENU_JS_URL`` point at the shared
 assets, and both read every colour from ``definitions.css`` so the menu picks
-up the light/dark themes automatically. The index page includes it today; a
-recipe page can include the same helper, stylesheet and script to get the
-identical menu (it just needs a positioned ancestor, e.g. a ``position:
-relative`` page header, for the top-left anchoring in ``menu.css``).
+up the light/dark themes automatically. The index page includes the default
+menu; a recipe page can include the same helper with ``recipe_page=True`` to
+get the menu carrying just the **Edit Recipe** entry (it just needs a
+positioned ancestor, e.g. a ``position: relative`` page header, for the
+top-left anchoring in ``menu.css``).
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ MENU_JS_PATH = "/assets/menu.js"
 SETTINGS_SVG = ASSETS_DIR / "settings.svg"
 FILE_DATABASE_SVG = ASSETS_DIR / "file-database.svg"
 FILE_CODE_CORNER_SVG = ASSETS_DIR / "file-code-corner.svg"
+PENCIL_SVG = ASSETS_DIR / "pencil.svg"
 
 MENU_CSS_URL = versioned_asset_url(MENU_CSS_PATH)
 MENU_JS_URL = versioned_asset_url(MENU_JS_PATH)
@@ -54,13 +56,23 @@ def _menu_item_html(icon_path: Path, label: str, **attributes: str) -> str:
     return f'<button class="sandwich-menu__item" type="button"{attributes_html} role="menuitem">{icon}<span>{label}</span></button>'
 
 
-def sandwich_menu_html() -> str:
-    """Render the sandwich menu markup for any page that wants it."""
-    items = [
-        _menu_item_html(SETTINGS_SVG, "Configuration", data_config="open"),
-        _menu_item_html(FILE_CODE_CORNER_SVG, "Download Source Archive", data_archive="source"),
-        _menu_item_html(FILE_DATABASE_SVG, "Download Site Archive", data_archive="site"),
-    ]
+def sandwich_menu_html(*, recipe_page: bool = False) -> str:
+    """Render the sandwich menu markup for any page that wants it.
+
+    ``recipe_page=True`` renders the recipe-page menu: a single **Edit
+    Recipe** entry (pencil icon) for pages that host the recipe editor; its
+    ``id="edit-recipe"`` is wired to open the editor by
+    ``recipe-editor.js``. The default menu renders the entries used by the
+    index page (Configuration and the two archive downloads).
+    """
+    if recipe_page:
+        items = [_menu_item_html(PENCIL_SVG, "Edit Recipe", id="edit-recipe")]
+    else:
+        items = [
+            _menu_item_html(SETTINGS_SVG, "Configuration", data_config="open"),
+            _menu_item_html(FILE_CODE_CORNER_SVG, "Download Source Archive", data_archive="source"),
+            _menu_item_html(FILE_DATABASE_SVG, "Download Site Archive", data_archive="site"),
+        ]
 
     return (
         '<nav class="sandwich-menu" aria-label="Site menu">'
