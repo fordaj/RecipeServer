@@ -6,6 +6,7 @@ node_modules/*
 test/**/*.html
 .worktrees/
 .e2e-artifacts/
+.scale-artifacts/
 
 # ==========================================
 # Byte-compiled / optimized / DLL files

@@ -409,6 +409,39 @@ Writing new tests:
   and prefer `data-testid` attributes (for example `[data-testid="recipe-item"]`)
   and stable element IDs over positional selectors.
 
+### Scale testing
+
+`test/scale/` builds and serves a mock recipe library at four sizes — 10, 100,
+1,000, and 10,000 recipes, one generated image per recipe — and reports build,
+startup, and request timings plus output sizes and RSS. It is a performance
+analysis harness, not a correctness gate: it is skipped by default and is never
+wired into CI. Run it manually, with `-s` so the console table is printed:
+
+```bash
+RECIPE_SERVER_SCALE=1 uv run pytest test/scale -s
+```
+
+It writes `.scale-artifacts/report.json` (machine-readable, with platform, CPU
+count, Python version, git SHA, sizes, and seed) and `.scale-artifacts/report.md`
+(human-readable tables, including per-doubling growth factors between
+consecutive sizes). When a previous `report.json` exists in the artifacts
+directory, the new report also prints deltas against it.
+
+| Variable                          | Default             | Purpose                                      |
+| --------------------------------- | ------------------- | -------------------------------------------- |
+| `RECIPE_SERVER_SCALE`             | unset               | Set to `1` to run the scale tests.           |
+| `RECIPE_SERVER_SCALE_SIZES`       | `10,100,1000,10000` | Comma-separated library sizes to measure.    |
+| `RECIPE_SERVER_SCALE_ARTIFACTS`   | `.scale-artifacts/` | Where `report.json`/`report.md` are written. |
+| `RECIPE_SERVER_SCALE_SEED`        | `207`               | Seed for the deterministic mock library.     |
+| `RECIPE_SERVER_SCALE_REPETITIONS` | `5`                 | Timed repetitions per probed endpoint.       |
+
+The mock library lives in a throwaway temporary directory (no real user data,
+no tray, no port 8000, no browser) and is regenerated on every run. The
+assertions check invariants only — expected page count, card count, 2xx
+responses, a parseable index — and there are deliberately no time budgets.
+Expect the full four-size run to take tens of minutes on a loaded machine
+(10,000 recipes dominates); trim `RECIPE_SERVER_SCALE_SIZES` while iterating.
+
 Format Python (Black, line-length 150), Bash (shfmt), CSS/JS/HTML/Markdown/YAML (Prettier), TOML (taplo), and SVG (Prettier `--parser html`) via formattington (`uv run formattington all --config .formattington.json`, concurrently by default). Formatters are declared in `.formattington.json`; vendored KaTeX is excluded via `.prettierignore`. Requires `prettier` on PATH (`npm install -g prettier`) and `taplo` on PATH:
 
 ```bash
