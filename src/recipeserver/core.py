@@ -14,6 +14,7 @@ from .image_handler import IMAGE_EXTENSIONS
 from .index_html_generator import IndexHTMLGenerator, Recipe
 from .markdown_to_html import MarkdownToHTMLConverter
 from .recipe_utils import extract_recipe_id, new_recipe_id, set_recipe_id
+from .retention import get_retention_manager
 from .server import Server
 from .transcriber import stop_transcriber
 from .tray import Tray
@@ -140,6 +141,10 @@ class Core:
         with self._regen_lock:
             self._regen_locked()
             logger.info("Regenerated site after configuration change")
+        # A configuration save may have switched the retention policy:
+        # apply it in the background. When the policy is Unlimited this is a
+        # no-op, and pruning never runs for that policy at all.
+        get_retention_manager().request_full_scan(force=True)
         if not getattr(self.cfg, "dictation_enabled", True):
             # Dictation was turned off: release the whisper-server (and its
             # model) instead of letting it linger.
@@ -266,6 +271,12 @@ def main(cfg: Configuration):
     core = Core(cfg)
     core.regen()
 
+    # Timeline retention runs in the background: an immediate pass plus a
+    # periodic sweep, and a throttled pass after each save.
+    retention_manager = get_retention_manager()
+    retention_manager.configure(cfg)
+    retention_manager.start()
+
     server = Server(
         cfg,
         on_markdown_saved=core.on_markdown_save,
@@ -297,5 +308,6 @@ def main(cfg: Configuration):
         shutdown_event.set()
         tray.stop()
         server.stop()
+        retention_manager.stop()
         stop_transcriber()
         logger.info("RecipeServer stopped.")

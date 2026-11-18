@@ -36,6 +36,7 @@ from PIL import Image, UnidentifiedImageError
 
 from . import ai_assistant, ai_recipe
 from . import history as recipe_history
+from .retention import get_retention_manager
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import Configuration, DEFAULT_SERVER_PORT
@@ -209,6 +210,9 @@ def _save_recipe_contents(
         if snapshot_path is not None:
             snapshot_path.unlink(missing_ok=True)
         raise
+
+    # Throttled background retention; never blocks the save.
+    get_retention_manager().schedule_recipe_prune(resolved_id)
     return True
 
 
@@ -2372,27 +2376,31 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             return
         file_path, recipe_id = target
 
-        content = self._history_snapshot_for(recipe_id, snapshot_id)
-        if content is None:
-            return
+        # Hold the per-recipe retention lock across the read and the write so
+        # a background prune never removes the snapshot mid-restore (and the
+        # pre-restore snapshot this save creates is safe too).
+        with get_retention_manager().recipe_lock(recipe_id):
+            content = self._history_snapshot_for(recipe_id, snapshot_id)
+            if content is None:
+                return
 
-        try:
-            # The common save mechanism snapshots the current recipe before
-            # replacing it, so the restore is itself reversible.
-            _save_recipe_contents(
-                file_path,
-                content,
-                force_recipe_id=recipe_id,
-                create_parents=not file_path.is_file(),
-            )
-        except recipe_history.HistoryError:
-            logger.exception("Failed to snapshot the current recipe before restoring")
-            self._send_json(500, {"error": "Unable to snapshot the current recipe; nothing was restored"})
-            return
-        except OSError:
-            logger.exception(f"Failed to restore snapshot {snapshot_id} to {file_path}")
-            self._send_json(500, {"error": "Unable to restore the recipe"})
-            return
+            try:
+                # The common save mechanism snapshots the current recipe before
+                # replacing it, so the restore is itself reversible.
+                _save_recipe_contents(
+                    file_path,
+                    content,
+                    force_recipe_id=recipe_id,
+                    create_parents=not file_path.is_file(),
+                )
+            except recipe_history.HistoryError:
+                logger.exception("Failed to snapshot the current recipe before restoring")
+                self._send_json(500, {"error": "Unable to snapshot the current recipe; nothing was restored"})
+                return
+            except OSError:
+                logger.exception(f"Failed to restore snapshot {snapshot_id} to {file_path}")
+                self._send_json(500, {"error": "Unable to restore the recipe"})
+                return
 
         logger.info(f"Restored snapshot {snapshot_id} to {file_path}")
         if not self._notify_recipe_saved(file_path, "Version restored, but HTML regeneration failed"):

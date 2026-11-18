@@ -66,38 +66,56 @@ function buildFields(fields, values) {
     const inputId = `config-editor-${field.key}`;
     label.htmlFor = inputId;
 
-    const input = element("input", "field-input");
-    input.id = inputId;
-    input.name = field.key;
-    input.spellcheck = false;
-
-    if (field.input_type === "checkbox") {
-      // Checkboxes render inside the label so clicking the text toggles them.
-      wrapper.classList.add("config-editor__field--checkbox");
-      label.classList.add("config-editor__checkbox-label");
-      input.type = "checkbox";
-      input.className = "config-editor__checkbox";
-      input.checked = values[field.key] === "true";
-      label.append(input, element("span", null, field.label));
-    } else {
+    let input;
+    if (field.input_type === "select") {
+      // Selects render their options from the server's field spec.
+      input = element("select", "field-input");
+      input.id = inputId;
+      input.name = field.key;
+      for (const option of field.options || []) {
+        const optionElement = element("option", null, option.label);
+        optionElement.value = option.value;
+        input.append(optionElement);
+      }
+      input.value = values[field.key] ?? "";
       label.append(element("span", null, field.label));
       if (field.required) {
         label.append(element("span", "config-editor__required", "required"));
       }
+    } else {
+      input = element("input", "field-input");
+      input.id = inputId;
+      input.name = field.key;
+      input.spellcheck = false;
 
-      if (field.placeholder) input.placeholder = field.placeholder;
-      // Browser-level validation for URL and number fields; the server
-      // validates strictly and reports the real rules in the help text.
-      input.type =
-        field.input_type === "url" ? "url" : field.input_type === "number" ? "number" : "text";
-      if (input.type === "number") {
-        input.min = "1";
-        input.max = String(MAX_SERVER_PORT);
-        input.step = "1";
-        input.inputMode = "numeric";
+      if (field.input_type === "checkbox") {
+        // Checkboxes render inside the label so clicking the text toggles them.
+        wrapper.classList.add("config-editor__field--checkbox");
+        label.classList.add("config-editor__checkbox-label");
+        input.type = "checkbox";
+        input.className = "config-editor__checkbox";
+        input.checked = values[field.key] === "true";
+        label.append(input, element("span", null, field.label));
+      } else {
+        label.append(element("span", null, field.label));
+        if (field.required) {
+          label.append(element("span", "config-editor__required", "required"));
+        }
+
+        if (field.placeholder) input.placeholder = field.placeholder;
+        // Browser-level validation for URL and number fields; the server
+        // validates strictly and reports the real rules in the help text.
+        input.type =
+          field.input_type === "url" ? "url" : field.input_type === "number" ? "number" : "text";
+        if (input.type === "number") {
+          input.min = "1";
+          input.max = String(MAX_SERVER_PORT);
+          input.step = "1";
+          input.inputMode = "numeric";
+        }
+        if (field.required) input.required = true;
+        input.value = values[field.key] ?? "";
       }
-      if (field.required) input.required = true;
-      input.value = values[field.key] ?? "";
     }
 
     input.addEventListener("input", () => {

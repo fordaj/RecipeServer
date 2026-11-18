@@ -22,9 +22,10 @@ including front matter, comments, and whitespace. There is no database;
 the directory itself is the index.
 
 Consecutive duplicate versions are skipped by comparing the SHA-256 of the
-snapshot that would be created against the newest stored snapshot. History
-is retained indefinitely; the layout leaves room for a future configurable
-retention policy.
+snapshot that would be created against the newest stored snapshot. How long
+snapshots are kept is governed by the server-level retention policy in
+``retention.py`` (GFS by default); pruning never modifies the retained
+snapshots.
 
 Tests point ``RECIPE_SERVER_HISTORY_DIR`` at a temporary directory instead of
 the real user-data directory, mirroring ``RECIPE_SERVER_HTTPS_DIR``.

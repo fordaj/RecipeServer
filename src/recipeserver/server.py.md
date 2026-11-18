@@ -10,11 +10,13 @@ flowchart TD
     api --> misc("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/config · /api/metadata-options<br/>/api/shopping-list · /api/archive · /api/transcribe</u>")
     api --> hist("<img src='barnacle:archive.svg' width='20' alt=''/><br/><u>/api/history/*<br/>list · preview · compare · restore</u>")
     edit --> callbacks("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>on_markdown_save → core.py<br/>re-render page + index</u>")
+    callbacks --> retention("<img src='barnacle:scissors.svg' width='20' alt=''/><br/><u>retention.py<br/>background pruning</u>")
     click ai href "ai_assistant.py.md"
     click misc href "metadata_options.py.md"
     click hist href "history.py.md"
+    click retention href "retention.py.md"
     click callbacks href "core.py.md"
-    class handler,edit,callbacks,hist goFile
+    class handler,edit,callbacks,hist,retention goFile
     class static folder
     classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
     classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
@@ -73,14 +75,15 @@ Every RecipeServer-managed modification of a recipe — editor saves, raw `/api/
 1. reads the existing file and computes whether the new content is **equivalent** (byte-equal, or equal after ignoring `updatedOn` and explicit-null editor fields — so a save that changes nothing writes nothing and snapshots nothing);
 2. resolves the recipe's `recipe_id` (the existing one, else a fresh UUIDv4 for a new recipe, else the caller-forced id for a deleted-recipe restore) and forces it into the saved content textually — identity never depends on the path;
 3. snapshots the existing content into the history directory (raising `history.HistoryError`, which aborts the save, when the snapshot cannot be written);
-4. writes the file atomically, rolling the snapshot back only if the write itself failed.
+4. writes the file atomically, rolling the snapshot back only if the write itself failed;
+5. schedules a throttled background prune of that recipe's history ([retention.py.md](retention.py.md)), which never blocks the save.
 
 Recipe history endpoints (the recipe page's **Version History** dialog consumes them; see `assets/recipe-history/timeline.js`):
 
 - `GET /api/history?path=…[&recipeId=…]` — `{path, recipeId, snapshots: [{id, created, size}]}`, newest first. A missing recipe file (deleted recipe) needs `recipeId`. A recipe without `recipe_id` is assigned one in place (no snapshot).
 - `GET /api/history/preview?path=…&snapshot=…` — renders the snapshot through the same `MarkdownToHTMLConverter` pipeline as a scratch copy and returns it as `text/html` with scripts and the page header stripped; the current recipe is untouched.
 - `GET /api/history/compare?path=…&snapshot=…` — a unified diff (`snapshot` → `current`) for read-only comparison.
-- `POST /api/history/restore` `{path, snapshot[, recipeId]}` — snapshots the current recipe first (so the restore is itself reversible), then writes the snapshot content back, forcing the current recipe's identity. For a deleted recipe (no file), passing `path` + `recipeId` recreates the file and its parent directories — this is the supported recovery path.
+- `POST /api/history/restore` `{path, snapshot[, recipeId]}` — snapshots the current recipe first (so the restore is itself reversible), then writes the snapshot content back, forcing the current recipe's identity. For a deleted recipe (no file), passing `path` + `recipeId` recreates the file and its parent directories — this is the supported recovery path. The handler holds the per-recipe retention lock across the read and the write, so a background prune can never delete the snapshot mid-restore.
 
 Deleting a recipe never touches the history directory; metadata saves make snapshots of the pre-change file exactly as editor saves do.
 
@@ -115,5 +118,6 @@ Deleting a recipe never touches the history directory; metadata saves make snaps
 
 - [core.py.md](core.py.md) — wires the callbacks
 - [history.py.md](history.py.md) — the snapshot store and the history directory
+- [retention.py.md](retention.py.md) — the background retention pass that prunes history
 - [ai_recipe.py.md](ai_recipe.py.md) · [ai_assistant.py.md](ai_assistant.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) · [whisper_server.py.md](whisper_server.py.md) — backing modules
 - [README.md](README.md) — the package hub

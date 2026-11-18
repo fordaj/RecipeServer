@@ -96,6 +96,7 @@ def test_get_config_returns_values_and_field_specs(config_server):
         "server_port",
         "food_color",
         "dictation_enabled",
+        "timeline_retention",
     }
     for field in data["fields"]:
         assert field["label"] and (field["help"] or field["input_type"])
@@ -145,3 +146,32 @@ def test_post_config_blank_server_name_falls_back_to_default(config_server):
     assert status == 200
     assert data["values"][RECIPE_SERVER_NAME_KEY] == "My Recipe Server"
     assert config.recipe_server_name == "My Recipe Server"
+
+
+def test_get_config_reports_timeline_retention_as_a_select(config_server):
+    base, _, _, _ = config_server
+
+    status, data = _get(base, "/api/config")
+
+    assert status == 200
+    assert data["values"]["timeline_retention"] == "gfs"
+    field = next(field for field in data["fields"] if field["key"] == "timeline_retention")
+    assert field["input_type"] == "select"
+    assert [option["value"] for option in field["options"]] == ["gfs", "unlimited"]
+
+
+def test_post_config_switches_timeline_retention_and_persists_it(config_server):
+    base, config, config_file, regen_calls = config_server
+
+    status, data = _post(base, "/api/config", {"values": {"timeline_retention": "unlimited"}})
+
+    assert status == 200
+    assert data["changed"] == ["timeline_retention"]
+    assert data["values"]["timeline_retention"] == "unlimited"
+    assert config.timeline_retention == "unlimited"
+    assert tomllib.loads(config_file.read_text(encoding="UTF-8"))["timeline_retention"] == "unlimited"
+    assert regen_calls == [True]
+
+    status, data = _post(base, "/api/config", {"values": {"timeline_retention": "yearly"}})
+    assert status == 400
+    assert config.timeline_retention == "unlimited"
