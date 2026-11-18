@@ -21,9 +21,9 @@ def test_recipe_page_sandwich_menu_edit_recipe_entry(driver, recipe_server):
     wait_clickable(driver, ".sandwich-menu__toggle").click()
     wait_visible(driver, ".sandwich-menu__panel:not([hidden])")
 
-    # The Edit Recipe entry leads the menu and is the only pencil action.
+    # The recipe page menu contains Edit Recipe only.
     items = driver.find_elements("css selector", ".sandwich-menu__item")
-    assert "Edit Recipe" in items[0].text
+    assert [item.text for item in items] == ["Edit Recipe"]
 
     wait_clickable(driver, "#edit-recipe").click()
     wait_visible(driver, "#recipe-markdown-editor[open]")

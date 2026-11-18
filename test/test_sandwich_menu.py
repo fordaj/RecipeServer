@@ -100,25 +100,27 @@ def test_sandwich_menu_html_uses_menu_icon_and_both_downloads():
     ]
     config_items = [item for item in items if item.get("data-config") == "open"]
     assert [item.get_text(strip=True) for item in config_items] == ["Configuration"]
+    # The default (index) menu has no Edit Recipe entry.
+    assert all(item.get("id") != "edit-recipe" for item in items)
 
 
-def test_sandwich_menu_with_edit_recipe_item_leads_with_the_pencil_entry():
-    html = sandwich_menu_html(include_edit_recipe=True)
+def test_sandwich_menu_recipe_page_contains_only_the_edit_recipe_entry():
+    html = sandwich_menu_html(recipe_page=True)
     soup = BeautifulSoup(html, "html.parser")
 
     items = soup.select(".sandwich-menu__item")
+    assert len(items) == 1
     edit_item = items[0]
     assert edit_item.get("id") == "edit-recipe"
     assert edit_item.get_text(strip=True) == "Edit Recipe"
     # pencil.svg is inlined so the icon inherits currentColor.
     assert edit_item.select_one("svg") is not None
     assert "lucide-pencil" in str(edit_item)
-    # The standard entries keep their place after it.
-    assert [item.get_text(strip=True) for item in items[1:]] == [
-        "Configuration",
-        "Download Source Archive",
-        "Download Site Archive",
-    ]
+    # No Configuration or archive entries on a recipe page.
+    assert not edit_item.has_attr("data-config")
+    assert not edit_item.has_attr("data-archive")
+    assert "Configuration" not in html
+    assert "Archive" not in html
 
 
 def test_index_page_includes_sandwich_menu_and_assets(tmp_path: Path):

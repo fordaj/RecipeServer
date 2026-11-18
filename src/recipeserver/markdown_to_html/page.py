@@ -157,7 +157,7 @@ def build_recipe_html(
         <script id="recipe-metadata" type="application/json">{metadata_json}</script>
         <main class="recipe">
             <header class="recipe-header">
-                {sandwich_menu_html(include_edit_recipe=True)}
+                {sandwich_menu_html(recipe_page=True)}
                 {HOME_PAGE_ICON_HTML}
                 {recipe_scaler_html}
             </header>
