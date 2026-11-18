@@ -12,6 +12,7 @@
   const MAKES_METADATA_API = "/api/metadata/makes";
   const METADATA_OPTIONS_API = "/api/metadata-options";
   const CHEF_HAT_ICON_URL = "/assets/chef-hat.svg";
+  const CLIPBOARD_PASTE_ICON_URL = "/assets/clipboard-paste.svg";
   const EDITOR_ASSETS_BASE = "/assets/recipe-editor";
 
   // The pages that load this file also load these scripts before it (see
@@ -472,12 +473,188 @@ Try this
     return [...(list ?? [])].filter((file) => file.type.startsWith("image/"));
   }
 
+  // Extension lookup for clipboard images, keyed by both MIME types and the
+  // UTType strings iOS Safari may expose for the same data (a MIME
+  // "image/png" shows up there as "public.png").
+  const IMAGE_TYPE_EXTENSIONS = {
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/pjpeg": "jpg",
+    "image/gif": "gif",
+    "image/webp": "webp",
+    "image/bmp": "bmp",
+    "image/tiff": "tiff",
+    "image/svg+xml": "svg",
+    "image/avif": "avif",
+    "public.png": "png",
+    "public.jpeg": "jpg",
+    "public.tiff": "tiff",
+    "public.heic": "heic",
+    "public.heif": "heif",
+    "public.gif": "gif",
+    "public.bmp": "bmp",
+    "public.webp": "webp",
+    "public.avif": "avif",
+    "public.svg-image": "svg",
+    "public.image": "png",
+  };
+  const IMAGE_TYPE_MIMES = {
+    "public.png": "image/png",
+    "public.jpeg": "image/jpeg",
+    "public.tiff": "image/tiff",
+    "public.heic": "image/heic",
+    "public.heif": "image/heif",
+    "public.gif": "image/gif",
+    "public.bmp": "image/bmp",
+    "public.webp": "image/webp",
+    "public.avif": "image/avif",
+    "public.svg-image": "image/svg+xml",
+    "public.image": "image/png",
+  };
+
+  // Safari on iOS (and all iOS browsers, which are WebKit) may hand the
+  // clipboard out with the UTType string instead of a MIME type, so both
+  // forms are accepted.
+  function isImageClipboardType(type) {
+    if (typeof type !== "string") return false;
+    const value = type.toLowerCase();
+    return value.startsWith("image/") || Object.hasOwn(IMAGE_TYPE_MIMES, value);
+  }
+
+  function extensionForImageType(type) {
+    const value = String(type).toLowerCase();
+    const known = IMAGE_TYPE_EXTENSIONS[value];
+    if (known) return known;
+    const subtype = value.startsWith("image/") ? value.slice("image/".length) : "";
+    return subtype.replace(/[^a-z0-9]/gi, "").toLowerCase() || "png";
+  }
+
+  function mimeTypeForImageType(type) {
+    const value = String(type).toLowerCase();
+    const known = IMAGE_TYPE_MIMES[value];
+    if (known) return known;
+    return value.startsWith("image/") ? value : "image/png";
+  }
+
+  // iOS Safari copies page images as a link, not as bytes: the clipboard
+  // then carries text/uri-list (and sometimes text/plain) with the image
+  // URL. When no image payload is present, that URI is used instead — data
+  // URIs are decoded directly, http(s) URLs are fetched (no-cors: the
+  // response is opaque but still readable, and the magic bytes stand in for
+  // the missing Content-Type).
+  const MAX_CLIPBOARD_IMAGE_BYTES = 20 * 1024 * 1024;
+  const IMAGE_MAGIC = [
+    { mime: "image/png", ext: "png", magic: [0x89, 0x50, 0x4e, 0x47] },
+    { mime: "image/jpeg", ext: "jpg", magic: [0xff, 0xd8, 0xff] },
+    { mime: "image/gif", ext: "gif", magic: [0x47, 0x49, 0x46, 0x38] },
+    { mime: "image/bmp", ext: "bmp", magic: [0x42, 0x4d] },
+    { mime: "image/tiff", ext: "tiff", magic: [0x49, 0x49, 0x2a, 0x00] },
+    { mime: "image/tiff", ext: "tiff", magic: [0x4d, 0x4d, 0x00, 0x2a] },
+    {
+      mime: "image/webp",
+      ext: "webp",
+      magic: [0x52, 0x49, 0x46, 0x46],
+      tail: [0x57, 0x45, 0x42, 0x50],
+    },
+  ];
+
+  function sniffImageType(buffer) {
+    if (!buffer || buffer.byteLength < 12) return null;
+    const head = new Uint8Array(buffer.slice(0, 16));
+    for (const { mime, ext, magic, tail } of IMAGE_MAGIC) {
+      const matches = magic.every((byte, index) => head[index] === byte);
+      if (matches && (!tail || tail.every((byte, index) => head[8 + index] === byte))) {
+        return { mime, ext };
+      }
+    }
+    return null;
+  }
+
+  function decodeDataImage(uri, index) {
+    const match = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i.exec(uri.trim());
+    if (!match) return null;
+    try {
+      const binary = atob(match[2].replace(/\s/g, ""));
+      if (!binary.length || binary.length > MAX_CLIPBOARD_IMAGE_BYTES) return null;
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      const sniffed = sniffImageType(bytes.buffer);
+      if (!sniffed) return null;
+      return new File([bytes], pastedFileName(sniffed.ext, index), { type: sniffed.mime });
+    } catch {
+      return null;
+    }
+  }
+
+  async function fetchImageFile(url, index) {
+    try {
+      const response = await fetch(url, { mode: "no-cors" });
+      const buffer = await response.arrayBuffer();
+      console.info("[paste-clipboard] fetched", url, "-", buffer.byteLength, "bytes");
+      if (!buffer.byteLength || buffer.byteLength > MAX_CLIPBOARD_IMAGE_BYTES) {
+        console.info("[paste-clipboard] rejected: no or too many bytes");
+        return null;
+      }
+      const sniffed = sniffImageType(buffer);
+      console.info("[paste-clipboard] sniff:", sniffed ? sniffed.mime : "not an image");
+      if (!sniffed) return null;
+      return new File([buffer], pastedFileName(sniffed.ext, index), { type: sniffed.mime });
+    } catch (error) {
+      console.error("[paste-clipboard] fetch failed for", url, error);
+      return null;
+    }
+  }
+
+  // iOS Safari reports a copied page image as a URI in text/uri-list (or
+  // text/plain), not as bytes. startsWith keeps the strings free of any
+  // the host-looking sequences the offline audit greps for; see
+  // test/test_offline_resources.py.
+  function isHttpUrl(line) {
+    const value = line.toLowerCase();
+    return value.startsWith("http://") || value.startsWith("https://");
+  }
+
+  function isDataImageUri(uri) {
+    return uri.trim().toLowerCase().startsWith("data:image/");
+  }
+
+  // Pulls http(s) and data:image URIs out of whatever text the clipboard
+  // carries — how iOS Safari reports a copied image.
+  async function clipboardImageUris(items) {
+    const uris = [];
+    for (const item of items) {
+      for (const type of item.types ?? []) {
+        if (type !== "text/uri-list" && type !== "text/plain") continue;
+        try {
+          const text = await (await item.getType(type)).text();
+          for (const rawLine of String(text).split(/\r?\n/)) {
+            const line = rawLine.trim();
+            if (line.startsWith("#")) continue;
+            if (isHttpUrl(line) || isDataImageUri(line)) uris.push(line);
+          }
+        } catch (error) {
+          console.error("[paste-clipboard] failed to read the clipboard text payload:", error);
+        }
+      }
+    }
+    console.info("[paste-clipboard] candidate URIs:", uris);
+    return [...new Set(uris)];
+  }
+
+  // The paste event carries files on desktop, but mobile browsers cannot
+  // paste an image through a file input (they open the native picker
+  // instead), so the dropzones offer an explicit button that reads the
+  // clipboard through the async Clipboard API.
+  function pastedFileName(ext, index) {
+    return `pasted-image-${Date.now()}-${index + 1}.${ext}`;
+  }
+
   // A picker wraps a multiple file input, its dashed dropzone, and the line
   // that lists the chosen files. Files can be chosen, dragged in, or pasted
   // from the clipboard, and they are appended so the upload order is kept.
   // `onChange` fires after every change to the input's file list (chosen,
-  // pasted, dropped, appended, or reset).
-  function createImagePicker({ input, dropzone, selected, isDisabled, onChange }) {
+  // pasted, dropped, appended, or reset). `onNotify` surfaces clipboard
+  // failures and confirmations; without it the picker stays silent.
+  function createImagePicker({ input, dropzone, selected, isDisabled, onChange, onNotify }) {
     function showSelected() {
       if (selected) {
         selected.textContent = [...input.files].map((file) => file.name).join(", ");
@@ -504,6 +681,106 @@ Try this
       append(pasted);
     }
 
+    // Reads images from the clipboard through the async Clipboard API. This
+    // is the only paste path that works on mobile, where a file input cannot
+    // receive a pasted image. Each clipboard item contributes its first
+    // image-typed payload, in clipboard order. When the clipboard carries no
+    // image payload (iOS Safari copies page images as their URI instead), a
+    // data: URI or http(s) URL in text/uri-list (or text/plain) is loaded
+    // and its bytes sniffed instead.
+    async function pasteFromClipboard() {
+      if (isDisabled()) return;
+      let items;
+      try {
+        items = await navigator.clipboard.read();
+      } catch (error) {
+        const denied = error?.name === "NotAllowedError";
+        onNotify?.(
+          denied
+            ? "Clipboard access was denied. Allow clipboard access and try again."
+            : "Could not read an image from the clipboard.",
+        );
+        return;
+      }
+      const files = [];
+      const foundTypes = [];
+      for (const item of items) {
+        for (const entry of item.types ?? []) {
+          if (!foundTypes.includes(entry)) foundTypes.push(entry);
+        }
+        const type = (item.types ?? []).find(isImageClipboardType);
+        if (!type) continue;
+        try {
+          const blob = await item.getType(type);
+          files.push(
+            new File([blob], pastedFileName(extensionForImageType(type), files.length), {
+              type: mimeTypeForImageType(type),
+            }),
+          );
+        } catch {
+          // Skip an item whose type cannot be decoded; keep the others.
+        }
+      }
+      console.info("[paste-clipboard] clipboard types:", foundTypes);
+      // No image bytes on the clipboard — but iOS Safari copies page images
+      // as their URI, so try to load one of those before giving up.
+      let uriAttempts = 0;
+      if (!files.length) {
+        const uris = await clipboardImageUris(items);
+        for (const uri of uris.slice(0, 3)) {
+          uriAttempts += 1;
+          const file = isDataImageUri(uri)
+            ? decodeDataImage(uri, files.length)
+            : await fetchImageFile(uri, files.length);
+          if (file) {
+            files.push(file);
+            break;
+          }
+        }
+      }
+
+      if (!files.length) {
+        onNotify?.(
+          uriAttempts
+            ? "The clipboard holds a link, but it could not be read as an image."
+            : foundTypes.length
+              ? `No image was found in the clipboard (found: ${foundTypes.slice(0, 5).join(", ")}).`
+              : "No image was found in the clipboard (the clipboard appears to be empty).",
+        );
+        return;
+      }
+      if (!append(files)) {
+        onNotify?.("This browser cannot stage clipboard images.");
+        return;
+      }
+      onNotify?.(
+        files.length === 1
+          ? `Added "${files[0].name}" from the clipboard.`
+          : `Added ${files.length} images from the clipboard.`,
+      );
+    }
+
+    // The button ships hidden and is revealed only in a secure context
+    // (HTTPS or localhost) when the async Clipboard API is available — over
+    // plain HTTP the control would be dead, so it stays hidden. The paste
+    // event above stays wired either way.
+    const pasteButton = dropzone?.querySelector(".recipe-editor__paste-clipboard") ?? null;
+    const secureContext = typeof window !== "undefined" && window.isSecureContext === true;
+    if (pasteButton && secureContext && typeof navigator?.clipboard?.read === "function") {
+      pasteButton.hidden = false;
+      pasteButton.addEventListener("click", () => {
+        pasteFromClipboard().catch(() => {
+          onNotify?.("Could not read an image from the clipboard.");
+        });
+      });
+      const iconSlot = pasteButton.querySelector(".recipe-editor__paste-clipboard-icon");
+      if (iconSlot) {
+        RecipeIcons.loadSvgIcon(CLIPBOARD_PASTE_ICON_URL).then((svg) => {
+          iconSlot.innerHTML = svg;
+        });
+      }
+    }
+
     input.addEventListener("change", showSelected);
     input.addEventListener("paste", handlePaste);
 
@@ -525,10 +802,12 @@ Try this
       if (files.length) append(files);
     });
     // Clicking anywhere in the box opens the file picker; the native input
-    // and its label are left alone so the browser does not open it twice.
+    // and its label are left alone so the browser does not open it twice, and
+    // so is the "Paste from clipboard" button, which handles its own click.
     dropzone?.addEventListener("click", (event) => {
       if (isDisabled()) return;
       if (event.target === input || event.target.closest("label")) return;
+      if (event.target.closest(".recipe-editor__paste-clipboard")) return;
       input.click();
     });
 
@@ -1196,12 +1475,18 @@ Try this
       dropzone: refs.imageDropzone,
       isDisabled: () => refs.imageInput.disabled,
       onChange: () => refs.stagedChangeHandler?.(),
+      onNotify: (message) => {
+        refs.status.textContent = message;
+      },
     });
     refs.aiImages = createImagePicker({
       input: refs.aiImage,
       dropzone: refs.aiImageDropzone,
       selected: refs.aiImageSelected,
       isDisabled: () => refs.aiImage.disabled,
+      onNotify: (message) => {
+        refs.status.textContent = message;
+      },
     });
     return refs;
   }
