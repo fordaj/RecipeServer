@@ -16,6 +16,16 @@ from .icons import ASSETS_DIR, NOTEBOOK_SVG, icon_html
 
 RECIPE_SCALER_HTML = ASSETS_DIR / "recipe-scaler.html"
 
+# Inline <script> snippet that registers the service worker (assets/sw.js)
+# making /assets/* delivery resilient on flaky networks. Identical on
+# recipe pages and the index; the worker's scope covers /assets/* only,
+# so pages themselves stay network-fetched (no-store).
+SW_REGISTRATION_SNIPPET = """    <script>
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("/assets/sw.js", { scope: "/assets/" }).catch(() => {});
+        }
+    </script>"""
+
 CSS_PATH = "/assets/style.css"
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
 BASE_CSS_PATH = "/assets/base.css"
@@ -154,6 +164,7 @@ def build_recipe_html(
         <link rel="stylesheet" href="{assets["pull_down_page_refresh_css"]}">
         {doc_specific_overrides(heading_color)}
         {katex}
+        {SW_REGISTRATION_SNIPPET}
     </head>
     <body>
         <script id="recipe-metadata" type="application/json">{metadata_json}</script>

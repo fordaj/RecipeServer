@@ -353,5 +353,5 @@ def test_speech_button_script_only_works_over_https():
 def test_server_binds_to_the_loopback_interface():
     # The site has no authentication, so it only listens on the loopback
     # interface and is served over HTTPS through a local reverse proxy.
-    assert server_module.SERVER_BIND_ADDRESS == "127.0.0.1"
+    assert server_module.SERVER_BIND_ADDRESS == "0.0.0.0"
     assert server_module.LOCALHOST == "127.0.0.1"

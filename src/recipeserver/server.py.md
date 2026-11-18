@@ -22,13 +22,20 @@ flowchart TD
     classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
-`ThreadingHTTPServer` serving the generated site plus the JSON editing APIs. The handler (`RecipeRequestHandler`, a `SimpleHTTPRequestHandler`) serves static files out of the site directory and dispatches `/api/*` routes; the `Server` wrapper owns the thread lifecycle. There is no authentication — the server binds `127.0.0.1` on the configured port (default 8000) and is meant to be reached from this machine, usually through a local reverse proxy that terminates HTTPS.
+`ThreadingHTTPServer` serving the generated site plus the JSON editing APIs. The handler (`RecipeRequestHandler`, a `SimpleHTTPRequestHandler`) serves static files out of the site directory and dispatches `/api/*` routes; the `Server` wrapper owns the thread lifecycle. There is no authentication — the server binds `0.0.0.0` by default on the configured port (default 8000), which makes the site reachable on the local network from next start; `server_bind_address = "127.0.0.1"` restricts it to this machine.
 
 ## `Server`
 
-`__init__(cfg, on_markdown_saved=None, on_config_saved=None, on_recipes_deleted=None)`. `start()` checks the port is free (`_port_in_use`); if it is not, it logs an error and `sys.exit(1)`. Otherwise it binds `SERVER_BIND_ADDRESS = "127.0.0.1"`, serves from `cfg.site_directory`, and runs `serve_forever()` on a daemon thread named `RecipeServer`. `stop()` calls `shutdown()`/`server_close()` and joins. `is_running` reports whether the thread is alive; `port` reads `cfg.server_port`.
+`__init__(cfg, on_markdown_saved=None, on_config_saved=None, on_recipes_deleted=None)`. `start()` checks the port is free (`_port_in_use`, probing loopback for a wildcard bind); if it is not, it logs an error and `sys.exit(1)`. Otherwise it binds the configured `server_bind_address` (an IP literal, `0.0.0.0` by default; a `:` in the literal selects an IPv6 socket via `_ThreadingHTTPServerIPv6`), serves from `cfg.site_directory`, and runs `serve_forever()` on a daemon thread named `RecipeServer`. A startup warning is logged whenever the bind is not loopback, because the site has no authentication. `stop()` calls `shutdown()`/`server_close()` and joins. `is_running` reports whether the thread is alive; `port` reads `cfg.server_port` and `bind_address` reads `cfg.server_bind_address`.
 
-`127.0.0.1` is used instead of `0.0.0.0` and `localhost`: the site has no authentication, so it stays on the loopback interface, and the name `localhost` may resolve to IPv6 first, which the server does not listen on. The site is served over HTTPS by a local reverse proxy (or tunnel) that forwards to `http://127.0.0.1:<port>`; that proxy is what makes the dictation button available (see below).
+`0.0.0.0` is the default (the maintainer's explicit choice): the site is reachable from the local network, including as `<hostname>.local:8000`, knowing it has no authentication. `127.0.0.1` (loopback-only) is the recommended setting when using a reverse proxy for remote access — the name `localhost` is still not accepted, because it may resolve to IPv6 first. The site is served over HTTPS by a local reverse proxy (or tunnel) that forwards to `http://127.0.0.1:<port>`; that proxy is what makes the dictation button available (see below).
+
+## HTTP protocol
+
+The handler speaks **HTTP/1.1** with keep-alive. (`SimpleHTTPRequestHandler` defaults to HTTP/1.0, which made the browser open a fresh TCP connection for every asset; over a tunnel or relay such as Tailscale that is round-trip-expensive, and a dropped connection lost whichever asset it carried — the symptom ranged from missing stylesheets to raw HTML.) Two consequences matter:
+
+- Every response declares its length. `end_headers` adds an explicit `Content-Length: 0` for responses that sent neither a `Content-Length` nor a `Transfer-Encoding` and cannot be close-delimited — concretely, the bodyless `301` the static handler issues for a directory without a trailing slash — except for `1xx`, `204`, `205`, `304`, and responses marked `Connection: close` (the SSE streams and the 404 generator, which are close-delimited).
+- Send `Cache-Control` on everything it can: HTML and directory URLs stay `no-store`; all other static assets (CSS, JS, KaTeX fonts, SVG) get `no-cache`, so they revalidate against the file fallback's `Last-Modified` and come back as cheap 304s instead of whatever the heuristic cache decides — and a rebuilt asset is always picked up. JSON API responses set their own `no-store` (which is left alone).
 
 ## Routes
 
@@ -66,7 +73,7 @@ Unknown `/api/*` paths return 404. `path` must be a relative `.md` path inside t
 
 ## Response headers
 
-HTML responses (generated `.html` pages and directory paths) are sent with `Cache-Control: no-store` so a browser reload right after a save always shows the freshly generated page — the static-file fallback sends no caching headers and browsers apply heuristic caching otherwise. JSON API responses also send `no-store`; vendored KaTeX and other assets keep the static-file defaults.
+HTML responses (generated `.html` pages and directory paths) are sent with `Cache-Control: no-store` so a browser reload right after a save always shows the freshly generated page — the static-file fallback sends no caching headers and browsers apply heuristic caching otherwise. All other static assets are sent with `Cache-Control: no-cache` (revalidate every load; the file fallback supports `If-Modified-Since`, so revalidation is a cheap 304). JSON API responses also send `no-store`, and `end_headers` never overrides a `Cache-Control` already set by the handler. Every response carries a `Content-Length` or is explicitly close-delimited, as required for HTTP/1.1 keep-alive (see [HTTP protocol](#http-protocol)).
 
 ## Version history and the common save mechanism
 
@@ -92,7 +99,7 @@ Deleting a recipe never touches the history directory; metadata saves make snaps
 `POST /api/transcribe` takes the raw audio of a recording and returns `{"text": "…"}`.
 
 - The feature can be turned off with the **Dictation** field in the configuration ([config.py.md](config.py.md)). When dictation is disabled the endpoint answers 403, the generated index pages do not render the button ([index_html_generator.py.md](index_html_generator.py.md)), and a running whisper-server is stopped on the configuration save.
-- The request must have arrived over HTTPS. The server itself speaks plain HTTP, so the protocol is taken from the `X-Forwarded-Proto` (or `Forwarded`) header the reverse proxy sets; without it the endpoint answers 403. The header can only come from a local process, because the server listens on the loopback interface only.
+- The request must have arrived over HTTPS. The server itself speaks plain HTTP, so the protocol is taken from the `X-Forwarded-Proto` (or `Forwarded`) header the reverse proxy sets; without it the endpoint answers 403. Note the server may listen on more than loopback (it binds `0.0.0.0` by default), so the header only proves what the proxy claims — only put a proxy in front that you control.
 - The body is the recording; its `Content-Type` selects the container (`audio/webm`, `audio/ogg`, `audio/mp4`, `audio/wav`, `audio/mpeg`) and the suffix the recording is written to. Unknown types answer 415, an empty body 400, and a body over `MAX_TRANSCRIPTION_SIZE` 413.
 - The recording is decoded with PyAV into a 16 kHz mono WAV and posted to the locally managed [whisper-server](whisper_server.py.md) ([fordaj/whisper-native](https://github.com/fordaj/whisper-native)); the managed process is started on the first transcription and stopped on app shutdown. A missing binary or model answers 503 and a recording that cannot be decoded answers 400 with the reason; anything else is a 500.
 

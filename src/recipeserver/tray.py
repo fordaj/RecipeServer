@@ -51,9 +51,17 @@ class Tray:
 
     def _open_recipes(self, icon, item):
         port = getattr(self.server, "port", 8000)
-        # 127.0.0.1 instead of "localhost": the server listens on the IPv4
-        # loopback address only, and "localhost" may resolve to IPv6 first.
-        webbrowser.open(f"http://127.0.0.1:{port}")
+        bind = getattr(self.server, "bind_address", "127.0.0.1")
+        # A wildcard bind listens on every interface, loopback included, so
+        # the browser can use the loopback address. A specific non-loopback
+        # bind would not answer on loopback, so open that address instead.
+        if bind in {"0.0.0.0", "::"}:
+            host = "127.0.0.1"
+        elif ":" in bind:
+            host = f"[{bind}]"
+        else:
+            host = bind
+        webbrowser.open(f"http://{host}:{port}")
 
     def _server_status(self, item):
         return "Server: Running" if self.server.is_running else "Server: Stopped"

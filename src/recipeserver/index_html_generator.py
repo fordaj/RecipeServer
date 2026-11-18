@@ -60,6 +60,16 @@ PULL_DOWN_PAGE_REFRESH_CSS_PATH = "/assets/pull-down-page-refresh.css"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 
+# Inline <script> snippet that registers the service worker (assets/sw.js) on
+# every generated page. The worker's scope covers /assets/* only, so the
+# pages themselves stay network-fetched (no-store). Identical on recipe
+# pages and the index.
+SERVICE_WORKER_REGISTRATION_SNIPPET = """    <script>
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("/assets/sw.js", { scope: "/assets/" }).catch(() => {});
+        }
+    </script>"""
+
 # Inline SVG icons read from the assets directory.
 CHEF_HAT_SVG = ASSETS_DIR / "chef-hat.svg"
 GAUGE_SVG = ASSETS_DIR / "gauge.svg"
@@ -882,6 +892,7 @@ class IndexHTMLGenerator:
     <script src="{urls['recipe_scaler_js']}" defer></script>
     <script src="{urls['shopping_list_js']}" defer></script>
     <script src="{urls['config_editor_js']}" defer></script>
+{SERVICE_WORKER_REGISTRATION_SNIPPET}
 </head>
 """).rstrip("\n")
 

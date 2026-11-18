@@ -7,6 +7,7 @@ from recipeserver.config import (
     CONFIG_FILENAME,
     DEFAULT_FOOD_COLOR,
     DEFAULT_RECIPE_SERVER_NAME,
+    DEFAULT_SERVER_BIND_ADDRESS,
     DEFAULT_SERVER_PORT,
     DEFAULT_TIMELINE_RETENTION,
     FOOD_COLOR_KEY,
@@ -16,6 +17,7 @@ from recipeserver.config import (
     MODEL_ENDPOINT_KEY,
     MODEL_NAME_KEY,
     RECIPE_SERVER_NAME_KEY,
+    SERVER_BIND_ADDRESS_KEY,
     SERVER_PORT_KEY,
     TIMELINE_RETENTION_KEY,
     Configuration,
@@ -116,6 +118,7 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
         IMAGE_ANALYSIS_MODEL_KEY: "",
         RECIPE_SERVER_NAME_KEY: DEFAULT_RECIPE_SERVER_NAME,
         SERVER_PORT_KEY: "8000",
+        SERVER_BIND_ADDRESS_KEY: "0.0.0.0",
         FOOD_COLOR_KEY: "#8d5542",
         DICTATION_ENABLED_KEY: True,
         TIMELINE_RETENTION_KEY: "gfs",
@@ -558,3 +561,68 @@ def test_field_specs_expose_timeline_retention_as_a_select(tmp_path, monkeypatch
         {"value": "unlimited", "label": "Unlimited"},
     ]
     assert "24 hours" in spec["help"]
+
+
+def test_configuration_defaults_server_bind_address(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    assert config.server_bind_address == DEFAULT_SERVER_BIND_ADDRESS == "0.0.0.0"
+    assert config.get_config_values()[SERVER_BIND_ADDRESS_KEY] == "0.0.0.0"
+
+
+def test_configuration_reads_and_persists_bind_address(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch, f'{SERVER_BIND_ADDRESS_KEY} = "0.0.0.0"\n')
+
+    assert config.server_bind_address == "0.0.0.0"
+
+    saved = _toml(config_file)
+    assert saved[SERVER_BIND_ADDRESS_KEY] == "0.0.0.0"
+
+
+def test_configuration_reads_ipv6_bind_address(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch, f'{SERVER_BIND_ADDRESS_KEY} = "::"\n')
+
+    assert config.server_bind_address == "::"
+
+
+def test_configuration_falls_back_to_default_for_invalid_saved_bind_address(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch, f'{SERVER_BIND_ADDRESS_KEY} = "maestro.local"\n')
+
+    assert config.server_bind_address == DEFAULT_SERVER_BIND_ADDRESS
+
+
+def test_apply_config_values_normalizes_bind_address(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    changed = config.apply_config_values({SERVER_BIND_ADDRESS_KEY: " 127.0.0.1 "})
+
+    assert changed == [SERVER_BIND_ADDRESS_KEY]
+    assert config.server_bind_address == "127.0.0.1"
+    saved = _toml(config_file)
+    assert saved[SERVER_BIND_ADDRESS_KEY] == "127.0.0.1"
+
+    # A blank value falls back to the documented default.
+    changed = config.apply_config_values({SERVER_BIND_ADDRESS_KEY: " "})
+    assert changed == [SERVER_BIND_ADDRESS_KEY]
+    assert config.server_bind_address == DEFAULT_SERVER_BIND_ADDRESS
+
+
+def test_apply_config_values_rejects_non_ip_bind_addresses(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    import pytest
+
+    for bad_address in ["maestro.local", "localhost", "8000", "1.2.3.256", "0.0.0.0/0", "::g"]:
+        with pytest.raises(ValueError, match="Bind address must be an IPv4 or IPv6 address"):
+            config.apply_config_values({SERVER_BIND_ADDRESS_KEY: bad_address})
+
+    assert config.server_bind_address == DEFAULT_SERVER_BIND_ADDRESS
+
+
+def test_field_specs_expose_bind_address_as_a_text_field(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    specs = {field["key"]: field for field in config.field_specs()}
+
+    assert specs[SERVER_BIND_ADDRESS_KEY]["input_type"] == "text"
+    assert specs[SERVER_BIND_ADDRESS_KEY]["required"] is True

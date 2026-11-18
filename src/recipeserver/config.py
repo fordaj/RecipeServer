@@ -1,4 +1,5 @@
 import sys
+import ipaddress
 import json
 from copy import deepcopy
 import re
@@ -20,6 +21,7 @@ IMAGE_ANALYSIS_MODEL_KEY = "image_analysis_model"
 RECIPE_SERVER_NAME_KEY = "recipe_server_name"
 SERVER_NAME_KEY = "server_name"
 SERVER_PORT_KEY = "server_port"
+SERVER_BIND_ADDRESS_KEY = "server_bind_address"
 FOOD_COLOR_KEY = "food_color"
 DICTATION_ENABLED_KEY = "dictation_enabled"
 TIMELINE_RETENTION_KEY = "timeline_retention"
@@ -28,6 +30,9 @@ CONFIG_FILENAME = "recipe-server-cfg.toml"
 LEGACY_CONFIG_FILENAME = "config.txt"
 DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
 DEFAULT_SERVER_PORT = 8000
+# Accepts connections on every IPv4 interface, matching the documented
+# default in SERVER_BIND_ADDRESS. Restrict with server_bind_address = "127.0.0.1".
+DEFAULT_SERVER_BIND_ADDRESS = "0.0.0.0"
 # Dictation records a clip in the browser and transcribes it with the
 # bundled whisper-server. It is on by default; the switch only decides
 # whether the app offers the feature at all.
@@ -134,6 +139,17 @@ def _validate_server_port(value: str, label: str) -> str:
         return str(_normalize_server_port(text))
     except ValueError:
         raise ValueError(f"{label} must be a whole number between 1 and 65535.") from None
+
+
+def _validate_server_bind_address(value: str, label: str) -> str:
+    text = value.strip()
+    if not text:
+        return DEFAULT_SERVER_BIND_ADDRESS
+    try:
+        address = ipaddress.ip_address(text)
+    except ValueError:
+        raise ValueError(f"{label} must be an IPv4 or IPv6 address such as 127.0.0.1 or 0.0.0.0.") from None
+    return str(address)
 
 
 def _validate_food_color(value: str, label: str) -> str:
@@ -252,6 +268,21 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         required=True,
     ),
     ConfigField(
+        SERVER_BIND_ADDRESS_KEY,
+        "Bind address",
+        "Address the local server listens on. The default, 0.0.0.0, accepts"
+        " connections on every IPv4 interface, so the site is reachable from"
+        " the local network as http://<hostname>.local:8000. The site has no"
+        " authentication; anyone who can reach this machine can load and edit"
+        " recipes over plain HTTP. Set 127.0.0.1 to accept connections from"
+        " this machine only (recommended when using a reverse proxy for"
+        " remote access), or :: for every IPv6 interface. Takes effect the"
+        " next time the app starts.",
+        _validate_server_bind_address,
+        placeholder=DEFAULT_SERVER_BIND_ADDRESS,
+        required=True,
+    ),
+    ConfigField(
         FOOD_COLOR_KEY,
         "Food color",
         "Accent color used across the site, as a hex string such as #8d5542."
@@ -315,11 +346,11 @@ class Configuration:
 
     Setter policy: assignment never raises. Text values are stripped; a
     blank value falls back to the field's documented default. Typed fields
-    (``server_port``, ``food_color``) validate their input; an invalid
-    non-blank value falls back to the field's default with a logged warning.
-    Model-name setters strip whitespace and otherwise accept any text
-    (blank means auto-detect), matching the validators used for
-    user-supplied edits.
+    (``server_port``, ``server_bind_address``, ``food_color``) validate their
+    input; an invalid non-blank value falls back to the field's default
+    with a logged warning. Model-name setters strip whitespace and otherwise
+    accept any text (blank means auto-detect), matching the validators used
+    for user-supplied edits.
     """
 
     def __init__(self):
@@ -329,6 +360,7 @@ class Configuration:
         self._image_analysis_model: str = ""
         self._recipe_server_name: str = DEFAULT_RECIPE_SERVER_NAME
         self._server_port: int = DEFAULT_SERVER_PORT
+        self._server_bind_address: str = DEFAULT_SERVER_BIND_ADDRESS
         self._food_color: str = DEFAULT_FOOD_COLOR
         self._dictation_enabled: bool = DEFAULT_DICTATION_ENABLED
         self._timeline_retention: str = DEFAULT_TIMELINE_RETENTION
@@ -396,6 +428,18 @@ class Configuration:
         except ValueError:
             logger.warning(f"Ignoring invalid {SERVER_PORT_KEY} value {value!r}; using default port {DEFAULT_SERVER_PORT}")
             self._server_port = DEFAULT_SERVER_PORT
+
+    @property
+    def server_bind_address(self) -> str:
+        return self._server_bind_address
+
+    @server_bind_address.setter
+    def server_bind_address(self, value) -> None:
+        try:
+            self._server_bind_address = _validate_server_bind_address(str(value), "Bind address")
+        except ValueError:
+            logger.warning(f"Ignoring invalid {SERVER_BIND_ADDRESS_KEY} value {value!r}; using default address {DEFAULT_SERVER_BIND_ADDRESS}")
+            self._server_bind_address = DEFAULT_SERVER_BIND_ADDRESS
 
     @property
     def food_color(self) -> str:
@@ -690,7 +734,7 @@ class Configuration:
             f" all-purpose model={self.all_purpose_model_name or '(auto)'},"
             f" image analysis model={self.image_analysis_model or '(auto)'},"
             f" server name={self.recipe_server_name!r},"
-            f" port={self.server_port}, food color={self.food_color},"
+            f" port={self.server_port}, bind address={self.server_bind_address}, food color={self.food_color},"
             f" dictation={self.dictation_enabled}, timeline retention={self.timeline_retention})"
         )
         config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -740,6 +784,8 @@ class Configuration:
         # back to the default with a logged warning.
         if SERVER_PORT_KEY in settings:
             self.server_port = settings[SERVER_PORT_KEY]
+        if SERVER_BIND_ADDRESS_KEY in settings:
+            self.server_bind_address = settings[SERVER_BIND_ADDRESS_KEY]
         if FOOD_COLOR_KEY in settings:
             self.food_color = settings[FOOD_COLOR_KEY]
         if DICTATION_ENABLED_KEY in settings:
@@ -747,7 +793,7 @@ class Configuration:
         if TIMELINE_RETENTION_KEY in settings:
             self.timeline_retention = settings[TIMELINE_RETENTION_KEY]
         logger.debug(
-            f"Configured server port: {self.server_port}, food color: {self.food_color},"
+            f"Configured server port: {self.server_port}, bind address: {self.server_bind_address}, food color: {self.food_color},"
             f" dictation: {self.dictation_enabled}, timeline retention: {self.timeline_retention}"
         )
 
