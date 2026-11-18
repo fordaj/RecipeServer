@@ -2,14 +2,16 @@
  * Recipe editor field scaffolding.
  *
  * The metadata/source/rating fields in the editor dialog all share one
- * structure: a label, a "Modified" chip (bulk mode), and a field control.
- * The fields are declared as data below and built by buildFieldGroups() so
- * the chip, wrapper, and control are defined exactly once. Adding a field is
- * one descriptor.
+ * structure: a label, a red "* MIXED" chip and a "Modified" chip (bulk mode),
+ * and a field control. MIXED shows while the loaded values differ across the
+ * selection; Modified shows once the user changes the field. The fields are
+ * declared as data below and built by buildFieldGroups() so the chips, wrapper,
+ * and control are defined exactly once. Adding a field is one descriptor.
  */
 
 (function () {
   const MODIFIED_TEXT = "Modified";
+  const MIXED_TEXT = "* MIXED";
 
   // ----- Field descriptors ----- //
   // Control kinds: "picker" (metadata dropdown), "input" (plain input),
@@ -100,6 +102,14 @@
 
   // ----- Builder ----- //
 
+  function mixedBadge() {
+    const mixed = document.createElement("span");
+    mixed.className = "recipe-editor__mixed";
+    mixed.hidden = true;
+    mixed.textContent = MIXED_TEXT;
+    return mixed;
+  }
+
   function modifiedBadge() {
     const modified = document.createElement("span");
     modified.className = "recipe-editor__modified";
@@ -158,7 +168,7 @@
       input.setAttribute("type", "checkbox");
       const text = document.createElement("span");
       text.textContent = descriptor.label;
-      control.append(input, text, modifiedBadge());
+      control.append(input, text, mixedBadge(), modifiedBadge());
       label.append(control);
       return label;
     }
@@ -168,7 +178,7 @@
     heading.textContent = descriptor.label;
 
     if (!descriptor.noModifiedBadge) {
-      heading.append(modifiedBadge());
+      heading.append(mixedBadge(), modifiedBadge());
     }
     label.append(heading);
 

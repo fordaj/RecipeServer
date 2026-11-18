@@ -875,6 +875,7 @@
 .recipe-editor__bulk-list[hidden],
 .recipe-editor__ratings-details[hidden],
 .recipe-editor__modified[hidden],
+.recipe-editor__mixed[hidden],
 .recipe-editor__modified-summary[hidden] {
   display: none;
 }
@@ -941,6 +942,18 @@
   min-width: 0;
 }
 
+.recipe-editor__mixed {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--danger-color);
+  border-radius: 999px;
+  color: var(--danger-color);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .recipe-editor__modified {
   padding: 0.05rem 0.4rem;
   border: 1px solid var(--food-color);
@@ -956,6 +969,11 @@
 .recipe-editor__metadata label.is-modified input,
 .recipe-editor__metadata label.is-modified select {
   border-color: var(--food-color);
+}
+
+.recipe-editor__metadata label.is-mixed input,
+.recipe-editor__metadata label.is-mixed select {
+  border-color: var(--danger-color);
 }
 
 .recipe-editor__modified-summary {

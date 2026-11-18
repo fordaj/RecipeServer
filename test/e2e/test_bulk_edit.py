@@ -45,6 +45,19 @@ def test_bulk_edit_applies_only_modified_attributes(driver, recipe_server):
     # The list of target recipes is shown, and nothing is modified yet.
     assert "waffles/recipe.md" in driver.find_element(By.CSS_SELECTOR, ".recipe-editor__bulk-list").text
     assert driver.find_element(By.CSS_SELECTOR, ".recipe-editor__modified-summary").get_attribute("hidden") is not None
+    # Loaded values that differ across the selection are flagged MIXED.
+    for label_text in ("Meals", "Categories"):
+        mixed = driver.find_element(
+            By.XPATH,
+            f"//label[contains(., '{label_text}')]//span[contains(@class, 'recipe-editor__mixed')]",
+        )
+        assert mixed.is_displayed(), label_text
+    # Identical values carry no MIXED chip.
+    contributor_mixed = driver.find_element(
+        By.XPATH,
+        "//label[contains(., 'Contributor')]//span[contains(@class, 'recipe-editor__mixed')]",
+    )
+    assert not contributor_mixed.is_displayed()
 
     makes = _makes_field(driver)
     makes.clear()
@@ -71,6 +84,28 @@ def test_bulk_edit_applies_only_modified_attributes(driver, recipe_server):
     # Untouched attributes are not overwritten.
     assert cake_md["categories"] == ["Dessert"]
     assert cake_md["meals"] == ["Dinner"]
+
+
+def test_bulk_edit_mixed_chip_flips_to_modified(driver, recipe_server):
+    _open_bulk_editor(driver, recipe_server)
+
+    # Meals differ across the two recipes, so it opens flagged MIXED…
+    mixed = driver.find_element(
+        By.XPATH,
+        "//label[contains(., 'Meals')]//span[contains(@class, 'recipe-editor__mixed')]",
+    )
+    assert mixed.is_displayed()
+
+    # …and once the field is edited, the chip flips to Modified.
+    remove = driver.find_element(
+        By.XPATH,
+        "//label[contains(., 'Meals')]//button[contains(@class, 'recipe-editor__picker-chip-remove')]",
+    )
+    remove.click()
+
+    summary = driver.find_element(By.CSS_SELECTOR, ".recipe-editor__modified-summary")
+    WebDriverWait(driver, DEFAULT_TIMEOUT).until(lambda _: "Modified: Meals" in summary.text)
+    assert not mixed.is_displayed()
 
 
 def test_bulk_edit_apply_confirmation_can_be_cancelled(driver, recipe_server):

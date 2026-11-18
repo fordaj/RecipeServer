@@ -62,7 +62,16 @@ function main() {
     "tags",
   ]);
 
-  // Every generated field carries a Modified chip, hidden by default.
+  // Every generated field carries a MIXED chip and a Modified chip, hidden by
+  // default. MIXED marks values that differ across the selection; Modified
+  // marks fields the user edited.
+  const detailMixed = details.querySelectorAll(".recipe-editor__mixed");
+  assert.equal(
+    detailMixed.length,
+    10,
+    "ten MIXED chips in details (all fields, including the checkbox)",
+  );
+  assert.ok(detailMixed.every((element) => element.hidden === true));
   const detailModified = details.querySelectorAll(".recipe-editor__modified");
   assert.equal(
     detailModified.length,
@@ -100,12 +109,14 @@ function main() {
     selects[0].children.map((option) => option.value),
     ["", "Website", "AI", "Book", "Other"],
   );
-  // Every source field carries a Modified chip; they apply the shared "source" key.
+  // Every source field carries both chips.
+  assert.equal(sources.querySelectorAll(".recipe-editor__mixed").length, 4);
   assert.equal(sources.querySelectorAll(".recipe-editor__modified").length, 4);
 
   // ----- Ratings group ----- //
   assert.deepEqual(names(ratings), ["rating.name", "rating.score"]);
-  // The rating score field carries no Modified chip; the name field does.
+  // The rating score field carries no chips; the name field carries both.
+  assert.equal(ratings.querySelectorAll(".recipe-editor__mixed").length, 1);
   assert.equal(ratings.querySelectorAll(".recipe-editor__modified").length, 1);
   assert.equal(ratings.querySelectorAll(".recipe-editor__bulk-field-save").length, 0);
   const score = ratings

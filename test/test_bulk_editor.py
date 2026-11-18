@@ -141,15 +141,18 @@ def test_bulk_modified_chrome_lives_inside_field_labels_hidden_by_default():
         (base / name).read_text(encoding="UTF-8") for name in ("form.html", "files.html", "ai.html", "details.html", "sources.html", "ratings.html")
     )
     fields = (base / "fields.js").read_text(encoding="UTF-8")
-    # Each metadata field label contains a hidden Modified chip, built once by
-    # fields.js and hidden by default.
+    # Modified chips are built once by fields.js and hidden by default; so are
+    # the MIXED chips, which mark loaded values that differ across the
+    # selection (they flip to Modified once the field is edited).
     assert "recipe-editor__modified" in fields
+    assert "recipe-editor__mixed" in fields
+    assert "* MIXED" in fields
     assert "Modified" in fields
-    assert "modified.hidden = true" in fields
+    assert "modified.hidden = true" in fields and "mixed.hidden = true" in fields
     assert "recipe-editor__field-control" in fields
     assert 'field: "categories"' in fields and 'field: "source.author"' in fields and 'field: "rating.name"' in fields
-    # The old MIXED chips and per-field Save buttons are gone entirely.
-    for gone in ("recipe-editor__mixed", "recipe-editor__bulk-field-save", "Save All", "markMixedFields", "is-mixed", "is-bulk"):
+    # The old per-field Save buttons are gone entirely.
+    for gone in ("recipe-editor__bulk-field-save", "Save All", "markMixedFields", "is-bulk"):
         assert gone not in fields
         assert gone not in markup
         assert gone not in css
@@ -161,6 +164,11 @@ def test_bulk_modified_chrome_lives_inside_field_labels_hidden_by_default():
     # The dialog no longer has a "Save Individual Fields" panel.
     assert "Save Individual Fields" not in script and "Save Individual Fields" not in markup
     assert "recipe-editor__bulk-field-actions" not in script and "recipe-editor__bulk-field-actions" not in markup
+    # MIXED marks the loaded values that differ across the selection; each
+    # chip flips to Modified once its field is edited.
+    assert "showMixed" in script and "isMixed" in script and "ratingsDiffer" in script
+    assert "modifiedSourceSubfields" in script and "mixedSourceSubfields" in script
+    assert "recipe-editor__mixed" in script and "recipe-editor__modified" in script
     # Modified chips are toggled (unhidden) rather than created/removed, and a
     # "Modified: ..." summary line shows which attributes changed.
     assert "badge.hidden = false" in script
@@ -180,6 +188,7 @@ def test_bulk_modified_chrome_lives_inside_field_labels_hidden_by_default():
     # The rating pair applies through the same confirmation.
     assert 'labels.push("Rating")' in script
     assert ".recipe-editor__modified[hidden]" in css
+    assert ".recipe-editor__mixed[hidden]" in css
     assert ".recipe-editor__modified-summary[hidden]" in css
     assert ".recipe-editor__field-control" in css
     # The selection summary lists the target recipes in a titled panel.

@@ -1177,6 +1177,7 @@ Try this
       aiImageButton: dialog.querySelector(".recipe-editor__ai-generate-image"),
       aiCancelButton: dialog.querySelector(".recipe-editor__ai-cancel"),
       modifiedBadges: [...dialog.querySelectorAll(".recipe-editor__modified")],
+      mixedBadges: [...dialog.querySelectorAll(".recipe-editor__mixed")],
       modifiedSummary: dialog.querySelector(".recipe-editor__modified-summary"),
       ratingsDetails: dialog.querySelector(".recipe-editor__ratings-details"),
       bulkList: dialog.querySelector(".recipe-editor__bulk-list"),
@@ -1578,7 +1579,7 @@ Try this
   }
 
   // The sources edit four sub-fields but apply one shared "source" key, so
-  // the per-sub-field badges are computed against the loaded source.
+  // the per-sub-field chips are computed against the loaded source.
   const SOURCE_SUBFIELDS = ["author", "title", "format", "url"];
 
   function modifiedSourceSubfields(current, original) {
@@ -1587,6 +1588,39 @@ Try this
     return SOURCE_SUBFIELDS.filter(
       (subfield) => JSON.stringify(now[subfield] ?? null) !== JSON.stringify(was[subfield] ?? null),
     );
+  }
+
+  // MIXED means the loaded values differ across the selected recipes;
+  // identical values carry no chip. Once the user edits a mixed field, the
+  // MIXED chip gives way to Modified — the field will be applied to every
+  // recipe, so it no longer "differs" in any way that matters.
+  function fieldValue(metadata, field) {
+    if (field === "source") return firstSource(metadata.source);
+    return metadata[field] ?? null;
+  }
+
+  function isMixed(recipes, field) {
+    if (!recipes || recipes.length < 2) return false;
+    const first = JSON.stringify(fieldValue(recipes[0].metadata, field));
+    return recipes.some((recipe) => JSON.stringify(fieldValue(recipe.metadata, field)) !== first);
+  }
+
+  function mixedSourceSubfields(recipes) {
+    if (!recipes || recipes.length < 2) return [];
+    const first = (subfield) =>
+      JSON.stringify(firstSource(recipes[0].metadata.source)[subfield] ?? null);
+    return SOURCE_SUBFIELDS.filter((subfield) =>
+      recipes.some(
+        (recipe) =>
+          JSON.stringify(firstSource(recipe.metadata.source)[subfield] ?? null) !== first(subfield),
+      ),
+    );
+  }
+
+  function ratingsDiffer(recipes) {
+    if (!recipes || recipes.length < 2) return false;
+    const first = JSON.stringify(recipes[0].ratings);
+    return recipes.some((recipe) => JSON.stringify(recipe.ratings) !== first);
   }
 
   function modifiedFieldLabels(current, original) {
@@ -1614,19 +1648,22 @@ Try this
     return { name, rating: score };
   }
 
-  function hideModifiedBadges(refs) {
-    // Modified chips live inside their labels, hidden by default; bulk mode
-    // reveals them for the fields the user changed.
+  function hideBulkChips(refs) {
+    // MIXED and Modified chips live inside their labels, hidden by default;
+    // bulk mode reveals them for the fields that differ or were edited.
     refs.modifiedBadges.forEach((badge) => {
       badge.hidden = true;
     });
-    refs.form.querySelectorAll("label.is-modified").forEach((element) => {
-      element.classList.remove("is-modified");
+    refs.mixedBadges.forEach((badge) => {
+      badge.hidden = true;
+    });
+    refs.form.querySelectorAll("label.is-modified, label.is-mixed").forEach((element) => {
+      element.classList.remove("is-modified", "is-mixed");
     });
   }
 
   function resetModifiedChrome(refs) {
-    hideModifiedBadges(refs);
+    hideBulkChips(refs);
     if (refs.modifiedSummary) {
       refs.modifiedSummary.hidden = true;
       refs.modifiedSummary.textContent = "";
@@ -1647,48 +1684,72 @@ Try this
     label.classList.add("is-modified");
   }
 
-  // The single show/hide path for the bulk-edit modified chrome: badges per
-  // field plus the "Modified: ..." summary line above the footer. Called
-  // after every input/change/click in the dialog while bulk mode is on.
+  function showMixed(refs, inputName) {
+    const label = findFieldLabel(refs, inputName);
+    const badge = label?.querySelector(".recipe-editor__mixed");
+    if (!label || !badge) return;
+    badge.hidden = false;
+    label.classList.add("is-mixed");
+  }
+
+  // The single show/hide path for the bulk-edit chips: badges per field
+  // plus the "Modified: ..." summary line above the footer. MIXED chips mark
+  // the fields whose loaded values differ across the selection; Modified
+  // chips mark the fields the user changed. Called after every
+  // input/change/click in the dialog while bulk mode is on.
   function refreshModifiedChrome(ctx) {
     const { refs, state } = ctx;
-    if (!state.isBulk || !state.bulkOriginal) return;
+    if (!state.isBulk) return;
 
     let current = null;
     try {
       current = readMetadata(refs);
     } catch {
-      // An unparseable field (e.g. an invalid number) keeps the badges
-      // and summary from the last readable state; the status line reports
-      // the error.
+      // An unparseable field (e.g. an invalid number) keeps the chips
+      // and the summary from the last readable state; the status line
+      // reports the error.
       return;
     }
 
-    refs.modifiedBadges.forEach((badge) => {
-      badge.hidden = true;
-    });
-    refs.form.querySelectorAll("label.is-modified").forEach((element) => {
-      element.classList.remove("is-modified");
-    });
+    hideBulkChips(refs);
 
-    const modified = modifiedFieldKeys(current, state.bulkOriginal);
+    const original = state.bulkOriginal;
+    const recipes = state.bulkRecipes;
+    const modified = original ? modifiedFieldKeys(current, original) : [];
+    const modifiedSubs =
+      original && modified.includes("source") ? modifiedSourceSubfields(current, original) : [];
+    const ratingModified = ratingInputsModified(refs);
+
+    // MIXED first, then Modified on top of modified fields.
+    for (const field of Object.keys(BULK_FIELD_LABELS)) {
+      if (field === "source") {
+        // Per sub-field: an edited sub-field flips to Modified; the rest keep MIXED.
+        for (const subfield of mixedSourceSubfields(recipes)) {
+          if (modifiedSubs.includes(subfield)) continue;
+          showMixed(refs, `source.${subfield}`);
+        }
+        continue;
+      }
+      if (modified.includes(field)) continue;
+      if (isMixed(recipes, field)) showMixed(refs, field);
+    }
+    if (!ratingModified && ratingsDiffer(recipes)) showMixed(refs, "rating.name");
+
     for (const field of modified) {
       if (field === "source") {
-        for (const subfield of modifiedSourceSubfields(current, state.bulkOriginal)) {
-          showModified(refs, `source.${subfield}`);
-        }
+        for (const subfield of modifiedSubs) showModified(refs, `source.${subfield}`);
         continue;
       }
       showModified(refs, field);
     }
-
-    const ratingModified = ratingInputsModified(refs);
     if (ratingModified) showModified(refs, "rating.name");
 
-    const labels = modifiedFieldLabels(current, state.bulkOriginal);
-    if (ratingModified) labels.push("Rating");
-    refs.modifiedSummary.textContent = labels.length ? `Modified: ${labels.join(", ")}` : "";
-    refs.modifiedSummary.hidden = labels.length === 0;
+    if (original) {
+      const labels = modifiedFieldLabels(current, original);
+      if (ratingModified) labels.push("Rating");
+      refs.modifiedSummary.textContent = labels.length ? `Modified: ${labels.join(", ")}` : "";
+      refs.modifiedSummary.hidden = labels.length === 0;
+    }
   }
 
   function createBulkActions(ctx) {
