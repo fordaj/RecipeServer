@@ -6,16 +6,31 @@
 /* ---------- Editor layout ---------- */
 
 .recipe-editor {
-  /* No bottom padding: scrolled content would otherwise be visible in the
-     padding strip below the sticky footer. The footer carries its own
-     opaque bottom padding instead. */
+  /* No bottom padding: the pinned footer keeps buttons off the dialog edge.
+     Only the body region scrolls; the header and footer stay put. */
   padding: 1rem 1rem 0;
-  overflow-x: hidden;
+  overflow: hidden;
+}
+
+/* The scrollable middle of the dialog: everything between the pinned header
+   and the pinned status/footer rows. */
+.recipe-editor__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior-y: contain;
 }
 
 /* ---------- Header and footer ---------- */
+
+.recipe-editor__header {
+  flex: 0 0 auto;
+}
 
 .recipe-editor__makes-count {
   display: inline-flex;
@@ -859,22 +874,20 @@
 .recipe-editor__ai-metrics[hidden],
 .recipe-editor__bulk-list[hidden],
 .recipe-editor__ratings-details[hidden],
-.recipe-editor__bulk-field-save[hidden],
-.recipe-editor__mixed[hidden] {
+.recipe-editor__modified[hidden],
+.recipe-editor__modified-summary[hidden] {
   display: none;
 }
 
 /* ---------- Actions ---------- */
 
 .recipe-editor__footer {
-  /* Always pinned to the bottom of the dialog, even when the
-     collapsed sections leave empty space above. */
+  /* Pinned to the bottom of the dialog; the body region scrolls instead. */
   margin-top: auto;
   /* The bottom padding (instead of the form's) keeps buttons off the dialog
      edge while staying inside the footer's opaque background. */
   padding: 0.75rem 0 1rem;
-  position: sticky;
-  bottom: 0;
+  flex: 0 0 auto;
   z-index: 1;
 }
 
@@ -914,21 +927,80 @@
 
 /* ---------- Bulk editor ---------- */
 
-.recipe-editor__mixed {
-  color: var(--danger-color);
+/* Field control wrapper: keeps the control block-level and shrinkable. */
+.recipe-editor__field-control {
+  display: block;
+  min-width: 0;
+}
+
+/* The field name and its Modified chip share one row above the control. */
+.recipe-editor__field-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.recipe-editor__modified {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--food-color);
+  border-radius: 999px;
+  color: var(--food-color);
+  font-size: 0.65rem;
   font-weight: 700;
-  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.recipe-editor__field-label.is-mixed input,
-.recipe-editor__field-label.is-mixed select {
-  border-color: var(--danger-color);
+.recipe-editor__metadata label.is-modified input,
+.recipe-editor__metadata label.is-modified select {
+  border-color: var(--food-color);
 }
 
+.recipe-editor__modified-summary {
+  margin: 0;
+  flex: 0 0 auto;
+  color: var(--food-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* The selection summary sits above the fields: a titled panel listing the
+   recipes the edits will be applied to. */
 .recipe-editor__bulk-list {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--input-bg);
+}
+
+.recipe-editor__bulk-list-title {
   margin: 0;
   color: var(--muted-color);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.recipe-editor__bulk-list-items {
+  display: grid;
+  gap: 0.15rem;
+  max-height: 5.5rem;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.recipe-editor__bulk-list-items li {
+  color: var(--text-color);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.8rem;
   overflow-wrap: anywhere;
 }
 
@@ -938,60 +1010,12 @@
   font-size: 0.85rem;
 }
 
-/* Per-field Save lives inside the input box, hidden except in bulk mode. */
-.recipe-editor__field-control {
-  position: relative;
-  display: block;
-  min-width: 0;
-}
-
-.recipe-editor-dialog.is-bulk .recipe-editor__field-control input,
-.recipe-editor-dialog.is-bulk .recipe-editor__field-control select {
-  padding-right: 3.9rem;
-}
-
-/* Keep the dropdown arrow clear of the per-field Save button. */
-.recipe-editor-dialog.is-bulk .recipe-editor__field-control select {
-  background-position: right 4.2rem center;
-}
-
-/* Same filled style as the main Save button (.recipe-editor__save). */
-.recipe-editor__bulk-field-save {
-  position: absolute;
-  top: 50%;
-  right: 0.3rem;
-  transform: translateY(-50%);
-  padding: 0.25rem 0.55rem;
-  border: 1px solid var(--food-color);
-  border-radius: 6px;
-  font: inherit;
-  font-size: 0.8rem;
-  line-height: 1.2;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-/*
- * The dropdown fields are taller than a single text field, so their per-field
- * Save button lines up with the dropdown row instead of the whole control.
- */
-.recipe-editor__field-control:has(.recipe-editor__picker) .recipe-editor__bulk-field-save {
-  top: 0.65rem;
-  transform: none;
-}
-
-.recipe-editor__bulk-field-save:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}
-
 .recipe-editor__details > summary:focus-visible,
 .recipe-editor__image-rename:focus-visible,
 .recipe-editor__image-upload:focus-visible,
 .recipe-editor__image-remove:focus-visible,
 .recipe-editor__ai-field button:focus-visible,
-.recipe-editor__ai-cancel:focus-visible,
-.recipe-editor__bulk-field-save:focus-visible {
+.recipe-editor__ai-cancel:focus-visible {
   outline: 2px solid var(--food-color);
 }
 

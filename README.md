@@ -35,6 +35,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Floats a one-tap AI assistant on every page that answers general questions, edits the recipe on screen, and transcribes a long-press as a message when dictation is available.
 - Uploads supported images directly into a recipe folder from the recipe editor.
 - Edits recipe Markdown, metadata, ratings, and comments in the browser.
+- Bulk-edits metadata across the recipes selected in the index; the dialog shows which attributes you modified, restates them, and applies only those after you confirm (**Apply Edits** / **Discard Edits**).
 - Writes browser edits back to the recipe's YAML front matter and Markdown body.
 - Keeps a local, per-recipe version history: every managed edit snapshots the previous version, browsable in the recipe's Version History dialog (preview, diff against the current version, reversible restore).
 - Scales quantities inside inline code, such as `1 1/2 cups` or `1-2 tbsp`.

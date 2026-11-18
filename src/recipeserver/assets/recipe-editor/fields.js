@@ -2,31 +2,27 @@
  * Recipe editor field scaffolding.
  *
  * The metadata/source/rating fields in the editor dialog all share one
- * structure: a label, a "* MIXED" chip (bulk mode), a field control, and a
- * hidden per-field "Save" button that writes the field to every recipe in a
- * bulk selection. The fields are declared as data below and built by
- * buildFieldGroups() so the chip, wrapper, and button are defined exactly
- * once. Adding a field is one descriptor.
+ * structure: a label, a "Modified" chip (bulk mode), and a field control.
+ * The fields are declared as data below and built by buildFieldGroups() so
+ * the chip, wrapper, and control are defined exactly once. Adding a field is
+ * one descriptor.
  */
 
 (function () {
-  const MIXED_TEXT = "* MIXED";
+  const MODIFIED_TEXT = "Modified";
 
   // ----- Field descriptors ----- //
   // Control kinds: "picker" (metadata dropdown), "input" (plain input),
   // "select" (plain select), "checkbox" (checkbox + trailing label text).
-  // saveName defaults to the lower-cased label and feeds the bulk-save
-  // button's aria-label; fields sharing one metadata key (the sources) pass
-  // their own saveName. A picker may carry its own pickerField for the
-  // widget's data-field (the source pickers key on "source.author" /
-  // "source.title" while their bulk Save button keeps the shared "source"
-  // key). rating.score carries no MIXED chip or Save button.
+  // A picker may carry its own pickerField for the widget's data-field (the
+  // source pickers key on "source.author" / "source.title" while the bulk
+  // edit applies the shared "source" key). rating.score carries no Modified
+  // chip; the rating is tracked as a whole by the editor.
   const DETAILS_FIELDS = [
     { label: "Contributor", field: "contributor", picker: true },
     {
       label: "Contribution Date",
       field: "createdOn",
-      saveName: "contribution date",
       input: { name: "createdOn", type: "date" },
     },
     { label: "Meals", field: "meals", picker: true },
@@ -53,28 +49,24 @@
   const SOURCES_FIELDS = [
     {
       label: "Source Author",
-      field: "source",
-      saveName: "source",
+      field: "source.author",
       picker: true,
       pickerField: "source.author",
     },
     {
       label: "Source Title",
-      field: "source",
-      saveName: "source",
+      field: "source.title",
       picker: true,
       pickerField: "source.title",
     },
     {
       label: "Source Format",
-      field: "source",
-      saveName: "source",
+      field: "source.format",
       select: { name: "source.format", options: SOURCE_OPTIONS },
     },
     {
       label: "Source URL",
-      field: "source",
-      saveName: "source",
+      field: "source.url",
       input: { name: "source.url", type: "url", placeholder: "example.com/recipe-page" },
     },
   ];
@@ -82,14 +74,13 @@
   const RATINGS_FIELDS = [
     {
       label: "Rating name",
-      field: "rating",
-      saveName: "rating",
+      field: "rating.name",
       input: { name: "rating.name", type: "text", placeholder: "Andy Ford" },
     },
     {
       label: "Rating score (0-10)",
       field: null,
-      noMixedSave: true,
+      noModifiedBadge: true,
       input: {
         name: "rating.score",
         type: "number",
@@ -109,29 +100,18 @@
 
   // ----- Builder ----- //
 
-  function mixedBadge() {
-    const mixed = document.createElement("span");
-    mixed.className = "recipe-editor__mixed";
-    mixed.hidden = true;
-    mixed.textContent = MIXED_TEXT;
-    return mixed;
+  function modifiedBadge() {
+    const modified = document.createElement("span");
+    modified.className = "recipe-editor__modified";
+    modified.hidden = true;
+    modified.textContent = MODIFIED_TEXT;
+    return modified;
   }
 
   function fieldControl() {
     const control = document.createElement("span");
     control.className = "recipe-editor__field-control";
     return control;
-  }
-
-  function bulkSaveButton(field, saveName) {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "recipe-editor__bulk-field-save";
-    button.dataset.field = field;
-    button.setAttribute("aria-label", `Save ${saveName} to all selected recipes`);
-    button.hidden = true;
-    button.textContent = "Save";
-    return button;
   }
 
   function buildControl(descriptor) {
@@ -165,16 +145,12 @@
     return input;
   }
 
-  function saveName(descriptor) {
-    return descriptor.saveName || descriptor.label.toLowerCase();
-  }
-
   function buildField(descriptor) {
     const label = document.createElement("label");
 
     if (descriptor.checkbox) {
-      // The checkbox layout keeps the input, its text, the MIXED chip, and
-      // the Save button inside one control wrapper.
+      // The checkbox layout keeps the input, its text, and the Modified chip
+      // inside one control wrapper.
       label.className = "recipe-editor__checkbox";
       const control = fieldControl();
       const input = document.createElement("input");
@@ -182,26 +158,22 @@
       input.setAttribute("type", "checkbox");
       const text = document.createElement("span");
       text.textContent = descriptor.label;
-      control.append(
-        input,
-        text,
-        mixedBadge(),
-        bulkSaveButton(descriptor.field, saveName(descriptor)),
-      );
+      control.append(input, text, modifiedBadge());
       label.append(control);
       return label;
     }
 
-    label.textContent = descriptor.label;
-    if (!descriptor.noMixedSave) {
-      label.append(mixedBadge());
+    const heading = document.createElement("span");
+    heading.className = "recipe-editor__field-heading";
+    heading.textContent = descriptor.label;
+
+    if (!descriptor.noModifiedBadge) {
+      heading.append(modifiedBadge());
     }
+    label.append(heading);
 
     const control = fieldControl();
     control.append(buildControl(descriptor));
-    if (!descriptor.noMixedSave) {
-      control.append(bulkSaveButton(descriptor.field, saveName(descriptor)));
-    }
     label.append(control);
     return label;
   }

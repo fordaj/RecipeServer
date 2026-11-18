@@ -127,6 +127,7 @@
 .shopping-list__footer,
 .config-editor__footer {
   justify-content: flex-end;
+  flex-wrap: wrap;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border-color);
   background: var(--card-bg);
@@ -200,7 +201,6 @@
 .recipe-editor__made-this,
 .recipe-editor__image-upload,
 .recipe-editor__footer .recipe-editor__save,
-.recipe-editor__bulk-field-save,
 .shopping-list__footer .shopping-list__done,
 .config-editor__footer .config-editor__save {
   border-color: var(--food-color);
@@ -211,7 +211,6 @@
 .recipe-editor__made-this:hover:not(:disabled),
 .recipe-editor__image-upload:hover:not(:disabled),
 .recipe-editor__footer .recipe-editor__save:hover:not(:disabled),
-.recipe-editor__bulk-field-save:hover:not(:disabled),
 .shopping-list__footer .shopping-list__done:hover:not(:disabled),
 .config-editor__footer .config-editor__save:hover:not(:disabled) {
   border-color: var(--food-color-hover);
