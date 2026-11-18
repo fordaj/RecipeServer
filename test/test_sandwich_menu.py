@@ -102,6 +102,25 @@ def test_sandwich_menu_html_uses_menu_icon_and_both_downloads():
     assert [item.get_text(strip=True) for item in config_items] == ["Configuration"]
 
 
+def test_sandwich_menu_with_edit_recipe_item_leads_with_the_pencil_entry():
+    html = sandwich_menu_html(include_edit_recipe=True)
+    soup = BeautifulSoup(html, "html.parser")
+
+    items = soup.select(".sandwich-menu__item")
+    edit_item = items[0]
+    assert edit_item.get("id") == "edit-recipe"
+    assert edit_item.get_text(strip=True) == "Edit Recipe"
+    # pencil.svg is inlined so the icon inherits currentColor.
+    assert edit_item.select_one("svg") is not None
+    assert "lucide-pencil" in str(edit_item)
+    # The standard entries keep their place after it.
+    assert [item.get_text(strip=True) for item in items[1:]] == [
+        "Configuration",
+        "Download Source Archive",
+        "Download Site Archive",
+    ]
+
+
 def test_index_page_includes_sandwich_menu_and_assets(tmp_path: Path):
     recipe_path = tmp_path / "cinnamon-rolls" / "index.html"
     recipe_path.parent.mkdir()

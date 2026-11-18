@@ -27,6 +27,6 @@ Both helpers raise `ValueError` when the asset contains no `<svg>` element.
 
 ## Related pages
 
-- [page.py.md](page.py.md) — shell icons (notebook, pencil)
+- [page.py.md](page.py.md) — shell icons (notebook)
 - [overview.py.md](overview.py.md) · [extras.py.md](extras.py.md) · [feedback.py.md](feedback.py.md) — consumers
 - [README.md](../README.md) — the package hub

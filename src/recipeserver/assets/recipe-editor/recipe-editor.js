@@ -2061,7 +2061,18 @@ Try this
     const { recordMadeThis } = madeThis;
 
     if (state.editButton)
-      state.editButton.addEventListener("click", () => session.openEditor("edit"));
+      state.editButton.addEventListener("click", () => {
+        // The entry lives in the sandwich menu on the recipe page; close the
+        // menu like the Configuration entry does before the dialog opens.
+        const menu = state.editButton.closest(".sandwich-menu");
+        if (menu) {
+          const panel = menu.querySelector(".sandwich-menu__panel");
+          const toggle = menu.querySelector(".sandwich-menu__toggle");
+          if (panel) panel.hidden = true;
+          if (toggle) toggle.setAttribute("aria-expanded", "false");
+        }
+        session.openEditor("edit");
+      });
     if (state.createButton)
       state.createButton.addEventListener("click", () => session.openEditor("create"));
 
