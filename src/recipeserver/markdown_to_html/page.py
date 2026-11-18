@@ -37,6 +37,7 @@ COMMENTS_JS = "/assets/comments.js"
 PULL_DOWN_PAGE_REFRESH_CSS = "/assets/pull-down-page-refresh.css"
 RATINGS_JS = "/assets/ratings.js"
 RECIPE_FEEDBACK_JS = "/assets/recipe-feedback.js"
+TIMELINE_JS = "/assets/recipe-history/timeline.js"
 TIME_JS = "/assets/time.js"
 ICONS_JS = "/assets/icons.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
@@ -108,6 +109,7 @@ def _versioned_assets() -> dict[str, str]:
             "recipe_scaler_js": RECIPE_SCALER_JS,
             "pull_down_page_refresh_js": PULL_DOWN_PAGE_REFRESH_JS,
             "recipe_feedback_js": RECIPE_FEEDBACK_JS,
+            "timeline_js": TIMELINE_JS,
             "metadata_picker_js": METADATA_PICKER_JS,
             "comments_js": COMMENTS_JS,
             "ratings_js": RATINGS_JS,
@@ -173,6 +175,7 @@ def build_recipe_html(
         <script defer src="{assets["recipe_scaler_js"]}"></script>
         <script defer src="{assets["pull_down_page_refresh_js"]}"></script>
         <script defer src="{assets["recipe_feedback_js"]}"></script>
+        <script defer src="{assets["timeline_js"]}"></script>
         <script defer src="{assets["metadata_picker_js"]}"></script>
         <script defer src="{assets["comments_js"]}"></script>
         <script defer src="{assets["ratings_js"]}"></script>

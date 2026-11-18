@@ -5,14 +5,16 @@ flowchart LR
     meta("<img src='barnacle:file-text.svg' width='20' alt=''/><br/>recipe front matter") --> lists("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>as_list()<br/>categories fallback</u>")
     meta --> ratings("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>iter_valid_rating_entries()")
     meta --> times("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>parse_metadata_datetime()</u>")
+    meta --> id("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>recipe_id helpers<br/>extract / set</u>")
     lists --> consumers("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>linter · index · converter</u>")
     ratings --> consumers
     times --> consumers
+    id --> consumers
     click consumers href "metadata_linter.py.md"
     click lists href "sources.py.md"
     click times href "markdown_to_html/extras.py.md"
     class meta mdFile
-    class lists,ratings,times,consumers goFile
+    class lists,ratings,times,id,consumers goFile
     classDef mdFile fill:#dcd6ce,stroke:#6b6255,color:#292524
     classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
@@ -41,6 +43,17 @@ Small, deliberately narrow helpers shared across the renderers and the server. K
 - `json_default(value)` — `date`/`datetime` → ISO strings for `json.dumps`.
 - `meta_time_html(raw_value, text_prefix="")` — the shared `"· <time>"` markup fragment; `<time>` carries `data-local-time` for timestamps and `data-time-prefix` when a prefix is given. Used by [markdown_to_html/extras.py.md](markdown_to_html/extras.py.md) and [index_html_generator.py.md](index_html_generator.py.md).
 - `slug_to_title(slug)` — directory-slug → Title Case fallback title.
+
+## Recipe identity (`recipe_id`)
+
+Every recipe carries a stable UUIDv4 in its front matter as `recipe_id`, assigned automatically — never manually. The helpers work **textually** on the Markdown source (no YAML round-trip), so inserting or replacing the line never reformats the author's front matter; point identity at the file, not the path.
+
+- `RECIPE_ID_FIELD` — the `recipe_id` key.
+- `new_recipe_id()` — a fresh UUIDv4 string.
+- `is_valid_recipe_id(value)` — True when the value parses as a UUID.
+- `canonical_recipe_id(value)` — canonical lower-case spelling (raises `ValueError` otherwise).
+- `extract_recipe_id(content)` — the id from the front matter, or `None` (invalid values count as missing).
+- `set_recipe_id(content, recipe_id)` — the document with `recipe_id` set: replaces an existing `recipe_id` line in place, inserts after the opening `---`, or prepends a front matter block when the document has none. Everything else is preserved byte-for-byte, including CRLF documents. New recipes get their id injected by the central save mechanism, and existing recipes are migrated in place during `regen()` (see [core.py.md](core.py.md)).
 
 ## Related pages
 

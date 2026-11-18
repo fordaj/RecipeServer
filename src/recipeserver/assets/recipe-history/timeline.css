@@ -1,0 +1,337 @@
+/* Version History (Timeline). Colours come from definitions.css so the
+   dialog inherits the light/dark themes. Layout: a vertical timeline rail
+   on the left, the selected version on the right; stacked on mobile. */
+
+.recipe-history {
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.recipe-history__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  gap: 1rem;
+  padding: 0.75rem 1rem 1rem;
+}
+
+/* ---------- Timeline rail ---------- */
+
+.recipe-history__rail {
+  display: flex;
+  flex: 0 0 15rem;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.recipe-history__rail h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-color);
+}
+
+.recipe-history__list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0 0 0 1.1rem;
+  list-style: none;
+}
+
+/* The vertical line the entries sit on. */
+.recipe-history__list::before {
+  content: "";
+  position: absolute;
+  top: 0.7rem;
+  bottom: 0.7rem;
+  left: 0.3rem;
+  width: 2px;
+  background: var(--border-color);
+}
+
+.recipe-history__entry {
+  position: relative;
+}
+
+/* The dot on the rail for each entry. */
+.recipe-history__entry::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -1.1rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border: 2px solid var(--card-bg);
+  border-radius: 50%;
+  background: var(--muted-color);
+  transform: translate(-0.05rem, -50%);
+  box-sizing: border-box;
+}
+
+.recipe-history__entry--current::before {
+  background: var(--food-color);
+}
+
+.recipe-history__entry--selected::before {
+  background: var(--food-color);
+  box-shadow:
+    0 0 0 2px var(--card-bg),
+    0 0 0 4px var(--food-color);
+}
+
+.recipe-history__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recipe-history__item:hover {
+  background: var(--hover-bg);
+}
+
+.recipe-history__item:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 1px;
+}
+
+.recipe-history__entry--selected .recipe-history__item {
+  border-color: var(--food-color);
+  background: var(--hover-bg);
+}
+
+/* Date chips: outlined food-color pills carrying the timestamp. */
+.recipe-history__date {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--food-color);
+  border-radius: 999px;
+  color: var(--food-color);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.recipe-history__date small {
+  font-size: 0.7rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+
+.recipe-history__meta {
+  color: var(--muted-color);
+  font-size: 0.75rem;
+}
+
+.recipe-history__current-badge {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--food-color);
+  color: var(--page-bg);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---------- Viewer ---------- */
+
+.recipe-history__viewer {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.recipe-history__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--card-bg);
+}
+
+.recipe-history__toolbar-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipe-history__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--food-color);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--food-color);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recipe-history__action:hover:not(:disabled) {
+  background: var(--food-color);
+  color: var(--page-bg);
+}
+
+.recipe-history__action:focus-visible {
+  outline: 2px solid var(--food-color);
+  outline-offset: 1px;
+}
+
+.recipe-history__action:disabled {
+  border-color: var(--border-color);
+  color: var(--muted-color);
+  cursor: default;
+}
+
+.recipe-history__action--pressed {
+  background: var(--food-color);
+  color: var(--page-bg);
+}
+
+.recipe-history__restore {
+  border-color: var(--danger-color);
+  color: var(--danger-color);
+}
+
+.recipe-history__restore:hover:not(:disabled) {
+  background: var(--danger-color);
+  color: var(--danger-text-color);
+}
+
+.recipe-history__restore:focus-visible {
+  outline-color: var(--danger-color);
+}
+
+.recipe-history__restore--confirm {
+  background: var(--danger-color);
+  color: var(--danger-text-color);
+  font-weight: 700;
+}
+
+.recipe-history__content {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--page-bg);
+}
+
+.recipe-history__preview {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--page-bg);
+}
+
+.recipe-history__diff {
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  overflow: auto;
+  font-family: var(--mono-font, ui-monospace, monospace);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-color);
+  white-space: pre;
+}
+
+.recipe-history__diff[hidden],
+.recipe-history__preview[hidden],
+.recipe-history__empty[hidden] {
+  display: none;
+}
+
+.recipe-history__diff-line--add {
+  background: rgba(22, 163, 74, 0.16);
+  color: var(--text-color);
+}
+
+.recipe-history__diff-line--del {
+  background: rgba(220, 38, 38, 0.16);
+  color: var(--text-color);
+}
+
+.recipe-history__diff-line--hunk {
+  color: var(--muted-color);
+  font-style: italic;
+}
+
+.recipe-history__empty {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 1rem;
+  color: var(--muted-color);
+  text-align: center;
+}
+
+.recipe-history__status {
+  flex: 0 0 auto;
+  min-height: 1.25rem;
+  margin: 0;
+  padding: 0 1rem;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Mobile ---------- */
+
+@media (max-width: 700px) {
+  .recipe-history__body {
+    flex-direction: column;
+    gap: 0.6rem;
+    padding: 0.5rem 0.75rem 0.75rem;
+    overflow-y: auto;
+  }
+
+  .recipe-history__rail {
+    flex: 0 0 auto;
+    max-height: 40%;
+    overflow-y: auto;
+  }
+
+  .recipe-history__viewer {
+    min-height: 16rem;
+  }
+}

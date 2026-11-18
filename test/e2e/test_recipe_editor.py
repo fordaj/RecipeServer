@@ -21,9 +21,9 @@ def test_recipe_page_sandwich_menu_edit_recipe_entry(driver, recipe_server):
     wait_clickable(driver, ".sandwich-menu__toggle").click()
     wait_visible(driver, ".sandwich-menu__panel:not([hidden])")
 
-    # The recipe page menu contains Edit Recipe only.
+    # The recipe page menu contains Edit Recipe and Timeline.
     items = driver.find_elements("css selector", ".sandwich-menu__item")
-    assert [item.text for item in items] == ["Edit Recipe"]
+    assert [item.text for item in items] == ["Edit Recipe", "Timeline"]
 
     wait_clickable(driver, "#edit-recipe").click()
     wait_visible(driver, "#recipe-markdown-editor[open]")

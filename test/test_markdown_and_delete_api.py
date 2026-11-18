@@ -11,6 +11,8 @@ from urllib.request import urlopen
 
 from test.helpers import request_json, running_recipe_server
 
+from recipeserver.recipe_utils import extract_recipe_id, is_valid_recipe_id
+
 
 def test_markdown_get_returns_raw_content_and_404(tmp_path: Path):
     source = tmp_path / "recipes"
@@ -45,7 +47,11 @@ def test_markdown_post_saves_content_and_reports_regeneration_failure(tmp_path: 
     assert status == 200
     assert body == {"success": True}
     assert saved_paths == [recipe.resolve()]
-    assert recipe.read_text(encoding="utf-8") == "# New\n\nUpdated body.\n"
+    # The save mechanism assigns a stable recipe_id on write, preserving the
+    # rest of the document byte-for-byte.
+    saved = recipe.read_text(encoding="utf-8")
+    assert saved.endswith("# New\n\nUpdated body.\n")
+    assert is_valid_recipe_id(extract_recipe_id(saved))
 
     # A callback failure after a successful write must report that the file
     # was saved, matching the behavior used by other save endpoints.
@@ -65,7 +71,9 @@ def test_markdown_post_saves_content_and_reports_regeneration_failure(tmp_path: 
 
     assert status == 500
     assert body == {"error": "Markdown saved, but HTML regeneration failed"}
-    assert recipe2.read_text(encoding="utf-8") == "# Saved Anyway\n"
+    saved2 = recipe2.read_text(encoding="utf-8")
+    assert saved2.endswith("# Saved Anyway\n")
+    assert is_valid_recipe_id(extract_recipe_id(saved2))
 
 
 def test_recipe_delete_removes_file_cleans_empty_dir_and_reports_regen_failure(tmp_path: Path):
