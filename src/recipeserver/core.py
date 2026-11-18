@@ -40,6 +40,9 @@ class Core:
         self.cfg = cfg
         self._regen_lock = Lock()
         self._recipes: dict[Path, Recipe] = {}
+        # Populated by `_regen_locked()`; phase timings in seconds. Empty until
+        # the first regen completes. Scale-testing harness reads this.
+        self.last_regen_timings: dict[str, float] = {}
 
     @staticmethod
     def get_assets_directory() -> Path:
@@ -143,6 +146,7 @@ class Core:
     def _regen_locked(self):
         """Full site rebuild; caller must hold ``_regen_lock``."""
         start = time.perf_counter()
+        timings: dict[str, float] = {}
         working_dir = self.cfg.source_directory.resolve()
 
         if self.cfg.site_directory.exists():
@@ -151,13 +155,16 @@ class Core:
 
         self.cfg.site_directory.mkdir(parents=True)
         logger.debug(f'Created "{self.cfg.site_directory}"')
+        assets_start = time.perf_counter()
         self.copy_assets(self.cfg.site_directory)
+        timings["assets_copy"] = time.perf_counter() - assets_start
 
         markdown_files = [markdown for markdown in working_dir.rglob("recipe.md") if markdown.is_file()]
 
         self._recipes.clear()
 
         worker_count = 0
+        conversion_start = time.perf_counter()
         if markdown_files:
             worker_count = min(get_worker_count(), len(markdown_files))
             with ThreadPoolExecutor(max_workers=worker_count) as executor:
@@ -178,7 +185,13 @@ class Core:
                         converter.title,
                     )
 
+        timings["recipe_conversion"] = time.perf_counter() - conversion_start
+
+        index_start = time.perf_counter()
         self._update_index()
+        timings["index_build"] = time.perf_counter() - index_start
+        timings["total"] = time.perf_counter() - start
+        self.last_regen_timings = timings
 
         logger.info(f"Regenerated site with {worker_count} workers in {time.perf_counter() - start:.1f}s")
 

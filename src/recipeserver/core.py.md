@@ -22,9 +22,9 @@ The application spine. `main(cfg)` builds the site, starts the HTTP server, and 
 
 - `DEFAULT_WORKERS = 8`, `MAX_WORKERS = 16`, `get_worker_count()` — thread-pool sizing for recipe conversion (`min(MAX_WORKERS, max(DEFAULT_WORKERS, cpu_count))`).
 - `QUIT_POLL_INTERVAL_SECONDS = 0.25` — poll interval for the non-macOS shutdown path.
-- `Core` — holds `cfg`, a `_regen_lock`, and a `_recipes` map. Methods:
+- `Core` — holds `cfg`, a `_regen_lock`, a `_recipes` map, and `last_regen_timings`. Methods:
   - `convert_recipe(markdown)` — renders one `recipe.md` to HTML next to `site/` preserving the source tree structure, and copies the recipe's images into the page directory. Rejects anything outside the source directory or not named `recipe.md`.
-  - `regen()` / `_regen_locked()` — full rebuild: deletes and recreates the site directory, copies `assets/`, finds every `recipe.md` under the source tree, converts them in parallel, then rebuilds `index.html`. One broken recipe is logged and skipped so the rest of the site still builds.
+  - `regen()` / `_regen_locked()` — full rebuild: deletes and recreates the site directory, copies `assets/`, finds every `recipe.md` under the source tree, converts them in parallel, then rebuilds `index.html`. One broken recipe is logged and skipped so the rest of the site still builds. `_regen_locked()` records phase timings (`assets_copy`, `recipe_conversion`, `index_build`, `total`, seconds) onto `core.last_regen_timings`; this is additive instrumentation for the scale tests (`test/scale/`) and changes no behavior. The "Regenerated site with N workers in Xs" log line is unchanged.
   - `on_markdown_save(markdown)` — re-render one recipe and rebuild the index (called after editor saves).
   - `on_recipes_deleted(paths)` — drop deleted recipes from the index and unlink their pages.
   - `on_config_save()` — full rebuild after a configuration change. When the saved configuration disables dictation, the shared transcriber is torn down ([transcriber.py.md](transcriber.py.md)), which stops the managed whisper-server ([whisper_server.py.md](whisper_server.py.md)).

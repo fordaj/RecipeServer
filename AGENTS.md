@@ -32,6 +32,7 @@ CI is a single workflow (`.github/workflows/check-formatting.yml`, “PR Checks�
 - Format: `./scripts/format.sh` (runs `uv run formattington all --config .formattington.json` — Black for Python, shfmt for Bash, Prettier for CSS/JS/HTML/Markdown/YAML, taplo for TOML, and `prettier --parser html` for SVG icons; pass `--check` for a dry-run check).
 - Run all tests: `uv run pytest`.
 - Browser end-to-end tests (Selenium, headless Chrome by default): `uv run pytest test/e2e` (see README, "Browser end-to-end tests").
+- Scale/performance tests (opt-in, manual-only, never in CI, skipped by default): `RECIPE_SERVER_SCALE=1 uv run pytest test/scale -s` (see README, "Scale testing"; sizes via `RECIPE_SERVER_SCALE_SIZES`, artifacts via `.scale-artifacts/`).
 - Focused tests: `uv run pytest test/test_index_html_generator.py test/test_ratings.py`
   - Single test: `uv run pytest test/test_ratings.py::test_validate_ratings_accepts_example_shape_and_decimal_score`
 - Runtime logs: `.logs/<argv0>.py.log` in the current directory. Pass `--log-level DEBUG` for more detail.
