@@ -164,6 +164,12 @@ def test_bulk_modified_chrome_lives_inside_field_labels_hidden_by_default():
     # The dialog no longer has a "Save Individual Fields" panel.
     assert "Save Individual Fields" not in script and "Save Individual Fields" not in markup
     assert "recipe-editor__bulk-field-actions" not in script and "recipe-editor__bulk-field-actions" not in markup
+    # Mixed fields open blank rather than pre-selecting one recipe's values,
+    # and the snapshot is taken after blanking so they read as unmodified.
+    assert "blankMixedFieldControls" in script
+    assert "blankSourceSubfield" in script
+    assert "indeterminate = true" in script
+    assert script.index("blankMixedFieldControls(refs") < script.index("state.bulkOriginal = readMetadata(refs)")
     # MIXED marks the loaded values that differ across the selection; each
     # chip flips to Modified once its field is edited.
     assert "showMixed" in script and "isMixed" in script and "ratingsDiffer" in script

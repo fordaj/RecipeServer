@@ -5,7 +5,7 @@ from __future__ import annotations
 import frontmatter
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import Select, WebDriverWait
 
 from test.e2e.helpers import DEFAULT_TIMEOUT, open_page, wait_clickable, wait_hidden, wait_visible
 
@@ -89,6 +89,17 @@ def test_bulk_edit_applies_only_modified_attributes(driver, recipe_server):
 def test_bulk_edit_mixed_chip_flips_to_modified(driver, recipe_server):
     _open_bulk_editor(driver, recipe_server)
 
+    # MIXED values carry no chip selections: every mixed field opens blank
+    # rather than showing the first recipe's values.
+    for field in ("Meals", "Categories", "Contributor", "Tags", "Cuisine", "Status"):
+        chips = driver.find_elements(
+            By.XPATH,
+            f"//label[contains(., '{field}')]//span[contains(@class, 'recipe-editor__picker-chip')]",
+        )
+        assert chips == [], field
+    # Plain inputs open blank too.
+    for name in ("makes", "difficulty", "createdOn"):
+        assert driver.find_element(By.NAME, name).get_attribute("value") == "", name
     # Meals differ across the two recipes, so it opens flagged MIXED…
     mixed = driver.find_element(
         By.XPATH,
@@ -97,11 +108,8 @@ def test_bulk_edit_mixed_chip_flips_to_modified(driver, recipe_server):
     assert mixed.is_displayed()
 
     # …and once the field is edited, the chip flips to Modified.
-    remove = driver.find_element(
-        By.XPATH,
-        "//label[contains(., 'Meals')]//button[contains(@class, 'recipe-editor__picker-chip-remove')]",
-    )
-    remove.click()
+    select_element = driver.find_element(By.CSS_SELECTOR, ".recipe-editor__picker[data-field='meals'] .recipe-editor__picker-select")
+    Select(select_element).select_by_visible_text("Dinner (1)")
 
     summary = driver.find_element(By.CSS_SELECTOR, ".recipe-editor__modified-summary")
     WebDriverWait(driver, DEFAULT_TIMEOUT).until(lambda _: "Modified: Meals" in summary.text)

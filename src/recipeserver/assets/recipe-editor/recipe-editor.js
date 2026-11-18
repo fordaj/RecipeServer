@@ -1582,6 +1582,50 @@ Try this
   // the per-sub-field chips are computed against the loaded source.
   const SOURCE_SUBFIELDS = ["author", "title", "format", "url"];
 
+  // Mixed fields start blank rather than pre-selecting one recipe's values:
+  // a pre-filled field would imply the rest of the selection shares them.
+  // An untouched blank field applies nothing (only modified attributes are
+  // written), so blank is also the honest default. The archived checkbox
+  // uses the indeterminate state for the same reason.
+  function blankFieldControl(refs, field) {
+    if (field === "archived") {
+      const checkbox = refs.form.elements.namedItem("archived");
+      if (checkbox) {
+        checkbox.indeterminate = true;
+        checkbox.checked = false;
+      }
+      return;
+    }
+    const control = refs.form.elements.namedItem(field);
+    if (control) {
+      control.value = "";
+      return;
+    }
+    // Picker fields render no named control; clearing the widget is enough.
+    refs.pickers.setValues(field, []);
+  }
+
+  function blankSourceSubfield(refs, subfield) {
+    if (subfield === "author" || subfield === "title") {
+      refs.pickers.setValues(`source.${subfield}`, []);
+      return;
+    }
+    const control = refs.form.elements.namedItem(`source.${subfield}`);
+    if (control) control.value = "";
+  }
+
+  function blankMixedFieldControls(refs, recipes) {
+    for (const field of Object.keys(BULK_FIELD_LABELS)) {
+      if (field === "source") {
+        for (const subfield of mixedSourceSubfields(recipes)) {
+          blankSourceSubfield(refs, subfield);
+        }
+        continue;
+      }
+      if (isMixed(recipes, field)) blankFieldControl(refs, field);
+    }
+  }
+
   function modifiedSourceSubfields(current, original) {
     const now = firstSource(current.source);
     const was = firstSource(original.source);
@@ -1875,8 +1919,10 @@ Try this
       await refreshMetadataOptions(ctx);
       state.bulkRecipes = await requestBulkEditor(state.bulkPaths);
       populateMetadata(refs, state.bulkRecipes[0].metadata);
-      // Snapshot the loaded values once the form reflects them; the modified
-      // badges and the Apply confirmation diff against this.
+      // MIXED fields open blank instead of showing the first recipe's
+      // values; the snapshot is taken after blanking so they read as
+      // unmodified until the user edits them.
+      if (state.bulkRecipes.length > 1) blankMixedFieldControls(refs, state.bulkRecipes);
       state.bulkOriginal = readMetadata(refs);
       refs.form.elements.namedItem("rating.name").value = "";
       refs.form.elements.namedItem("rating.score").value = "";
