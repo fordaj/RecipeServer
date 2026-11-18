@@ -133,7 +133,7 @@ def test_bulk_delete_removes_files_and_notifies(bulk_server):
     assert error.value.code == 400
 
 
-def test_bulk_mixed_and_save_live_inside_field_labels_hidden_by_default():
+def test_bulk_modified_chrome_lives_inside_field_labels_hidden_by_default():
     base = Path(__file__).parents[1] / "src" / "recipeserver" / "assets" / "recipe-editor"
     script = (base / "recipe-editor.js").read_text(encoding="UTF-8")
     css = (base / "recipe-editor.css").read_text(encoding="UTF-8")
@@ -141,37 +141,70 @@ def test_bulk_mixed_and_save_live_inside_field_labels_hidden_by_default():
         (base / name).read_text(encoding="UTF-8") for name in ("form.html", "files.html", "ai.html", "details.html", "sources.html", "ratings.html")
     )
     fields = (base / "fields.js").read_text(encoding="UTF-8")
-    # Each metadata field label contains a hidden * MIXED span and a hidden Save button inside its input control.
-    # Both are built once by fields.js and hidden by default.
+    # Modified chips are built once by fields.js and hidden by default; so are
+    # the MIXED chips, which mark loaded values that differ across the
+    # selection (they flip to Modified once the field is edited).
+    assert "recipe-editor__modified" in fields
     assert "recipe-editor__mixed" in fields
     assert "* MIXED" in fields
-    assert "mixed.hidden = true" in fields and "button.hidden = true" in fields
-    assert "recipe-editor__bulk-field-save" in fields
+    assert "Modified" in fields
+    assert "modified.hidden = true" in fields and "mixed.hidden = true" in fields
     assert "recipe-editor__field-control" in fields
-    assert 'field: "categories"' in fields and 'field: "source"' in fields and 'field: "rating"' in fields
+    assert 'field: "categories"' in fields and 'field: "source.author"' in fields and 'field: "rating.name"' in fields
+    # The old per-field Save buttons are gone entirely.
+    for gone in ("recipe-editor__bulk-field-save", "Save All", "markMixedFields", "is-bulk"):
+        assert gone not in fields
+        assert gone not in markup
+        assert gone not in css
+        assert gone not in script
     # The shells mount the generated fields.
     assert 'data-field-group="details"' in markup
     assert 'data-field-group="sources"' in markup
     assert 'data-field-group="ratings"' in markup
-    # Old standalone bulk panel is gone.
+    # The dialog no longer has a "Save Individual Fields" panel.
     assert "Save Individual Fields" not in script and "Save Individual Fields" not in markup
     assert "recipe-editor__bulk-field-actions" not in script and "recipe-editor__bulk-field-actions" not in markup
-    # Mixed/save are toggled (unhidden) rather than created/removed.
+    # Mixed fields open blank rather than pre-selecting one recipe's values,
+    # and the snapshot is taken after blanking so they read as unmodified.
+    assert "blankMixedFieldControls" in script
+    assert "blankSourceSubfield" in script
+    assert "indeterminate = true" in script
+    assert script.index("blankMixedFieldControls(refs") < script.index("state.bulkOriginal = readMetadata(refs)")
+    # MIXED marks the loaded values that differ across the selection; each
+    # chip flips to Modified once its field is edited.
+    assert "showMixed" in script and "isMixed" in script and "ratingsDiffer" in script
+    assert "modifiedSourceSubfields" in script and "mixedSourceSubfields" in script
+    assert "recipe-editor__mixed" in script and "recipe-editor__modified" in script
+    # Modified chips are toggled (unhidden) rather than created/removed, and a
+    # "Modified: ..." summary line shows which attributes changed.
     assert "badge.hidden = false" in script
-    assert "button.hidden = !visible" in script
-    assert "dialog.classList.toggle('is-bulk', visible)" in script or 'dialog.classList.toggle("is-bulk"' in script
-    assert "setupBulkFieldButtons()" in script
+    assert "recipe-editor__modified-summary" in script and "recipe-editor__modified-summary" in markup
+    assert "Modified: " in script
+    assert "refs.modifiedSummary.hidden" in script
+    # The bulk editor offers Apply Edits/Discard Edits instead of Save/Save All.
+    assert 'saveLabel: "Apply Edits"' in script
+    assert 'cancelLabel: "Discard Edits"' in script
+    # Apply restates the changes and asks for confirmation first.
+    assert "Update the following for" in script
+    assert "confirm(" in script
+    # Only the modified fields are applied, and validation failures abort.
+    assert "modifiedFieldKeys" in script
+    assert "payload.fields = modified" in script
+    assert "No changes to apply." in script
+    # The rating pair applies through the same confirmation.
+    assert 'labels.push("Rating")' in script
+    assert ".recipe-editor__modified[hidden]" in css
     assert ".recipe-editor__mixed[hidden]" in css
-    assert ".recipe-editor__bulk-field-save[hidden]" in css
+    assert ".recipe-editor__modified-summary[hidden]" in css
     assert ".recipe-editor__field-control" in css
-    # Little Save buttons use the same filled styling as the main Save button
-    # (shared dialog shell carries the fill).
+    # The selection summary lists the target recipes in a titled panel.
+    assert "recipe-editor__bulk-list-title" in markup and "recipe-editor__bulk-list-items" in markup
+    assert ".recipe-editor__bulk-list-items" in css
+    # The footer wraps instead of overflowing when all three buttons are shown.
     shell = (base.parent / "dialog-shell.css").read_text(encoding="UTF-8")
-    assert ".recipe-editor__bulk-field-save" in shell
-    assert "background: var(--food-color)" in shell
-    assert "color: var(--page-bg)" in shell
-    assert ".recipe-editor__bulk-field-save:hover:not(:disabled)" in shell
-    assert "var(--food-color-hover)" in shell
+    assert ".recipe-editor__modified" not in shell
+    assert "recipe-editor__bulk-field-save" not in shell
+    assert "flex-wrap: wrap" in shell
 
 
 def test_index_renders_selection_mode_and_bulk_controls(tmp_path: Path):

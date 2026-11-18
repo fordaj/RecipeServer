@@ -9,28 +9,34 @@
     <button type="button" class="recipe-editor__close" aria-label="Close editor">&times;</button>
   </header>
 
-  <!--SECTION:files-->
-  <!--SECTION:ai-->
-  <!--SECTION:details-->
-  <!--SECTION:sources-->
-  <!--SECTION:ratings-->
+  <div class="recipe-editor__body">
+    <div class="recipe-editor__bulk-list" hidden>
+      <p class="recipe-editor__bulk-list-title"></p>
+      <ul class="recipe-editor__bulk-list-items"></ul>
+    </div>
 
-  <p class="recipe-editor__bulk-list" hidden></p>
+    <!--SECTION:files-->
+    <!--SECTION:ai-->
+    <!--SECTION:details-->
+    <!--SECTION:sources-->
+    <!--SECTION:ratings-->
 
-  <details class="recipe-editor__details recipe-editor__markdown-details">
-    <summary>Markdown</summary>
+    <details class="recipe-editor__details recipe-editor__markdown-details">
+      <summary>Markdown</summary>
 
-    <label class="recipe-editor__markdown-label" for="recipe-editor-source">Markdown</label>
+      <label class="recipe-editor__markdown-label" for="recipe-editor-source">Markdown</label>
 
-    <textarea
-      id="recipe-editor-source"
-      class="recipe-editor__source"
-      aria-label="Markdown source"
-      spellcheck="false"
-      required
-    ></textarea>
-  </details>
+      <textarea
+        id="recipe-editor-source"
+        class="recipe-editor__source"
+        aria-label="Markdown source"
+        spellcheck="false"
+        required
+      ></textarea>
+    </details>
+  </div>
 
+  <p class="recipe-editor__modified-summary" hidden></p>
   <p class="recipe-editor__status" role="status"></p>
   <footer class="recipe-editor__footer">
     <button type="button" class="recipe-editor__cancel">Cancel</button>

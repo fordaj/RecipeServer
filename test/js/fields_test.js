@@ -62,17 +62,25 @@ function main() {
     "tags",
   ]);
 
-  // Every generated field carries a MIXED badge and a bulk Save button.
+  // Every generated field carries a MIXED chip and a Modified chip, hidden by
+  // default. MIXED marks values that differ across the selection; Modified
+  // marks fields the user edited.
   const detailMixed = details.querySelectorAll(".recipe-editor__mixed");
   assert.equal(
     detailMixed.length,
     10,
-    "ten MIXED badges in details (all fields, including the checkbox)",
+    "ten MIXED chips in details (all fields, including the checkbox)",
   );
   assert.ok(detailMixed.every((element) => element.hidden === true));
-  const detailSave = details.querySelectorAll(".recipe-editor__bulk-field-save");
-  assert.equal(detailSave.length, 10, "ten bulk Save buttons in details");
-  assert.ok(detailSave.every((element) => element.hidden === true));
+  const detailModified = details.querySelectorAll(".recipe-editor__modified");
+  assert.equal(
+    detailModified.length,
+    10,
+    "ten Modified chips in details (all fields, including the checkbox)",
+  );
+  assert.ok(detailModified.every((element) => element.hidden === true));
+  // The per-field bulk Save buttons are gone.
+  assert.equal(details.querySelectorAll(".recipe-editor__bulk-field-save").length, 0);
 
   // The numeric pair shares the .recipe-editor__numeric wrapper.
   const numeric = details.querySelectorAll(".recipe-editor__numeric");
@@ -101,24 +109,16 @@ function main() {
     selects[0].children.map((option) => option.value),
     ["", "Website", "AI", "Book", "Other"],
   );
-  // All four source fields save the shared "source" key.
-  assert.deepEqual(
-    sources
-      .querySelectorAll(".recipe-editor__bulk-field-save")
-      .map((element) => element.getAttribute("data-field")),
-    ["source", "source", "source", "source"],
-  );
+  // Every source field carries both chips.
+  assert.equal(sources.querySelectorAll(".recipe-editor__mixed").length, 4);
+  assert.equal(sources.querySelectorAll(".recipe-editor__modified").length, 4);
 
   // ----- Ratings group ----- //
   assert.deepEqual(names(ratings), ["rating.name", "rating.score"]);
-  // The rating score field is not bulk-savable and carries no MIXED badge.
+  // The rating score field carries no chips; the name field carries both.
   assert.equal(ratings.querySelectorAll(".recipe-editor__mixed").length, 1);
-  assert.deepEqual(
-    ratings
-      .querySelectorAll(".recipe-editor__bulk-field-save")
-      .map((element) => element.getAttribute("data-field")),
-    ["rating"],
-  );
+  assert.equal(ratings.querySelectorAll(".recipe-editor__modified").length, 1);
+  assert.equal(ratings.querySelectorAll(".recipe-editor__bulk-field-save").length, 0);
   const score = ratings
     .querySelectorAll("input")
     .find((element) => element.getAttribute("name") === "rating.score");
@@ -126,13 +126,8 @@ function main() {
   assert.equal(score.getAttribute("min"), "0");
   assert.equal(score.getAttribute("max"), "10");
 
-  // ----- aria labels are derivable ----- //
-  const labels = details
-    .querySelectorAll(".recipe-editor__bulk-field-save")
-    .map((element) => element.getAttribute("aria-label"));
-  assert.ok(labels.includes("Save contributor to all selected recipes"));
-  assert.ok(labels.includes("Save contribution date to all selected recipes"));
-  assert.ok(labels.includes("Save archived to all selected recipes"));
+  // ----- No per-field save buttons remain ----- //
+  assert.equal(document.querySelectorAll(".recipe-editor__bulk-field-save").length, 0);
 
   console.log("editor fields checks passed");
 }

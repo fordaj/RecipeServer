@@ -1176,10 +1176,13 @@ Try this
       aiUrlButton: dialog.querySelector(".recipe-editor__ai-generate-url"),
       aiImageButton: dialog.querySelector(".recipe-editor__ai-generate-image"),
       aiCancelButton: dialog.querySelector(".recipe-editor__ai-cancel"),
-      bulkFieldSaves: [...dialog.querySelectorAll(".recipe-editor__bulk-field-save")],
+      modifiedBadges: [...dialog.querySelectorAll(".recipe-editor__modified")],
       mixedBadges: [...dialog.querySelectorAll(".recipe-editor__mixed")],
+      modifiedSummary: dialog.querySelector(".recipe-editor__modified-summary"),
       ratingsDetails: dialog.querySelector(".recipe-editor__ratings-details"),
       bulkList: dialog.querySelector(".recipe-editor__bulk-list"),
+      bulkListTitle: dialog.querySelector(".recipe-editor__bulk-list-title"),
+      bulkListItems: dialog.querySelector(".recipe-editor__bulk-list-items"),
       filesDetails: dialog.querySelector(".recipe-editor__details"),
     };
 
@@ -1217,6 +1220,7 @@ Try this
       isBulk: false,
       bulkPaths: [],
       bulkRecipes: [],
+      bulkOriginal: null,
       existingImages: [],
       stagedUrls: [],
       aiAvailable: false,
@@ -1287,12 +1291,6 @@ Try this
       refs.pickers.setDisabled(value);
     }
 
-    function setBulkSaveButtonsBusy(value) {
-      refs.bulkFieldSaves.forEach((button) => {
-        button.disabled = value;
-      });
-    }
-
     function setAiControlsBusy(value) {
       refs.aiControls.forEach((control) => {
         control.disabled = value || !state.aiAvailable;
@@ -1306,7 +1304,6 @@ Try this
       state.busy = value;
       setDialogControlsBusy(value);
       setMetadataBusy(value);
-      setBulkSaveButtonsBusy(value);
       setAiControlsBusy(value);
       refreshExistingImageControls(ctx);
     }
@@ -1561,15 +1558,123 @@ Try this
 
   // ----- Bulk editor helpers ----- //
 
+  // The bulk editor tracks which attributes the user actually changed. Only
+  // those are applied, and the Apply confirmation restates them. The fields
+  // are the metadata keys readMetadata() produces, plus the synthetic
+  // "rating" for the rating name/score pair.
+  function isFieldModified(current, original, field) {
+    if (field === "source") {
+      return (
+        JSON.stringify(firstSource(current.source)) !== JSON.stringify(firstSource(original.source))
+      );
+    }
+    return JSON.stringify(current[field] ?? null) !== JSON.stringify(original[field] ?? null);
+  }
+
+  function modifiedFieldKeys(current, original) {
+    if (!original) return [];
+    return Object.keys(BULK_FIELD_LABELS).filter((field) =>
+      isFieldModified(current, original, field),
+    );
+  }
+
+  // The sources edit four sub-fields but apply one shared "source" key, so
+  // the per-sub-field chips are computed against the loaded source.
+  const SOURCE_SUBFIELDS = ["author", "title", "format", "url"];
+
+  // Mixed fields start blank rather than pre-selecting one recipe's values:
+  // a pre-filled field would imply the rest of the selection shares them.
+  // An untouched blank field applies nothing (only modified attributes are
+  // written), so blank is also the honest default. The archived checkbox
+  // uses the indeterminate state for the same reason.
+  function blankFieldControl(refs, field) {
+    if (field === "archived") {
+      const checkbox = refs.form.elements.namedItem("archived");
+      if (checkbox) {
+        checkbox.indeterminate = true;
+        checkbox.checked = false;
+      }
+      return;
+    }
+    const control = refs.form.elements.namedItem(field);
+    if (control) {
+      control.value = "";
+      return;
+    }
+    // Picker fields render no named control; clearing the widget is enough.
+    refs.pickers.setValues(field, []);
+  }
+
+  function blankSourceSubfield(refs, subfield) {
+    if (subfield === "author" || subfield === "title") {
+      refs.pickers.setValues(`source.${subfield}`, []);
+      return;
+    }
+    const control = refs.form.elements.namedItem(`source.${subfield}`);
+    if (control) control.value = "";
+  }
+
+  function blankMixedFieldControls(refs, recipes) {
+    for (const field of Object.keys(BULK_FIELD_LABELS)) {
+      if (field === "source") {
+        for (const subfield of mixedSourceSubfields(recipes)) {
+          blankSourceSubfield(refs, subfield);
+        }
+        continue;
+      }
+      if (isMixed(recipes, field)) blankFieldControl(refs, field);
+    }
+  }
+
+  function modifiedSourceSubfields(current, original) {
+    const now = firstSource(current.source);
+    const was = firstSource(original.source);
+    return SOURCE_SUBFIELDS.filter(
+      (subfield) => JSON.stringify(now[subfield] ?? null) !== JSON.stringify(was[subfield] ?? null),
+    );
+  }
+
+  // MIXED means the loaded values differ across the selected recipes;
+  // identical values carry no chip. Once the user edits a mixed field, the
+  // MIXED chip gives way to Modified — the field will be applied to every
+  // recipe, so it no longer "differs" in any way that matters.
   function fieldValue(metadata, field) {
     if (field === "source") return firstSource(metadata.source);
     return metadata[field] ?? null;
   }
 
   function isMixed(recipes, field) {
-    if (recipes.length < 2) return false;
+    if (!recipes || recipes.length < 2) return false;
     const first = JSON.stringify(fieldValue(recipes[0].metadata, field));
     return recipes.some((recipe) => JSON.stringify(fieldValue(recipe.metadata, field)) !== first);
+  }
+
+  function mixedSourceSubfields(recipes) {
+    if (!recipes || recipes.length < 2) return [];
+    const first = (subfield) =>
+      JSON.stringify(firstSource(recipes[0].metadata.source)[subfield] ?? null);
+    return SOURCE_SUBFIELDS.filter((subfield) =>
+      recipes.some(
+        (recipe) =>
+          JSON.stringify(firstSource(recipe.metadata.source)[subfield] ?? null) !== first(subfield),
+      ),
+    );
+  }
+
+  function ratingsDiffer(recipes) {
+    if (!recipes || recipes.length < 2) return false;
+    const first = JSON.stringify(recipes[0].ratings);
+    return recipes.some((recipe) => JSON.stringify(recipe.ratings) !== first);
+  }
+
+  function modifiedFieldLabels(current, original) {
+    return modifiedFieldKeys(current, original).map((field) => BULK_FIELD_LABELS[field] || field);
+  }
+
+  function ratingInputsModified(refs) {
+    const name = refs.form.elements.namedItem("rating.name")?.value.trim();
+    const score = refs.form.elements.namedItem("rating.score")?.value.trim();
+    return Boolean(name || score);
   }
 
   function readBulkRating(form, setStatus) {
@@ -1587,29 +1692,26 @@ Try this
     return { name, rating: score };
   }
 
-  function hideMixedBadges(refs) {
-    // MIXED spans and per-field Save buttons live inside their labels,
-    // hidden by default; bulk mode reveals them selectively.
+  function hideBulkChips(refs) {
+    // MIXED and Modified chips live inside their labels, hidden by default;
+    // bulk mode reveals them for the fields that differ or were edited.
+    refs.modifiedBadges.forEach((badge) => {
+      badge.hidden = true;
+    });
     refs.mixedBadges.forEach((badge) => {
       badge.hidden = true;
     });
-    refs.dialog.querySelectorAll("label.is-mixed").forEach((element) => {
-      element.classList.remove("is-mixed");
+    refs.form.querySelectorAll("label.is-modified, label.is-mixed").forEach((element) => {
+      element.classList.remove("is-modified", "is-mixed");
     });
   }
 
-  // The single show/hide path for the bulk-edit chrome: the per-field Save
-  // buttons and the dialog's is-bulk class.
-  function setBulkFieldChrome(refs, visible) {
-    refs.bulkFieldSaves.forEach((button) => {
-      button.hidden = !visible;
-    });
-    refs.dialog.classList.toggle("is-bulk", visible);
-  }
-
-  function resetBulkFieldChrome(refs) {
-    hideMixedBadges(refs);
-    setBulkFieldChrome(refs, false);
+  function resetModifiedChrome(refs) {
+    hideBulkChips(refs);
+    if (refs.modifiedSummary) {
+      refs.modifiedSummary.hidden = true;
+      refs.modifiedSummary.textContent = "";
+    }
   }
 
   function findFieldLabel(refs, field) {
@@ -1618,96 +1720,86 @@ Try this
     return refs.form.elements.namedItem(field)?.closest("label");
   }
 
+  function showModified(refs, inputName) {
+    const label = findFieldLabel(refs, inputName);
+    const badge = label?.querySelector(".recipe-editor__modified");
+    if (!label || !badge) return;
+    badge.hidden = false;
+    label.classList.add("is-modified");
+  }
+
   function showMixed(refs, inputName) {
     const label = findFieldLabel(refs, inputName);
     const badge = label?.querySelector(".recipe-editor__mixed");
     if (!label || !badge) return;
     badge.hidden = false;
-    label.classList.add("recipe-editor__field-label", "is-mixed");
+    label.classList.add("is-mixed");
   }
 
-  function mixedSourceFields(bulkRecipes) {
-    if (!bulkRecipes.length) return [];
-    const mixed = [];
-    for (const subfield of ["author", "title", "format", "url"]) {
-      const first = JSON.stringify(firstSource(bulkRecipes[0].metadata.source)[subfield] ?? null);
-      const differs =
-        bulkRecipes.length > 1 &&
-        bulkRecipes.some(
-          (recipe) =>
-            JSON.stringify(firstSource(recipe.metadata.source)[subfield] ?? null) !== first,
-        );
-      if (differs) mixed.push(`source.${subfield}`);
-    }
-    return mixed;
-  }
+  // The single show/hide path for the bulk-edit chips: badges per field
+  // plus the "Modified: ..." summary line above the footer. MIXED chips mark
+  // the fields whose loaded values differ across the selection; Modified
+  // chips mark the fields the user changed. Called after every
+  // input/change/click in the dialog while bulk mode is on.
+  function refreshModifiedChrome(ctx) {
+    const { refs, state } = ctx;
+    if (!state.isBulk) return;
 
-  function ratingsDiffer(bulkRecipes) {
-    return (
-      bulkRecipes.length > 1 &&
-      bulkRecipes.some(
-        (recipe) => JSON.stringify(recipe.ratings) !== JSON.stringify(bulkRecipes[0].ratings),
-      )
-    );
-  }
-
-  // Show exactly the MIXED badges for fields whose values differ across the
-  // selection; every other badge stays hidden. Called after the shared
-  // chrome enters bulk mode.
-  function markMixedFields(refs, bulkRecipes) {
-    hideMixedBadges(refs);
-    const mixed = Object.keys(BULK_FIELD_LABELS).flatMap((field) => {
-      if (field === "source") return mixedSourceFields(bulkRecipes);
-      return isMixed(bulkRecipes, field) ? [field] : [];
-    });
-    if (ratingsDiffer(bulkRecipes)) mixed.push("rating.name");
-    for (const field of mixed) showMixed(refs, field);
-  }
-
-  async function saveBulkField(ctx, field) {
-    const { refs, state, ui } = ctx;
-    if (field === "rating") {
-      const rating = readBulkRating(refs.form, ui.setStatus);
-      if (!rating) return;
-      ui.setBusy(true);
-      ui.setStatus(`Saving rating to ${state.bulkPaths.length} recipes...`);
-      await requestBulkSave(state.bulkPaths, { rating });
-      ui.setStatus(`Rating saved to ${state.bulkPaths.length} recipes! Reloading...`);
-      window.location.reload();
+    let current = null;
+    try {
+      current = readMetadata(refs);
+    } catch {
+      // An unparseable field (e.g. an invalid number) keeps the chips
+      // and the summary from the last readable state; the status line
+      // reports the error.
       return;
     }
-    const label = BULK_FIELD_LABELS[field] || field;
-    ui.setBusy(true);
-    ui.setStatus(`Saving ${label} to ${state.bulkPaths.length} recipes...`);
-    const metadata = readMetadata(refs);
-    await requestBulkSave(state.bulkPaths, { metadata, fields: [field] });
-    ui.setStatus(`${label} saved to ${state.bulkPaths.length} recipes! Reloading...`);
-    window.location.reload();
-  }
 
-  function setupBulkFieldButtons(ctx) {
-    const { refs, state, ui } = ctx;
-    refs.bulkFieldSaves.forEach((button) => {
-      button.addEventListener("click", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (state.busy || !state.isBulk) return;
-        try {
-          await saveBulkField(ctx, button.dataset.field);
-        } catch (error) {
-          ui.setStatus(error.message);
-          ui.setBusy(false);
+    hideBulkChips(refs);
+
+    const original = state.bulkOriginal;
+    const recipes = state.bulkRecipes;
+    const modified = original ? modifiedFieldKeys(current, original) : [];
+    const modifiedSubs =
+      original && modified.includes("source") ? modifiedSourceSubfields(current, original) : [];
+    const ratingModified = ratingInputsModified(refs);
+
+    // MIXED first, then Modified on top of modified fields.
+    for (const field of Object.keys(BULK_FIELD_LABELS)) {
+      if (field === "source") {
+        // Per sub-field: an edited sub-field flips to Modified; the rest keep MIXED.
+        for (const subfield of mixedSourceSubfields(recipes)) {
+          if (modifiedSubs.includes(subfield)) continue;
+          showMixed(refs, `source.${subfield}`);
         }
-      });
-    });
+        continue;
+      }
+      if (modified.includes(field)) continue;
+      if (isMixed(recipes, field)) showMixed(refs, field);
+    }
+    if (!ratingModified && ratingsDiffer(recipes)) showMixed(refs, "rating.name");
+
+    for (const field of modified) {
+      if (field === "source") {
+        for (const subfield of modifiedSubs) showModified(refs, `source.${subfield}`);
+        continue;
+      }
+      showModified(refs, field);
+    }
+    if (ratingModified) showModified(refs, "rating.name");
+
+    if (original) {
+      const labels = modifiedFieldLabels(current, original);
+      if (ratingModified) labels.push("Rating");
+      refs.modifiedSummary.textContent = labels.length ? `Modified: ${labels.join(", ")}` : "";
+      refs.modifiedSummary.hidden = labels.length === 0;
+    }
   }
 
   function createBulkActions(ctx) {
     return {
-      resetBulkFieldChrome: () => resetBulkFieldChrome(ctx.refs),
-      setBulkFieldChrome: (visible) => setBulkFieldChrome(ctx.refs, visible),
-      markMixedFields: () => markMixedFields(ctx.refs, ctx.state.bulkRecipes),
-      setupBulkFieldButtons: () => setupBulkFieldButtons(ctx),
+      resetModifiedChrome: () => resetModifiedChrome(ctx.refs),
+      refreshModifiedChrome: () => refreshModifiedChrome(ctx),
       readBulkRating: () => readBulkRating(ctx.refs.form, ctx.ui.setStatus),
     };
   }
@@ -1728,9 +1820,13 @@ Try this
     refs.markdownDetails.hidden = !markdown;
   }
 
-  function setActionLabels(refs, { heading, saveLabel, deleteLabel, locationVisible }) {
+  function setActionLabels(
+    refs,
+    { heading, saveLabel, cancelLabel, deleteLabel, locationVisible },
+  ) {
     refs.heading.textContent = heading;
     refs.saveButton.textContent = saveLabel;
+    refs.cancelButton.textContent = cancelLabel ?? "Cancel";
     refs.deleteButton.textContent = deleteLabel;
     refs.location.hidden = !locationVisible;
   }
@@ -1783,32 +1879,54 @@ Try this
     state.isBulk = true;
     state.isCreating = false;
     state.bulkPaths = [...paths];
+    state.bulkRecipes = [];
+    state.bulkOriginal = null;
     state.markdownPath = "";
     resetCommonOpenState(ctx);
     setActionLabels(refs, {
       heading: `Bulk Edit Recipes (${state.bulkPaths.length} selected)`,
-      saveLabel: "Save All",
+      saveLabel: "Apply Edits",
+      cancelLabel: "Discard Edits",
       deleteLabel: `Delete ${state.bulkPaths.length} Recipes`,
       locationVisible: false,
     });
     setDetailsVisibility(refs, { ratings: true, bulkList: true, files: false, markdown: false });
+    // Bulk editing works on the metadata fields, so bring the Details and
+    // Sources sections up front instead of leaving them collapsed.
+    for (const group of ["details", "sources"]) {
+      const section = refs.form.querySelector(`[data-field-group="${group}"]`)?.closest("details");
+      if (section) section.open = true;
+    }
     refs.existingImagesBlock.hidden = true;
-    refs.bulkList.textContent = state.bulkPaths.join(", ");
+    refs.bulkListTitle.textContent = `Editing ${state.bulkPaths.length} ${
+      state.bulkPaths.length === 1 ? "recipe" : "recipes"
+    }`;
+    refs.bulkListItems.replaceChildren(
+      ...state.bulkPaths.map((path) => {
+        const item = document.createElement("li");
+        item.textContent = path;
+        return item;
+      }),
+    );
     refs.ratingsDetails.open = true;
     refs.aiDetails.hidden = true;
     refs.deleteButton.hidden = false;
     hideMadeThisControls(refs);
-    bulk.resetBulkFieldChrome();
-    bulk.setBulkFieldChrome(true);
+    bulk.resetModifiedChrome();
     ui.setStatus("Loading recipes…");
     ui.setBusy(true);
     try {
       await refreshMetadataOptions(ctx);
       state.bulkRecipes = await requestBulkEditor(state.bulkPaths);
       populateMetadata(refs, state.bulkRecipes[0].metadata);
+      // MIXED fields open blank instead of showing the first recipe's
+      // values; the snapshot is taken after blanking so they read as
+      // unmodified until the user edits them.
+      if (state.bulkRecipes.length > 1) blankMixedFieldControls(refs, state.bulkRecipes);
+      state.bulkOriginal = readMetadata(refs);
       refs.form.elements.namedItem("rating.name").value = "";
       refs.form.elements.namedItem("rating.score").value = "";
-      bulk.markMixedFields();
+      bulk.refreshModifiedChrome();
       ui.setStatus("");
     } catch (error) {
       ui.setStatus(error.message);
@@ -1874,8 +1992,9 @@ Try this
     state.isBulk = false;
     state.bulkPaths = [];
     state.bulkRecipes = [];
+    state.bulkOriginal = null;
     state.markdownPath = "";
-    bulk.resetBulkFieldChrome();
+    bulk.resetModifiedChrome();
     setDetailsVisibility(refs, { ratings: false, bulkList: false, files: true, markdown: true });
     refs.markdownDetails.open = false;
     setActionLabels(refs, {
@@ -1928,6 +2047,7 @@ Try this
 
   async function submitBulkSave(ctx, metadata) {
     const { refs, state, ui, bulk } = ctx;
+    const modified = modifiedFieldKeys(metadata, state.bulkOriginal);
     const ratingName = refs.form.elements.namedItem("rating.name")?.value.trim();
     const ratingScore = refs.form.elements.namedItem("rating.score")?.value.trim();
     let rating = null;
@@ -1938,7 +2058,28 @@ Try this
         return false;
       }
     }
-    await requestBulkSave(state.bulkPaths, { metadata, ...(rating ? { rating } : {}) });
+    if (modified.length === 0 && !rating) {
+      ui.setStatus("No changes to apply.");
+      ui.setBusy(false);
+      return false;
+    }
+    const labels = modifiedFieldLabels(metadata, state.bulkOriginal);
+    if (rating) labels.push("Rating");
+    const count = state.bulkPaths.length;
+    const noun = count === 1 ? "recipe" : "recipes";
+    const question = `Update the following for ${count} ${noun}?\n${labels.join(", ")}`;
+    if (!confirm(question)) {
+      ui.setStatus("Edits not applied.");
+      ui.setBusy(false);
+      return false;
+    }
+    const payload = {};
+    if (modified.length) {
+      payload.metadata = metadata;
+      payload.fields = modified;
+    }
+    if (rating) payload.rating = rating;
+    await requestBulkSave(state.bulkPaths, payload);
     return true;
   }
 
@@ -1980,12 +2121,18 @@ Try this
     }
     ui.setBusy(true);
     ui.setStatus(
-      state.isCreating ? "Creating recipe…" : state.isBulk ? "Saving recipes…" : "Saving recipe…",
+      state.isCreating ? "Creating recipe…" : state.isBulk ? "Applying edits…" : "Saving recipe…",
     );
     try {
       const completed = await submitEditorSave(ctx, metadata, content, images);
       if (!completed) return;
-      ui.setStatus(state.isCreating ? "Created! Reloading…" : "Saved! Reloading…");
+      ui.setStatus(
+        state.isCreating
+          ? "Created! Reloading…"
+          : state.isBulk
+            ? "Applied! Reloading…"
+            : "Saved! Reloading…",
+      );
       window.location.reload();
     } catch (error) {
       ui.setStatus(error.message);
@@ -2106,6 +2253,16 @@ Try this
 
     refs.form.addEventListener("submit", session.handleSubmit);
     refs.deleteButton.addEventListener("click", session.handleDelete);
+
+    // Bulk mode: re-check which attributes were modified on every edit so the
+    // Modified chips and summary stay current. Clicks cover the picker chips
+    // and their remove buttons, which fire no input/change events.
+    if (ctx.bulk) {
+      const refresh = () => ctx.bulk.refreshModifiedChrome();
+      refs.form.addEventListener("input", refresh);
+      refs.form.addEventListener("change", refresh);
+      refs.form.addEventListener("click", refresh);
+    }
   }
 
   function registerListeners(ctx) {
@@ -2179,8 +2336,7 @@ Try this
     ctx.bulk = createBulkActions(ctx);
     ctx.session = createSessionActions(ctx);
 
-    ctx.bulk.setupBulkFieldButtons();
-    ctx.bulk.resetBulkFieldChrome();
+    ctx.bulk.resetModifiedChrome();
 
     // The staged-images refresh runs with the assembled context so the
     // rows it creates reach the UI collaborators (status, busy state).
