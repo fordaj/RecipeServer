@@ -16,7 +16,14 @@ import socket
 
 import pytest
 
-from recipeserver.server import LOCALHOST, RecipeRequestHandler, Server
+from recipeserver.server import (
+    LOCALHOST,
+    LISTEN_BACKLOG,
+    RecipeRequestHandler,
+    Server,
+    _RecipeThreadingHTTPServer,
+    _ThreadingHTTPServerIPv6,
+)
 
 
 @pytest.fixture()
@@ -102,6 +109,34 @@ def test_keep_alive_after_an_error_response(site_server):
     connection.close()
 
 
+def test_unparseable_request_receives_a_400_response_not_an_empty_drop(site_server):
+    # A client that speaks TLS at this plain-HTTP port hands the parser
+    # bytes it cannot understand. The error path used to crash in
+    # end_headers (self.path was never set), so the connection closed with
+    # zero response bytes — which a proxy in front turns into 502 Bad
+    # Gateway. The client must get a well-formed 400 response instead.
+    host, port = site_server.split(":")
+    with socket.create_connection((host, int(port)), timeout=5) as sock:
+        # Three words with an unparsable protocol version: the exact class
+        # of bytes the access log shows arriving from clients speaking TLS
+        # at this plain-HTTP port.
+        sock.sendall(b"GARBAGE ONE FOO\\r\\n\\r\\n")
+        sock.shutdown(socket.SHUT_WR)
+        chunks = []
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    response = b"".join(chunks)
+    # The request line cannot be classified, so the response carries no
+    # status line (HTTP/0.9 semantics), but the error body must arrive —
+    # the connection must not close with zero response bytes, which is
+    # what a proxy in front turns into 502 Bad Gateway.
+    assert response, "server closed the connection without sending a response"
+    assert b"Error code: 400" in response
+
+
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind((LOCALHOST, 0))
@@ -122,6 +157,15 @@ def _server_for(tmp_path, bind_address: str | None = None) -> tuple[Server, int]
     if bind_address is not None:
         cfg.server_bind_address = bind_address
     return Server(cfg), port
+
+
+def test_listen_backlog_exceeds_socketserver_default():
+    # The TCPServer default is 5; Windows answers a full backlog with an
+    # explicit reset (WSAECONNREFUSED) which a reverse proxy surfaces as
+    # 502 Bad Gateway, so the server must enlarge it.
+    assert LISTEN_BACKLOG >= 128
+    assert _RecipeThreadingHTTPServer.request_queue_size == LISTEN_BACKLOG
+    assert _ThreadingHTTPServerIPv6.request_queue_size == LISTEN_BACKLOG
 
 
 def test_server_binds_wildcard_by_default(tmp_path):
