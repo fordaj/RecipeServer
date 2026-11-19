@@ -1,10 +1,10 @@
 (() => {
-  // Dictation button for the recipe search field.
+  // The dictation button for the recipe search field.
   //
   // The browser only hands out the microphone to pages served over HTTPS,
   // so the button is removed unless the page was loaded over HTTPS. The
   // recording is transcribed by the server (POST /api/transcribe), which
-  // runs the local Whisper model.
+  // posts it to the configured Ollama server (Qwen3-ASR).
 
   // ----- Constants ----- //
   const SELECTOR = ".speech-input";

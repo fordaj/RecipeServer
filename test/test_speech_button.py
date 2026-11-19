@@ -8,6 +8,7 @@ requests that did not arrive over HTTPS.
 
 from __future__ import annotations
 
+import base64
 import json
 import shutil
 import subprocess
@@ -37,54 +38,61 @@ AUDIO = b"fake-webm-audio"
 
 
 class FakeTranscriber:
-    """Stand-in for the Whisper transcriber."""
+    """Stand-in for the Ollama transcriber."""
 
     def __init__(self, text: str = "chocolate cake", error: Exception | None = None):
         self.text = text
         self.error = error
         self.calls: list[tuple[bytes, str]] = []
 
-    def transcribe(self, audio: bytes, suffix: str = ".webm") -> str:
+    def transcribe(self, audio: bytes, suffix: str = ".webm", **_kwargs) -> str:
         self.calls.append((audio, suffix))
         if self.error is not None:
             raise self.error
         return self.text
 
 
-class FakeWhisperServer:
-    """Stand-in for the managed whisper-server process."""
+class FakeResponse:
+    def __init__(self, payload: bytes):
+        self.payload = payload
 
-    def __init__(self):
-        self.started = 0
-        self.stopped = 0
-        self._running = False
-
-    def ensure_running(self):
-        if not self._running:
-            self.started += 1
-            self._running = True
+    def __enter__(self):
         return self
 
-    @property
-    def base_url(self):
-        return "http://127.0.0.1:9"
+    def __exit__(self, *args):
+        return False
 
-    def stop(self):
-        self.stopped += 1
-        self._running = False
+    def read(self, limit=-1):
+        return self.payload if limit is None or limit < 0 else self.payload[:limit]
+
+
+def _ollama_payload(text: str) -> bytes:
+    body = {
+        "model": "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
+        "message": {"role": "assistant", "content": f"language English<asr_text>{text}"},
+        "done": True,
+        "done_reason": "stop",
+    }
+    return json.dumps(body).encode("utf-8")
+
+
+class FakeTranscriptionServer:
+    """Stand-in for the configured Ollama server (records the requests)."""
+
+    def __init__(self):
+        self.posts: list = []
 
 
 @pytest.fixture()
-def fake_whisper_server(monkeypatch: pytest.MonkeyPatch) -> FakeWhisperServer:
-    """Stub the HTTP call to whisper-server; returns the fake process."""
-    server = FakeWhisperServer()
-    server.posts = []
+def fake_transcription_server(monkeypatch: pytest.MonkeyPatch) -> FakeTranscriptionServer:
+    """Stub the HTTP call to the Ollama server; returns the fake."""
+    server = FakeTranscriptionServer()
 
-    def fake_post(base_url, wav_audio, file_name="recording.wav"):
-        server.posts.append((base_url, wav_audio, file_name))
-        return "chocolate cake"
+    def fake_post(request, timeout=0):
+        server.posts.append(request)
+        return FakeResponse(_ollama_payload("Chocolate cake."))
 
-    monkeypatch.setattr("recipeserver.transcriber.post_inference", fake_post)
+    monkeypatch.setattr("recipeserver.transcriber.urlopen", fake_post)
     return server
 
 
@@ -258,13 +266,17 @@ def test_transcription_rejects_an_oversized_recording(source: Path, fake_transcr
 def test_transcription_reports_a_missing_transcriber(source: Path, monkeypatch: pytest.MonkeyPatch):
     from recipeserver.transcriber import TranscriberUnavailable
 
-    monkeypatch.setattr(server_module, "transcriber", FakeTranscriber(error=TranscriberUnavailable("whisper-server was not found.")))
+    monkeypatch.setattr(
+        server_module,
+        "transcriber",
+        FakeTranscriber(error=TranscriberUnavailable("The Ollama server at http://localhost:11434 is not reachable: Connection refused")),
+    )
 
     with running_recipe_server(source) as (base_url, _, _):
         status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"})
 
     assert status == 503
-    assert "whisper-server" in body["error"]
+    assert "not reachable" in body["error"]
 
 
 def test_transcription_reports_a_failed_transcription(source: Path, monkeypatch: pytest.MonkeyPatch):
@@ -280,13 +292,13 @@ def test_transcription_reports_a_failed_transcription(source: Path, monkeypatch:
 # ----- The recording the browser sends ----- #
 
 
-def test_transcription_decodes_the_recorded_clip(source: Path, monkeypatch: pytest.MonkeyPatch, fake_whisper_server: FakeWhisperServer):
-    """The whole path: a recorded clip in, a WAV post to whisper-server out.
+def test_transcription_decodes_the_recorded_clip(source: Path, monkeypatch: pytest.MonkeyPatch, fake_transcription_server: FakeTranscriptionServer):
+    """The whole path: a recorded clip in, a WAV post to transcription server out.
 
     This is the test that catches a broken audio decoder: the recording is
     a real Opus/WebM clip, the way the browser records it.
     """
-    monkeypatch.setattr(server_module, "transcriber", Transcriber(server=fake_whisper_server))
+    monkeypatch.setattr(server_module, "transcriber", Transcriber())
 
     with running_recipe_server(source) as (base_url, _, _):
         status, body = _post_audio(
@@ -297,19 +309,22 @@ def test_transcription_decodes_the_recorded_clip(source: Path, monkeypatch: pyte
         )
 
     assert status == 200
-    assert body == {"text": "chocolate cake"}
+    assert body == {"text": "Chocolate cake."}
 
-    # The server is handed a WAV file, not the original WebM container.
-    assert len(fake_whisper_server.posts) == 1
-    _url, wav_audio, file_name = fake_whisper_server.posts[0]
-    assert file_name == "recording.wav"
+    # The Ollama server is handed a WAV recording, not the original WebM container.
+    assert len(fake_transcription_server.posts) == 1
+    request = fake_transcription_server.posts[0]
+    payload = json.loads(request.data)
+    wav_audio = base64.b64decode(payload["messages"][0]["images"][0])
     assert wav_audio[:4] == b"RIFF"
     assert len(wav_audio) > 1000
 
 
-def test_transcription_reports_a_recording_it_cannot_decode(source: Path, monkeypatch: pytest.MonkeyPatch, fake_whisper_server: FakeWhisperServer):
+def test_transcription_reports_a_recording_it_cannot_decode(
+    source: Path, monkeypatch: pytest.MonkeyPatch, fake_transcription_server: FakeTranscriptionServer
+):
     """A clip that is not audio is the caller's mistake, not a server error."""
-    monkeypatch.setattr(server_module, "transcriber", Transcriber(server=fake_whisper_server))
+    monkeypatch.setattr(server_module, "transcriber", Transcriber())
 
     with running_recipe_server(source) as (base_url, _, _):
         status, body = _post_audio(f"{base_url}/api/transcribe", headers={"X-Forwarded-Proto": "https"}, body=b"not audio at all")
@@ -318,9 +333,11 @@ def test_transcription_reports_a_recording_it_cannot_decode(source: Path, monkey
     assert "decode" in body["error"].lower()
 
 
-def test_transcription_decodes_the_clip_safari_records(source: Path, monkeypatch: pytest.MonkeyPatch, fake_whisper_server: FakeWhisperServer):
+def test_transcription_decodes_the_clip_safari_records(
+    source: Path, monkeypatch: pytest.MonkeyPatch, fake_transcription_server: FakeTranscriptionServer
+):
     """Safari records AAC in MP4; that recording has to transcribe as well."""
-    monkeypatch.setattr(server_module, "transcriber", Transcriber(server=fake_whisper_server))
+    monkeypatch.setattr(server_module, "transcriber", Transcriber())
 
     with running_recipe_server(source) as (base_url, _, _):
         status, body = _post_audio(
@@ -331,8 +348,10 @@ def test_transcription_decodes_the_clip_safari_records(source: Path, monkeypatch
         )
 
     assert status == 200
-    assert body == {"text": "chocolate cake"}
-    assert fake_whisper_server.posts[0][1].startswith(b"RIFF")
+    assert body == {"text": "Chocolate cake."}
+    payload = json.loads(fake_transcription_server.posts[0].data)
+    wav_audio = base64.b64decode(payload["messages"][0]["images"][0])
+    assert wav_audio.startswith(b"RIFF")
 
 
 # ----- The browser script ----- #

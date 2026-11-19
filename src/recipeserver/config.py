@@ -18,6 +18,9 @@ MODEL_ENDPOINT_KEY = "model_endpoint"
 MODEL_NAME_KEY = "model_name"  # Legacy key, read-only compatibility for the all-purpose model.
 ALL_PURPOSE_MODEL_NAME_KEY = "all_purpose_model_name"
 IMAGE_ANALYSIS_MODEL_KEY = "image_analysis_model"
+TRANSCRIPTION_ENDPOINT_KEY = "transcription_endpoint"
+TRANSCRIPTION_MODEL_KEY = "transcription_model"
+TRANSCRIPTION_KEEP_ALIVE_KEY = "transcription_keep_alive"
 RECIPE_SERVER_NAME_KEY = "recipe_server_name"
 SERVER_NAME_KEY = "server_name"
 SERVER_PORT_KEY = "server_port"
@@ -34,9 +37,17 @@ DEFAULT_SERVER_PORT = 8000
 # default in SERVER_BIND_ADDRESS. Restrict with server_bind_address = "127.0.0.1".
 DEFAULT_SERVER_BIND_ADDRESS = "0.0.0.0"
 # Dictation records a clip in the browser and transcribes it with the
-# bundled whisper-server. It is on by default; the switch only decides
-# whether the app offers the feature at all.
+# Qwen3-ASR model on an externally managed Ollama server. It is on by
+# default; the switch only decides whether the app offers the feature at
+# all. RecipeServer never downloads, installs, launches, or manages the
+# Ollama server or its models.
 DEFAULT_DICTATION_ENABLED = True
+DEFAULT_TRANSCRIPTION_ENDPOINT = "http://localhost:11434"
+DEFAULT_TRANSCRIPTION_MODEL = "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0"
+# Blank leaves Ollama's own default in place (5 minutes). A Go duration
+# string such as "5m", "0" (unload immediately), or "-1" (keep the model
+# loaded indefinitely).
+DEFAULT_TRANSCRIPTION_KEEP_ALIVE = ""
 # Timeline revision retention: how historical snapshots are pruned. GFS is
 # the default for new and existing installations; "unlimited" keeps every
 # revision, preserving the historical behavior.
@@ -129,6 +140,40 @@ def _validate_model_name(value: str, label: str) -> str:
     if len(name) > _MAX_MODEL_NAME_LENGTH:
         raise ValueError(f"{label} must be at most {_MAX_MODEL_NAME_LENGTH} characters.")
     return name
+
+
+def _validate_transcription_endpoint(value: str, label: str) -> str:
+    text = value.strip()
+    if not text:
+        return DEFAULT_TRANSCRIPTION_ENDPOINT
+    try:
+        return _normalize_model_endpoint(text)
+    except ValueError:
+        raise ValueError(f"{label} must be a valid http:// or https:// endpoint.") from None
+
+
+def _validate_transcription_model(value: str, label: str) -> str:
+    name = value.strip()
+    if not name:
+        return DEFAULT_TRANSCRIPTION_MODEL
+    if len(name) > _MAX_MODEL_NAME_LENGTH:
+        raise ValueError(f"{label} must be at most {_MAX_MODEL_NAME_LENGTH} characters.")
+    return name
+
+
+# A Go duration string with a unit ("30s", "5m", "1h"), "0" (unload the model
+# immediately), or "-1" (keep it loaded indefinitely). Blank keeps Ollama's
+# own default.
+_KEEP_ALIVE_PATTERN = re.compile(r"^(-1|0|[1-9]\d*(\.\d+)?(ns|us|µs|ms|s|m|h))$")
+
+
+def _validate_transcription_keep_alive(value: str, label: str) -> str:
+    text = value.strip()
+    if not text:
+        return DEFAULT_TRANSCRIPTION_KEEP_ALIVE
+    if _KEEP_ALIVE_PATTERN.match(text):
+        return text
+    raise ValueError(f"{label} must be a duration string such as 30s, 5m or 1h, or 0 to unload immediately, or -1 to keep the model loaded.")
 
 
 def _validate_server_port(value: str, label: str) -> str:
@@ -295,12 +340,39 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         DICTATION_ENABLED_KEY,
         "Dictation",
         "Enable the dictation button in the search field. A short clip is"
-        " recorded in the browser and transcribed locally with Whisper,"
-        " served by the managed whisper-server process. Disable to hide the"
-        " button and turn the transcription API off; while disabled the"
-        " Whisper model is never downloaded or loaded.",
+        " recorded in the browser and transcribed on the Ollama server configured"
+        " below, with the Qwen3-ASR model. Disable to hide the button and turn"
+        " the transcription API off.",
         _validate_dictation_enabled,
         input_type="checkbox",
+    ),
+    ConfigField(
+        TRANSCRIPTION_ENDPOINT_KEY,
+        "Transcription server",
+        "Ollama server used to transcribe dictation, for example http://localhost:11434."
+        " The server and its models are managed independently of RecipeServer;"
+        " leave blank to use the default. The recommended model is pulled with"
+        " 'ollama pull hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0'.",
+        _validate_transcription_endpoint,
+        input_type="url",
+        placeholder=DEFAULT_TRANSCRIPTION_ENDPOINT,
+    ),
+    ConfigField(
+        TRANSCRIPTION_MODEL_KEY,
+        "Transcription model",
+        "The Ollama model used for dictation. Defaults to the Qwen3-ASR model;" " it must support audio input. Leave blank to use the default.",
+        _validate_transcription_model,
+        placeholder=DEFAULT_TRANSCRIPTION_MODEL,
+    ),
+    ConfigField(
+        TRANSCRIPTION_KEEP_ALIVE_KEY,
+        "Transcription keep-alive",
+        "How long the transcription model stays loaded after a dictation, as an"
+        " Ollama keep_alive value: a duration string such as 30s, 5m or 1h,"
+        " 0 to unload immediately, or -1 to keep it loaded indefinitely."
+        " Leave blank to use Ollama's default (5m).",
+        _validate_transcription_keep_alive,
+        placeholder="5m",
     ),
     ConfigField(
         TIMELINE_RETENTION_KEY,
@@ -363,6 +435,9 @@ class Configuration:
         self._server_bind_address: str = DEFAULT_SERVER_BIND_ADDRESS
         self._food_color: str = DEFAULT_FOOD_COLOR
         self._dictation_enabled: bool = DEFAULT_DICTATION_ENABLED
+        self._transcription_endpoint: str = DEFAULT_TRANSCRIPTION_ENDPOINT
+        self._transcription_model: str = DEFAULT_TRANSCRIPTION_MODEL
+        self._transcription_keep_alive: str = DEFAULT_TRANSCRIPTION_KEEP_ALIVE
         self._timeline_retention: str = DEFAULT_TIMELINE_RETENTION
         self.new_recipe_prompt: str = ""
         self.new_recipe_from_image_prompt: str = ""
@@ -464,6 +539,42 @@ class Configuration:
         except ValueError:
             logger.warning(f"Ignoring invalid {DICTATION_ENABLED_KEY} value {value!r}; using default {DEFAULT_DICTATION_ENABLED}")
             self._dictation_enabled = DEFAULT_DICTATION_ENABLED
+
+    @property
+    def transcription_endpoint(self) -> str:
+        return self._transcription_endpoint
+
+    @transcription_endpoint.setter
+    def transcription_endpoint(self, value) -> None:
+        try:
+            self._transcription_endpoint = _validate_transcription_endpoint(str(value), "Transcription server")
+        except ValueError:
+            logger.warning(f"Ignoring invalid {TRANSCRIPTION_ENDPOINT_KEY} value {value!r}; using default {DEFAULT_TRANSCRIPTION_ENDPOINT}")
+            self._transcription_endpoint = DEFAULT_TRANSCRIPTION_ENDPOINT
+
+    @property
+    def transcription_model(self) -> str:
+        return self._transcription_model
+
+    @transcription_model.setter
+    def transcription_model(self, value) -> None:
+        try:
+            self._transcription_model = _validate_transcription_model(str(value), "Transcription model")
+        except ValueError:
+            logger.warning(f"Ignoring invalid {TRANSCRIPTION_MODEL_KEY} value {value!r}; using default {DEFAULT_TRANSCRIPTION_MODEL}")
+            self._transcription_model = DEFAULT_TRANSCRIPTION_MODEL
+
+    @property
+    def transcription_keep_alive(self) -> str:
+        return self._transcription_keep_alive
+
+    @transcription_keep_alive.setter
+    def transcription_keep_alive(self, value) -> None:
+        try:
+            self._transcription_keep_alive = _validate_transcription_keep_alive(str(value), "Transcription keep-alive")
+        except ValueError:
+            logger.warning(f"Ignoring invalid {TRANSCRIPTION_KEEP_ALIVE_KEY} value {value!r}; using default {DEFAULT_TRANSCRIPTION_KEEP_ALIVE!r}")
+            self._transcription_keep_alive = DEFAULT_TRANSCRIPTION_KEEP_ALIVE
 
     @property
     def timeline_retention(self) -> str:
@@ -735,7 +846,9 @@ class Configuration:
             f" image analysis model={self.image_analysis_model or '(auto)'},"
             f" server name={self.recipe_server_name!r},"
             f" port={self.server_port}, bind address={self.server_bind_address}, food color={self.food_color},"
-            f" dictation={self.dictation_enabled}, timeline retention={self.timeline_retention})"
+            f" dictation={self.dictation_enabled}, transcription endpoint={self.transcription_endpoint},"
+            f" transcription model={self.transcription_model}, transcription keep-alive={self.transcription_keep_alive or '(ollama default)'},"
+            f" timeline retention={self.timeline_retention})"
         )
         config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text("\n".join(lines) + "\n", encoding="UTF-8")
@@ -790,11 +903,21 @@ class Configuration:
             self.food_color = settings[FOOD_COLOR_KEY]
         if DICTATION_ENABLED_KEY in settings:
             self.dictation_enabled = settings[DICTATION_ENABLED_KEY]
+        if TRANSCRIPTION_ENDPOINT_KEY in settings:
+            self.transcription_endpoint = settings[TRANSCRIPTION_ENDPOINT_KEY]
+        if TRANSCRIPTION_MODEL_KEY in settings:
+            self.transcription_model = settings[TRANSCRIPTION_MODEL_KEY]
+        if TRANSCRIPTION_KEEP_ALIVE_KEY in settings:
+            self.transcription_keep_alive = settings[TRANSCRIPTION_KEEP_ALIVE_KEY]
         if TIMELINE_RETENTION_KEY in settings:
             self.timeline_retention = settings[TIMELINE_RETENTION_KEY]
         logger.debug(
             f"Configured server port: {self.server_port}, bind address: {self.server_bind_address}, food color: {self.food_color},"
             f" dictation: {self.dictation_enabled}, timeline retention: {self.timeline_retention}"
+        )
+        logger.info(
+            f"Transcription (dictation) endpoint: {self.transcription_endpoint}"
+            f" (model: {self.transcription_model}, keep-alive: {self.transcription_keep_alive or 'ollama default'})"
         )
 
         if MODEL_ENDPOINT_KEY in settings:

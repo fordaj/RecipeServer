@@ -53,8 +53,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 - [server.py](server.py.md) — `ThreadingHTTPServer`, the `/api/*` routes
 - [history.py](history.py.md) — recipe revision history (immutable snapshots in the user-data directory)
 - [retention.py](retention.py.md) — timeline revision retention policies (GFS / Unlimited) that prune snapshots
-- [transcriber.py](transcriber.py.md) — local Whisper transcription for the dictation button
-- [whisper_server.py](whisper_server.py.md) — the whisper-server subprocess lifecycle (bundled binary, model download)
+- [transcriber.py](transcriber.py.md) — Ollama Qwen3-ASR transcription for the dictation button
 - [ai_recipe.py](ai_recipe.py.md) — optional Ollama integration, recipe drafting
 - [ai_assistant.py](ai_assistant.py.md) — optional Ollama chat assistant behind the floating bubble
 - [metadata_options.py](metadata_options.py.md) — in-use metadata and feedback-name values for the dropdowns
@@ -69,6 +68,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 ## Also in this tree
 
 - `NewRecipePrompt.md`, `NewRecipeFromImagePrompt.md`, `FindOneForMePrompt.md` — model prompts, loaded at startup, not rendered as documentation
+- `TranscriptionTestSample.wav` — a bundled speech sample ("Add two cups of flour and one cup of sugar.") the Configuration dialog's **Test transcription** button posts through the transcription path to verify the configured Ollama server and model work
 - `assets/` — CSS, JavaScript, icons, fonts, and the vendored KaTeX distribution under `assets/katex/` (third-party; not documented file-by-file)
 
 ## Testing

@@ -16,6 +16,7 @@ import re
 import socket
 import sys
 import tempfile
+import time
 import uuid
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
@@ -39,7 +40,16 @@ from . import history as recipe_history
 from .retention import get_retention_manager
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
-from .config import Configuration, DEFAULT_SERVER_PORT
+from .config import (
+    Configuration,
+    DEFAULT_SERVER_PORT,
+    DEFAULT_TRANSCRIPTION_ENDPOINT,
+    DEFAULT_TRANSCRIPTION_KEEP_ALIVE,
+    DEFAULT_TRANSCRIPTION_MODEL,
+    _validate_transcription_endpoint,
+    _validate_transcription_keep_alive,
+    _validate_transcription_model,
+)
 from .image_handler import IMAGE_EXTENSIONS
 from .metadata_options import collect_metadata_options
 from .shopping_list import scrape_ingredients
@@ -102,8 +112,15 @@ TRANSCRIPTION_AUDIO_SUFFIXES = {
 # Longest recording the transcription endpoint accepts.
 MAX_TRANSCRIPTION_SIZE = 25 * 1024 * 1024
 
-# The shared transcriber; whisper-server is started on the first
-# transcription and stopped when the app shuts down.
+# Built-in speech sample the Configuration dialog posts through
+# /api/config/test-transcription to verify the configured Ollama server and
+# model actually transcribe audio ("Add two cups of flour and one cup of
+# sugar."). Bundled with the package; the browser microphone is not used.
+TRANSCRIPTION_TEST_SAMPLE_PATH = Path(__file__).resolve().parent / "TranscriptionTestSample.wav"
+
+# The shared transcriber. It is stateless — the Ollama server and its model
+# are managed independently of this app; each request reads the transcription
+# settings from the live configuration.
 transcriber = get_transcriber()
 
 # ----- Filename and metadata-field rules -----------------------------------
@@ -945,6 +962,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/bulk-editor": self._handle_bulk_editor_post,
             "/api/bulk-delete": self._handle_bulk_delete,
             "/api/config": self._handle_config_update,
+            "/api/config/test-transcription": self._handle_test_transcription,
             "/api/ai-recipe": self._handle_ai_recipe,
             "/api/ai-assistant": self._handle_ai_assistant,
             "/api/recipe": self._handle_recipe_create,
@@ -1276,6 +1294,20 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         """Report whether dictation is enabled in the saved configuration."""
         return getattr(self.config, "dictation_enabled", True) if self.config is not None else True
 
+    @staticmethod
+    def _transcription_settings(config) -> dict:
+        """Resolve the Ollama transcription settings for a request.
+
+        Reads the live configuration, falling back to the documented defaults
+        when the configuration is missing keys (or missing entirely, as in
+        some tests).
+        """
+        return {
+            "endpoint": getattr(config, "transcription_endpoint", "") or DEFAULT_TRANSCRIPTION_ENDPOINT,
+            "model": getattr(config, "transcription_model", "") or DEFAULT_TRANSCRIPTION_MODEL,
+            "keep_alive": getattr(config, "transcription_keep_alive", DEFAULT_TRANSCRIPTION_KEEP_ALIVE) or DEFAULT_TRANSCRIPTION_KEEP_ALIVE,
+        }
+
     def _handle_transcription(self) -> None:
         """Transcribe a recorded audio clip into text."""
         if not self._dictation_enabled():
@@ -1312,8 +1344,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(400, {"error": "Incomplete audio recording"})
             return
 
+        transcription = self._transcription_settings(self.config)
         try:
-            text = transcriber.transcribe(audio, suffix=suffix)
+            text = transcriber.transcribe(audio, suffix=suffix, **transcription)
         except TranscriberUnavailable as exc:
             logger.warning(f"Speech transcription is unavailable: {exc}")
             self._send_json(503, {"error": str(exc)})
@@ -1359,6 +1392,60 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 return
 
         self._send_json(200, {"success": True, "values": self.config.get_config_values(), "changed": changed})
+
+    def _handle_test_transcription(self) -> None:
+        """Verify the configured transcription server and model actually work.
+
+        Sends the bundled speech sample ("Add two cups of flour and one cup
+        of sugar.") through the same code path the dictation button uses.
+        The Configuration dialog posts its unsaved transcription field values
+        in the request body; anything absent falls back to the saved
+        configuration.
+        """
+        try:
+            payload = self._read_json_payload()
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
+            return
+
+        saved = self._transcription_settings(self.config)
+
+        def pick(key: str, fallback: str) -> str:
+            value = payload.get(key)
+            return str(value).strip() if value is not None else fallback
+
+        try:
+            settings = {
+                "endpoint": _validate_transcription_endpoint(pick("endpoint", saved["endpoint"]), "Transcription server"),
+                "model": _validate_transcription_model(pick("model", saved["model"]), "Transcription model"),
+                "keep_alive": _validate_transcription_keep_alive(pick("keep_alive", saved["keep_alive"]), "Transcription keep-alive"),
+            }
+        except ValueError as exc:
+            self._send_json(400, {"error": str(exc)})
+            return
+
+        try:
+            sample = TRANSCRIPTION_TEST_SAMPLE_PATH.read_bytes()
+        except OSError:
+            logger.exception(f"The bundled transcription test sample is missing: {TRANSCRIPTION_TEST_SAMPLE_PATH}")
+            self._send_json(500, {"error": "The bundled transcription test sample is missing"})
+            return
+
+        started = time.monotonic()
+        try:
+            text = transcriber.transcribe(sample, suffix=".wav", **settings)
+        except TranscriberUnavailable as exc:
+            logger.warning(f"Transcription test failed: {exc}")
+            self._send_json(503, {"error": str(exc)})
+            return
+        except Exception:
+            logger.exception("Transcription test failed")
+            self._send_json(500, {"error": "Transcription test failed"})
+            return
+
+        seconds = round(time.monotonic() - started, 2)
+        logger.info(f"Transcription test succeeded (endpoint={settings['endpoint']}, model={settings['model']}): {text!r}")
+        self._send_json(200, {"ok": True, "text": text, "seconds": seconds})
 
     def _handle_ai_recipe(self) -> None:
         try:

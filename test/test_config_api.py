@@ -15,7 +15,9 @@ from recipeserver.config import (
     RECIPE_SERVER_NAME_KEY,
     Configuration,
 )
+import recipeserver.server as server_module
 from recipeserver.server import RecipeRequestHandler
+from recipeserver.transcriber import TranscriberUnavailable
 
 
 @pytest.fixture
@@ -97,6 +99,9 @@ def test_get_config_returns_values_and_field_specs(config_server):
         "server_bind_address",
         "food_color",
         "dictation_enabled",
+        "transcription_endpoint",
+        "transcription_model",
+        "transcription_keep_alive",
         "timeline_retention",
     }
     for field in data["fields"]:
@@ -176,3 +181,83 @@ def test_post_config_switches_timeline_retention_and_persists_it(config_server):
     status, data = _post(base, "/api/config", {"values": {"timeline_retention": "yearly"}})
     assert status == 400
     assert config.timeline_retention == "unlimited"
+
+
+def test_post_config_test_transcription_runs_the_sample(config_server, monkeypatch):
+    base, config, _, _ = config_server
+    calls = {}
+
+    class FakeTranscriber:
+        def transcribe(self, audio, suffix=".wav", **kwargs):
+            calls["suffix"] = suffix
+            calls["audio_prefix"] = audio[:4]
+            calls.update(kwargs)
+            return "Add two cups of flour and one cup of sugar."
+
+    monkeypatch.setattr(server_module, "transcriber", FakeTranscriber())
+
+    status, data = _post(
+        base,
+        "/api/config/test-transcription",
+        {"endpoint": "http://localhost:11434", "model": "custom/audio-model:latest", "keep_alive": "10m"},
+    )
+
+    assert status == 200
+    assert data["ok"] is True
+    assert data["text"] == "Add two cups of flour and one cup of sugar."
+    assert isinstance(data["seconds"], (int, float))
+    # The unsaved field values from the dialog are used for the test.
+    assert calls["endpoint"] == "http://localhost:11434"
+    assert calls["model"] == "custom/audio-model:latest"
+    assert calls["keep_alive"] == "10m"
+    # The bundled sample is a real WAV file.
+    assert calls["audio_prefix"] == b"RIFF"
+
+
+def test_post_config_test_transcription_falls_back_to_saved_config(config_server, monkeypatch):
+    base, config, _, _ = config_server
+
+    calls = {}
+
+    class FakeTranscriber:
+        def transcribe(self, audio, suffix=".wav", **kwargs):
+            calls.update(kwargs)
+            return "ok"
+
+    monkeypatch.setattr(server_module, "transcriber", FakeTranscriber())
+
+    status, data = _post(base, "/api/config/test-transcription", {})
+
+    assert status == 200
+    assert data["ok"] is True
+    assert calls["endpoint"] == "http://localhost:11434"
+    assert data["text"] == "ok"
+
+
+def test_post_config_test_transcription_reports_an_unreachable_server(config_server, monkeypatch):
+    base, config, _, _ = config_server
+
+    class UnreachableTranscriber:
+        def transcribe(self, audio, suffix=".wav", **kwargs):
+            raise TranscriberUnavailable("The Ollama server at http://localhost:11434 is not reachable: Connection refused")
+
+    monkeypatch.setattr(server_module, "transcriber", UnreachableTranscriber())
+
+    status, data = _post(base, "/api/config/test-transcription", {})
+
+    assert status == 503
+    assert "not reachable" in data["error"]
+
+
+def test_post_config_test_transcription_rejects_an_invalid_override(config_server, monkeypatch):
+    base, config, _, _ = config_server
+
+    status, data = _post(base, "/api/config/test-transcription", {"endpoint": "ftp://nope"})
+
+    assert status == 400
+    assert "valid http" in data["error"]
+
+    status, data = _post(base, "/api/config/test-transcription", {"keep_alive": "forever"})
+
+    assert status == 400
+    assert "keep-alive" in data["error"]

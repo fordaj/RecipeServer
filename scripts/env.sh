@@ -48,6 +48,5 @@ case "${VERSIONER_BIN:-}" in "" | /*) ;; *) VERSIONER_BIN="$REPO_ROOT_DIR/$VERSI
 case "${LOGAMUFFIN_BIN:-}" in "" | /*) ;; *) LOGAMUFFIN_BIN="$REPO_ROOT_DIR/$LOGAMUFFIN_BIN" ;; esac
 case "${RUNNER_SPAWNER_BIN:-}" in "" | /*) ;; *) RUNNER_SPAWNER_BIN="$REPO_ROOT_DIR/$RUNNER_SPAWNER_BIN" ;; esac
 case "${BARNACLE_BIN:-}" in "" | /*) ;; *) BARNACLE_BIN="$REPO_ROOT_DIR/$BARNACLE_BIN" ;; esac
-case "${WHISPER_SERVER_BIN:-}" in "" | /*) ;; *) WHISPER_SERVER_BIN="$REPO_ROOT_DIR/$WHISPER_SERVER_BIN" ;; esac
 
 set +a

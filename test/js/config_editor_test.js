@@ -1,9 +1,10 @@
 "use strict";
 
-// Behavioural checks for the Configuration dialog's select fields (the
-// timeline_retention dropdown). The dialog builds its DOM from the server's
-// field specs; this verifies that a select field renders its options, tracks
-// changes, and is posted back to /api/config on save.
+// Behavioural checks for the Configuration dialog (the select field, the
+// transcription fields, and the Test transcription button). The dialog builds
+// its DOM from the server's field specs; this verifies that a select field
+// renders its options, tracks changes, posts current values through the
+// test endpoint, and is posted back to /api/config on save.
 
 const assert = require("node:assert/strict");
 const path = require("node:path");
@@ -30,9 +31,36 @@ const GET_PAYLOAD = {
     server_port: "8000",
     food_color: "#8d5542",
     dictation_enabled: "true",
+    transcription_endpoint: "http://localhost:11434",
+    transcription_model: "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
+    transcription_keep_alive: "",
     timeline_retention: "gfs",
   },
   fields: [
+    {
+      key: "transcription_endpoint",
+      label: "Transcription server",
+      help: "Ollama server used for dictation.",
+      input_type: "url",
+      placeholder: "http://localhost:11434",
+      required: false,
+    },
+    {
+      key: "transcription_model",
+      label: "Transcription model",
+      help: "The Ollama model used for dictation.",
+      input_type: "text",
+      placeholder: "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
+      required: false,
+    },
+    {
+      key: "transcription_keep_alive",
+      label: "Transcription keep-alive",
+      help: "Blank keeps Ollama's default.",
+      input_type: "text",
+      placeholder: "5m",
+      required: false,
+    },
     {
       key: "timeline_retention",
       label: "Timeline retention",
@@ -94,6 +122,7 @@ async function main() {
 
   let savedBody = null;
   let reloaded = false;
+  const testRequests = [];
   globalThis.window = {
     RecipeDialogs: { installClickOutsideClose: () => {} },
     location: {
@@ -103,9 +132,20 @@ async function main() {
     },
   };
   globalThis.document = document;
-  globalThis.fetch = async (_url, options) => {
+  globalThis.fetch = async (url, options) => {
     if (!options || !options.method) {
       return { ok: true, json: async () => GET_PAYLOAD };
+    }
+    if (url === "/api/config/test-transcription") {
+      testRequests.push(JSON.parse(options.body));
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          text: "Add two cups of flour and one cup of sugar.",
+          seconds: 0.4,
+        }),
+      };
     }
     savedBody = JSON.parse(options.body);
     return {
@@ -148,6 +188,24 @@ async function main() {
   select.dispatchEvent({ type: "change", target: select });
   const wrapper = select.closest(".config-editor__field");
   assert.ok(wrapper.classList.contains("is-changed"), "changed select is flagged");
+
+  // The Test transcription button posts the current field values and shows
+  // the server's result in the status line.
+  const testButton = collectElements(document.documentElement).find(
+    (node) => node.classList && node.classList.contains("config-editor__test"),
+  );
+  assert.ok(testButton, "test transcription button is rendered");
+  testButton.click();
+  await flush();
+  await flush();
+  assert.equal(testRequests.length, 1, "test button posts to /api/config/test-transcription");
+  assert.equal(testRequests[0].transcription_endpoint, "http://localhost:11434");
+  assert.equal(testRequests[0].transcription_model, "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0");
+  const status = collectElements(document.documentElement).find(
+    (node) => node.classList && node.classList.contains("config-editor__status"),
+  );
+  assert.match(status.textContent, /Test passed/);
+  assert.match(status.textContent, /two cups of flour/);
 
   const form = document.querySelector(".config-editor");
   form.dispatchEvent({ type: "submit", target: form, preventDefault() {} });

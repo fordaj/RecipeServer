@@ -5,6 +5,7 @@
 // configuration keys appear here without client changes.
 
 const CONFIG_EDITOR_API = "/api/config";
+const TRANSCRIPTION_TEST_API = "/api/config/test-transcription";
 const CONFIG_EDITOR_HOOK = "[data-config]";
 // TCP port ceiling, mirroring MAX_PORT on the server.
 const MAX_SERVER_PORT = 65535;
@@ -22,6 +23,8 @@ let statusLine = null;
 let saveButton = null;
 let cancelButton = null;
 let closeButton = null;
+let testButton = null;
+let testing = false;
 
 function element(tag, className, textContent) {
   const node = document.createElement(tag);
@@ -36,10 +39,12 @@ function setBusy(busy) {
   saveButton.disabled = busy;
   cancelButton.disabled = busy;
   closeButton.disabled = busy;
+  testButton.disabled = busy || testing;
 }
 
-function setStatus(message) {
+function setStatus(message, { ok = false } = {}) {
   statusLine.textContent = message || "";
+  statusLine.classList.toggle("config-editor__status--ok", ok && Boolean(message));
 }
 
 // The serialised value of a field: checkboxes are "true"/"false",
@@ -145,6 +150,49 @@ function closeEditor() {
   if (dialog.open) dialog.close();
 }
 
+// Send the bundled speech sample through the configured transcription
+// server/model and report the transcript. Tests the field values as they
+// are in the dialog, so an unsaved change can be verified before saving.
+async function testTranscription() {
+  if (state.busy || testing) return;
+
+  const values = {};
+  for (const key of ["transcription_endpoint", "transcription_model", "transcription_keep_alive"]) {
+    const input = state.inputs.get(key);
+    if (input) values[key] = fieldValue(input);
+  }
+
+  testing = true;
+  testButton.disabled = true;
+  setStatus("Testing the transcription model…");
+
+  try {
+    const response = await fetch(TRANSCRIPTION_TEST_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(values),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "The transcription test failed.");
+
+    const seconds = typeof data.seconds === "number" ? `${data.seconds}s — ` : "";
+    const text = String(data.text || "").trim();
+    setStatus(
+      `Test passed (${seconds}${text ? `“${truncate(text, 120)}”` : "empty transcription"})`,
+      { ok: true },
+    );
+  } catch (error) {
+    setStatus(error.message || "The transcription test failed.");
+  } finally {
+    testing = false;
+    testButton.disabled = state.busy;
+  }
+}
+
+function truncate(text, max) {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
 async function openEditor() {
   if (state.busy) return;
   setBusy(true);
@@ -225,12 +273,21 @@ function createEditorDialog() {
   statusLine.setAttribute("role", "status");
 
   const footer = element("footer", "config-editor__footer");
+  testButton = element("button", "config-editor__test", "Test transcription");
+  testButton.type = "button";
+  testButton.setAttribute(
+    "aria-label",
+    "Send a test recording to the configured transcription server",
+  );
+  testButton.addEventListener("click", () => {
+    void testTranscription();
+  });
   cancelButton = element("button", "config-editor__cancel", "Cancel");
   cancelButton.type = "button";
   cancelButton.addEventListener("click", closeEditor);
   saveButton = element("button", "config-editor__save", "Save");
   saveButton.type = "submit";
-  footer.append(cancelButton, saveButton);
+  footer.append(testButton, cancelButton, saveButton);
 
   form.append(header, fieldsContainer, statusLine, footer);
   form.addEventListener("submit", saveEditor);

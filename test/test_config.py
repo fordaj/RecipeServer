@@ -10,12 +10,18 @@ from recipeserver.config import (
     DEFAULT_SERVER_BIND_ADDRESS,
     DEFAULT_SERVER_PORT,
     DEFAULT_TIMELINE_RETENTION,
+    DEFAULT_TRANSCRIPTION_ENDPOINT,
+    DEFAULT_TRANSCRIPTION_KEEP_ALIVE,
+    DEFAULT_TRANSCRIPTION_MODEL,
     FOOD_COLOR_KEY,
     DICTATION_ENABLED_KEY,
     DEFAULT_DICTATION_ENABLED,
     IMAGE_ANALYSIS_MODEL_KEY,
     MODEL_ENDPOINT_KEY,
     MODEL_NAME_KEY,
+    TRANSCRIPTION_ENDPOINT_KEY,
+    TRANSCRIPTION_KEEP_ALIVE_KEY,
+    TRANSCRIPTION_MODEL_KEY,
     RECIPE_SERVER_NAME_KEY,
     SERVER_BIND_ADDRESS_KEY,
     SERVER_PORT_KEY,
@@ -121,6 +127,9 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
         SERVER_BIND_ADDRESS_KEY: "0.0.0.0",
         FOOD_COLOR_KEY: "#8d5542",
         DICTATION_ENABLED_KEY: True,
+        TRANSCRIPTION_ENDPOINT_KEY: "http://localhost:11434",
+        TRANSCRIPTION_MODEL_KEY: "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
+        TRANSCRIPTION_KEEP_ALIVE_KEY: "",
         TIMELINE_RETENTION_KEY: "gfs",
     }
 
@@ -626,3 +635,108 @@ def test_field_specs_expose_bind_address_as_a_text_field(tmp_path, monkeypatch):
 
     assert specs[SERVER_BIND_ADDRESS_KEY]["input_type"] == "text"
     assert specs[SERVER_BIND_ADDRESS_KEY]["required"] is True
+
+
+def test_configuration_defaults_to_ollama_transcription(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    assert config.transcription_endpoint == DEFAULT_TRANSCRIPTION_ENDPOINT == "http://localhost:11434"
+    assert config.transcription_model == DEFAULT_TRANSCRIPTION_MODEL == "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0"
+    assert config.transcription_keep_alive == DEFAULT_TRANSCRIPTION_KEEP_ALIVE == ""
+
+    saved = _toml(config_file)
+    assert saved[TRANSCRIPTION_ENDPOINT_KEY] == "http://localhost:11434"
+    assert saved[TRANSCRIPTION_MODEL_KEY] == "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0"
+    assert saved[TRANSCRIPTION_KEEP_ALIVE_KEY] == ""
+
+
+def test_configuration_reads_and_persists_transcription_settings(tmp_path, monkeypatch):
+    extra = (
+        f'{TRANSCRIPTION_ENDPOINT_KEY} = "http://127.0.0.1:11435"\n'
+        f'{TRANSCRIPTION_MODEL_KEY} = "custom/audio-model:Q8_0"\n'
+        f'{TRANSCRIPTION_KEEP_ALIVE_KEY} = "10m"\n'
+    )
+    config, config_file = _load_config(tmp_path, monkeypatch, extra)
+
+    assert config.transcription_endpoint == "http://127.0.0.1:11435"
+    assert config.transcription_model == "custom/audio-model:Q8_0"
+    assert config.transcription_keep_alive == "10m"
+
+    saved = _toml(config_file)
+    assert saved[TRANSCRIPTION_ENDPOINT_KEY] == "http://127.0.0.1:11435"
+    assert saved[TRANSCRIPTION_MODEL_KEY] == "custom/audio-model:Q8_0"
+    assert saved[TRANSCRIPTION_KEEP_ALIVE_KEY] == "10m"
+
+
+def test_apply_config_values_round_trips_transcription_settings(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    changed = config.apply_config_values(
+        {
+            TRANSCRIPTION_ENDPOINT_KEY: "127.0.0.1:11435",  # scheme is added
+            TRANSCRIPTION_MODEL_KEY: "custom/audio-model:Q8_0",
+            TRANSCRIPTION_KEEP_ALIVE_KEY: "-1",
+        }
+    )
+
+    assert set(changed) == {TRANSCRIPTION_ENDPOINT_KEY, TRANSCRIPTION_MODEL_KEY, TRANSCRIPTION_KEEP_ALIVE_KEY}
+    assert config.transcription_endpoint == "http://127.0.0.1:11435"
+    assert config.transcription_model == "custom/audio-model:Q8_0"
+    assert config.transcription_keep_alive == "-1"
+
+    saved = _toml(config_file)
+    assert saved[TRANSCRIPTION_ENDPOINT_KEY] == "http://127.0.0.1:11435"
+    assert saved[TRANSCRIPTION_MODEL_KEY] == "custom/audio-model:Q8_0"
+    assert saved[TRANSCRIPTION_KEEP_ALIVE_KEY] == "-1"
+
+
+def test_apply_config_values_rejects_invalid_transcription_values(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="Transcription server"):
+        config.apply_config_values({TRANSCRIPTION_ENDPOINT_KEY: "ftp://host"})
+    with pytest.raises(ValueError, match="keep-alive"):
+        config.apply_config_values({TRANSCRIPTION_KEEP_ALIVE_KEY: "forever"})
+
+    assert config.transcription_endpoint == DEFAULT_TRANSCRIPTION_ENDPOINT
+    assert config.transcription_keep_alive == DEFAULT_TRANSCRIPTION_KEEP_ALIVE
+
+
+def test_transcription_keep_alive_accepts_supported_spellings(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    for value in ["30s", "5m", "1h", "0", "-1", "250ms"]:
+        config.apply_config_values({TRANSCRIPTION_KEEP_ALIVE_KEY: value})
+        assert config.transcription_keep_alive == value
+
+
+def test_blank_transcription_values_fall_back_to_defaults(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    changed = config.apply_config_values(
+        {
+            TRANSCRIPTION_ENDPOINT_KEY: "",
+            TRANSCRIPTION_MODEL_KEY: "",
+            TRANSCRIPTION_KEEP_ALIVE_KEY: "",
+        }
+    )
+
+    assert changed == []
+    assert config.transcription_endpoint == DEFAULT_TRANSCRIPTION_ENDPOINT
+    assert config.transcription_model == DEFAULT_TRANSCRIPTION_MODEL
+    assert config.transcription_keep_alive == ""
+
+
+def test_field_specs_expose_transcription_fields(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    specs = {field["key"]: field for field in config.field_specs()}
+
+    assert specs[TRANSCRIPTION_ENDPOINT_KEY]["input_type"] == "url"
+    assert specs[TRANSCRIPTION_MODEL_KEY]["input_type"] == "text"
+    assert specs[TRANSCRIPTION_KEEP_ALIVE_KEY]["input_type"] == "text"
+    assert specs[TRANSCRIPTION_ENDPOINT_KEY]["help"]
+    assert specs[TRANSCRIPTION_MODEL_KEY]["help"]
+    assert specs[TRANSCRIPTION_KEEP_ALIVE_KEY]["help"]

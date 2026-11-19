@@ -112,8 +112,18 @@
   color: var(--danger-color);
 }
 
+.config-editor__status--ok {
+  color: var(--food-color);
+}
+
 .config-editor__status:empty {
   visibility: hidden;
+}
+
+/* The Test transcription button sits on the left side of the footer; the
+   Cancel/Save pair stays on the right. */
+.config-editor__test {
+  margin-right: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

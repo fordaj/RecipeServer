@@ -183,11 +183,22 @@ tailscale serve --bg http://127.0.0.1:8000
 
 The proxy must forward to `http://127.0.0.1:8000` and set `X-Forwarded-Proto: https` (Caddy and Tailscale do this by default). Caddy and Cloudflare Tunnel work the same way.
 
-The recording is transcribed on this machine with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) through the `whisper-server` binary in the [fordaj/whisper-native](https://github.com/fordaj/whisper-native) release, bundled under `tools/whisper-native/`; no audio leaves the machine. The `base` model is used by default and its weights are downloaded from Hugging Face the first time a recording is transcribed, so the first dictation needs an internet connection and can take a minute or two. Set `RECIPE_SERVER_WHISPER_MODEL` to another model size (`tiny`, `base.en`, `small`, …) to trade accuracy for speed. RecipeServer manages the `whisper-server` process for you: it starts on the first transcription and stops when the app shuts down.
+The recording is transcribed on this machine by an [Ollama](https://ollama.com) server that you manage independently — RecipeServer never downloads, installs, launches, or otherwise manages Ollama or its models; it only sends the audio and reads back the transcript. The default model is [`hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0`](https://huggingface.co/ggml-org/Qwen3-ASR-0.6B-GGUF), a small Qwen3-ASR speech-recognition model Ollama runs natively; over plain HTTP on localhost the audio does not leave the machine.
 
-Dictation is on by default and can be switched off with the **Dictation** checkbox in the Configuration dialog (or the `dictation_enabled` key in `recipe-server-cfg.toml`). When it is off, no button is rendered, `POST /api/transcribe` answers 403, and no Whisper model is downloaded or loaded.
+Set it up once:
 
-If the first dictation fails because the proxy gave up waiting for the model to download, raise the proxy's read timeout — nginx, for example, defaults to 60 seconds — or dictate again: the model stays loaded in memory after the first attempt.
+```powershell
+# Install Ollama from https://ollama.com, then pull the model:
+ollama pull hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0
+```
+
+Ollama must be running (it normally runs as a background service after installation) and reachable at the **Transcription server** configured in **Configuration** on the home page — `http://localhost:11434` by default, with the model name in **Transcription model**. The first dictation after a cold start loads the model into memory, which can take a few seconds; afterwards it stays loaded for the keep-alive set in **Transcription keep-alive** (Ollama's default: 5 minutes), and transcriptions take a fraction of a second.
+
+The **Test transcription** button at the bottom-left of the Configuration dialog verifies the configured server and model actually work: it sends a bundled speech sample ("Add two cups of flour and one cup of sugar.") through the same code path the dictation button uses, and reports the transcript or the error.
+
+Dictation is on by default and can be switched off with the **Dictation** checkbox in the Configuration dialog (or the `dictation_enabled` key in `recipe-server-cfg.toml`). When it is off, no button is rendered and `POST /api/transcribe` answers 403.
+
+If the first dictation fails because the model is still loading, dictate again — the cold-start load is a normal one-time cost; the audio pipeline itself is unchanged.
 
 ## Recipe layout
 
@@ -296,7 +307,7 @@ RecipeServer uses the operating system's application-data directory:
 
 Inside that directory:
 
-- `recipe-server-cfg.toml` (TOML) holds the configuration: the `source_directory` path, the `recipe_server_name`, optional `model_endpoint`, `all_purpose_model_name`, and `image_analysis_model` keys for the local AI integration, the `dictation_enabled` switch, and the `timeline_retention` policy (`gfs` by default, or `unlimited`). A legacy `config.txt` file is migrated automatically on startup.
+- `recipe-server-cfg.toml` (TOML) holds the configuration: the `source_directory` path, the `recipe_server_name`, optional `model_endpoint`, `all_purpose_model_name`, and `image_analysis_model` keys for the local AI integration, the `dictation_enabled` switch, the `transcription_endpoint` (`http://localhost:11434` by default), `transcription_model` (`hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0` by default), and optional `transcription_keep_alive` (blank for Ollama's default) keys for dictation, and the `timeline_retention` policy (`gfs` by default, or `unlimited`). A legacy `config.txt` file is migrated automatically on startup.
 - `site/` contains the generated website.
 - `history/recipes/<recipe-id>/` holds the version history: one `<snapshot-id>.md` per saved version. It is an application-managed revision history — not a backup — and is never placed in your recipe folders. Revisions are pruned automatically in the background according to the `timeline_retention` policy (GFS by default). See [Recipe version history](#recipe-version-history).
 
@@ -325,9 +336,10 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 - **Dictation returns "Speech transcription requires an HTTPS connection":** The proxy forwarded the request without the `X-Forwarded-Proto` header (or with `http`). Configure the proxy to forward the original protocol.
 - **Dictation returns "Nothing was heard. Try again.":** The model did not recognise anything in the recording. Speak closer to the microphone and hold the button a little longer.
 - **Dictation returns "Dictation is disabled in the server configuration":** Dictation is switched off. Enable the **Dictation** checkbox in **Configuration** on the home page, or set `dictation_enabled = true` in `recipe-server-cfg.toml`.
-- **Dictation fails with "whisper-server was not found":** The bundled binary is missing for this platform. Run `tools/whisper-native/update.sh` to download the release, or set `WHISPER_SERVER_BIN` to a `whisper-server` binary.
-- **Dictation fails when the model cannot be downloaded:** The first transcription downloads the ggml weights from Hugging Face. Check the network connection, or download `ggml-base.bin` manually and place it in `<user-data>/recipe-server/models/`.
-- **The first dictation takes a long time and the proxy times out:** The model weights are downloaded on the first transcription. Raise the proxy's read timeout (nginx defaults to 60 seconds) or dictate again — the model stays loaded after that.
+- **Dictation fails with "The Ollama server at … is not reachable":** Ollama is not running or not reachable at the **Transcription server** address. Start the Ollama service and check the URL in **Configuration** (`http://localhost:11434` by default).
+- **Dictation fails with "The model … is not installed on the Ollama server":** Pull the model first: `ollama pull hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0` (or the model you configured).
+- **The first dictation takes a long time:** The model is loaded on first use; cold-start load can take a few seconds. Dictate again once it has loaded — inference itself takes well under a second on most machines.
+- **The Test transcription button reports a failure:** It reports the exact problem — an unreachable server, a missing model (`ollama pull …` fixes it), or an authentication/HTTP error from the Ollama server. Check the **Transcription server**, **Transcription model**, and **Transcription keep-alive** values in **Configuration**; they are tested before anything is saved.
 
 ## Development
 
@@ -396,26 +408,34 @@ tests fail in CI and skip locally (set `CI=true` to force the failure).
 
 ### Speech transcription tests
 
-The dictation feature is covered by tests that need no model: `test/test_transcriber.py`
+The dictation feature is covered by tests that need no running model: `test/test_transcriber.py`
 decodes real recordings (Opus in WebM, AAC in MP4, and WAV) with the installed
-PyAV, `test/test_whisper_server.py` covers the subprocess lifecycle against a
-stub server, and `test/test_speech_button.py` posts those recordings through the
+PyAV and exercises the Ollama chat API against mocked HTTP responses
+(request construction, response normalization, error handling, keep-alive),
+and `test/test_speech_button.py` posts those recordings through the
 `/api/transcribe` endpoint. The recorded phrase lives in `test/fixtures/speech/`.
 
-The tests that run the real Whisper model are skipped by default, because they
-download the model weights. Run them with:
+The tests that run against a real Ollama server are skipped by default, because they
+require the model to be installed. Run them with:
 
 ```bash
-RECIPE_SERVER_TEST_WHISPER=1 uv run pytest test/test_speech_model.py
+ollama pull hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0
+RECIPE_SERVER_TEST_OLLAMA=1 uv run pytest test/test_transcription_live.py
 ```
 
-| Variable                           | Default                            | Purpose                                                  |
-| ---------------------------------- | ---------------------------------- | -------------------------------------------------------- |
-| `RECIPE_SERVER_TEST_WHISPER`       | unset                              | Set to `1` to run the tests that use the real model.     |
-| `RECIPE_SERVER_TEST_WHISPER_MODEL` | `tiny`                             | Model size for those tests (`tiny`, `base`, `small`, …). |
-| `RECIPE_SERVER_WHISPER_MODEL`      | `base`                             | Model size the app uses.                                 |
-| `RECIPE_SERVER_WHISPER_MODEL_DIR`  | `<user-data>/recipe-server/models` | Where the downloaded ggml weights are kept.              |
-| `WHISPER_SERVER_BIN`               | bundled `tools/whisper-native/…`   | Points at the `whisper-server` binary to manage.         |
+| Variable                     | Default                                   | Purpose                                 |
+| ---------------------------- | ----------------------------------------- | --------------------------------------- |
+| `RECIPE_SERVER_TEST_OLLAMA`  | unset                                     | Set to `1` to run the live-model tests. |
+| `RECIPE_SERVER_OLLAMA_URL`   | `http://localhost:11434`                  | The Ollama server the tests use.        |
+| `RECIPE_SERVER_OLLAMA_MODEL` | `hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0` | The model the tests transcribe with.    |
+
+Manual verification against the real Q8_0 model on an Apple-Silicon or CUDA GPU:
+run the live tests above with `ollama ps` before and after to confirm the model
+is loaded and stays loaded per the configured keep-alive; transcription of the
+bundled sample ("Add two cups of flour and one cup of sugar.") completes in
+well under a second once the model is warm. GPU acceleration comes from
+Ollama itself (it detects and uses the available GPU); RecipeServer does not
+and cannot inspect or manage it.
 
 Writing new tests:
 
@@ -511,8 +531,7 @@ src/recipeserver/
 ├── server.py               # HTTP server and JSON APIs
 ├── history.py              # recipe version history (snapshots in the user-data directory)
 ├── retention.py            # timeline revision retention (GFS default / Unlimited)
-├── transcriber.py          # dictation: PyAV decode + whisper-server HTTP client
-├── whisper_server.py       # whisper-server subprocess lifecycle and model download
+├── transcriber.py          # dictation: PyAV decode + Ollama Qwen3-ASR client
 ├── tray.py                 # system tray icon and menu
 ├── NewRecipePrompt.md      # model prompt requirements, reloaded at startup
 └── assets/                 # CSS, JavaScript, icons, and vendored KaTeX
