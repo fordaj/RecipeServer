@@ -850,7 +850,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         # heuristic caching: the static-file fallback always sends
         # Last-Modified, so `no-cache` still allows cheap 304s while making
         # sure a rebuilt asset is picked up on the next load.
-        path = urlsplit(self.path).path
+        # `self.path` does not exist yet when an error response is issued
+        # before the request line was parsed (any byte sequence the parser
+        # rejects — e.g. a client speaking TLS at this plain-HTTP port).
+        # `end_headers` must still emit the response: a proxy in front of
+        # this server turns a connection that closes with zero bytes into
+        # a 502 Bad Gateway instead of the 400 it should be.
+        path = urlsplit(getattr(self, "path", "") or "").path
         if not self._has_buffered_header(b"cache-control"):
             if path.endswith(".html") or path.endswith("/"):
                 self.send_header("Cache-Control", "no-store")
@@ -2769,8 +2775,25 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 # ---------------------------------------------------------------------------
 
 
-class _ThreadingHTTPServerIPv6(ThreadingHTTPServer):
-    """ThreadingHTTPServer that listens on IPv6 sockets."""
+# The default socketserver listen backlog is 5. Windows answers a
+# connection that arrives with a full backlog with an explicit reset
+# (WSAECONNREFUSED) instead of silently dropping the SYN for the client to
+# retransmit, as Linux and macOS do — so a burst of upstream connections
+# from a reverse proxy (several connections per page load through an HTTPS
+# terminator) surfaced as intermittent 502 Bad Gateway for the page's
+# assets. 128 covers any browser's parallel-asset burst in the kernel
+# instead of refusing the extra connections.
+LISTEN_BACKLOG = 128
+
+
+class _RecipeThreadingHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer with a listen backlog large enough for bursty clients."""
+
+    request_queue_size = LISTEN_BACKLOG
+
+
+class _ThreadingHTTPServerIPv6(_RecipeThreadingHTTPServer):
+    """Listen-backlog-enlarged ThreadingHTTPServer that listens on IPv6 sockets."""
 
     address_family = socket.AF_INET6
 
@@ -2845,7 +2868,7 @@ class Server:
             if ":" in bind:
                 http_server = _ThreadingHTTPServerIPv6((bind, self.port), handler)
             else:
-                http_server = ThreadingHTTPServer((bind, self.port), handler)
+                http_server = _RecipeThreadingHTTPServer((bind, self.port), handler)
         except OSError:
             logger.exception(f"Failed to start server on {bind}:{self.port}")
             raise
