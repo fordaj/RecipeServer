@@ -244,7 +244,11 @@
           throw new Error(result.error || "Transcription failed");
         }
 
-        const text = String(result.text || "").trim();
+        // A search query never needs the full stop the model closes
+        // utterances with, so the transcript must not end in one.
+        const text = String(result.text || "")
+          .trim()
+          .replace(/\.+$/, "");
 
         if (!text) {
           // Nothing was recognised: say so instead of quietly doing nothing.
