@@ -185,14 +185,22 @@ The proxy must forward to `http://127.0.0.1:8000` and set `X-Forwarded-Proto: ht
 
 The recording is transcribed on this machine by an [Ollama](https://ollama.com) server that you manage independently — RecipeServer never downloads, installs, launches, or otherwise manages Ollama or its models; it only sends the audio and reads back the transcript. The default model is [`hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0`](https://huggingface.co/ggml-org/Qwen3-ASR-0.6B-GGUF), a small Qwen3-ASR speech-recognition model Ollama runs natively; over plain HTTP on localhost the audio does not leave the machine.
 
-Set it up once:
+Setup:
 
-```powershell
-# Install Ollama from https://ollama.com, then pull the model:
-ollama pull hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0
-```
+1. Install Ollama from https://ollama.com.
+2. Pull the model:
 
-Ollama must be running (it normally runs as a background service after installation) and reachable at the **Transcription server** configured in **Configuration** on the home page — `http://localhost:11434` by default, with the model name in **Transcription model**. The first dictation after a cold start loads the model into memory, which can take a few seconds; afterwards it stays loaded for the keep-alive set in **Transcription keep-alive** (Ollama's default: 5 minutes), and transcriptions take a fraction of a second.
+   ```powershell
+   ollama pull hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0
+   ```
+
+3. Make sure Ollama is running (it normally runs as a background service after installation).
+4. Check the **Configuration** dialog on the home page: **Transcription server** is `http://localhost:11434` by default, **Transcription model** is the model name above by default. Change either if you run Ollama elsewhere or use another audio-capable model.
+5. Click **Test transcription** in the Configuration dialog to verify the setup; it sends a bundled speech sample through the exact path the dictation button uses.
+
+Audio requirements: the browser records in WebM/Opus (Safari: AAC/MP4) and RecipeServer decodes it to a 16 kHz mono signed-16-bit WAV before sending — the browser containers decode outside Ollama, and the model receives plain PCM. The audio travels base64-encoded inside a native Ollama `/api/chat` request (the message's `images` list, the transport the Qwen3-ASR GGUF expects); nothing else is transported. No special handling of volume, codec, or sample rate is required on your part — the decode normalizes all of it.
+
+Initial model loading and inference latency: the first dictation after a cold start loads the model into memory, which can take a few seconds on a GPU and longer on a CPU; inference itself completes in well under a second on most machines. The model then stays loaded for the keep-alive set in **Transcription keep-alive** (Ollama's default: 5 minutes). GPU acceleration is provided by Ollama itself (check `ollama ps` — it reports 100% GPU when available); RecipeServer delegates all inference to Ollama and cannot inspect or manage it.
 
 The **Test transcription** button at the bottom-left of the Configuration dialog verifies the configured server and model actually work: it sends a bundled speech sample ("Add two cups of flour and one cup of sugar.") through the same code path the dictation button uses, and reports the transcript or the error.
 
