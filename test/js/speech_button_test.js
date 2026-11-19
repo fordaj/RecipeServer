@@ -228,6 +228,47 @@ async function main() {
   assert.equal(secure.button.dataset.state, "error");
   assert.equal(secure.button.title, "Nothing was heard. Try again.");
 
+  // ----- A transcript with a trailing period lands without it ----- //
+  global.fetch = async () => ({
+    ok: true,
+    async json() {
+      return { text: "chocolate cake." };
+    },
+  });
+
+  const period = buildSearch(document);
+  window.initializeSpeechInputs();
+
+  period.button.click();
+  await tick();
+  period.button.click();
+  await tick();
+  await tick();
+
+  assert.equal(period.input.value, "chocolate cake", "the trailing period is stripped");
+  assert.equal(period.button.dataset.state, "complete");
+
+  // ----- A transcript that is only a period hears nothing ----- //
+  global.fetch = async () => ({
+    ok: true,
+    async json() {
+      return { text: "." };
+    },
+  });
+
+  const onlyPeriod = buildSearch(document);
+  window.initializeSpeechInputs();
+
+  onlyPeriod.button.click();
+  await tick();
+  onlyPeriod.button.click();
+  await tick();
+  await tick();
+
+  assert.equal(onlyPeriod.input.value, "", "nothing is typed into the search field");
+  assert.equal(onlyPeriod.button.dataset.state, "error");
+  assert.equal(onlyPeriod.button.title, "Nothing was heard. Try again.");
+
   // ----- A long press records and transcribes on release ----- //
   timers.length = 0;
   fetchCalls.length = 0;
