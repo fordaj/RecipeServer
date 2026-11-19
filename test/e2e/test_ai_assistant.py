@@ -169,6 +169,99 @@ def test_assistant_bubble_hides_on_scroll_down_and_returns_on_scroll_up(driver, 
     WebDriverWait(driver, 5).until(lambda d: "ai-assistant--hidden" not in assistant_class(d))
 
 
+def test_assistant_panel_grows_to_nearly_the_full_mobile_screen(driver, ai_configured_server):
+    driver.set_window_size(390, 844)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
+
+    # Fill the conversation so the panel grows past its minimum height.
+    driver.execute_script("""
+        const messages = document.querySelector('.ai-assistant__messages');
+        for (let i = 0; i < 40; i++) {
+          const bubble = document.createElement('div');
+          bubble.className = 'ai-assistant__message ai-assistant__message--assistant';
+          bubble.textContent = 'A reply with enough words to occupy a few lines in the conversation area. '.repeat(2);
+          messages.appendChild(bubble);
+        }
+        """)
+
+    rect = driver.execute_script("""
+        const r = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom, height: r.height, viewport: window.innerHeight };
+        """)
+
+    # It grows with the conversation up to nearly the whole visible screen,
+    # while staying anchored near the top (dvh accounts for the keyboard).
+    # A small tolerance absorbs the dvh/innerHeight rounding on some platforms.
+    assert rect["viewport"] * 0.85 < rect["height"] < rect["viewport"] * 1.05
+    assert rect["top"] >= -1
+
+
+def test_assistant_placeholder_is_not_clipped_by_the_dictation_layout(driver, ai_configured_server):
+    driver.set_window_size(1280, 800)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__input")
+
+    wraps = driver.execute_script("""
+        const input = document.querySelector('.ai-assistant__input');
+        // Reproduce the dictation layout (it reserves room for the inline
+        // mic), which is otherwise only used over HTTPS in this HTTP test.
+        input.parentElement.classList.add('ai-assistant__field--dictation');
+        const original = input.value;
+        input.value = input.placeholder;
+        const wraps = input.scrollHeight > input.clientHeight + 1;
+        input.value = original;
+        return wraps;
+        """)
+    assert wraps is False
+
+
+def test_pull_to_refresh_disabled_while_assistant_is_open(driver, ai_configured_server):
+    if not driver.execute_script("return typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined';"):
+        pytest.skip("Touch events are not available in this browser")
+
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+    WebDriverWait(driver, 5).until(lambda d: d.find_elements(By.CSS_SELECTOR, "#pull-to-refresh"))
+
+    # A short pull (below the refresh threshold) activates the indicator but
+    # does not reload the page, so the same gesture can be repeated.
+    pull = """
+      const fire = (type, y) => {
+        const touch = new Touch({ identifier: 1, target: document.body, clientX: 10, clientY: y });
+        return new TouchEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          touches: type === 'touchend' ? [] : [touch],
+          targetTouches: type === 'touchend' ? [] : [touch],
+          changedTouches: [touch],
+        });
+      };
+      window.scrollTo(0, 0);
+      document.dispatchEvent(fire('touchstart', 100));
+      const move = fire('touchmove', 150);
+      document.dispatchEvent(move);
+      const active = document.getElementById('pull-to-refresh').classList.contains('ptr-active');
+      document.dispatchEvent(fire('touchend', 150));
+      return { active, prevented: move.defaultPrevented };
+    """
+
+    # With the dialogue closed, pull-to-refresh responds as usual.
+    closed = driver.execute_script(pull)
+    assert closed["active"] is True
+    assert closed["prevented"] is True
+
+    # With the dialogue open, the same gesture is ignored entirely.
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
+    opened = driver.execute_script(pull)
+    assert opened["active"] is False
+    assert opened["prevented"] is False
+
+
 def test_assistant_long_press_does_not_offer_dictation_without_https(driver, ai_configured_server):
     # The site under test is plain HTTP, so dictation must stay off: a long
     # press on the bubble behaves like a normal tap (the panel toggles) and

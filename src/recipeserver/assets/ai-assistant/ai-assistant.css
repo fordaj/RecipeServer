@@ -579,7 +579,12 @@
     right: 0.5rem;
     left: 0.5rem;
     width: auto;
-    height: min(58dvh, 33rem);
+    /* Grow with the conversation from a comfortable minimum up to nearly
+       the whole screen. dvh tracks the visible viewport, so the ceiling
+       shrinks to the space left above the on-screen keyboard. */
+    height: auto;
+    min-height: min(58dvh, 33rem);
+    max-height: calc(100dvh - 0.75rem - env(safe-area-inset-top) - 0.5rem);
     transform-origin: bottom right;
   }
 

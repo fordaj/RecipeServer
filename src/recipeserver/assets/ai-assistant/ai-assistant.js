@@ -415,9 +415,11 @@
       this.input = createElement("textarea", "ai-assistant__input");
       this.input.rows = 1;
       this.input.maxLength = MAX_MESSAGE_CHARS;
-      this.input.placeholder = this.recipePath
-        ? "Ask anything, or request a change to this recipe…"
-        : "Ask anything…";
+      // Keep the placeholder short: the dictation variant reserves room for
+      // the inline mic, and a long placeholder wraps in the one-line textarea
+      // where its second line gets clipped. The composer's fuller hint lives
+      // in the intro message instead.
+      this.input.placeholder = this.recipePath ? "Ask about this recipe…" : "Ask anything…";
       this.input.setAttribute("aria-label", "Message the assistant");
 
       this.field.append(this.input);
