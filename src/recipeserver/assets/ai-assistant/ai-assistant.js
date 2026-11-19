@@ -5,6 +5,15 @@
 // the index page gets read-only answers. The conversation is ephemeral:
 // nothing is kept across page loads.
 //
+// Both the user's and the assistant's messages are rendered as Markdown
+// through POST /api/assistant-markdown — the same strategy the recipe pages
+// use — with inline-code quantities typeset by KaTeX at 1x scale. KaTeX is
+// loaded lazily on first rendered message (the shopping list does the same).
+//
+// When the model calls the open_recipe tool, the reply's `open` field tells
+// the browser which page to redirect to; the assistant cannot navigate
+// anywhere else.
+//
 // When dictation is enabled in the configuration and the page is served over
 // HTTPS (the same gate the search speech button uses), the bubble is
 // long-pressable: a microphone pops up directly above it while the user
@@ -14,11 +23,18 @@
 (() => {
   const AI_STATUS_API = "/api/ai-status";
   const ASSISTANT_API = "/api/ai-assistant";
+  const ASSISTANT_MARKDOWN_API = "/api/assistant-markdown";
   const TRANSCRIBE_URL = "/api/transcribe";
   const AI_ICON_URL = "/assets/ai.svg";
   const SEND_ICON_URL = "/assets/send.svg";
   const MICROPHONE_ICON_URL = "/assets/microphone.svg";
   const CHECKMARK_ICON_URL = "/assets/checkmark.svg";
+  const KATEX_CSS_URL = "/assets/katex/dist/katex.min.css";
+  const KATEX_JS_URL = "/assets/katex/dist/katex.min.js";
+  const KATEX_AUTO_RENDER_URL = "/assets/katex/dist/contrib/auto-render.min.js";
+  // Give the browser a moment to show the assistant's reply before the
+  // open_recipe redirect navigates the page away.
+  const OPEN_REDIRECT_DELAY_MS = 1200;
   // Keep the conversation short enough that Ollama gets a stable prompt.
   // The server enforces its own limits as well.
   const MAX_HISTORY_MESSAGES = 20;
@@ -82,6 +98,153 @@
     if (className) element.className = className;
     if (text !== undefined) element.textContent = text;
     return element;
+  }
+
+  // ----- Markdown rendering (lazy KaTeX) ----- //
+  // The recipe pages ship KaTeX on every page; the index does not, so the
+  // bubble loads it on first rendered message instead of every page view.
+
+  let katexPromise = null;
+
+  function loadScript(url) {
+    return new Promise((resolve, reject) => {
+      const SCRIPT_LOAD_TIMEOUT_MS = 8000;
+      const existing = document.querySelector(`script[src="${url}"]`);
+      if (existing && existing.dataset.loaded === "true") {
+        resolve();
+        return;
+      }
+
+      const script = existing ?? document.createElement("script");
+      let timeout = 0;
+      const cleanup = () => window.clearTimeout(timeout);
+      script.addEventListener("load", () => {
+        cleanup();
+        script.dataset.loaded = "true";
+        resolve();
+      });
+      script.addEventListener("error", () => {
+        cleanup();
+        reject(new Error(`Unable to load ${url}`));
+      });
+      timeout = window.setTimeout(() => {
+        // The tag exists but its load event already fired (eagerly loaded,
+        // e.g. on a recipe page, and failed there). Bounded wait, then fall back.
+        reject(new Error(`Timed out loading ${url}`));
+      }, SCRIPT_LOAD_TIMEOUT_MS);
+      if (!existing) {
+        script.src = url;
+        script.defer = true;
+        document.head.append(script);
+      }
+    });
+  }
+
+  function loadKatex() {
+    if (
+      typeof window.katex?.render === "function" &&
+      typeof window.renderMathInElement === "function"
+    ) {
+      return Promise.resolve();
+    }
+    if (katexPromise) {
+      return katexPromise;
+    }
+
+    katexPromise = (async () => {
+      if (!document.querySelector(`link[href="${KATEX_CSS_URL}"]`)) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = KATEX_CSS_URL;
+        document.head.append(link);
+      }
+
+      if (typeof window.katex?.render !== "function") {
+        await loadScript(KATEX_JS_URL);
+      }
+      if (typeof window.renderMathInElement !== "function") {
+        await loadScript(KATEX_AUTO_RENDER_URL);
+      }
+    })().catch((error) => {
+      katexPromise = null;
+      throw error;
+    });
+
+    return katexPromise;
+  }
+
+  // Server-side Markdown rendering (same pipeline as the recipe bodies).
+  async function fetchRenderedMarkdown(text) {
+    const response = await fetch(ASSISTANT_MARKDOWN_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ markdown: text }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result?.error || `Unable to render the message (HTTP ${response.status})`);
+    }
+    return typeof result?.html === "string" ? result.html : "";
+  }
+
+  // Typeset the server-emitted .quantity spans at 1x (the chat has no
+  // scaler controls), then the LaTeX math — the same order and the same
+  // delimiter set the recipe pages and the shopping list use.
+  function renderQuantities(bubble) {
+    // Top-level class in recipe-scaler.js: a global binding, not a window
+    // property (the same way the shopping list uses it).
+    if (typeof RecipeScaler === "undefined") {
+      return;
+    }
+
+    const scaler = RecipeScaler;
+
+    for (const element of bubble.querySelectorAll(".quantity")) {
+      const quantity = parseFloat(element.dataset.quantity);
+      const unit = element.dataset.unit ?? "";
+      if (!Number.isFinite(quantity)) {
+        continue;
+      }
+
+      let formatted = scaler.formatQuantity(quantity, unit);
+      let text = scaler.formatQuantityText(quantity, unit);
+      const endRaw = element.dataset.quantityEnd;
+      if (endRaw !== undefined) {
+        const end = parseFloat(endRaw);
+        if (Number.isFinite(end)) {
+          formatted = scaler.formatQuantityRange(quantity, end, 1, unit);
+          text = scaler.formatQuantityRangeText(quantity, end, 1, unit);
+        }
+      }
+
+      element.dataset.scaledText = text;
+      element.dataset.scaledQuantity = String(quantity);
+      scaler.renderQuantity(element, formatted);
+    }
+  }
+
+  async function renderMathInBubble(bubble) {
+    try {
+      await loadKatex();
+    } catch (error) {
+      // The page still shows the amounts as plain fractions; not fatal.
+      console.warn("KaTeX could not be loaded for the chat message.", error);
+      return;
+    }
+
+    renderQuantities(bubble);
+
+    if (typeof window.renderMathInElement === "function") {
+      window.renderMathInElement(bubble, {
+        delimiters: [
+          { left: "\\(", right: "\\)", display: false },
+          { left: "\\[", right: "\\]", display: true },
+        ],
+        ignoredClasses: ["quantity"],
+        throwOnError: false,
+      });
+    }
   }
 
   class AiAssistant {
@@ -790,7 +953,7 @@
 
     // ----- Conversation ----- //
 
-    appendMessage(role, text) {
+    async appendMessage(role, text) {
       this.messages.querySelector(".ai-assistant__message--intro")?.remove();
 
       const className =
@@ -800,8 +963,32 @@
             ? "ai-assistant__message ai-assistant__message--error"
             : "ai-assistant__message ai-assistant__message--assistant";
 
-      const bubble = createElement("div", className, text);
+      const bubble = createElement("div", className);
       this.messages.append(bubble);
+
+      if (role === "user" || role === "assistant") {
+        // Messages are rendered as Markdown (the same strategy the recipe
+        // pages use). If rendering fails we show the raw text instead so a
+        // failed request never swallows a message.
+        bubble.classList.add("ai-assistant__message--rendered");
+        try {
+          const html = await fetchRenderedMarkdown(text);
+          if (html) {
+            bubble.innerHTML = html;
+            await renderMathInBubble(bubble);
+          } else {
+            bubble.classList.remove("ai-assistant__message--rendered");
+            bubble.textContent = text;
+          }
+        } catch (error) {
+          console.warn("Unable to render the message as Markdown; showing plain text.", error);
+          bubble.classList.remove("ai-assistant__message--rendered");
+          bubble.textContent = text;
+        }
+      } else {
+        bubble.textContent = text;
+      }
+
       this.messages.scrollTop = this.messages.scrollHeight;
       return bubble;
     }
@@ -849,7 +1036,7 @@
         return;
       }
 
-      this.appendMessage("user", message);
+      await this.appendMessage("user", message);
       this.rememberTurn("user", message);
       this.input.value = "";
       this.autoResize();
@@ -875,7 +1062,7 @@
 
         await this.readEventStream(response.body);
       } catch (error) {
-        this.appendMessage(
+        await this.appendMessage(
           "error",
           error?.message || "Something went wrong while talking to the assistant.",
         );
@@ -903,12 +1090,12 @@
         while ((boundary = buffer.indexOf("\n\n")) !== -1) {
           const block = buffer.slice(0, boundary);
           buffer = buffer.slice(boundary + 2);
-          this.handleEventBlock(block);
+          await this.handleEventBlock(block);
         }
       }
     }
 
-    handleEventBlock(block) {
+    async handleEventBlock(block) {
       let event = "message";
       const dataLines = [];
 
@@ -937,17 +1124,7 @@
       }
 
       if (event === "result") {
-        const result = data?.result ?? {};
-        const reply =
-          typeof result.reply === "string" && result.reply.trim()
-            ? result.reply
-            : "(The assistant returned an empty reply.)";
-        this.appendMessage("assistant", reply);
-        this.rememberTurn("assistant", reply);
-        if (result.edited === true) {
-          this.appendReloadNotice(result.path);
-        }
-        this.setStatus("", false);
+        await this.handleResult(data);
         return;
       }
 
@@ -955,6 +1132,35 @@
         this.appendMessage("error", data?.message || "The assistant ran into a problem.");
         this.setStatus("", false);
       }
+    }
+
+    async handleResult(data) {
+      const result = data?.result ?? {};
+      const reply =
+        typeof result.reply === "string" && result.reply.trim()
+          ? result.reply
+          : "(The assistant returned an empty reply.)";
+      await this.appendMessage("assistant", reply);
+      this.rememberTurn("assistant", reply);
+      if (result.edited === true) {
+        this.appendReloadNotice(result.path);
+      }
+
+      // open_recipe asked for a redirect to the closest-matching recipe.
+      // Only same-origin absolute paths are honored — the URL comes from
+      // the server, but validate it anyway.
+      const open = result.open;
+      const url = typeof open?.url === "string" ? open.url : "";
+      if (url.startsWith("/") && !url.startsWith("//")) {
+        const title = typeof open?.title === "string" && open.title ? open.title : "the recipe";
+        this.setStatus(`Opening ${title}…`, false);
+        window.setTimeout(() => {
+          window.location.assign(url);
+        }, OPEN_REDIRECT_DELAY_MS);
+        return;
+      }
+
+      this.setStatus("", false);
     }
   }
 

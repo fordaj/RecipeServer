@@ -32,7 +32,7 @@ The app runs as a desktop process with a system tray icon. There is no database 
 - Filters recipe ratings by reviewer (up to 30 reviewers, most active first) without hiding any recipe cards.
 - Creates recipes from the index in an existing folder or a new folder.
 - Optionally drafts recipes from pasted text or a URL with a local AI model, then fills the recipe editor for review.
-- Floats a one-tap AI assistant on every page that answers general questions, edits the recipe on screen, and transcribes a long-press as a message when dictation is available.
+- Floats a one-tap AI assistant on every page that answers general questions, edits the recipe on screen, and transcribes a long-press as a message when dictation is available. Messages are rendered as Markdown, with inline-code quantities typeset by KaTeX just like recipe pages.
 - Uploads supported images directly into a recipe folder from the recipe editor.
 - Edits recipe Markdown, metadata, ratings, and comments in the browser.
 - Bulk-edits metadata across the recipes selected in the index; the dialog flags which attributes differ across the selection (red `* MIXED` chips, and those fields open blank) and which you modified, restates the modified ones, and applies only those after you confirm (**Apply Edits** / **Discard Edits**).
@@ -156,12 +156,15 @@ The assistant answers questions and edits the recipe on screen:
 - General knowledge — "how many tablespoons are in a cup?"
 - Questions about other recipes in the library — "what does the tomato soup do, step by step?"
 - Edits to the recipe you are viewing — "adjust the recipe to use half as much salt" rewrites the recipe and regenerates the page; the chat then offers a Reload button.
+- Opening a recipe — "open brownies" resolves the closest-matching recipe in the library and redirects the page to it (a read-only navigation; nothing is edited).
+
+Both your messages and the assistant's are rendered as Markdown — headings, lists, tables, links, code blocks — and inline-code quantities like `1 1/2 cups` are typeset with KaTeX the same way recipe pages render them (the chat shows them at 1x, without the scaler controls). Raw HTML in the assistant's replies is stripped before it reaches the page.
 
 When dictation is enabled and the page is served over HTTPS (the same conditions the search dictation button needs), the composer carries its own microphone inside the text box — and the bubble is also long-pressable. Press and hold either one and a microphone pops up directly above it (above the bubble, above the field) showing when the microphone is ready, listening, transcribing, done, or failed. Let go and the recording stops, is transcribed on this machine, and the transcript is sent to the assistant exactly as if you had typed and sent it. Tapping the inline microphone instead toggles recording on and off.
 
 Boundaries are deliberate:
 
-- The assistant can never delete a recipe, and it cannot edit any recipe other than the one you are viewing. There is no bulk edit — asking for one gets an explanation, not an edit.
+- The assistant can never delete a recipe, and it cannot edit any recipe other than the one you are viewing. There is no bulk edit — asking for one gets an explanation, not an edit. Opening a recipe navigates the browser; it never writes anything.
 - On the index page the assistant answers questions and looks recipes up, but there is no edit control: the edit tool is not offered, and a request for one is refused.
 - Edits rewrite the recipe body wholesale but only change front matter through the editor's field rules; `updatedOn` is refreshed automatically. Ratings, comments, and any other front-matter fields are preserved.
 - The conversation is kept only for the open page; reloading or navigating starts fresh.
@@ -561,14 +564,14 @@ tools/                      # bundled fordaj/* binaries + update.sh refreshers
 - One broken recipe is skipped with a logged error so the rest of the site can still build.
 - Metadata warnings are advisory and never block generation, serving, or saving.
 - The HTTP API uses relative `.md` paths inside the configured source directory. Paths outside it are rejected.
-- APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/ai-status`, `POST /api/ai-recipe`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, `GET|POST /api/metadata/<field>`, `GET /api/metadata-options`, `GET /api/shopping-list`, `POST /api/transcribe`, and `GET /api/history` (plus `GET /api/history/preview`, `GET /api/history/compare`, `POST /api/history/restore`).
+- APIs include `GET /api/recipe-folders`, `POST /api/recipe`, `GET /api/ai-status`, `POST /api/ai-recipe`, `POST /api/ai-assistant`, `POST /api/assistant-markdown`, `GET /api/markdown`, `GET|POST /api/recipe-editor`, `GET|POST /api/metadata/<field>`, `GET /api/metadata-options`, `GET /api/shopping-list`, `POST /api/transcribe`, and `GET /api/history` (plus `GET /api/history/preview`, `GET /api/history/compare`, `POST /api/history/restore`).
 - Every RecipeServer-managed recipe save (editor, raw Markdown, metadata, bulk, assistant, image reference rewrites, restore) snapshots the replaced version into `<user-data>/recipe-server/history/recipes/<recipe-id>/` before writing, keyed by the recipe's stable `recipe_id` front-matter UUID — identity never depends on the file path. Unchanged saves write nothing and snapshot nothing; deletes preserve history.
 - A background retention pass prunes history according to the server-level `timeline_retention` policy (`gfs` by default, `unlimited` optional): it runs periodically, at startup, after saves (throttled), and after configuration changes, never inside HTTP requests, and it never edits retained snapshots, never deletes the newest revision of a timeline, and never empties one. Restored snapshots are read under the same per-recipe lock the pruner uses, so a restore is never raced by retention.
 - `GET /api/metadata-options` returns the metadata values that are already used in the library (meals, categories, cuisine, tags, status, contributor, plus source author and title) with the number of recipes that use each of them, so the editor can offer them as dropdown options. The values are read from the recipe Markdown files on request; they are never hard-coded into generated pages or front matter.
 - Recipe creation writes `recipe.md` into the selected folder and rejects folder paths outside the source directory or existing recipes.
 - AI recipe generation never writes files. It returns Markdown and metadata to the editor, which saves only when the user submits the create form.
 - The AI assistant can rewrite only the recipe being viewed (the update tool takes no path) and never deletes anything. The conversation is ephemeral.
-- The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, not when the app is built.
+- The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, `AssistantPrompt.md` on every assistant request, not when the app is built.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
 - The server uses the port set in Configuration (default `8000`) and the bind address set in Configuration (`server_bind_address`, default `0.0.0.0` — reachable on the LAN with no authentication). Serve it over HTTPS through a local reverse proxy or tunnel; the dictation button only appears on those pages. Set `server_bind_address` to `127.0.0.1` to keep the site on this machine. The site is served with HTTP/1.1 keep-alive so browsers reuse one connection per host instead of opening a fresh connection per asset.
 - There is no JavaScript build step. Frontend assets are served directly, and KaTeX is vendored in `src/recipeserver/assets/katex`.

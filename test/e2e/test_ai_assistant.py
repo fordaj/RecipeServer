@@ -24,6 +24,10 @@ from selenium.webdriver.common.by import By
 
 
 class FakeOllamaHandler(BaseHTTPRequestHandler):
+    # Subclasses may carry a scripted queue of /api/chat responses; when the
+    # queue is empty (or absent) the fixed default reply is sent.
+    state: dict = {}
+
     def log_message(self, format, *args):
         pass
 
@@ -53,6 +57,12 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
 
         length = int(self.headers.get("Content-Length", "0"))
         self.rfile.read(length)
+
+        responses = type(self).state.get("responses")
+        if responses:
+            self._send_json(200, responses.pop(0))
+            return
+
         self._send_json(
             200,
             {
@@ -64,6 +74,30 @@ class FakeOllamaHandler(BaseHTTPRequestHandler):
                 "eval_duration": 1_000_000_000,
             },
         )
+
+
+def scripted_ollama_server(responses):
+    """Start a fake Ollama server that plays back a scripted queue of replies."""
+    handler = type("ScriptedOllamaHandler", (FakeOllamaHandler,), {"state": {"responses": list(responses)}})
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server
+
+
+def tool_call_response(name, arguments, content: str = ""):
+    return {
+        "model": "test-model",
+        "message": {
+            "role": "assistant",
+            "content": content,
+            "tool_calls": [{"function": {"name": name, "arguments": arguments}}],
+        },
+        "done": True,
+        "done_reason": "stop",
+        "eval_count": 10,
+        "eval_duration": 1_000_000_000,
+    }
 
 
 @pytest.fixture()
@@ -220,3 +254,85 @@ def test_assistant_bubble_stays_visible_on_wide_screens(driver, ai_configured_se
     WebDriverWait(driver, 5).until(lambda d: d.execute_script("return window.scrollY;") > 0)
 
     assert "ai-assistant--hidden" not in assistant_class(driver)
+
+
+def test_assistant_messages_render_markdown(driver, ai_configured_server):
+    markdown_reply = (
+        "Here is the list:\n\n" "- **1 cup** flour\n" "- `2 tbsp` sugar\n\n" "Plain `npm test` stays a code chip; `1 1/2 cups` gets KaTeX."
+    )
+    server = scripted_ollama_server(
+        [
+            {
+                "model": "test-model",
+                "message": {"role": "assistant", "content": markdown_reply},
+                "done": True,
+                "done_reason": "stop",
+                "eval_count": 10,
+                "eval_duration": 1_000_000_000,
+            }
+        ]
+    )
+    ai_configured_server.cfg.model_endpoint = f"http://127.0.0.1:{server.server_port}"
+
+    try:
+        open_page(driver, f"{ai_configured_server.url}/index.html")
+
+        bubble = wait_visible(driver, ".ai-assistant__button")
+        bubble.click()
+        wait_visible(driver, ".ai-assistant__input")
+
+        driver.find_element("css selector", ".ai-assistant__input").send_keys("What do I need?")
+        driver.find_element("css selector", ".ai-assistant__send").click()
+
+        # The reply arrives as Markdown and is rendered as HTML in place.
+        wait_visible(driver, ".ai-assistant__message--assistant li strong")
+        strong = driver.find_element("css selector", ".ai-assistant__message--assistant li strong")
+        assert strong.text == "1 cup"
+
+        # Inline-code quantities are rewritten to .quantity spans and typeset by KaTeX.
+        WebDriverWait(driver, 10).until(
+            lambda d: d.execute_script(
+                "const el = document.querySelector('.ai-assistant__message--assistant .quantity');"
+                "return el && el.querySelector('.katex') !== null;"
+            )
+        )
+
+        # The user's own message renders as Markdown too (a bold word renders as <strong>).
+        wait_visible(driver, ".ai-assistant__message--user")
+        assert driver.find_element("css selector", ".ai-assistant__message--user").text.strip() != ""
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_assistant_open_recipe_redirects_to_the_match(driver, ai_configured_server):
+    server = scripted_ollama_server(
+        [
+            tool_call_response("open_recipe", {"query": "chocolate cake"}),
+            {
+                "model": "test-model",
+                "message": {"role": "assistant", "content": "Opening Chocolate Cake…"},
+                "done": True,
+                "done_reason": "stop",
+                "eval_count": 10,
+                "eval_duration": 1_000_000_000,
+            },
+        ]
+    )
+    ai_configured_server.cfg.model_endpoint = f"http://127.0.0.1:{server.server_port}"
+
+    try:
+        open_page(driver, f"{ai_configured_server.url}/index.html")
+
+        bubble = wait_visible(driver, ".ai-assistant__button")
+        bubble.click()
+        wait_visible(driver, ".ai-assistant__input")
+
+        driver.find_element("css selector", ".ai-assistant__input").send_keys("Open chocolate cake")
+        driver.find_element("css selector", ".ai-assistant__send").click()
+
+        WebDriverWait(driver, 10).until(lambda d: d.current_url.endswith("/cake/recipe.html"))
+        assert driver.find_element("css selector", "h1").text.strip() == "Chocolate Cake"
+    finally:
+        server.shutdown()
+        server.server_close()

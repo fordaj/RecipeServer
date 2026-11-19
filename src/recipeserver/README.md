@@ -56,6 +56,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 - [transcriber.py](transcriber.py.md) — Ollama Qwen3-ASR transcription for the dictation button
 - [ai_recipe.py](ai_recipe.py.md) — optional Ollama integration, recipe drafting
 - [ai_assistant.py](ai_assistant.py.md) — optional Ollama chat assistant behind the floating bubble
+- [assistant_render.py](assistant_render.py.md) — sanitized Markdown rendering for the chat messages (shared recipe pipeline)
 - [metadata_options.py](metadata_options.py.md) — in-use metadata and feedback-name values for the dropdowns
 - [metadata_linter.py](metadata_linter.py.md) — required-field warnings
 - [recipe_utils.py](recipe_utils.py.md) — shared metadata/JSON/markup helpers
@@ -67,7 +68,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 
 ## Also in this tree
 
-- `NewRecipePrompt.md`, `NewRecipeFromImagePrompt.md`, `FindOneForMePrompt.md` — model prompts, loaded at startup, not rendered as documentation
+- `NewRecipePrompt.md`, `NewRecipeFromImagePrompt.md`, `FindOneForMePrompt.md`, `AssistantPrompt.md` — model prompts, loaded at startup (the assistant reads `AssistantPrompt.md` on every request), not rendered as documentation
 - `TranscriptionTestSample.wav` — a bundled speech sample ("Add two cups of flour and one cup of sugar.") the Configuration dialog's **Test transcription** button posts through the transcription path to verify the configured Ollama server and model work
 - `assets/` — CSS, JavaScript, icons, fonts, and the vendored KaTeX distribution under `assets/katex/` (third-party; not documented file-by-file)
 
