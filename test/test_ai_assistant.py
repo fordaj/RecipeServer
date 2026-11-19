@@ -538,3 +538,173 @@ def test_assistant_falls_back_when_the_model_lacks_tool_support(tmp_path):
     payloads = NoToolsHandler.state["payloads"]
     assert payloads[0]["tools"]
     assert "tools" not in payloads[1]
+
+
+# ----- open_recipe -----
+
+
+def test_assistant_open_recipe_redirects_to_the_closest_match(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    write_recipe(source / "soups" / "tomato" / "recipe.md", OTHER_RECIPE_FRONT_MATTER, "# Tomato Soup\n\nBody.\n")
+    write_recipe(source / "dinners" / "pasta" / "recipe.md", RECIPE_FRONT_MATTER, "# Pasta\n\nBody.\n")
+
+    responses = [
+        tool_call_response("open_recipe", {"query": "tomato soup"}),
+        content_response("Opening Tomato Soup…"),
+    ]
+
+    with running_assistant_model(responses=responses) as (model_url, model_state):
+        with running_recipe_server(source, config=config_for(model_url)) as (base_url, _saved, _deleted):
+            status, body = request_json(
+                f"{base_url}/api/ai-assistant",
+                {"message": "Open tomato soup"},
+            )
+
+    assert status == 200
+    assert body["open"] == {"url": "/soups/tomato/recipe.html", "title": "Tomato Soup", "path": "soups/tomato/recipe.md"}
+    assert body["edited"] is False
+
+    # The tool is offered on the index page; the query goes through untouched.
+    first_payload = model_state["payloads"][0]
+    tool_names = [tool["function"]["name"] for tool in first_payload["tools"]]
+    assert "open_recipe" in tool_names
+    open_tool = next(tool for tool in first_payload["tools"] if tool["function"]["name"] == "open_recipe")
+    assert open_tool["function"]["parameters"]["required"] == ["query"]
+
+
+def test_assistant_open_recipe_prefers_the_tighter_title_match(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    write_recipe(source / "desserts" / "chocolate-brownies" / "recipe.md", RECIPE_FRONT_MATTER, "# Double Chocolate Brownies\n\nBody.\n")
+    write_recipe(source / "desserts" / "brownies" / "recipe.md", RECIPE_FRONT_MATTER, "# Brownies\n\nBody.\n")
+
+    responses = [
+        tool_call_response("open_recipe", {"query": "brownies"}),
+        content_response("Opening Brownies…"),
+    ]
+
+    with running_assistant_model(responses=responses) as (model_url, _model_state):
+        with running_recipe_server(source, config=config_for(model_url)) as (base_url, _saved, _deleted):
+            status, body = request_json(
+                f"{base_url}/api/ai-assistant",
+                {"message": "Open brownies"},
+            )
+
+    assert status == 200
+    # "brownies" is exactly the title of the shorter recipe; it wins.
+    assert body["open"]["url"] == "/desserts/brownies/recipe.html"
+
+
+def test_assistant_open_recipe_matches_a_fragment_of_the_title(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    write_recipe(source / "dinners" / "chicken-alfredo" / "recipe.md", RECIPE_FRONT_MATTER, "# Chicken Alfredo\n\nBody.\n")
+
+    responses = [
+        tool_call_response("open_recipe", {"query": "alfredo"}),
+        content_response("Opening Chicken Alfredo…"),
+    ]
+
+    with running_assistant_model(responses=responses) as (model_url, _model_state):
+        with running_recipe_server(source, config=config_for(model_url)) as (base_url, _saved, _deleted):
+            status, body = request_json(
+                f"{base_url}/api/ai-assistant",
+                {"message": "Open alfredo"},
+            )
+
+    assert status == 200
+    assert body["open"]["url"] == "/dinners/chicken-alfredo/recipe.html"
+
+
+def test_assistant_open_recipe_tolerates_a_typo(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    write_recipe(source / "dinners" / "chicken-alfredo" / "recipe.md", RECIPE_FRONT_MATTER, "# Chicken Alfredo\n\nBody.\n")
+
+    responses = [
+        tool_call_response("open_recipe", {"query": "chiken alfredo"}),
+        content_response("Opening Chicken Alfredo…"),
+    ]
+
+    with running_assistant_model(responses=responses) as (model_url, _model_state):
+        with running_recipe_server(source, config=config_for(model_url)) as (base_url, _saved, _deleted):
+            status, body = request_json(
+                f"{base_url}/api/ai-assistant",
+                {"message": "Open chiken alfredo"},
+            )
+
+    assert status == 200
+    assert body["open"]["url"] == "/dinners/chicken-alfredo/recipe.html"
+
+
+def test_assistant_open_recipe_reports_when_nothing_matches(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+    write_recipe(source / "dinners" / "pasta" / "recipe.md", RECIPE_FRONT_MATTER, "# Pasta\n\nBody.\n")
+
+    responses = [
+        tool_call_response("open_recipe", {"query": "zzqx vbqw"}),
+        content_response("I couldn't find a recipe by that name."),
+    ]
+
+    with running_assistant_model(responses=responses) as (model_url, model_state):
+        with running_recipe_server(source, config=config_for(model_url)) as (base_url, _saved, _deleted):
+            status, body = request_json(
+                f"{base_url}/api/ai-assistant",
+                {"message": "Open zzqx vbqw"},
+            )
+
+    assert status == 200
+    assert "open" not in body
+    tool_message = model_state["payloads"][1]["messages"][-1]
+    assert tool_message["role"] == "tool"
+    assert "No recipe matches" in tool_message["content"]
+
+
+def test_assistant_open_recipe_validates_the_query(tmp_path):
+    source = tmp_path / "recipes"
+    source.mkdir()
+
+    responses = [
+        tool_call_response("open_recipe", {"query": ""}),
+        content_response("Which recipe did you mean?"),
+    ]
+
+    with running_assistant_model(responses=responses) as (model_url, model_state):
+        with running_recipe_server(source, config=config_for(model_url)) as (base_url, _saved, _deleted):
+            status, body = request_json(
+                f"{base_url}/api/ai-assistant",
+                {"message": "Open"},
+            )
+
+    assert status == 200
+    assert "open" not in body
+    tool_message = model_state["payloads"][1]["messages"][-1]
+    assert "non-empty" in tool_message["content"]
+
+
+def test_best_recipe_match_scores():
+    from recipeserver.ai_assistant import _best_recipe_match
+
+    recipes = [
+        {"path": "desserts/brownies/recipe.md", "title": "Brownies"},
+        {"path": "desserts/double-chocolate-brownies/recipe.md", "title": "Double Chocolate Brownies"},
+        {"path": "soups/tomato/recipe.md", "title": "Tomato Soup"},
+    ]
+
+    _, best, _ = _best_recipe_match("brownies", recipes)
+    assert best["title"] == "Brownies"
+
+    _, best, _ = _best_recipe_match("tomato", recipes)
+    assert best["title"] == "Tomato Soup"
+
+    # A directory-name match works too (paths like desserts/brownies/recipe.md).
+    dir_only = [{"path": "desserts/brownies/recipe.md", "title": "Treats"}]
+    _, best, _ = _best_recipe_match("brownies", dir_only)
+    assert best is not None
+
+    score, best, suggestions = _best_recipe_match("zzqx vbqw", recipes)
+    assert score < 0.3
+    assert best is None or score < 0.3
+    assert suggestions == []

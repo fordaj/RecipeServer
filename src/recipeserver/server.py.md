@@ -6,7 +6,7 @@ flowchart TD
     handler --> static("<img src='barnacle:folder.svg' width='20' alt=''/><br/>static files<br/>from site dir")
     handler --> api("<img src='barnacle:route.svg' width='20' alt=''/><br/>/api/* routes")
     api --> edit("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>recipe-editor · metadata<br/>markdown · bulk-*")
-    api --> ai("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/ai-status · /api/ai-recipe<br/>/api/ai-assistant</u>")
+    api --> ai("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/ai-status · /api/ai-recipe<br/>/api/ai-assistant · /api/assistant-markdown</u>")
     api --> misc("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/config · /api/config/test-transcription<br/>/api/shopping-list · /api/archive · /api/transcribe</u>")
     api --> hist("<img src='barnacle:archive.svg' width='20' alt=''/><br/><u>/api/history/*<br/>list · preview · compare · restore</u>")
     edit --> callbacks("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>on_markdown_save → core.py<br/>re-render page + index</u>")
@@ -64,6 +64,7 @@ The handler speaks **HTTP/1.1** with keep-alive. (`SimpleHTTPRequestHandler` def
 | POST     | `/api/recipe`                              | create a recipe in an existing/new folder                                                                                                            |
 | POST     | `/api/ai-recipe`                           | draft a recipe (SSE `text/event-stream` when `stream: true`)                                                                                         |
 | POST     | `/api/ai-assistant`                        | chat with the local model; `path` binds the editable recipe (SSE `text/event-stream` when `stream: true`) ([ai_assistant.py.md](ai_assistant.py.md)) |
+| POST     | `/api/assistant-markdown`                  | render a chat message's Markdown to a sanitized HTML fragment ([assistant_render.py.md](assistant_render.py.md))                                     |
 | POST     | `/api/transcribe`                          | transcribe a recorded clip ([transcriber.py.md](transcriber.py.md))                                                                                  |
 | POST     | `/api/recipe-images/upload`                | upload images next to a recipe                                                                                                                       |
 | POST     | `/api/recipe-images/rename`                | rename an image; rewrites Markdown references                                                                                                        |
@@ -118,9 +119,10 @@ Deleting a recipe never touches the history directory; metadata saves make snaps
 `POST /api/ai-assistant` powers the floating bubble on every page.
 
 - The request body is `{message, history?, path?, stream?}`: `message` is a non-empty string capped at 4000 characters, `history` is clamped to the last 20 `user`/`assistant` turns, `path` is the recipe being viewed (rejected with 404 when missing, 400 when invalid), and `stream: true` answers `text/event-stream` instead of plain JSON.
-- Without `path` (the index page) the model is offered only the read tools; a `path` enables `update_current_recipe`, whose edits are bound server-side to the one recipe being viewed — there is no delete tool and no bulk edit anywhere.
-- The stream mirrors `/api/ai-recipe`: `status` (`state` + `message`), `metrics`, `error` (`state` + `message`) and `result` (`result`: `{reply, edited, path, metrics}`). Without `stream`, the endpoint returns the same object as JSON. Agent details (tool schemas, loop cap, fallback for non-tool models) live in [ai_assistant.py.md](ai_assistant.py.md).
-- When the assistant edits the recipe, the handler rewrites `recipe.md` through the same front-matter pipeline as the manual editor (editor-fields-only `metadata`, `updatedOn` refreshed) and regenerates that page plus the index; the browser then offers a Reload button.
+- Without `path` (the index page) the model is offered the read tools and `open_recipe`; a `path` enables `update_current_recipe`, whose edits are bound server-side to the one recipe being viewed — there is no delete tool and no bulk edit anywhere.
+- The stream mirrors `/api/ai-recipe`: `status` (`state` + `message`), `metrics`, `error` (`state` + `message`) and `result` (`result`: `{reply, edited, path, metrics}` plus `open` — `{url, title, path}` — when the model asked to open the closest-matching recipe). Without `stream`, the endpoint returns the same object as JSON. Agent details (tool schemas, loop cap, fallback for non-tool models) live in [ai_assistant.py.md](ai_assistant.py.md).
+- When the assistant edits the recipe, the handler rewrites `recipe.md` through the same front-matter pipeline as the manual editor (editor-fields-only `metadata`, `updatedOn` refreshed) and regenerates that page plus the index; the browser then offers a Reload button. When the model calls `open_recipe` ("Open brownies"), the reply carries `open` and the browser redirects to the URL instead — the tool only navigates, it never writes anything.
+- `POST /api/assistant-markdown` (`{markdown}` → `{html}`) renders both the user's and the assistant's messages with the recipe-page strategy (Python-Markdown + inline-code-quantity rewrite, then sanitization — model output is untrusted input) and is what the bubble calls for every message it shows. Details live in [assistant_render.py.md](assistant_render.py.md).
 - Errors map like the other AI endpoints: 503 when the model is not configured or unreachable, 502 on model/endpoint failures, 400 on invalid input, 404 for an unknown `path`.
 - `GET /api/ai-status` additionally reports `dictation_enabled` (from `_dictation_enabled`), which the bubble reads to decide whether a long press starts dictation. On plain HTTP, or when dictation is disabled, a long press degrades to a normal tap.
 
@@ -136,5 +138,5 @@ Deleting a recipe never touches the history directory; metadata saves make snaps
 - [core.py.md](core.py.md) — wires the callbacks
 - [history.py.md](history.py.md) — the snapshot store and the history directory
 - [retention.py.md](retention.py.md) — the background retention pass that prunes history
-- [ai_recipe.py.md](ai_recipe.py.md) · [ai_assistant.py.md](ai_assistant.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) — backing modules
+- [ai_recipe.py.md](ai_recipe.py.md) · [ai_assistant.py.md](ai_assistant.py.md) · [assistant_render.py.md](assistant_render.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) — backing modules
 - [README.md](README.md) — the package hub

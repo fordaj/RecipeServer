@@ -35,7 +35,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 import frontmatter
 from PIL import Image, UnidentifiedImageError
 
-from . import ai_assistant, ai_recipe
+from . import ai_assistant, ai_recipe, assistant_render
 from . import history as recipe_history
 from .retention import get_retention_manager
 from ._logger import logger
@@ -965,6 +965,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             "/api/config/test-transcription": self._handle_test_transcription,
             "/api/ai-recipe": self._handle_ai_recipe,
             "/api/ai-assistant": self._handle_ai_assistant,
+            "/api/assistant-markdown": self._handle_assistant_markdown,
             "/api/recipe": self._handle_recipe_create,
             "/api/recipe-editor": self._handle_recipe_editor_post,
             "/api/recipe-images/rename": self._handle_recipe_images_rename_post,
@@ -1742,6 +1743,31 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 send_event({"type": ai_assistant.EVENT_RESULT, "result": result})
             except _StreamClosed:
                 logger.debug("AI assistant result was not delivered because the browser closed the stream")
+
+    # ----- POST handlers: the assistant's Markdown rendering -----------------
+    # The chat renders both the user's and the assistant's messages as
+    # Markdown with the same strategy the recipe pages use (see
+    # assistant_render.py); the fragment is sanitized server-side.
+
+    def _handle_assistant_markdown(self) -> None:
+        try:
+            payload = self._read_json_payload()
+            markdown_text = payload.get("markdown")
+            if not isinstance(markdown_text, str) or not markdown_text.strip():
+                raise ValueError("Expected a non-empty markdown string")
+            if len(markdown_text) > assistant_render.MAX_RENDER_CHARS:
+                raise ValueError(f"The Markdown is too long (at most {assistant_render.MAX_RENDER_CHARS} characters)")
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
+            return
+
+        try:
+            html = assistant_render.render_chat_markdown(markdown_text)
+        except Exception:
+            logger.exception("Failed to render the assistant Markdown")
+            self._send_json(500, {"error": "Unable to render the message"})
+            return
+        self._send_json(200, {"html": html})
 
     # ----- POST handlers: recipe creation and editing ----------------------
 

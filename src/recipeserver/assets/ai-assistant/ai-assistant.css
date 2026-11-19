@@ -610,6 +610,147 @@
   }
 }
 
+/* ---------- Rendered Markdown inside messages ---------- */
+/* Messages rendered from Markdown (both sides of the conversation) switch
+   off the pre-wrap newline behavior and style the elements the recipe pages
+   emit: inline-code quantities (.quantity, filled by KaTeX), code, tables,
+   task lists, headings, and so on. */
+
+.ai-assistant__message--rendered {
+  white-space: normal;
+}
+
+.ai-assistant__message--rendered > :first-child {
+  margin-top: 0;
+}
+
+.ai-assistant__message--rendered > :last-child {
+  margin-bottom: 0;
+}
+
+.ai-assistant__message--rendered p {
+  margin: 0 0 0.5em;
+}
+
+.ai-assistant__message--rendered ul,
+.ai-assistant__message--rendered ol {
+  margin: 0 0 0.5em;
+  padding-left: 1.4em;
+}
+
+.ai-assistant__message--rendered li {
+  margin: 0.15em 0;
+}
+
+.ai-assistant__message--rendered li > ul,
+.ai-assistant__message--rendered li > ol {
+  margin-bottom: 0;
+}
+
+.ai-assistant__message--rendered h1,
+.ai-assistant__message--rendered h2,
+.ai-assistant__message--rendered h3,
+.ai-assistant__message--rendered h4,
+.ai-assistant__message--rendered h5,
+.ai-assistant__message--rendered h6 {
+  margin: 0.4em 0 0.3em;
+  font-size: 1.05em;
+  line-height: 1.3;
+}
+
+.ai-assistant__message--rendered h1 {
+  font-size: 1.2em;
+}
+
+.ai-assistant__message--rendered h2 {
+  font-size: 1.12em;
+}
+
+.ai-assistant__message--rendered code {
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+}
+
+/* Quantity spans get their text from KaTeX; don't pad them like code. */
+.ai-assistant__message--rendered .quantity {
+  padding: 0;
+  background: none;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.ai-assistant__message--rendered pre {
+  margin: 0 0 0.5em;
+  padding: 0.5em 0.75em;
+  border-radius: 8px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  overflow-x: auto;
+}
+
+.ai-assistant__message--rendered pre code {
+  padding: 0;
+  background: none;
+  font-size: 0.82em;
+}
+
+.ai-assistant__message--rendered blockquote {
+  margin: 0 0 0.5em;
+  padding: 0.15em 0 0.15em 0.75em;
+  border-left: 3px solid var(--border-color);
+  color: inherit;
+  opacity: 0.85;
+}
+
+.ai-assistant__message--rendered table {
+  margin: 0 0 0.5em;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.ai-assistant__message--rendered th,
+.ai-assistant__message--rendered td {
+  padding: 0.25em 0.6em;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.ai-assistant__message--rendered hr {
+  margin: 0.6em 0;
+  border: none;
+  border-top: 1px solid var(--border-color);
+}
+
+.ai-assistant__message--rendered a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.ai-assistant__message--assistant a {
+  color: var(--food-color);
+}
+
+.ai-assistant__message--rendered input[type="checkbox"] {
+  accent-color: var(--food-color);
+  margin-right: 0.35em;
+}
+
+.ai-assistant__message--rendered .task-list {
+  list-style: none;
+  padding-left: 0.25em;
+}
+
+.ai-assistant__message--rendered .arithmatex {
+  font-size: 0.98em;
+}
+
+.ai-assistant__message--user .arithmatex,
+.ai-assistant__message--user code {
+  color: inherit;
+}
+
 @media print {
   .ai-assistant {
     display: none;
