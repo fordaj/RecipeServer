@@ -42,7 +42,7 @@ There is no delete tool and no bulk-edit tool, on purpose: the assistant can onl
 
 - `MAX_MESSAGE_CHARS = 4000`, `MAX_HISTORY_MESSAGES = 20`, `MAX_TOOL_ROUNDS = 10`, `MAX_TOOL_OUTPUT_CHARS = 24000`, `MAX_CURRENT_RECIPE_CHARS = 24000`, `MAX_LIST_RECIPES = 1000`, `MAX_UPDATE_CONTENT_CHARS = 100000`.
 - `STATUS_*` states: `checking_model`, `listing_recipes`, `reading_recipe`, `updating_recipe`, `thinking`, `error`.
-- `MODEL_TEMPERATURE` and `MAX_MODEL_TOKENS` are shared with `ai_recipe.py`; each chat call is non-streaming (progress comes from tool-round status events instead).
+- `MODEL_TEMPERATURE` and `MAX_MODEL_TOKENS` are shared with `ai_recipe.py`; each chat call is non-streaming (progress comes from tool-round status events instead). Requests send `keep_alive` when `all_purpose_model_keep_alive` is configured (minutes, scaled to seconds; `0` — unload immediately — is the default).
 - `updatedOn` is managed by the server and cannot be written through the assistant; ratings and comments (like every other non-editor front-matter field) are always preserved, because the update tool replaces only the body and accepts a partial `metadata` object limited to the editor's fields.
 
 ## Related pages

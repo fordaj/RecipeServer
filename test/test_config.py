@@ -9,13 +9,21 @@ from recipeserver.config import (
     DEFAULT_RECIPE_SERVER_NAME,
     DEFAULT_SERVER_BIND_ADDRESS,
     DEFAULT_SERVER_PORT,
+    DEFAULT_KEEP_ALIVE_MINUTES,
     DEFAULT_TIMELINE_RETENTION,
+    DEFAULT_TRANSCRIPTION_ENDPOINT,
+    DEFAULT_TRANSCRIPTION_MODEL,
+    ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY,
+    IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY,
     FOOD_COLOR_KEY,
     DICTATION_ENABLED_KEY,
     DEFAULT_DICTATION_ENABLED,
     IMAGE_ANALYSIS_MODEL_KEY,
     MODEL_ENDPOINT_KEY,
     MODEL_NAME_KEY,
+    TRANSCRIPTION_ENDPOINT_KEY,
+    TRANSCRIPTION_KEEP_ALIVE_KEY,
+    TRANSCRIPTION_MODEL_KEY,
     RECIPE_SERVER_NAME_KEY,
     SERVER_BIND_ADDRESS_KEY,
     SERVER_PORT_KEY,
@@ -121,6 +129,11 @@ def test_configuration_skips_the_model_when_the_user_presses_enter(tmp_path, mon
         SERVER_BIND_ADDRESS_KEY: "0.0.0.0",
         FOOD_COLOR_KEY: "#8d5542",
         DICTATION_ENABLED_KEY: True,
+        TRANSCRIPTION_ENDPOINT_KEY: "http://localhost:11434",
+        TRANSCRIPTION_MODEL_KEY: "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
+        TRANSCRIPTION_KEEP_ALIVE_KEY: "0",
+        ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY: "0",
+        IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY: "0",
         TIMELINE_RETENTION_KEY: "gfs",
     }
 
@@ -626,3 +639,159 @@ def test_field_specs_expose_bind_address_as_a_text_field(tmp_path, monkeypatch):
 
     assert specs[SERVER_BIND_ADDRESS_KEY]["input_type"] == "text"
     assert specs[SERVER_BIND_ADDRESS_KEY]["required"] is True
+
+
+def test_configuration_defaults_to_ollama_transcription(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    assert config.transcription_endpoint == DEFAULT_TRANSCRIPTION_ENDPOINT == "http://localhost:11434"
+    assert config.transcription_model == DEFAULT_TRANSCRIPTION_MODEL == "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0"
+    assert config.transcription_keep_alive == DEFAULT_KEEP_ALIVE_MINUTES == "0"
+    assert config.all_purpose_model_keep_alive == "0"
+    assert config.image_analysis_model_keep_alive == "0"
+
+    saved = _toml(config_file)
+    assert saved[TRANSCRIPTION_ENDPOINT_KEY] == "http://localhost:11434"
+    assert saved[TRANSCRIPTION_MODEL_KEY] == "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0"
+    assert saved[TRANSCRIPTION_KEEP_ALIVE_KEY] == "0"
+    assert saved[ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY] == "0"
+    assert saved[IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY] == "0"
+
+
+def test_configuration_reads_and_persists_transcription_settings(tmp_path, monkeypatch):
+    extra = (
+        f'{TRANSCRIPTION_ENDPOINT_KEY} = "http://127.0.0.1:11435"\n'
+        f'{TRANSCRIPTION_MODEL_KEY} = "custom/audio-model:Q8_0"\n'
+        f'{TRANSCRIPTION_KEEP_ALIVE_KEY} = "10"\n'
+        f"{ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY} = -1\n"
+        f'{IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY} = "30"\n'
+    )
+    config, config_file = _load_config(tmp_path, monkeypatch, extra)
+
+    assert config.transcription_endpoint == "http://127.0.0.1:11435"
+    assert config.transcription_model == "custom/audio-model:Q8_0"
+    assert config.transcription_keep_alive == "10"
+    # -1 as a bare TOML integer round-trips to the "-1" string.
+    assert config.all_purpose_model_keep_alive == "-1"
+    assert config.image_analysis_model_keep_alive == "30"
+
+    saved = _toml(config_file)
+    assert saved[TRANSCRIPTION_ENDPOINT_KEY] == "http://127.0.0.1:11435"
+    assert saved[TRANSCRIPTION_MODEL_KEY] == "custom/audio-model:Q8_0"
+    assert saved[TRANSCRIPTION_KEEP_ALIVE_KEY] == "10"
+    assert saved[ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY] == "-1"
+    assert saved[IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY] == "30"
+
+
+def test_apply_config_values_round_trips_transcription_settings(tmp_path, monkeypatch):
+    config, config_file = _load_config(tmp_path, monkeypatch)
+
+    changed = config.apply_config_values(
+        {
+            TRANSCRIPTION_ENDPOINT_KEY: "127.0.0.1:11435",  # scheme is added
+            TRANSCRIPTION_MODEL_KEY: "custom/audio-model:Q8_0",
+            TRANSCRIPTION_KEEP_ALIVE_KEY: "-1",
+            ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY: "60",
+            IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY: "30",
+        }
+    )
+
+    assert set(changed) == {
+        TRANSCRIPTION_ENDPOINT_KEY,
+        TRANSCRIPTION_MODEL_KEY,
+        TRANSCRIPTION_KEEP_ALIVE_KEY,
+        ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY,
+        IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY,
+    }
+    assert config.transcription_endpoint == "http://127.0.0.1:11435"
+    assert config.transcription_model == "custom/audio-model:Q8_0"
+    assert config.transcription_keep_alive == "-1"
+    assert config.all_purpose_model_keep_alive == "60"
+    assert config.image_analysis_model_keep_alive == "30"
+
+    saved = _toml(config_file)
+    assert saved[TRANSCRIPTION_ENDPOINT_KEY] == "http://127.0.0.1:11435"
+    assert saved[TRANSCRIPTION_MODEL_KEY] == "custom/audio-model:Q8_0"
+    assert saved[TRANSCRIPTION_KEEP_ALIVE_KEY] == "-1"
+    assert saved[ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY] == "60"
+    assert saved[IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY] == "30"
+
+
+def test_apply_config_values_rejects_invalid_transcription_values(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    import pytest
+
+    with pytest.raises(ValueError, match="Transcription server"):
+        config.apply_config_values({TRANSCRIPTION_ENDPOINT_KEY: "ftp://host"})
+    with pytest.raises(ValueError, match="keep-alive"):
+        config.apply_config_values({TRANSCRIPTION_KEEP_ALIVE_KEY: "forever"})
+
+    assert config.transcription_endpoint == DEFAULT_TRANSCRIPTION_ENDPOINT
+    assert config.transcription_keep_alive == DEFAULT_KEEP_ALIVE_MINUTES
+
+
+def test_keep_alive_minutes_accepts_supported_spellings(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    for value in ["0", "-1", "1", "30", "525600"]:
+        config.apply_config_values({TRANSCRIPTION_KEEP_ALIVE_KEY: value})
+        assert config.transcription_keep_alive == value
+
+    config.apply_config_values({TRANSCRIPTION_KEEP_ALIVE_KEY: "0"})
+    for value in ["2.5", "-2", "abc", "10m", "1h"]:
+        import pytest
+
+        with pytest.raises(ValueError, match="keep-alive"):
+            config.apply_config_values({TRANSCRIPTION_KEEP_ALIVE_KEY: value})
+        assert config.transcription_keep_alive == "0"
+
+
+def test_blank_transcription_values_fall_back_to_defaults(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    changed = config.apply_config_values(
+        {
+            TRANSCRIPTION_ENDPOINT_KEY: "",
+            TRANSCRIPTION_MODEL_KEY: "",
+            TRANSCRIPTION_KEEP_ALIVE_KEY: "",
+        }
+    )
+
+    assert changed == []
+    assert config.transcription_endpoint == DEFAULT_TRANSCRIPTION_ENDPOINT
+    assert config.transcription_model == DEFAULT_TRANSCRIPTION_MODEL
+    assert config.transcription_keep_alive == "0"
+
+
+def test_keep_alive_rejects_non_integer_minutes(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    import pytest
+
+    for value in ["infinity", "nan", "1e3", "++1", "0.0"]:
+        with pytest.raises(ValueError, match="keep-alive"):
+            config.apply_config_values({ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY: value})
+        assert config.all_purpose_model_keep_alive == "0"
+
+    # "-0" parses to 0 and is accepted as "unload immediately".
+    config.apply_config_values({ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY: "-0"})
+    assert config.all_purpose_model_keep_alive == "0"
+
+
+def test_field_specs_expose_transcription_fields(tmp_path, monkeypatch):
+    config, _ = _load_config(tmp_path, monkeypatch)
+
+    specs = {field["key"]: field for field in config.field_specs()}
+
+    assert specs[TRANSCRIPTION_ENDPOINT_KEY]["input_type"] == "url"
+    assert specs[TRANSCRIPTION_MODEL_KEY]["input_type"] == "text"
+    assert specs[TRANSCRIPTION_KEEP_ALIVE_KEY]["input_type"] == "number"
+    assert specs[ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY]["input_type"] == "number"
+    assert specs[IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY]["input_type"] == "number"
+    assert specs[TRANSCRIPTION_ENDPOINT_KEY]["help"]
+    assert specs[TRANSCRIPTION_MODEL_KEY]["help"]
+    assert specs[TRANSCRIPTION_KEEP_ALIVE_KEY]["help"]
+    assert specs[ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY]["min"] == -1
+    assert specs[IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY]["min"] == -1
+    assert specs[TRANSCRIPTION_KEEP_ALIVE_KEY]["min"] == -1

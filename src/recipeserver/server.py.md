@@ -7,7 +7,7 @@ flowchart TD
     handler --> api("<img src='barnacle:route.svg' width='20' alt=''/><br/>/api/* routes")
     api --> edit("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>recipe-editor · metadata<br/>markdown · bulk-*")
     api --> ai("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/ai-status · /api/ai-recipe<br/>/api/ai-assistant</u>")
-    api --> misc("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/config · /api/metadata-options<br/>/api/shopping-list · /api/archive · /api/transcribe</u>")
+    api --> misc("<img src='barnacle:globe.svg' width='20' alt=''/><br/><u>/api/config · /api/config/test-transcription<br/>/api/shopping-list · /api/archive · /api/transcribe</u>")
     api --> hist("<img src='barnacle:archive.svg' width='20' alt=''/><br/><u>/api/history/*<br/>list · preview · compare · restore</u>")
     edit --> callbacks("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>on_markdown_save → core.py<br/>re-render page + index</u>")
     callbacks --> retention("<img src='barnacle:scissors.svg' width='20' alt=''/><br/><u>retention.py<br/>background pruning</u>")
@@ -47,8 +47,9 @@ The handler speaks **HTTP/1.1** with keep-alive. (`SimpleHTTPRequestHandler` def
 | -------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET      | `/health`                                  | health check                                                                                                                                         |
 | GET      | `/api/ai-status`                           | AI configured/reachable probe; also reports `dictation_enabled` ([ai_recipe.py.md](ai_recipe.py.md))                                                 |
-| GET      | `/api/config`                              | current configuration values + field specs                                                                                                           |
+| GET      | `/api/config`                              | current configuration values + field specs + per-model probe (`models`) — see below                                                                  |
 | POST     | `/api/config`                              | validate + persist configuration; triggers full rebuild                                                                                              |
+| POST     | `/api/config/test-transcription`           | verify the configured transcription server/model against the bundled sample                                                                          |
 | GET      | `/api/recipe-folders`                      | list folders under the source directory                                                                                                              |
 | GET      | `/api/metadata-options`                    | in-use metadata values and feedback names with counts ([metadata_options.py.md](metadata_options.py.md))                                             |
 | GET      | `/api/markdown?path=…`                     | raw Markdown of a recipe                                                                                                                             |
@@ -74,6 +75,10 @@ The handler speaks **HTTP/1.1** with keep-alive. (`SimpleHTTPRequestHandler` def
 | GET      | `/api/archive/source`, `/api/archive/site` | stream a 7z archive ([archive.py.md](archive.py.md))                                                                                                 |
 
 Unknown `/api/*` paths return 404. `path` must be a relative `.md` path inside the configured source directory; anything else is rejected.
+
+## Configuration probing
+
+`GET /api/config` additionally returns a `models` object alongside `values` and `fields`: one entry per Ollama model the app uses (`all_purpose_model_name` and `image_analysis_model` from the configured `model_endpoint`, `transcription_model` from `transcription_endpoint`). Each entry carries the model's resolved name (a blank configured name is auto-detected exactly like generation does), `present`, on-disk size (`size_bytes` and `size_gb`), `parameter_size`, `quantization_level`, `runner`, `capabilities`, and `can_keep_alive` — whether the model can stay resident, which is `true` only when the server reports an installed model with a non-zero size (remote/cloud models report none). The probes never raise: failures are reported in each entry's `error`, and the Configuration dialog uses them to caption the model fields with their size and to disable the keep-alive field of a model that cannot stay loaded (see [config.py.md](config.py.md)). The probes use `ai_recipe.model_info` with a short timeout; a configured-and-reachable server answers in microseconds.
 
 ## Response headers
 
@@ -102,10 +107,11 @@ Deleting a recipe never touches the history directory; metadata saves make snaps
 
 `POST /api/transcribe` takes the raw audio of a recording and returns `{"text": "…"}`.
 
-- The feature can be turned off with the **Dictation** field in the configuration ([config.py.md](config.py.md)). When dictation is disabled the endpoint answers 403, the generated index pages do not render the button ([index_html_generator.py.md](index_html_generator.py.md)), and a running whisper-server is stopped on the configuration save.
+- The feature can be turned off with the **Dictation** field in the configuration ([config.py.md](config.py.md)). When dictation is disabled the endpoint answers 403 and the generated index pages do not render the button ([index_html_generator.py.md](index_html_generator.py.md)).
 - The request must have arrived over HTTPS. The server itself speaks plain HTTP, so the protocol is taken from the `X-Forwarded-Proto` (or `Forwarded`) header the reverse proxy sets; without it the endpoint answers 403. Note the server may listen on more than loopback (it binds `0.0.0.0` by default), so the header only proves what the proxy claims — only put a proxy in front that you control.
 - The body is the recording; its `Content-Type` selects the container (`audio/webm`, `audio/ogg`, `audio/mp4`, `audio/wav`, `audio/mpeg`) and the suffix the recording is written to. Unknown types answer 415, an empty body 400, and a body over `MAX_TRANSCRIPTION_SIZE` 413.
-- The recording is decoded with PyAV into a 16 kHz mono WAV and posted to the locally managed [whisper-server](whisper_server.py.md) ([fordaj/whisper-native](https://github.com/fordaj/whisper-native)); the managed process is started on the first transcription and stopped on app shutdown. A missing binary or model answers 503 and a recording that cannot be decoded answers 400 with the reason; anything else is a 500.
+- The recording is decoded with PyAV into a 16 kHz mono WAV and posted to the Ollama server configured in **Transcription server** (`transcription_endpoint`, default `http://localhost:11434`), using the model configured in **Transcription model** (`transcription_model`, default `hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0`). The Ollama server and its models are managed independently of this app — nothing is downloaded, launched, or stopped by it. A request timeout (`REQUEST_TIMEOUT_SECONDS = 180`, generous for a cold model load), a connection failure, an HTTP error, or a malformed response answers 503 with the server's own message; a recording that cannot be decoded answers 400 with the reason; anything else is a 500.
+- `POST /api/config/test-transcription` — the **Test transcription** button in the Configuration dialog. The Configuration dialog posts its current (possibly unsaved) `transcription_endpoint` / `transcription_model` / `transcription_keep_alive` values; anything absent falls back to the saved configuration. The server validates the values (400 on invalid input), then sends the bundled `TranscriptionTestSample.wav` ("Add two cups of flour and one cup of sugar.") through the same transcription path the dictation button uses, and answers `{"ok": true, "text": …, "seconds": …}` — or 503 with the server's error message, so the failure is reported exactly as it occurred. Nothing is persisted.
 
 ## The AI assistant
 
@@ -120,7 +126,7 @@ Deleting a recipe never touches the history directory; metadata saves make snaps
 
 ## Limits and conventions
 
-- `MAX_REQUEST_SIZE` 5 MiB; `MAX_IMAGE_UPLOAD_SIZE` 25 MiB; `MAX_IMAGE_UPLOAD_COUNT` 20; `MAX_TRANSCRIPTION_SIZE` 25 MiB; `BULK_MAX_PATHS` 100.
+- `MAX_REQUEST_SIZE` 5 MiB; `MAX_IMAGE_UPLOAD_SIZE` 25 MiB; `MAX_IMAGE_UPLOAD_COUNT` 20; `MAX_TRANSCRIPTION_SIZE` 25 MiB (`TRANSCRIPTION_TEST_SAMPLE_PATH` names the bundled test sample); `BULK_MAX_PATHS` 100.
 - Recipe files are always `recipe.md`; uploaded image names are validated (`_validate_image_name`, SVG content screened for `script`/`foreignobject`).
 - Saves notify the callbacks: `on_markdown_save` for Markdown/editor saves (re-render page + index), `on_config_save` for configuration (full rebuild), `on_recipes_deleted` for deletes. Saves whose content is unchanged skip the write and the callback entirely. A full editor save rewrites `recipe.md` through python-frontmatter and updates `updatedOn`; the per-field metadata endpoint does not. Every save goes through the common save mechanism above, which snapshots the replaced version into the recipe's history first.
 - Request bodies are read with size caps (`_read_body`); multipart is parsed with the stdlib `email` parser (`_parse_multipart_message`).
@@ -130,5 +136,5 @@ Deleting a recipe never touches the history directory; metadata saves make snaps
 - [core.py.md](core.py.md) — wires the callbacks
 - [history.py.md](history.py.md) — the snapshot store and the history directory
 - [retention.py.md](retention.py.md) — the background retention pass that prunes history
-- [ai_recipe.py.md](ai_recipe.py.md) · [ai_assistant.py.md](ai_assistant.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) · [whisper_server.py.md](whisper_server.py.md) — backing modules
+- [ai_recipe.py.md](ai_recipe.py.md) · [ai_assistant.py.md](ai_assistant.py.md) · [archive.py.md](archive.py.md) · [metadata_options.py.md](metadata_options.py.md) · [shopping_list.py.md](shopping_list.py.md) · [transcriber.py.md](transcriber.py.md) — backing modules
 - [README.md](README.md) — the package hub

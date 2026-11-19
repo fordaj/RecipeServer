@@ -5,14 +5,24 @@
 // configuration keys appear here without client changes.
 
 const CONFIG_EDITOR_API = "/api/config";
+const TRANSCRIPTION_TEST_API = "/api/config/test-transcription";
 const CONFIG_EDITOR_HOOK = "[data-config]";
-// TCP port ceiling, mirroring MAX_PORT on the server.
-const MAX_SERVER_PORT = 65535;
+
+// The keep-alive fields that pair with a probed model field. The Configuration
+// dialog disables the keep-alive field (and explains why) when the paired
+// model cannot be kept loaded — e.g. it is not installed on the server, the
+// server could not be reached, or the model reports no size.
+const KEEP_ALIVE_SOURCES = {
+  all_purpose_model_keep_alive: "all_purpose_model_name",
+  image_analysis_model_keep_alive: "image_analysis_model",
+  transcription_keep_alive: "transcription_model",
+};
 
 const state = {
   busy: false,
   original: {},
   inputs: new Map(),
+  probedDisabled: new Set(),
 };
 
 let dialog = null;
@@ -22,6 +32,8 @@ let statusLine = null;
 let saveButton = null;
 let cancelButton = null;
 let closeButton = null;
+let testButton = null;
+let testing = false;
 
 function element(tag, className, textContent) {
   const node = document.createElement(tag);
@@ -32,14 +44,17 @@ function element(tag, className, textContent) {
 
 function setBusy(busy) {
   state.busy = busy;
-  for (const input of state.inputs.values()) input.disabled = busy;
+  for (const [key, input] of state.inputs.entries())
+    input.disabled = busy || state.probedDisabled.has(key);
   saveButton.disabled = busy;
   cancelButton.disabled = busy;
   closeButton.disabled = busy;
+  testButton.disabled = busy || testing;
 }
 
-function setStatus(message) {
+function setStatus(message, { ok = false } = {}) {
   statusLine.textContent = message || "";
+  statusLine.classList.toggle("config-editor__status--ok", ok && Boolean(message));
 }
 
 // The serialised value of a field: checkboxes are "true"/"false",
@@ -56,9 +71,23 @@ function refreshChanged() {
   }
 }
 
-function buildFields(fields, values) {
+// One caption describing the probed model: its on-disk size plus the
+// interesting details, or the probe's failure message.
+function modelCaptionText(info, configuredName) {
+  if (!info || (!info.present && info.error)) return info?.error || "";
+  const parts = [];
+  if (info.size_gb != null) parts.push(`${info.size_gb} GB on disk`);
+  if (info.parameter_size) parts.push(String(info.parameter_size));
+  if (info.quantization_level) parts.push(String(info.quantization_level));
+  if (info.runner) parts.push(String(info.runner));
+  if (!configuredName && info.resolved_model) parts.push(`auto-detected: ${info.resolved_model}`);
+  return parts.join(" · ") || info.error || "";
+}
+
+function buildFields(fields, values, models = {}) {
   fieldsContainer.textContent = "";
   state.inputs.clear();
+  state.probedDisabled.clear();
 
   for (const field of fields) {
     const wrapper = element("div", "config-editor__field");
@@ -108,8 +137,8 @@ function buildFields(fields, values) {
         input.type =
           field.input_type === "url" ? "url" : field.input_type === "number" ? "number" : "text";
         if (input.type === "number") {
-          input.min = "1";
-          input.max = String(MAX_SERVER_PORT);
+          if (field.min !== undefined) input.min = String(field.min);
+          if (field.max !== undefined) input.max = String(field.max);
           input.step = "1";
           input.inputMode = "numeric";
         }
@@ -128,10 +157,39 @@ function buildFields(fields, values) {
     });
 
     const help = element("p", "config-editor__help", field.help || "");
+    const captions = [];
+
+    const info = models[field.key];
+    if (info) {
+      const text = modelCaptionText(info, values[field.key]);
+      if (text) {
+        const className = info.error
+          ? "config-editor__model-info config-editor__model-info--warning"
+          : "config-editor__model-info";
+        captions.push(element("p", className, text));
+      }
+    }
+
+    const keepAliveSource = KEEP_ALIVE_SOURCES[field.key];
+    if (keepAliveSource) {
+      const sourceInfo = models[keepAliveSource];
+      if (sourceInfo && !sourceInfo.can_keep_alive) {
+        state.probedDisabled.add(field.key);
+        input.disabled = true;
+        captions.push(
+          element(
+            "p",
+            "config-editor__model-info config-editor__model-info--warning",
+            `Keep-alive unavailable: ${sourceInfo.error || "the model cannot be kept loaded"}`,
+          ),
+        );
+      }
+    }
+
     if (field.input_type === "checkbox") {
-      wrapper.append(label, help);
+      wrapper.append(label, help, ...captions);
     } else {
-      wrapper.append(label, input, help);
+      wrapper.append(label, input, help, ...captions);
     }
     fieldsContainer.append(wrapper);
     state.inputs.set(field.key, input);
@@ -145,6 +203,49 @@ function closeEditor() {
   if (dialog.open) dialog.close();
 }
 
+// Send the bundled speech sample through the configured transcription
+// server/model and report the transcript. Tests the field values as they
+// are in the dialog, so an unsaved change can be verified before saving.
+async function testTranscription() {
+  if (state.busy || testing) return;
+
+  const values = {};
+  for (const key of ["transcription_endpoint", "transcription_model", "transcription_keep_alive"]) {
+    const input = state.inputs.get(key);
+    if (input) values[key] = fieldValue(input);
+  }
+
+  testing = true;
+  testButton.disabled = true;
+  setStatus("Testing the transcription model…");
+
+  try {
+    const response = await fetch(TRANSCRIPTION_TEST_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(values),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "The transcription test failed.");
+
+    const seconds = typeof data.seconds === "number" ? `${data.seconds}s — ` : "";
+    const text = String(data.text || "").trim();
+    setStatus(
+      `Test passed (${seconds}${text ? `“${truncate(text, 120)}”` : "empty transcription"})`,
+      { ok: true },
+    );
+  } catch (error) {
+    setStatus(error.message || "The transcription test failed.");
+  } finally {
+    testing = false;
+    testButton.disabled = state.busy;
+  }
+}
+
+function truncate(text, max) {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
 async function openEditor() {
   if (state.busy) return;
   setBusy(true);
@@ -155,7 +256,7 @@ async function openEditor() {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "Unable to load configuration.");
 
-    buildFields(data.fields || [], data.values || {});
+    buildFields(data.fields || [], data.values || {}, data.models || {});
     dialog.showModal();
   } catch (error) {
     setStatus(error.message);
@@ -225,12 +326,21 @@ function createEditorDialog() {
   statusLine.setAttribute("role", "status");
 
   const footer = element("footer", "config-editor__footer");
+  testButton = element("button", "config-editor__test", "Test transcription");
+  testButton.type = "button";
+  testButton.setAttribute(
+    "aria-label",
+    "Send a test recording to the configured transcription server",
+  );
+  testButton.addEventListener("click", () => {
+    void testTranscription();
+  });
   cancelButton = element("button", "config-editor__cancel", "Cancel");
   cancelButton.type = "button";
   cancelButton.addEventListener("click", closeEditor);
   saveButton = element("button", "config-editor__save", "Save");
   saveButton.type = "submit";
-  footer.append(cancelButton, saveButton);
+  footer.append(testButton, cancelButton, saveButton);
 
   form.append(header, fieldsContainer, statusLine, footer);
   form.addEventListener("submit", saveEditor);

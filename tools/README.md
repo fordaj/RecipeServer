@@ -35,7 +35,7 @@ tools/<name>/
 - Binaries are pinned by version directory; the pinned version is named by `*_VERSION_DIR` in [`scripts/.common.env`](../scripts/env.sh.md).
 - `<platform>` is the hyphenated `<os>-<arch>` name (`linux-x86_64`, `macos-arm64`, `windows-x86_64`, …).
 - `update.sh` downloads the latest (or `--tag`ged) upstream release via `gh`, verifies checksums when the release ships them, stages into a temporary directory, swaps in atomically, and deletes superseded version folders only after the new one is staged — a failed refresh leaves the previous bundle intact. Each script has `--dry-run`, `--help`, and resolves its own directory, so it can run from anywhere.
-- Only the binary is kept, except [formattington-lite](formattington-lite/update.sh.md), which also retains `NOTICE.md` and `LICENSES/` per platform directory, [barnacle](barnacle/update.sh.md), which copies an upstream `LICENSE` into each platform directory when the release archives ship one, and [whisper-native](whisper-native/update.sh.md), which keeps `whisper-server` plus the upstream `LICENSE`, `LICENSE.whisper.cpp`, and `WHISPER-NATIVE-BUILDINFO.txt`.
+- Only the binary is kept, except [formattington-lite](formattington-lite/update.sh.md), which also retains `NOTICE.md` and `LICENSES/` per platform directory, and [barnacle](barnacle/update.sh.md), which copies an upstream `LICENSE` into each platform directory when the release archives ship one.
 
 ## The bundles
 
@@ -46,9 +46,8 @@ tools/<name>/
 | [runner-spawner](runner-spawner/update.sh.md) | Self-hosted CI runners ([spawn-runners.sh](../scripts/spawn-runners.sh.md)) | [update.sh](runner-spawner/update.sh.md) |
 | [barnacle](barnacle/update.sh.md) | Documentation site generation ([scripts/docs.sh](../scripts/docs.sh.md)) | [update.sh](barnacle/update.sh.md) |
 | [formattington-lite](formattington-lite/update.sh.md) | Formatting fallback; the pinned uv dev dependency is the primary path | [update.sh](formattington-lite/update.sh.md) |
-| [whisper-native](whisper-native/update.sh.md) | `whisper-server` binary for the dictation feature (started and stopped by the app) | [update.sh](whisper-native/update.sh.md) |
 
-Currently pinned: versioner `v0.0.3.0.17`, logamuffin `v0.1.3.0.35`, runner-spawner `v0.0.1.2.16`, barnacle `v0.0.2.1.25`, formattington-lite `v0.0.3.0.67`, whisper-native `v1.9.5`. `scripts/.common.env` and `scripts/.<platform>.env` select these via `*_VERSION_DIR`/`*_BIN`; see [scripts/env.sh.md](../scripts/env.sh.md). Archives are platform-native (`.tar.gz` on macOS/Linux, `.zip` on Windows); legacy `.7z` assets are still readable (a p7zip install is only needed until new releases ship platform-native archives).
+Currently pinned: versioner `v0.0.3.0.17`, logamuffin `v0.1.3.0.35`, runner-spawner `v0.0.1.2.16`, barnacle `v0.0.2.1.25`, formattington-lite `v0.0.3.0.67`. `scripts/.common.env` and `scripts/.<platform>.env` select these via `*_VERSION_DIR`/`*_BIN`; see [scripts/env.sh.md](../scripts/env.sh.md). Archives are platform-native (`.tar.gz` on macOS/Linux, `.zip` on Windows); legacy `.7z` assets are still readable (a p7zip install is only needed until new releases ship platform-native archives).
 
 ## Refreshing a pinned tool
 
@@ -57,7 +56,7 @@ tools/barnacle/update.sh            # download the latest release, verify, swap
 tools/barnacle/update.sh --dry-run  # show what would change
 ```
 
-(Same flags for the other five.) Checksum verification accepts `checksums.txt` or `SHA256SUMS.txt`; missing file: a warning, except runner-spawner, which refuses to install unverified binaries.
+(Same flags for the others.) Checksum verification accepts `checksums.txt` or `SHA256SUMS.txt`; missing file: a warning, except runner-spawner, which refuses to install unverified binaries.
 
 ## Related pages
 

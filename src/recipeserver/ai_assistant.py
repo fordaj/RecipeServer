@@ -39,6 +39,7 @@ from .ai_recipe import (
     ModelUnavailable,
     _metrics_from_ollama_payload,
     _read_response,
+    keep_alive_seconds,
     ollama_chat_url,
     resolve_ai_config,
     resolve_model_name,
@@ -341,6 +342,7 @@ def _chat_message(
     model_name: str,
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]] | None,
+    keep_alive: int | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     chat_url = ollama_chat_url(endpoint)
     payload: dict[str, Any] = {
@@ -352,6 +354,8 @@ def _chat_message(
             "num_predict": MAX_MODEL_TOKENS,
         },
     }
+    if keep_alive is not None:
+        payload["keep_alive"] = keep_alive  # Seconds; negative = never unload
     if tools:
         payload["tools"] = tools
     logger.info(
@@ -523,13 +527,14 @@ def _assistant_reply(
     ]
 
     tools: list[dict[str, Any]] | None = _TOOLS if current_file is not None else _LIST_ONLY_TOOLS
+    keep_alive = keep_alive_seconds(resolved.all_purpose_model_keep_alive)
     state = {"edited": False}
     metrics: dict[str, Any] = {}
 
     for _ in range(MAX_TOOL_ROUNDS):
         _emit_status(event_callback, STATUS_THINKING, "Thinking…")
         try:
-            message_payload, metrics = _chat_message(resolved.endpoint, model_name, messages, tools)
+            message_payload, metrics = _chat_message(resolved.endpoint, model_name, messages, tools, keep_alive)
         except ModelRequestError as exc:
             if tools is not None and _tools_not_supported(exc):
                 # Degrade gracefully: answer without function tools instead of
@@ -537,7 +542,7 @@ def _assistant_reply(
                 logger.warning(f"The model does not support function tools ({exc}); answering in plain text")
                 tools = None
                 _emit_status(event_callback, STATUS_THINKING, "This model has no tool support; answering in plain text…")
-                message_payload, metrics = _chat_message(resolved.endpoint, model_name, messages, tools)
+                message_payload, metrics = _chat_message(resolved.endpoint, model_name, messages, tools, keep_alive)
             else:
                 raise
         calls = _parse_tool_calls(message_payload)

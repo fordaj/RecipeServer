@@ -74,6 +74,18 @@ def test_bulk_edit_applies_only_modified_attributes(driver, recipe_server):
     assert "Makes" in alert.text
     alert.accept()
 
+    # The apply happens once the confirmation is accepted: poll the recipe on
+    # disk until the server has written it (atomic write, so a complete file
+    # or an exception). Page-element visibility does not synchronize with the
+    # background save, so waiting on the filesystem does.
+    def makes_applied():
+        try:
+            return frontmatter.loads(waffles.read_text(encoding="utf-8")).metadata.get("makes") == 12
+        except Exception:
+            return False
+
+    WebDriverWait(driver, DEFAULT_TIMEOUT).until(lambda _: makes_applied())
+
     # The editor reloads the page after a successful apply.
     wait_visible(driver, "#recipe-list")
 

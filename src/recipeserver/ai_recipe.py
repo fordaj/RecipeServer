@@ -103,6 +103,25 @@ class ModelRequestError(RuntimeError):
     """The model endpoint returned an error or unusable response."""
 
 
+def keep_alive_seconds(value: object) -> int | None:
+    """Map the configured keep-alive (integer minutes) to Ollama's ``keep_alive``.
+
+    The configuration stores "minutes before unload" as an integer: ``-1``
+    (never unload), ``0`` (unload immediately — the default), or a positive
+    number of minutes. Ollama expects the value in seconds (verified against
+    the installed server), so minutes are scaled by 60. Negative becomes
+    ``-1`` (keep loaded indefinitely). Blank or unparseable values return
+    ``None``, so the option is omitted and Ollama applies its own default.
+    """
+    try:
+        minutes = int(str(value).strip(), 10)
+    except TypeError, ValueError:
+        return None
+    if minutes < 0:
+        return -1
+    return minutes * 60
+
+
 class SourceFetchError(RuntimeError):
     """Recipe source content could not be fetched."""
 
@@ -121,6 +140,9 @@ class AIConfigView:
     image_analysis_model: str
     new_recipe_prompt: str
     new_recipe_from_image_prompt: str
+    # Minutes before unload, as configured ("-1"/"0"/"<N>"); blank means unset.
+    all_purpose_model_keep_alive: str = "0"
+    image_analysis_model_keep_alive: str = "0"
 
     @property
     def is_configured(self) -> bool:
@@ -150,6 +172,8 @@ def resolve_ai_config(config: object | None) -> AIConfigView:
         image_analysis_model=_read_config_text(config, "image_analysis_model"),
         new_recipe_prompt=_read_config_text(config, "new_recipe_prompt"),
         new_recipe_from_image_prompt=_read_config_text(config, "new_recipe_from_image_prompt"),
+        all_purpose_model_keep_alive=_read_config_text(config, "all_purpose_model_keep_alive") or "0",
+        image_analysis_model_keep_alive=_read_config_text(config, "image_analysis_model_keep_alive") or "0",
     )
 
 
@@ -325,6 +349,109 @@ def list_models(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) ->
     )
     logger.debug(f"Models reported by {models_url}: {names}")
     return names
+
+
+def _model_catalog(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> list[dict[str, Any]]:
+    """GET the ``/api/tags`` model list, returning the raw per-model entries.
+
+    Raises the usual probe errors on failure; callers use ``MODEL_PROBE_ERRORS``.
+    """
+    tags_url = ollama_tags_url(endpoint)
+    request = Request(
+        tags_url,
+        headers={"Accept": "application/json", "User-Agent": USER_AGENT},
+        method="GET",
+    )
+    with urlopen(request, timeout=timeout) as response:
+        if not 200 <= response.status < 300:
+            raise ModelRequestError(f"Model list request to {tags_url} returned HTTP {response.status}")
+        payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
+    if not isinstance(payload, dict):
+        raise ModelRequestError("Model list response was not a JSON object")
+    entries = payload.get("models")
+    return [entry for entry in entries if isinstance(entry, dict)] if isinstance(entries, list) else []
+
+
+def _entry_name(entry: dict[str, Any]) -> str:
+    for key in ("name", "model", "id"):
+        value = entry.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def model_info(endpoint: str, model_name: str = "", timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> dict[str, Any]:
+    """Best-effort probe of one Ollama model's installation metadata.
+
+    Returns a JSON-serialisable dict with the model's on-disk size (as GB),
+    its parameter/quantization details, and ``can_keep_alive`` — whether the
+    model can be kept loaded on request (it is installed and reports a
+    non-zero size; remote/cloud models report ``0``). Never raises: every
+    failure is reported in the dict (``error`` / ``can_keep_alive=False``)
+    so the caller can degrade gracefully.
+    """
+    info: dict[str, Any] = {
+        "resolved_model": "",
+        "configured_name": model_name,
+        "present": False,
+        "size_bytes": None,
+        "size_gb": None,
+        "parameter_size": "",
+        "quantization_level": "",
+        "runner": "",
+        "capabilities": [],
+        "can_keep_alive": False,
+        "error": None,
+    }
+    endpoint = (endpoint or "").strip()
+    if not endpoint:
+        info["error"] = "endpoint not configured"
+        return info
+
+    try:
+        catalog = _model_catalog(endpoint, timeout=timeout)
+    except MODEL_PROBE_ERRORS as exc:
+        logger.debug(f"Could not probe models at {endpoint}: {exc}")
+        info["error"] = f"could not reach the Ollama server at {endpoint}: {exc}"
+        return info
+
+    configured = model_name.strip()
+    if configured:
+        resolved = configured
+    else:
+        names = [name for name in (_entry_name(entry) for entry in catalog) if name]
+        resolved = names[0] if names else ""
+        if resolved:
+            logger.info(f"Auto-selected local model for probing: {resolved}")
+        else:
+            info["error"] = "no models are installed on the server"
+            return info
+
+    info["resolved_model"] = resolved
+    entry = next((candidate for candidate in catalog if _model_names_match(_entry_name(candidate), resolved)), None)
+    if entry is None:
+        info["error"] = f"model '{resolved}' is not installed on the server"
+        return info
+
+    details = entry.get("details") if isinstance(entry.get("details"), dict) else {}
+    size = entry.get("size")
+    size_bytes = size if isinstance(size, int) and not isinstance(size, bool) and size > 0 else None
+    capabilities = entry.get("capabilities") if isinstance(entry.get("capabilities"), list) else []
+    info.update(
+        present=True,
+        size_bytes=size_bytes,
+        size_gb=round(size_bytes / 1e9, 1) if size_bytes else None,
+        parameter_size=str(details.get("parameter_size") or ""),
+        quantization_level=str(details.get("quantization_level") or ""),
+        runner=str(details.get("runner") or ""),
+        capabilities=[str(capability) for capability in capabilities],
+        # A model can only be kept loaded if the server reports how big it
+        # is; remote/cloud models report 0 and cannot be resident.
+        can_keep_alive=size_bytes is not None,
+    )
+    if size_bytes is None:
+        info["error"] = "the server did not report a size for this model; it cannot be kept loaded"
+    return info
 
 
 def resolve_model_name(endpoint: str, configured_name: str = "") -> str:
@@ -679,13 +806,14 @@ def _chat_payload(
     *,
     stream: bool,
     images: list[str] | None = None,
+    keep_alive: int | None = None,
 ) -> dict[str, Any]:
     user: dict[str, Any] = {"role": "user", "content": user_message}
     if images:
         # Ollama's native chat route reads images from the message itself.
         user["images"] = list(images)
 
-    return {
+    payload = {
         "model": model_name,
         "messages": [
             {"role": "system", "content": prompt},
@@ -697,6 +825,11 @@ def _chat_payload(
             "num_predict": MAX_MODEL_TOKENS,
         },
     }
+    if keep_alive is not None:
+        # Seconds on the wire (verified against the installed server);
+        # a negative value keeps the model loaded indefinitely.
+        payload["keep_alive"] = keep_alive
+    return payload
 
 
 def _raise_model_error(payload: dict[str, Any]) -> None:
@@ -816,11 +949,12 @@ def _ollama_chat(
     stage: str = "recipe generation",
     stream: bool = False,
     images: list[str] | None = None,
+    keep_alive: int | None = None,
     on_thinking: Callable[[str], None] | None = None,
     on_content: Callable[[str], None] | None = None,
 ) -> ChatResult:
     chat_url = ollama_chat_url(endpoint)
-    payload = _chat_payload(model_name, prompt, user_message, stream=stream, images=images)
+    payload = _chat_payload(model_name, prompt, user_message, stream=stream, images=images, keep_alive=keep_alive)
     logger.info(
         f"Sending {stage} request to {chat_url} (model={model_name}, "
         f"stream={stream}, system_prompt_chars={len(prompt)}, user_chars={len(user_message)})"
@@ -1024,6 +1158,7 @@ def _prepare_image_draft_input(
         )
         encoded = image_base64(image_filename, image_bytes)
         logger.info(f"Transcribing recipe image with local model '{image_model_name}' ({len(image_bytes)} bytes, {image_filename})")
+        image_keep_alive = keep_alive_seconds(resolved.image_analysis_model_keep_alive)
         transcription = _ollama_chat(
             resolved.endpoint,
             image_model_name,
@@ -1032,6 +1167,7 @@ def _prepare_image_draft_input(
             stage="image transcription",
             stream=False,
             images=[encoded],
+            keep_alive=image_keep_alive,
         ).content
         logger.info(f"Image transcription from '{image_model_name}' ({len(transcription)} characters): {transcription[:LOG_PREVIEW_CHARS]!r}")
         transcriptions.append(f"--- {position.capitalize()}: {image_filename} ---\n{transcription}")
@@ -1177,6 +1313,7 @@ def _stream_recipe_draft(
         user_message,
         stage=stage,
         stream=event_callback is not None,
+        keep_alive=keep_alive_seconds(resolved.all_purpose_model_keep_alive),
         on_thinking=lambda _text: progress(STATUS_THINKING, "Thinking..."),
         on_content=lambda _text: progress(STATUS_GENERATING, generating_message),
     )

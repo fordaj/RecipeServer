@@ -105,6 +105,17 @@
   font-size: 0.85rem;
 }
 
+/* Caption shown under a model field with the probed model's details. */
+.config-editor__model-info {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+.config-editor__model-info--warning {
+  color: var(--danger-color);
+}
+
 /* ---------- Status ---------- */
 
 /* The shared shell provides the layout; validation messages are red here. */
@@ -112,8 +123,18 @@
   color: var(--danger-color);
 }
 
+.config-editor__status--ok {
+  color: var(--food-color);
+}
+
 .config-editor__status:empty {
   visibility: hidden;
+}
+
+/* The Test transcription button sits on the left side of the footer; the
+   Cancel/Save pair stays on the right. */
+.config-editor__test {
+  margin-right: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {
