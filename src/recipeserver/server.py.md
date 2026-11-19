@@ -47,7 +47,7 @@ The handler speaks **HTTP/1.1** with keep-alive. (`SimpleHTTPRequestHandler` def
 | -------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET      | `/health`                                  | health check                                                                                                                                         |
 | GET      | `/api/ai-status`                           | AI configured/reachable probe; also reports `dictation_enabled` ([ai_recipe.py.md](ai_recipe.py.md))                                                 |
-| GET      | `/api/config`                              | current configuration values + field specs                                                                                                           |
+| GET      | `/api/config`                              | current configuration values + field specs + per-model probe (`models`) — see below                                                                  |
 | POST     | `/api/config`                              | validate + persist configuration; triggers full rebuild                                                                                              |
 | POST     | `/api/config/test-transcription`           | verify the configured transcription server/model against the bundled sample                                                                          |
 | GET      | `/api/recipe-folders`                      | list folders under the source directory                                                                                                              |
@@ -75,6 +75,10 @@ The handler speaks **HTTP/1.1** with keep-alive. (`SimpleHTTPRequestHandler` def
 | GET      | `/api/archive/source`, `/api/archive/site` | stream a 7z archive ([archive.py.md](archive.py.md))                                                                                                 |
 
 Unknown `/api/*` paths return 404. `path` must be a relative `.md` path inside the configured source directory; anything else is rejected.
+
+## Configuration probing
+
+`GET /api/config` additionally returns a `models` object alongside `values` and `fields`: one entry per Ollama model the app uses (`all_purpose_model_name` and `image_analysis_model` from the configured `model_endpoint`, `transcription_model` from `transcription_endpoint`). Each entry carries the model's resolved name (a blank configured name is auto-detected exactly like generation does), `present`, on-disk size (`size_bytes` and `size_gb`), `parameter_size`, `quantization_level`, `runner`, `capabilities`, and `can_keep_alive` — whether the model can stay resident, which is `true` only when the server reports an installed model with a non-zero size (remote/cloud models report none). The probes never raise: failures are reported in each entry's `error`, and the Configuration dialog uses them to caption the model fields with their size and to disable the keep-alive field of a model that cannot stay loaded (see [config.py.md](config.py.md)). The probes use `ai_recipe.model_info` with a short timeout; a configured-and-reachable server answers in microseconds.
 
 ## Response headers
 

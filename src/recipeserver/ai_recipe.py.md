@@ -17,11 +17,14 @@ Optional, opt-in integration with a local [Ollama](https://ollama.com) server. I
 
 ## Public surface
 
-- `resolve_ai_config(config)` → frozen `AIConfigView` (endpoint, models, prompts) with `is_configured` / `is_image_configured`.
+- `resolve_ai_config(config)` → frozen `AIConfigView` (endpoint, models, prompts, `all_purpose_model_keep_alive` / `image_analysis_model_keep_alive` in minutes) with `is_configured` / `is_image_configured`.
+- `keep_alive_seconds(value)` — maps the configured keep-alive (integer minutes: `-1` never unload, `0` unload immediately, `<N>` minutes) to Ollama's `keep_alive` (seconds; negative keeps the model loaded indefinitely). Blank or unparseable values return `None` (the option is omitted and Ollama applies its own default).
+- `model_info(endpoint, model_name="", timeout=AVAILABILITY_TIMEOUT_SECONDS)` — best-effort probe of one Ollama model's installation metadata, used by `GET /api/config` ([server.py.md](server.py.md)) to show the model's on-disk size (in GB) in the Configuration dialog and to disable the keep-alive setting when the model cannot be kept loaded (it reports no size — e.g. remote/cloud models, or the server reports nothing). Never raises; every failure is reported in the returned dict (`error` / `can_keep_alive`). An empty `model_name` auto-detects from `/api/tags` (first installed model), mirroring `resolve_model_name`.
 - `ai_status(config)` → the dict served by `/api/ai-status` (endpoint configured?, reachable?, which models). The server adds one more key, `dictation_enabled` (see [server.py.md](server.py.md)), before sending the response.
 - `generate_recipe(config, input_type, input_value, event_callback=None, images=None)` — the drafting pipeline. `input_type` is `text`, `url`, or `image`. Emits progress events (`status`, `metrics`, `error`, `result`) through `event_callback`; the server streams them as SSE for `stream: true` requests and blocks otherwise.
 - `normalize_ollama_base_url(endpoint)` — strips a trailing `/v1`-style suffix so an OpenAI-style configured endpoint still reaches Ollama's native API. `ollama_chat_url` / `ollama_ps_url` / `ollama_tags_url` build on it.
-- `list_models`, `resolve_model_name`, `is_available`, `is_model_loaded`, `loaded_model_names` — endpoint probes. All are best-effort: any failure means "unavailable", never a crash (`MODEL_PROBE_ERRORS`).
+- `list_models`, `resolve_model_name`, `is_available`, `is_model_loaded`, `loaded_model_names` — endpoint probes. All are best-effort: any failure means "unavailable", never a crash (`MODEL_PROBE_ERRORS`). `model_info` shares the same probe posture.
+- Chat requests send `keep_alive` when the model's keep-alive minutes are configured (the recipe drafting / image transcription calls use the all-purpose / image analysis model's respective setting; `0` — unload immediately — is the default).
 - `fetch_url_content(url)` — fetches a URL (`URL_TIMEOUT_SECONDS = 20`, `MAX_URL_BYTES = 2 MiB`) and returns readable `(text, title)` rather than raw HTML.
 - `parse_model_output(output)` — splits `(markdown, metadata_dict)` out of the model's reply (handles code fences, YAML front matter via python-frontmatter).
 

@@ -36,7 +36,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from ._logger import logger
-from .ai_recipe import normalize_ollama_base_url
+from .ai_recipe import keep_alive_seconds, normalize_ollama_base_url
 
 
 # The transcription failures the HTTP layer surfaces as 503 (the feature is
@@ -160,28 +160,11 @@ def _build_chat_payload(model: str, wav_audio: bytes, keep_alive: object = None)
     return payload
 
 
-def normalize_keep_alive(value: object) -> object | None:
-    """Normalise the configured keep-alive for the request body.
-
-    Returns ``None`` when unset (Ollama applies its own default). Values that
-    are plain integers become JSON numbers (seconds; Ollama treats a negative
-    value as "keep loaded indefinitely" and ``0`` as "unload now"); anything
-    else is passed through verbatim (a Go duration string such as ``"5m"``).
-    """
-    text = str(value or "").strip()
-    if not text:
-        return None
-    try:
-        return int(text, 10)
-    except ValueError:
-        return text
-
-
 def transcribe_wav(endpoint: str, model: str, wav_audio: bytes, keep_alive: object = None) -> str:
     """Post a WAV recording to the Ollama chat API and return the text."""
     base_url = normalize_ollama_base_url(endpoint)
     chat_url = f"{base_url}{OLLAMA_CHAT_PATH}"
-    body = json.dumps(_build_chat_payload(model, wav_audio, normalize_keep_alive(keep_alive))).encode("utf-8")
+    body = json.dumps(_build_chat_payload(model, wav_audio, keep_alive_seconds(keep_alive))).encode("utf-8")
     request = Request(
         chat_url,
         data=body,

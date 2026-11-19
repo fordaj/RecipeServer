@@ -42,12 +42,12 @@ from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import (
     Configuration,
+    DEFAULT_KEEP_ALIVE_MINUTES,
     DEFAULT_SERVER_PORT,
     DEFAULT_TRANSCRIPTION_ENDPOINT,
-    DEFAULT_TRANSCRIPTION_KEEP_ALIVE,
     DEFAULT_TRANSCRIPTION_MODEL,
+    _validate_keep_alive_minutes,
     _validate_transcription_endpoint,
-    _validate_transcription_keep_alive,
     _validate_transcription_model,
 )
 from .image_handler import IMAGE_EXTENSIONS
@@ -1077,6 +1077,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 {
                     "values": self.config.get_config_values(),
                     "fields": self.config.field_specs(),
+                    "models": self._probe_configured_models(),
                 },
             )
         except ValueError as exc:
@@ -1084,6 +1085,25 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         except Exception:
             logger.exception("Failed to read configuration")
             self._send_json(500, {"error": "Unable to read configuration"})
+
+    def _probe_configured_models(self) -> dict:
+        """Probe the three configured models' installation metadata.
+
+        Best-effort: reports each model's on-disk size and whether it can be
+        kept loaded, so the Configuration dialog can show the model size and
+        disable the keep-alive setting when the model cannot be resident.
+        Never raises; per-model failures are reported in the probe result.
+        """
+        config = self.config
+        if config is None:
+            return {}
+        ai_endpoint = getattr(config, "model_endpoint", "") or ""
+        transcription_endpoint = getattr(config, "transcription_endpoint", "") or DEFAULT_TRANSCRIPTION_ENDPOINT
+        return {
+            "all_purpose_model_name": ai_recipe.model_info(ai_endpoint, getattr(config, "all_purpose_model_name", "")),
+            "image_analysis_model": ai_recipe.model_info(ai_endpoint, getattr(config, "image_analysis_model", "")),
+            "transcription_model": ai_recipe.model_info(transcription_endpoint, getattr(config, "transcription_model", "")),
+        }
 
     def _handle_recipe_folders_get(self) -> None:
         try:
@@ -1305,7 +1325,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         return {
             "endpoint": getattr(config, "transcription_endpoint", "") or DEFAULT_TRANSCRIPTION_ENDPOINT,
             "model": getattr(config, "transcription_model", "") or DEFAULT_TRANSCRIPTION_MODEL,
-            "keep_alive": getattr(config, "transcription_keep_alive", DEFAULT_TRANSCRIPTION_KEEP_ALIVE) or DEFAULT_TRANSCRIPTION_KEEP_ALIVE,
+            "keep_alive": getattr(config, "transcription_keep_alive", "") or DEFAULT_KEEP_ALIVE_MINUTES,
         }
 
     def _handle_transcription(self) -> None:
@@ -1418,7 +1438,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             settings = {
                 "endpoint": _validate_transcription_endpoint(pick("endpoint", saved["endpoint"]), "Transcription server"),
                 "model": _validate_transcription_model(pick("model", saved["model"]), "Transcription model"),
-                "keep_alive": _validate_transcription_keep_alive(pick("keep_alive", saved["keep_alive"]), "Transcription keep-alive"),
+                "keep_alive": _validate_keep_alive_minutes(pick("keep_alive", saved["keep_alive"]), "Transcription keep-alive"),
             }
         except ValueError as exc:
             self._send_json(400, {"error": str(exc)})

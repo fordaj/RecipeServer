@@ -102,6 +102,8 @@ def test_get_config_returns_values_and_field_specs(config_server):
         "transcription_endpoint",
         "transcription_model",
         "transcription_keep_alive",
+        "all_purpose_model_keep_alive",
+        "image_analysis_model_keep_alive",
         "timeline_retention",
     }
     for field in data["fields"]:
@@ -199,7 +201,7 @@ def test_post_config_test_transcription_runs_the_sample(config_server, monkeypat
     status, data = _post(
         base,
         "/api/config/test-transcription",
-        {"endpoint": "http://localhost:11434", "model": "custom/audio-model:latest", "keep_alive": "10m"},
+        {"endpoint": "http://localhost:11434", "model": "custom/audio-model:latest", "keep_alive": "10"},
     )
 
     assert status == 200
@@ -209,7 +211,7 @@ def test_post_config_test_transcription_runs_the_sample(config_server, monkeypat
     # The unsaved field values from the dialog are used for the test.
     assert calls["endpoint"] == "http://localhost:11434"
     assert calls["model"] == "custom/audio-model:latest"
-    assert calls["keep_alive"] == "10m"
+    assert calls["keep_alive"] == "10"
     # The bundled sample is a real WAV file.
     assert calls["audio_prefix"] == b"RIFF"
 
@@ -261,3 +263,112 @@ def test_post_config_test_transcription_rejects_an_invalid_override(config_serve
 
     assert status == 400
     assert "keep-alive" in data["error"]
+
+
+_FAKE_CATALOG = [
+    {
+        "name": "test-model:latest",
+        "model": "test-model:latest",
+        "size": 17_741_872_154,
+        "details": {"parameter_size": "27.3B", "quantization_level": "Q4_K_M", "runner": "llamacpp"},
+        "capabilities": ["completion", "vision", "tools"],
+    },
+    {
+        "name": "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
+        "model": "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
+        "size": 1_019_142_577,
+        "details": {"parameter_size": "752M", "quantization_level": "Q8_0", "runner": "ggml"},
+        "capabilities": ["completion", "audio"],
+    },
+]
+
+
+def test_get_config_reports_model_details_and_keep_alive_capability(config_server, monkeypatch):
+    base, config, _, _ = config_server
+    monkeypatch.setattr("recipeserver.ai_recipe._model_catalog", lambda endpoint, timeout=3.0: list(_FAKE_CATALOG))
+    config.apply_config_values(
+        {
+            MODEL_ENDPOINT_KEY: "http://localhost:11434",
+            "all_purpose_model_name": "test-model:latest",
+        }
+    )
+
+    status, data = _get(base, "/api/config")
+
+    assert status == 200
+    models = data["models"]
+    assert set(models) == {"all_purpose_model_name", "image_analysis_model", "transcription_model"}
+
+    all_purpose = models["all_purpose_model_name"]
+    assert all_purpose["present"] is True
+    assert all_purpose["size_bytes"] == 17_741_872_154
+    assert all_purpose["size_gb"] == 17.7
+    assert all_purpose["parameter_size"] == "27.3B"
+    assert all_purpose["quantization_level"] == "Q4_K_M"
+    assert all_purpose["runner"] == "llamacpp"
+    assert all_purpose["capabilities"] == ["completion", "vision", "tools"]
+    assert all_purpose["can_keep_alive"] is True
+    assert all_purpose["resolved_model"] == "test-model:latest"
+
+    # The image model is unset in this config; auto-detection resolves to the
+    # first installed model, exactly like generation does.
+    image = models["image_analysis_model"]
+    assert image["present"] is True
+    assert image["size_gb"] == 17.7
+    assert image["resolved_model"] == "test-model:latest"
+
+    transcription = models["transcription_model"]
+    assert transcription["present"] is True
+    assert transcription["size_gb"] == 1.0
+    assert transcription["quantization_level"] == "Q8_0"
+    assert transcription["can_keep_alive"] is True
+
+
+def test_get_config_reports_an_unreachable_ollama_server(config_server, monkeypatch):
+    from urllib.error import URLError
+
+    base, config, _, _ = config_server
+    config.apply_config_values({MODEL_ENDPOINT_KEY: "http://localhost:11434", "all_purpose_model_name": "test-model:latest"})
+
+    def unreachable(endpoint, timeout=3.0):
+        raise URLError("Connection refused")
+
+    monkeypatch.setattr("recipeserver.ai_recipe._model_catalog", unreachable)
+
+    status, data = _get(base, "/api/config")
+
+    assert status == 200
+    for name, info in data["models"].items():
+        assert info["present"] is False
+        assert info["can_keep_alive"] is False
+        assert info["error"]
+
+
+def test_get_config_reports_a_missing_model(config_server, monkeypatch):
+    base, config, _, _ = config_server
+    monkeypatch.setattr("recipeserver.ai_recipe._model_catalog", lambda endpoint, timeout=3.0: list(_FAKE_CATALOG))
+    config.apply_config_values({MODEL_ENDPOINT_KEY: "http://localhost:11434", "all_purpose_model_name": "not-installed:latest"})
+
+    status, data = _get(base, "/api/config")
+
+    assert status == 200
+    info = data["models"]["all_purpose_model_name"]
+    assert info["present"] is False
+    assert info["can_keep_alive"] is False
+    assert "not-installed:latest" in info["error"]
+
+
+def test_get_config_reports_a_model_without_a_size(config_server, monkeypatch):
+    base, config, _, _ = config_server
+    catalog = [dict(entry, size=0) for entry in _FAKE_CATALOG]
+    monkeypatch.setattr("recipeserver.ai_recipe._model_catalog", lambda endpoint, timeout=3.0: catalog)
+    config.apply_config_values({MODEL_ENDPOINT_KEY: "http://localhost:11434", "all_purpose_model_name": "test-model:latest"})
+
+    status, data = _get(base, "/api/config")
+
+    assert status == 200
+    for info in data["models"].values():
+        assert info["present"] is True
+        assert info["can_keep_alive"] is False
+        assert info["size_gb"] is None
+        assert info["error"]

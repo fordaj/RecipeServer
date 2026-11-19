@@ -21,6 +21,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
+from recipeserver.ai_recipe import keep_alive_seconds
 from recipeserver.transcriber import (
     SAMPLE_RATE,
     REQUEST_TIMEOUT_SECONDS,
@@ -28,7 +29,6 @@ from recipeserver.transcriber import (
     TranscriberUnavailable,
     TranscriptionError,
     decode_audio_to_wav,
-    normalize_keep_alive,
     normalize_transcription_text,
     transcribe_wav,
 )
@@ -132,7 +132,7 @@ def test_normalize_transcription_text_strips_trailing_special_tokens():
     assert normalize_transcription_text("Chocolate cake.<|im_end|>") == "Chocolate cake."
 
 
-# ----- keep_alive normalisation ----- #
+# ----- keep_alive conversion (integer minutes → Ollama seconds) ----- #
 
 
 @pytest.mark.parametrize(
@@ -141,15 +141,18 @@ def test_normalize_transcription_text_strips_trailing_special_tokens():
         (None, None),
         ("", None),
         ("   ", None),
+        ("garbage", None),
         ("-1", -1),
+        ("-5", -1),
         ("0", 0),
-        ("300", 300),
-        ("10m", "10m"),
-        ("1h", "1h"),
+        ("30", 1800),
+        ("-1 ", -1),
+        (90, 5400),
+        ("10m", None),
     ],
 )
-def test_normalize_keep_alive(raw, expected):
-    assert normalize_keep_alive(raw) == expected
+def test_keep_alive_seconds(raw, expected):
+    assert keep_alive_seconds(raw) == expected
 
 
 # ----- The HTTP client ----- #
@@ -230,11 +233,14 @@ def test_transcribe_wav_sends_keep_alive_when_configured(monkeypatch: pytest.Mon
 
     monkeypatch.setattr("recipeserver.transcriber.urlopen", fake_urlopen)
 
-    transcribe_wav("http://localhost:11434", "test-model:q8", b"wav", "10m")
-    assert captured["body"]["keep_alive"] == "10m"
+    transcribe_wav("http://localhost:11434", "test-model:q8", b"wav", "30")
+    assert captured["body"]["keep_alive"] == 1800
 
     transcribe_wav("http://localhost:11434", "test-model:q8", b"wav", "-1")
     assert captured["body"]["keep_alive"] == -1
+
+    transcribe_wav("http://localhost:11434", "test-model:q8", b"wav", "0")
+    assert captured["body"]["keep_alive"] == 0
 
 
 def test_transcribe_wav_surfaces_a_missing_model(monkeypatch: pytest.MonkeyPatch):

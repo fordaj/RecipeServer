@@ -35,7 +35,7 @@ Error handling (all surfaced as 503 at the endpoint): connection refused / unrea
 
 ## `keep_alive`
 
-`transcription_keep_alive` controls how long Ollama keeps the model loaded after a request. `normalize_keep_alive()` maps the configured value to the request body: blank is omitted (Ollama's own default applies, 5 minutes), plain integers become JSON numbers, and duration strings (`30s`, `5m`, `1h`) are passed through verbatim.
+`transcription_keep_alive` controls how long Ollama keeps the model loaded after a dictation, as an integer number of minutes: `0` (default — unload immediately), `-1` (never unload), or any positive whole number of minutes. `keep_alive_seconds()` (shared with the other Ollama integrations in [ai_recipe.py.md](ai_recipe.py.md)) scales the value to seconds for the request; negative becomes `-1` (keep loaded indefinitely); blank or unparseable values omit the option (Ollama applies its own default, 5 minutes).
 
 ## `Transcriber`
 

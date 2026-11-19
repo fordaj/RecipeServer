@@ -33,8 +33,51 @@ const GET_PAYLOAD = {
     dictation_enabled: "true",
     transcription_endpoint: "http://localhost:11434",
     transcription_model: "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
-    transcription_keep_alive: "",
+    transcription_keep_alive: "0",
+    all_purpose_model_keep_alive: "0",
+    image_analysis_model_keep_alive: "0",
     timeline_retention: "gfs",
+  },
+  models: {
+    all_purpose_model_name: {
+      resolved_model: "",
+      configured_name: "",
+      present: false,
+      size_bytes: null,
+      size_gb: null,
+      parameter_size: "",
+      quantization_level: "",
+      runner: "",
+      capabilities: [],
+      can_keep_alive: false,
+      error: "endpoint not configured",
+    },
+    image_analysis_model: {
+      resolved_model: "",
+      configured_name: "",
+      present: false,
+      size_bytes: null,
+      size_gb: null,
+      parameter_size: "",
+      quantization_level: "",
+      runner: "",
+      capabilities: [],
+      can_keep_alive: false,
+      error: "endpoint not configured",
+    },
+    transcription_model: {
+      resolved_model: "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
+      configured_name: "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0",
+      present: true,
+      size_bytes: 1019142577,
+      size_gb: 1.0,
+      parameter_size: "752M",
+      quantization_level: "Q8_0",
+      runner: "ggml",
+      capabilities: ["completion", "audio"],
+      can_keep_alive: true,
+      error: null,
+    },
   },
   fields: [
     {
@@ -54,12 +97,31 @@ const GET_PAYLOAD = {
       required: false,
     },
     {
+      key: "all_purpose_model_keep_alive",
+      label: "All-purpose model keep-alive",
+      help: "Minutes before unload. -1 never, 0 immediately, N after N minutes.",
+      input_type: "number",
+      placeholder: "0",
+      required: false,
+      min: -1,
+    },
+    {
+      key: "image_analysis_model_keep_alive",
+      label: "Image analysis model keep-alive",
+      help: "Minutes before unload. -1 never, 0 immediately, N after N minutes.",
+      input_type: "number",
+      placeholder: "0",
+      required: false,
+      min: -1,
+    },
+    {
       key: "transcription_keep_alive",
       label: "Transcription keep-alive",
-      help: "Blank keeps Ollama's default.",
-      input_type: "text",
-      placeholder: "5m",
+      help: "Minutes before unload. -1 never, 0 immediately, N after N minutes.",
+      input_type: "number",
+      placeholder: "0",
       required: false,
+      min: -1,
     },
     {
       key: "timeline_retention",
@@ -206,6 +268,34 @@ async function main() {
   );
   assert.match(status.textContent, /Test passed/);
   assert.match(status.textContent, /two cups of flour/);
+
+  // The probed model is captioned with its size, and the keep-alive field
+  // for a model that cannot be kept loaded is disabled with an explanation.
+  const captions = collectElements(document.documentElement).filter(
+    (node) => node.classList && node.classList.contains("config-editor__model-info"),
+  );
+  const captionText = captions.map((node) => node.textContent).join(" | ");
+  assert.match(captionText, /1 GB on disk/);
+  assert.match(captionText, /Q8_0/);
+  assert.match(captionText, /Keep-alive unavailable: endpoint not configured/);
+
+  const transcriptionKeepAlive = byId("config-editor-transcription_keep_alive");
+  assert.ok(transcriptionKeepAlive, "transcription keep-alive field is rendered");
+  assert.equal(
+    transcriptionKeepAlive.disabled,
+    false,
+    "keep-alive stays enabled for a resident model",
+  );
+  assert.equal(transcriptionKeepAlive.min, "-1");
+
+  const allPurposeKeepAlive = byId("config-editor-all_purpose_model_keep_alive");
+  assert.ok(allPurposeKeepAlive, "all-purpose keep-alive field is rendered");
+  assert.equal(
+    allPurposeKeepAlive.disabled,
+    true,
+    "keep-alive is disabled for an unverifiable model",
+  );
+  assert.equal(allPurposeKeepAlive.min, "-1");
 
   const form = document.querySelector(".config-editor");
   form.dispatchEvent({ type: "submit", target: form, preventDefault() {} });
