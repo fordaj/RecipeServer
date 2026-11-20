@@ -864,7 +864,7 @@ class IndexHTMLGenerator:
         return dedent(f"""\
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <title>{server_name_html}</title>
     <link rel="icon" type="image/svg+xml" href="{urls['logo']}">
     <link rel="stylesheet" href="{urls['definitions_css']}">

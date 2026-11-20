@@ -21,6 +21,12 @@ const RELOAD_DELAY_MS = 150;
 // literals scattered through the gesture handlers.
 const GUARDED_DIALOG_IDS = ["recipe-markdown-editor", "config-editor"];
 
+// Non-dialog surfaces that are equally unsafe to reload while open. The AI
+// assistant panel is a plain element (not a native <dialog>): its wrapper
+// carries this class while the chat is open, and a refresh would lose the
+// in-progress conversation.
+const GUARDED_OPEN_SELECTORS = [".ai-assistant--open"];
+
 class PullToRefresh {
   constructor({ threshold = 100, maxPull = 90 } = {}) {
     this.threshold = threshold;
@@ -49,7 +55,10 @@ class PullToRefresh {
   }
 
   isDisabled() {
-    return GUARDED_DIALOG_IDS.some((dialogId) => document.getElementById(dialogId)?.open === true);
+    if (GUARDED_DIALOG_IDS.some((dialogId) => document.getElementById(dialogId)?.open === true)) {
+      return true;
+    }
+    return GUARDED_OPEN_SELECTORS.some((selector) => Boolean(document.querySelector(selector)));
   }
 
   setIndicatorOffset(offsetPx) {

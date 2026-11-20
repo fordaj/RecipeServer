@@ -128,6 +128,21 @@ def assistant_class(driver) -> str:
     return driver.execute_script("return document.querySelector('.ai-assistant').className;")
 
 
+def wait_panel_settled(driver) -> None:
+    """Wait out the panel's open transition before measuring geometry.
+
+    The panel animates from ``scale(0.96)``/translated to its resting state
+    over 200ms; ``getBoundingClientRect`` reports interpolated values until
+    then, which would measure a shrunken card and a displaced sheet.
+    """
+
+    WebDriverWait(driver, 5).until(
+        lambda d: d.execute_script(
+            "const panel = document.querySelector('.ai-assistant__panel');" "return panel && getComputedStyle(panel).transform === 'none';"
+        )
+    )
+
+
 def test_assistant_bubble_answers_questions(driver, ai_configured_server):
     open_page(driver, f"{ai_configured_server.url}/index.html")
 
@@ -167,6 +182,212 @@ def test_assistant_bubble_hides_on_scroll_down_and_returns_on_scroll_up(driver, 
     # Scrolling back up brings the bubble back.
     driver.execute_script("window.scrollTo(0, 0);")
     WebDriverWait(driver, 5).until(lambda d: "ai-assistant--hidden" not in assistant_class(d))
+
+
+def test_assistant_mobile_sheet_fills_the_screen_above_the_orb(driver, ai_configured_server):
+    driver.set_window_size(390, 844)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
+    wait_panel_settled(driver)
+
+    rect = driver.execute_script("""
+        const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
+        const orb = document.querySelector('.ai-assistant__button').getBoundingClientRect();
+        return {
+          panel: { top: panel.top, bottom: panel.bottom, left: panel.left, right: panel.right, height: panel.height },
+          orb: { top: orb.top, bottom: orb.bottom },
+          viewport: { width: document.documentElement.clientWidth, height: window.innerHeight },
+        };
+        """)
+
+    panel, orb, viewport = rect["panel"], rect["orb"], rect["viewport"]
+
+    # A full-width sheet: no horizontal margins.
+    assert panel["left"] <= 1
+    assert panel["right"] >= viewport["width"] - 1
+
+    # It fills 75-95% of the dynamic viewport and starts near the top.
+    # Measured against innerHeight, with a few pixels of tolerance for the
+    # dvh/innerHeight rounding differences across platforms.
+    share = panel["height"] / viewport["height"]
+    assert 0.75 <= share <= 0.95
+    assert -1 <= panel["top"] <= viewport["height"] * 0.05
+
+    # The orb stays visible and tappable below the sheet.
+    assert orb["top"] >= panel["bottom"] - 1
+    assert orb["bottom"] <= viewport["height"] + 1
+
+
+@pytest.mark.parametrize("width", [1440, 1024, 768])
+def test_assistant_panel_is_a_floating_card_anchored_to_the_orb(driver, ai_configured_server, width):
+    driver.set_window_size(width, 900)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
+    wait_panel_settled(driver)
+
+    rect = driver.execute_script("""
+        const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
+        const orb = document.querySelector('.ai-assistant__button').getBoundingClientRect();
+        return {
+          panel: { top: panel.top, bottom: panel.bottom, left: panel.left, right: panel.right, width: panel.width },
+          orb: { top: orb.top, right: orb.right },
+        };
+        """)
+
+    panel, orb = rect["panel"], rect["orb"]
+
+    # The floating card is 360-420px wide and is not full-bleed.
+    assert 360 <= panel["width"] <= 420
+    assert panel["left"] >= 1
+
+    # It is right-aligned with the orb and rests just above it, so the
+    # launcher is never covered.
+    assert abs(panel["right"] - orb["right"]) <= 2
+    assert orb["top"] >= panel["bottom"] - 1
+
+
+def test_assistant_sheet_does_not_overflow_a_narrow_screen(driver, ai_configured_server):
+    driver.set_window_size(320, 568)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
+    wait_panel_settled(driver)
+
+    metrics = driver.execute_script("""
+        const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
+        const doc = document.documentElement;
+        return {
+          left: panel.left,
+          right: panel.right,
+          clientWidth: doc.clientWidth,
+          scrollWidth: doc.scrollWidth,
+        };
+        """)
+
+    # Neither the sheet nor the page overflows horizontally at 320px.
+    assert metrics["left"] >= -1
+    assert metrics["right"] <= metrics["clientWidth"] + 1
+    assert metrics["scrollWidth"] <= metrics["clientWidth"] + 1
+
+
+def test_assistant_send_waits_for_something_to_send(driver, ai_configured_server):
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__input")
+
+    send = wait_visible(driver, ".ai-assistant__send")
+    prompt = driver.find_element("css selector", ".ai-assistant__input")
+
+    # Nothing to send yet: the button waits.
+    assert send.get_attribute("disabled") is not None
+
+    prompt.send_keys("Hello")
+    assert send.get_attribute("disabled") is None
+
+    # Emptying the composer (through the input event the browser fires)
+    # disables it again.
+    driver.execute_script("""
+        const input = document.querySelector('.ai-assistant__input');
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        """)
+    assert send.get_attribute("disabled") is not None
+
+
+def test_assistant_controls_meet_touch_and_type_minimums(driver, ai_configured_server):
+    driver.set_window_size(390, 844)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__input")
+    wait_panel_settled(driver)
+
+    metrics = driver.execute_script("""
+        const close = document.querySelector('.ai-assistant__close').getBoundingClientRect();
+        const send = document.querySelector('.ai-assistant__send').getBoundingClientRect();
+        const input = document.querySelector('.ai-assistant__input');
+        return {
+          close: { width: close.width, height: close.height },
+          send: { width: send.width, height: send.height },
+          inputFontSize: parseFloat(getComputedStyle(input).fontSize),
+        };
+        """)
+
+    # 44px touch targets and 16px text (iOS Safari zooms smaller text).
+    assert metrics["close"]["width"] >= 44
+    assert metrics["close"]["height"] >= 44
+    assert metrics["send"]["width"] >= 44
+    assert metrics["send"]["height"] >= 44
+    assert metrics["inputFontSize"] >= 16
+
+
+def test_assistant_placeholder_is_not_clipped_by_the_dictation_layout(driver, ai_configured_server):
+    driver.set_window_size(1280, 800)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__input")
+
+    wraps = driver.execute_script("""
+        const input = document.querySelector('.ai-assistant__input');
+        // Reproduce the dictation layout (it reserves room for the inline
+        // mic), which is otherwise only used over HTTPS in this HTTP test.
+        input.parentElement.classList.add('ai-assistant__field--dictation');
+        const original = input.value;
+        input.value = input.placeholder;
+        const wraps = input.scrollHeight > input.clientHeight + 1;
+        input.value = original;
+        return wraps;
+        """)
+    assert wraps is False
+
+
+def test_pull_to_refresh_disabled_while_assistant_is_open(driver, ai_configured_server):
+    if not driver.execute_script("return typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined';"):
+        pytest.skip("Touch events are not available in this browser")
+
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+    WebDriverWait(driver, 5).until(lambda d: d.find_elements(By.CSS_SELECTOR, "#pull-to-refresh"))
+
+    # A short pull (below the refresh threshold) activates the indicator but
+    # does not reload the page, so the same gesture can be repeated.
+    pull = """
+      const fire = (type, y) => {
+        const touch = new Touch({ identifier: 1, target: document.body, clientX: 10, clientY: y });
+        return new TouchEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          touches: type === 'touchend' ? [] : [touch],
+          targetTouches: type === 'touchend' ? [] : [touch],
+          changedTouches: [touch],
+        });
+      };
+      window.scrollTo(0, 0);
+      document.dispatchEvent(fire('touchstart', 100));
+      const move = fire('touchmove', 150);
+      document.dispatchEvent(move);
+      const active = document.getElementById('pull-to-refresh').classList.contains('ptr-active');
+      document.dispatchEvent(fire('touchend', 150));
+      return { active, prevented: move.defaultPrevented };
+    """
+
+    # With the dialogue closed, pull-to-refresh responds as usual.
+    closed = driver.execute_script(pull)
+    assert closed["active"] is True
+    assert closed["prevented"] is True
+
+    # With the dialogue open, the same gesture is ignored entirely.
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
+    opened = driver.execute_script(pull)
+    assert opened["active"] is False
+    assert opened["prevented"] is False
 
 
 def test_assistant_long_press_does_not_offer_dictation_without_https(driver, ai_configured_server):
