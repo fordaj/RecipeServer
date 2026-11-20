@@ -2,8 +2,11 @@ from pathlib import Path
 from types import SimpleNamespace
 import json
 
+from PIL import Image
 from bs4 import BeautifulSoup
 
+from recipeserver.color_utils import dark_mode_color
+from recipeserver.image_handler import ImageToColorConverter
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
 from recipeserver.metadata_linter import lint_recipe_metadata
 from recipeserver.markdown_to_html.overview import build_recipe_overview
@@ -697,3 +700,42 @@ def test_card_zoom_css_remains_responsive(tmp_path: Path):
     # Mobile layout keeps the zoom control usable.
     assert "@media (max-width: 499px)" in css
     assert ".card-zoom__slider" in css
+
+
+def test_index_cards_use_each_recipe_pages_food_color(tmp_path: Path):
+    recipe_path = tmp_path / "tomato-soup" / "index.html"
+    recipe_path.parent.mkdir()
+    recipe_path.write_text("<main><h1>Tomato Soup</h1></main>", encoding="UTF-8")
+    Image.new("RGB", (20, 20), (160, 30, 20)).save(recipe_path.parent / "hero.png")
+
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path, food_color="#123456"))
+    generator.add(Recipe({"title": "Tomato Soup"}, recipe_path))
+    generator.convert()
+
+    page = (tmp_path / "index.html").read_text(encoding="UTF-8")
+    soup = BeautifulSoup(page, "html.parser")
+    card = soup.select_one("#recipe-list .recipe")
+    expected = ImageToColorConverter.get_hex_color_from_image(recipe_path.parent / "hero.png")
+    assert card is not None
+    # The card carries the same color the recipe page sets as --food-color.
+    assert card["data-food-color"] == expected
+    selector = f'#recipe-list > li[data-food-color="{expected}"]'
+    assert f"{selector} {{\n    --food-color: {expected};" in page
+    dark_color = dark_mode_color(expected)
+    assert f"@media (prefers-color-scheme: dark) {{\n    {selector} {{\n        --food-color: {dark_color};" in page
+    # The page default still applies to chrome outside the cards.
+    assert "--food-color: #123456;" in page
+
+
+def test_index_cards_without_hero_images_use_the_configured_food_color(tmp_path: Path):
+    recipe_path = tmp_path / "plain-pie" / "index.html"
+    recipe_path.parent.mkdir()
+    recipe_path.write_text("<main><h1>Plain Pie</h1></main>", encoding="UTF-8")
+
+    generator = IndexHTMLGenerator(SimpleNamespace(site_directory=tmp_path, food_color="#123456"))
+    generator.add(Recipe({"title": "Plain Pie"}, recipe_path))
+    generator.convert()
+
+    recipe = BeautifulSoup((tmp_path / "index.html").read_text(encoding="UTF-8"), "html.parser").select_one("#recipe-list .recipe")
+    assert recipe is not None
+    assert recipe["data-food-color"] == "#123456"

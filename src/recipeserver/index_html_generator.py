@@ -15,7 +15,7 @@ from ._logger import logger
 from ._version import PACKAGE_VERSION as VERSION, versioned_asset_url
 from .color_utils import dark_mode_color
 from .config import DEFAULT_FOOD_COLOR, DEFAULT_RECIPE_SERVER_NAME, Configuration
-from .image_handler import get_first_image_in_dir
+from .image_handler import DEFAULT_TITLE, get_first_image_in_dir, get_recipe_accent_color
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
 from .recipe_utils import (
@@ -160,6 +160,7 @@ class _RecipeCard:
     markdown_path: str
     title: str
     hero_url: str
+    food_color: str
     archived: bool
     search_text: str
     meals: list[str]
@@ -442,6 +443,17 @@ class IndexHTMLGenerator:
             return ""
         return "/" + hero_image.relative_to(self.cfg.site_directory).as_posix()
 
+    def _recipe_food_color(self, html_path: Path) -> str:
+        """Return the ``--food-color`` accent the recipe's page sets.
+
+        Mirrors the converter's heading color
+        ([converter.py.md](markdown_to_html/converter.py.md)): the dominant
+        color of the recipe's first image, or the configured food color, so
+        the card uses the same color as the recipe page it links to.
+        """
+        fallback = getattr(self.cfg, "food_color", None) or DEFAULT_TITLE
+        return get_recipe_accent_color(html_path.parent, fallback)
+
     def _collect_filter_values(self, metadata: dict, sources: list[dict]) -> dict[str, list[str]]:
         """Collect the filterable values, keyed by filter key.
 
@@ -487,6 +499,7 @@ class IndexHTMLGenerator:
 
         title = self._resolve_title(recipe, html_path, metadata)
         hero_url = self._hero_image_url(html_path)
+        food_color = self._recipe_food_color(html_path)
         archived = metadata.get("archived") is True
 
         # ----- Filters and filter option counts ----- #
@@ -523,6 +536,7 @@ class IndexHTMLGenerator:
             markdown_path=markdown_path,
             title=title,
             hero_url=hero_url,
+            food_color=food_color,
             archived=archived,
             search_text=search_text,
             meals=collected["meals"],
@@ -550,6 +564,7 @@ class IndexHTMLGenerator:
         return (
             f'<li class="recipe" data-testid="recipe-item"'
             f' data-path="{html.escape(card.markdown_path, quote=True)}"'
+            f' data-food-color="{html.escape(card.food_color, quote=True)}"'
             f' data-title="{html.escape(card.title, quote=True)}"'
             f' data-search="{html.escape(card.search_text, quote=True)}"'
             f' data-meals="{serialize(card.meals)}"'
@@ -568,8 +583,8 @@ class IndexHTMLGenerator:
             f' data-date="{card.date_value}">'
         )
 
-    def _build_recipe_item(self, recipe: Recipe, filter_values: FilterValuesByField) -> str:
-        card = self._prepare_card(recipe, filter_values)
+    def _build_recipe_item(self, recipe: Recipe, filter_values: FilterValuesByField, card: _RecipeCard | None = None) -> str:
+        card = card if card is not None else self._prepare_card(recipe, filter_values)
 
         rating_html = self._rating_html(
             card.average_rating,
@@ -810,6 +825,44 @@ class IndexHTMLGenerator:
 """).rstrip("\n")
 
     @staticmethod
+    def _card_color_styles(cards: list[_RecipeCard]) -> str:
+        """Emit the ``--food-color`` rules that give every card its recipe color.
+
+        Each card mirrors its recipe page's colors: the light
+        ``--food-color`` and its dark-scheme variant (see
+        ``_food_color_style``), keyed on the card's ``data-food-color``
+        attribute. Cards that share a color share one rule; colors are
+        sorted so the output is deterministic. Returns an empty string when
+        no card carries a color.
+        """
+        dark_colors: dict[str, str] = {}
+        for card in cards:
+            if card.food_color and card.food_color not in dark_colors:
+                dark_colors[card.food_color] = dark_mode_color(card.food_color)
+        if not dark_colors:
+            return ""
+
+        rules: list[str] = []
+        for color in sorted(dark_colors):
+            selector = f'#recipe-list > li[data-food-color="{html.escape(color, quote=True)}"]'
+            dark_color = dark_colors[color]
+            rules.append(
+                f"{selector} {{\n"
+                f"    --food-color: {color};\n"
+                f"    --food-color-hover: color-mix(in srgb, {color} {FOOD_COLOR_HOVER_MIX_PERCENT}%, black);\n"
+                f"}}"
+            )
+            rules.append(
+                "@media (prefers-color-scheme: dark) {\n"
+                f"    {selector} {{\n"
+                f"        --food-color: {dark_color};\n"
+                f"        --food-color-hover: color-mix(in srgb, {dark_color} {FOOD_COLOR_HOVER_MIX_PERCENT}%, white);\n"
+                "    }\n"
+                "}"
+            )
+        return "<style>\n" + "\n\n".join(rules) + "\n</style>"
+
+    @staticmethod
     def _versioned_asset_urls() -> dict[str, str]:
         """Content-hash every local asset the page references, keyed by template name."""
         paths = {
@@ -848,7 +901,13 @@ class IndexHTMLGenerator:
         return "\n".join(self._build_filter_menu_html(field, filter_values[field.key], total_count=total_count) for field in FILTER_FIELDS)
 
     @staticmethod
-    def _page_head_html(server_name_html: str, food_color_style: str, urls: dict[str, str], dictation_enabled: bool = True) -> str:
+    def _page_head_html(
+        server_name_html: str,
+        food_color_style: str,
+        urls: dict[str, str],
+        dictation_enabled: bool = True,
+        card_color_styles: str = "",
+    ) -> str:
         dictation_assets = (
             f"""    <link rel="stylesheet" href="{urls['speech_button_css']}">
 """
@@ -872,6 +931,7 @@ class IndexHTMLGenerator:
     <link rel="stylesheet" href="{urls['dialog_shell_css']}">
     <link rel="stylesheet" href="{urls['ai_assistant_css']}">
 {food_color_style}
+{card_color_styles}
     <link rel="stylesheet" href="{MENU_CSS_URL}">
     <link rel="stylesheet" href="{urls['index_css']}">
     <link rel="stylesheet" href="{urls['recipe_editor_css']}">
@@ -1084,6 +1144,7 @@ class IndexHTMLGenerator:
         recipe_items_html: str,
         filter_values: FilterValuesByField,
         reviewer_options_html: str,
+        card_color_styles: str = "",
     ) -> str:
         server_name_html = html.escape(self._server_name())
         food_color = getattr(self.cfg, "food_color", None) or DEFAULT_FOOD_COLOR
@@ -1095,7 +1156,7 @@ class IndexHTMLGenerator:
         return dedent(f"""\
 <!DOCTYPE html>
 <html lang="en">
-{self._page_head_html(server_name_html, food_color_style, asset_urls, dictation_enabled)}
+{self._page_head_html(server_name_html, food_color_style, asset_urls, dictation_enabled, card_color_styles)}
 <body>
 <main class="recipes">
 {self._page_header_html(server_name_html)}
@@ -1118,12 +1179,14 @@ class IndexHTMLGenerator:
         filter_values: FilterValuesByField = {field.key: {} for field in FILTER_FIELDS}
 
         reviewer_entries = self._aggregate_reviewers()
-        recipe_items = [self._build_recipe_item(recipe, filter_values) for recipe in self.recipes]
+        cards = [self._prepare_card(recipe, filter_values) for recipe in self.recipes]
+        recipe_items = [self._build_recipe_item(recipe, filter_values, card) for recipe, card in zip(self.recipes, cards)]
 
         page_html = self._render_page(
             recipe_items_html="".join(recipe_items),
             filter_values=filter_values,
             reviewer_options_html=self._build_reviewer_options_html(reviewer_entries),
+            card_color_styles=self._card_color_styles(cards),
         )
 
         index_html = self.cfg.site_directory / "index.html"

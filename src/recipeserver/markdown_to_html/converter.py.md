@@ -24,7 +24,7 @@ flowchart TD
 
 1. **Load and parse** — reads the file (UTF-8, `\n` newlines), runs `_preprocess` (moves `<!--` off the same line as `:::`/`///` admonition markers), and splits front matter with python-frontmatter.
 2. **Title** — `_get_title_from_markdown_content` scans for the first `#` heading (ignoring fenced code blocks); falls back to front-matter `title`, then a title-cased directory slug (`recipe_utils.slug_to_title`). The rendered heading text returned from `_postprocess` replaces it for the caller (used by the index).
-3. **Appearance and metadata** — `_resolve_heading_color` derives the accent from the hero image ([image_handler.py.md](../image_handler.py.md)), falling back to the configured `food_color`; `_lint_metadata` logs warnings for missing required fields; `metadata_json` is embedded in a `<script id="recipe-metadata">` tag with `<` escaped as `\u003c`.
+3. **Appearance and metadata** — `_resolve_heading_color` calls the shared `get_recipe_accent_color` ([image_handler.py.md](../image_handler.py.md)): the accent is the hero image's dominant color, with the configured `food_color` as the fallback when there is no usable image; `_lint_metadata` logs warnings for missing required fields; `metadata_json` is embedded in a `<script id="recipe-metadata">` tag with `<` escaped as `\u003c`.
 4. **Body** — `markdown.Markdown` with `pymdownx.extra`, `pymdownx.blocks.html`, `pymdownx.tasklist`, `pymdownx.arithmatex`.
 5. **Assemble and postprocess** — `page.build_recipe_html` builds the shell; `_postprocess` does soup surgery: `quantities.convert_quantity_code_spans`, `_group_recipe_meta_terms` (wrap each `dt`/`dd` run in `.recipe-meta__group`), `_enable_checkbox_inputs`, and the overview/contributor/sources/version injections.
 
