@@ -149,7 +149,7 @@ The model prompt requirements are read from `src/recipeserver/NewRecipePrompt.md
 
 ## The AI assistant
 
-Every page carries a small circle in the bottom-right corner. It appears when the local AI endpoint is configured; on a phone it hides itself while you scroll down and comes back when you scroll up. Click it to open the chat panel — on a phone it pops out upper-left of the bubble, leaving the corner free for your thumb.
+Every page carries a small circle in the bottom-right corner. It appears when the local AI endpoint is configured; on a phone it hides itself while you scroll down and comes back when you scroll up. Click it to open the chat panel — on a phone a full-width sheet rises from just above the circle, leaving the corner free for your thumb and the same tap closes it; on a larger screen a 360–420px card floats above the circle. On a phone the page behind stays put while the chat is open, and the composer stays above the on-screen keyboard.
 
 The assistant answers questions and edits the recipe on screen:
 

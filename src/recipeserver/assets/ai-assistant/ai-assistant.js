@@ -45,7 +45,15 @@
   // Within this many pixels of the top, the page is treated as "at the top"
   // so iOS rubber-band overscroll never hides the bubble.
   const TOP_OF_PAGE_PX = 10;
-  const MOBILE_MEDIA_QUERY = "(max-width: 600px)";
+  // Matches the phone breakpoint in ai-assistant.css.
+  const MOBILE_MEDIA_QUERY = "(max-width: 639px)";
+  // New messages auto-scroll only when the conversation is already near the
+  // bottom; otherwise a user reading earlier replies would be yanked away.
+  const AUTO_SCROLL_THRESHOLD_PX = 48;
+  // Browsers that only resize visualViewport when the keyboard opens report
+  // the difference from innerHeight; cap it so a zoomed page cannot push the
+  // composer off the top of the screen.
+  const MAX_KEYBOARD_OFFSET_RATIO = 0.6;
 
   // How long a press has to be held to be treated as dictation (a shorter
   // press is a normal tap on the bubble) and how far a pointer may drift
@@ -297,6 +305,7 @@
         this.available && status.dictation_enabled !== false && isSecurePage() && canRecord();
       this.buildDom();
       this.bindScroll();
+      this.bindVisualViewport();
     }
 
     buildDom() {
@@ -309,8 +318,10 @@
       this.button.setAttribute("aria-label", "Ask the AI assistant");
       this.button.title = "Ask the AI assistant";
       this.button.setAttribute("aria-expanded", "false");
+      this.button.setAttribute("aria-controls", "ai-assistant-panel");
 
       this.panel = createElement("section", "ai-assistant__panel");
+      this.panel.id = "ai-assistant-panel";
       this.panel.setAttribute("role", "dialog");
       this.panel.setAttribute("aria-label", "AI assistant");
       this.panel.setAttribute("aria-hidden", "true");
@@ -415,9 +426,9 @@
       this.input = createElement("textarea", "ai-assistant__input");
       this.input.rows = 1;
       this.input.maxLength = MAX_MESSAGE_CHARS;
-      this.input.placeholder = this.recipePath
-        ? "Ask anything, or request a change to this recipe…"
-        : "Ask anything…";
+      // A short placeholder stays on one line even when the dictation layout
+      // reserves room for the inline mic; the fuller hint is in the intro.
+      this.input.placeholder = this.recipePath ? "Ask about this recipe…" : "Ask anything…";
       this.input.setAttribute("aria-label", "Message the assistant");
 
       this.field.append(this.input);
@@ -466,7 +477,11 @@
         }
       });
 
-      this.input.addEventListener("input", () => this.autoResize());
+      this.input.addEventListener("input", () => {
+        this.autoResize();
+        this.updateSendState();
+      });
+      this.updateSendState();
       return form;
     }
 
@@ -493,6 +508,9 @@
     setOpen(open) {
       this.open = open;
       this.wrapper.classList.toggle("ai-assistant--open", open);
+      // Phones lock the page behind the sheet (see the CSS). This class is
+      // also the guard that keeps pull-to-refresh from reloading mid-chat.
+      document.documentElement.classList.toggle("ai-assistant-open", open);
       this.button.setAttribute("aria-expanded", String(open));
       this.panel.setAttribute("aria-hidden", String(!open));
       // While the panel is open the bubble is the way to close it, so it
@@ -521,6 +539,28 @@
         },
         { passive: true },
       );
+    }
+
+    bindVisualViewport() {
+      const viewport = window.visualViewport;
+      if (!viewport) {
+        return;
+      }
+
+      const update = () => {
+        // On browsers with interactive-widget=resizes-content the layout
+        // viewport already excludes the keyboard, so this is zero. On iOS
+        // Safari only the visual viewport shrinks, and the orb/sheet must be
+        // lifted by the difference to stay above the keyboard.
+        const raw = window.innerHeight - viewport.height - viewport.offsetTop;
+        const capped = Math.min(raw, viewport.height * MAX_KEYBOARD_OFFSET_RATIO);
+        const offset = Math.round(Math.max(0, capped));
+        document.documentElement.style.setProperty("--assistant-keyboard-offset", `${offset}px`);
+      };
+
+      viewport.addEventListener("resize", update);
+      viewport.addEventListener("scroll", update);
+      update();
     }
 
     updateVisibility() {
@@ -593,6 +633,7 @@
 
     armDictation(source, event) {
       this.longPressStart = { x: event.clientX, y: event.clientY };
+      this.wrapper.classList.add("ai-assistant--arming");
       this.longPressTimer = window.setTimeout(() => {
         this.longPressTimer = null;
         this.longPressStart = null;
@@ -700,6 +741,7 @@
         this.longPressTimer = null;
       }
       this.longPressStart = null;
+      this.wrapper.classList.remove("ai-assistant--arming");
     }
 
     handlePointerRelease() {
@@ -816,6 +858,7 @@
     beginDictation(source, viaHold) {
       this.longPressTimer = null;
       this.longPressStart = null;
+      this.wrapper.classList.remove("ai-assistant--arming");
 
       this.dictationSource = source;
       this.dictationViaHold = viaHold;
@@ -953,8 +996,21 @@
 
     // ----- Conversation ----- //
 
+    isAtBottom() {
+      return (
+        this.messages.scrollHeight - this.messages.scrollTop - this.messages.clientHeight <=
+        AUTO_SCROLL_THRESHOLD_PX
+      );
+    }
+
+    scrollToBottom() {
+      this.messages.scrollTop = this.messages.scrollHeight;
+    }
+
     async appendMessage(role, text) {
       this.messages.querySelector(".ai-assistant__message--intro")?.remove();
+      // Capture this before the bubble grows the scroll area.
+      const atBottom = this.isAtBottom();
 
       const className =
         role === "user"
@@ -989,11 +1045,14 @@
         bubble.textContent = text;
       }
 
-      this.messages.scrollTop = this.messages.scrollHeight;
+      if (atBottom) {
+        this.scrollToBottom();
+      }
       return bubble;
     }
 
     appendReloadNotice(path) {
+      const atBottom = this.isAtBottom();
       const notice = createElement("div", "ai-assistant__notice");
       const text = createElement("span", null, `The recipe was updated${path ? `: ${path}` : ""}.`);
       const reload = createElement("button", "ai-assistant__notice-button", "Reload page");
@@ -1001,7 +1060,9 @@
       reload.addEventListener("click", () => window.location.reload());
       notice.append(text, reload);
       this.messages.append(notice);
-      this.messages.scrollTop = this.messages.scrollHeight;
+      if (atBottom) {
+        this.scrollToBottom();
+      }
     }
 
     setStatus(message, busy) {
@@ -1011,12 +1072,21 @@
 
     setBusy(busy) {
       this.busy = busy;
-      if (this.sendButton) {
-        this.sendButton.disabled = busy;
-      }
+      this.wrapper.classList.toggle("ai-assistant--busy", busy);
       if (this.input) {
         this.input.disabled = busy;
       }
+      this.updateSendState();
+    }
+
+    updateSendState() {
+      if (!this.sendButton || !this.input) {
+        return;
+      }
+      // Nothing to send until the composer has text; while the model works
+      // the button stays disabled with a waiting cursor.
+      this.sendButton.disabled = this.busy || this.input.value.trim().length === 0;
+      this.sendButton.dataset.busy = String(this.busy);
     }
 
     rememberTurn(role, content) {

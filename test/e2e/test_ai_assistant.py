@@ -336,3 +336,219 @@ def test_assistant_open_recipe_redirects_to_the_match(driver, ai_configured_serv
     finally:
         server.shutdown()
         server.server_close()
+
+
+@pytest.fixture(autouse=True)
+def restore_window_size(driver):
+    # Several layout tests resize the browser; keep them from leaking into
+    # other tests (the driver fixture is shared across the session).
+    yield
+    driver.set_window_size(1280, 900)
+
+
+def open_assistant(driver, server_url: str):
+    """Open the chat and wait for its open transition to finish before measuring."""
+
+    open_page(driver, f"{server_url}/index.html")
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
+    WebDriverWait(driver, 5).until(
+        lambda d: d.execute_script("return getComputedStyle(document.querySelector('.ai-assistant__panel')).opacity === '1';")
+    )
+    # The click leaves the pointer hovering the orb, whose hover transform
+    # would otherwise shift the measured gap between it and the panel.
+    ActionChains(driver).move_to_element_with_offset(driver.find_element(By.TAG_NAME, "body"), 1, 1).perform()
+    WebDriverWait(driver, 5).until(
+        lambda d: d.execute_script("return getComputedStyle(document.querySelector('.ai-assistant__button')).transform === 'none';")
+    )
+
+
+def panel_geometry(driver) -> dict:
+    return driver.execute_script("""
+        const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
+        const orb = document.querySelector('.ai-assistant__button').getBoundingClientRect();
+        return {
+          top: panel.top, bottom: panel.bottom, left: panel.left, right: panel.right,
+          width: panel.width, height: panel.height,
+          orbTop: orb.top, orbBottom: orb.bottom,
+          viewportWidth: window.innerWidth, viewportHeight: window.innerHeight,
+          clientWidth: document.documentElement.clientWidth,
+          scrollWidth: document.documentElement.scrollWidth,
+        };
+        """)
+
+
+def add_conversation(driver, count: int):
+    driver.execute_script(
+        """
+        const count = arguments[0];
+        const messages = document.querySelector('.ai-assistant__messages');
+        for (let i = 0; i < count; i++) {
+          const bubble = document.createElement('div');
+          bubble.className = 'ai-assistant__message ai-assistant__message--assistant';
+          bubble.textContent = 'A reply with enough words to occupy a few lines of the conversation. '.repeat(3);
+          messages.append(bubble);
+        }
+        """,
+        count,
+    )
+
+
+def test_assistant_panel_is_a_floating_card_anchored_to_the_orb(driver, ai_configured_server):
+    for width, height in ((1440, 900), (1024, 768), (768, 800)):
+        driver.set_window_size(width, height)
+        open_assistant(driver, ai_configured_server.url)
+        box = panel_geometry(driver)
+
+        assert 360 <= box["width"] <= 420, (width, box)
+        assert abs(box["right"] - (box["clientWidth"] - 20)) < 2, box
+        # The panel grows upward/leftward from the orb without covering it.
+        assert box["bottom"] <= box["orbTop"] - 8, box
+        assert box["top"] >= 0 and box["bottom"] <= box["viewportHeight"], box
+
+
+def test_assistant_mobile_sheet_is_full_width_and_leaves_the_orb_visible(driver, ai_configured_server):
+    driver.set_window_size(390, 844)
+    open_assistant(driver, ai_configured_server.url)
+    box = panel_geometry(driver)
+
+    assert box["left"] <= 1 and box["right"] >= box["clientWidth"] - 1, box
+    assert box["viewportHeight"] * 0.75 <= box["height"] <= box["viewportHeight"] * 0.95, box
+    assert box["bottom"] <= box["orbTop"] <= box["orbBottom"] <= box["viewportHeight"], box
+
+
+def test_assistant_narrow_phone_has_no_horizontal_overflow(driver, ai_configured_server):
+    driver.set_window_size(320, 568)
+    open_assistant(driver, ai_configured_server.url)
+    add_conversation(driver, 20)
+
+    box = panel_geometry(driver)
+    assert box["scrollWidth"] <= box["clientWidth"] + 1, box
+    assert wait_visible(driver, ".ai-assistant__composer").is_displayed()
+    assert wait_visible(driver, ".ai-assistant__send").is_displayed()
+
+
+def test_assistant_conversation_scrolls_independently_of_the_page(driver, ai_configured_server):
+    driver.set_window_size(390, 844)
+    open_assistant(driver, ai_configured_server.url)
+    add_conversation(driver, 40)
+
+    assert driver.execute_script("const el = document.querySelector('.ai-assistant__messages'); return el.scrollHeight > el.clientHeight;")
+    # The header/composer stay put and the document behind the sheet is locked.
+    assert wait_visible(driver, ".ai-assistant__header").is_displayed()
+    assert wait_visible(driver, ".ai-assistant__composer").is_displayed()
+    assert driver.execute_script(
+        "return document.documentElement.classList.contains('ai-assistant-open') && " "getComputedStyle(document.body).overflow === 'hidden';"
+    )
+    assert panel_geometry(driver)["bottom"] <= panel_geometry(driver)["orbTop"]
+
+
+def test_assistant_send_is_disabled_until_there_is_text(driver, ai_configured_server):
+    open_assistant(driver, ai_configured_server.url)
+    send = wait_visible(driver, ".ai-assistant__send")
+    assert not send.is_enabled()
+
+    wait_visible(driver, ".ai-assistant__input").send_keys("Hello")
+    WebDriverWait(driver, 5).until(lambda d: d.find_element(By.CSS_SELECTOR, ".ai-assistant__send").is_enabled())
+
+
+def test_assistant_controls_meet_touch_and_type_minimums(driver, ai_configured_server):
+    driver.set_window_size(390, 844)
+    open_assistant(driver, ai_configured_server.url)
+
+    sizes = driver.execute_script("""
+        const measure = (selector) => {
+          const el = document.querySelector(selector);
+          const rect = el.getBoundingClientRect();
+          return { width: rect.width, height: rect.height, fontSize: parseFloat(getComputedStyle(el).fontSize) };
+        };
+        return {
+          close: measure('.ai-assistant__close'),
+          send: measure('.ai-assistant__send'),
+          input: measure('.ai-assistant__input'),
+        };
+        """)
+    for control in ("close", "send"):
+        assert sizes[control]["width"] >= 44 and sizes[control]["height"] >= 44, sizes
+    assert sizes["input"]["fontSize"] >= 16, sizes
+
+
+def test_assistant_autoscroll_respects_a_reader_scrolled_above_the_bottom(driver, ai_configured_server):
+    open_assistant(driver, ai_configured_server.url)
+    add_conversation(driver, 30)
+
+    driver.execute_script("document.querySelector('.ai-assistant__messages').scrollTop = 0;")
+    driver.find_element("css selector", ".ai-assistant__input").send_keys("First question")
+    driver.find_element("css selector", ".ai-assistant__send").click()
+
+    def reply_count(d):
+        return len(d.find_elements(By.CSS_SELECTOR, ".ai-assistant__message--assistant"))
+
+    def wait_idle(d):
+        # The composer clears on send, so the send button is correctly
+        # disabled again after the reply; the busy class is the real signal.
+        return not d.execute_script("return document.querySelector('.ai-assistant').classList.contains('ai-assistant--busy');")
+
+    WebDriverWait(driver, 10).until(lambda d: reply_count(d) == 31)
+    WebDriverWait(driver, 10).until(wait_idle)
+    assert driver.execute_script("return document.querySelector('.ai-assistant__messages').scrollTop;") <= 1
+
+    # Once the reader is at the bottom again, a new reply follows the conversation.
+    driver.execute_script("const el = document.querySelector('.ai-assistant__messages'); el.scrollTop = el.scrollHeight;")
+    driver.find_element("css selector", ".ai-assistant__input").send_keys("Second question")
+    driver.find_element("css selector", ".ai-assistant__send").click()
+    WebDriverWait(driver, 10).until(lambda d: reply_count(d) == 32)
+    WebDriverWait(driver, 10).until(wait_idle)
+    assert driver.execute_script("""
+        const el = document.querySelector('.ai-assistant__messages');
+        return el.scrollHeight - el.scrollTop - el.clientHeight < 4;
+        """)
+
+
+def test_assistant_keeps_typed_text_after_dismiss_and_reopen(driver, ai_configured_server):
+    open_assistant(driver, ai_configured_server.url)
+    wait_visible(driver, ".ai-assistant__input").send_keys("A draft to keep")
+    wait_visible(driver, ".ai-assistant__close").click()
+
+    WebDriverWait(driver, 5).until(lambda d: d.find_element(By.CSS_SELECTOR, ".ai-assistant__button").get_attribute("aria-expanded") == "false")
+    wait_visible(driver, ".ai-assistant__button").click()
+    assert driver.find_element(By.CSS_SELECTOR, ".ai-assistant__input").get_attribute("value") == "A draft to keep"
+
+
+def test_pull_to_refresh_is_disabled_while_assistant_is_open(driver, ai_configured_server):
+    if not driver.execute_script("return typeof Touch !== 'undefined' && typeof TouchEvent !== 'undefined';"):
+        pytest.skip("Touch events are not available in this browser")
+
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+    WebDriverWait(driver, 5).until(lambda d: d.find_elements(By.CSS_SELECTOR, "#pull-to-refresh"))
+
+    # A short pull (below the reload threshold) activates the indicator without
+    # reloading, so the same gesture can be repeated with the chat open.
+    pull = """
+      const fire = (type, y) => {
+        const touch = new Touch({ identifier: 1, target: document.body, clientX: 10, clientY: y });
+        return new TouchEvent(type, {
+          bubbles: true, cancelable: true,
+          touches: type === 'touchend' ? [] : [touch],
+          targetTouches: type === 'touchend' ? [] : [touch],
+          changedTouches: [touch],
+        });
+      };
+      window.scrollTo(0, 0);
+      document.dispatchEvent(fire('touchstart', 100));
+      const move = fire('touchmove', 150);
+      document.dispatchEvent(move);
+      const active = document.getElementById('pull-to-refresh').classList.contains('ptr-active');
+      document.dispatchEvent(fire('touchend', 150));
+      return { active, prevented: move.defaultPrevented };
+    """
+
+    closed = driver.execute_script(pull)
+    assert closed["active"] is True
+    assert closed["prevented"] is True
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
+    opened = driver.execute_script(pull)
+    assert opened["active"] is False
+    assert opened["prevented"] is False
