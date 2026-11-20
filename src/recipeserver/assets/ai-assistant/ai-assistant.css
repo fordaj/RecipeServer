@@ -11,6 +11,14 @@
   font: inherit;
 }
 
+/* While the conversation is open the page behind it stays put: wheel and
+   touch scrolling must not move the recipe under the panel. The conversation
+   itself has its own scroll container. */
+html.ai-assistant-open,
+html.ai-assistant-open body {
+  overflow: hidden;
+}
+
 .ai-assistant__button {
   position: fixed;
   right: 1.25rem;
@@ -23,6 +31,10 @@
 
   width: 3.5rem;
   height: 3.5rem;
+  /* Well above the 44x44px minimum touch target, even if a browser applies
+     a smaller default button size in a future version. */
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   padding: 0;
 
   border: 1px solid var(--food-color);
@@ -52,6 +64,10 @@
   transform: scale(1.06);
 }
 
+.ai-assistant__button:active {
+  transform: scale(0.96);
+}
+
 .ai-assistant__button:focus-visible {
   outline: 2px solid var(--food-color);
   outline-offset: 3px;
@@ -61,6 +77,25 @@
   width: 1.6rem;
   height: 1.6rem;
   flex-shrink: 0;
+}
+
+/* ---------- Working and arming states ---------- */
+/* A slow, quiet ring says the orb is busy without pulling focus away from the
+   recipe. The dictating state below is deliberately stronger and overrides it. */
+
+.ai-assistant--busy .ai-assistant__button {
+  box-shadow:
+    0 0 0 0.3rem color-mix(in srgb, var(--food-color) 18%, transparent),
+    var(--subtle-shadow);
+  animation: ai-assistant-working 2s ease-in-out infinite;
+}
+
+/* Once a press crosses the long-press threshold, a ring starts to form so
+   the user knows dictation is arming before the microphone pill appears. */
+.ai-assistant--arming .ai-assistant__button {
+  box-shadow:
+    0 0 0 0.2rem color-mix(in srgb, var(--danger-color) 20%, transparent),
+    var(--subtle-shadow);
 }
 
 /* ---------- Dictating state (long-press hold) ---------- */
@@ -192,6 +227,14 @@
   }
 }
 
+@keyframes ai-assistant-working {
+  50% {
+    box-shadow:
+      0 0 0 0.6rem color-mix(in srgb, var(--food-color) 8%, transparent),
+      var(--subtle-shadow);
+  }
+}
+
 /* Scrolling down on mobile slides the bubble out of view; scrolling up
    (or opening the panel) brings it back. */
 .ai-assistant--hidden .ai-assistant__button {
@@ -220,8 +263,15 @@
   display: flex;
   flex-direction: column;
 
-  width: min(24rem, calc(100vw - 2.5rem));
-  height: min(34rem, 65dvh);
+  /* A floating card, right-aligned with the orb and resting above it. The
+     ceiling always leaves room for the launcher, the browser chrome and any
+     on-screen keyboard reported through --assistant-keyboard-offset. */
+  width: min(25rem, calc(100vw - 2.5rem));
+  height: min(34rem, calc(100vh - 8.5rem));
+  height: min(34rem, calc(100dvh - 8.5rem - var(--assistant-keyboard-offset, 0px)));
+  max-height: calc(
+    100dvh - 7rem - var(--assistant-keyboard-offset, 0px) - env(safe-area-inset-top)
+  );
 
   border: 1px solid var(--border-color);
   border-radius: 16px;
@@ -230,6 +280,7 @@
   box-shadow: 0 12px 40px rgb(0 0 0 / 18%);
 
   overflow: hidden;
+  overscroll-behavior: contain;
   visibility: hidden;
   opacity: 0;
   transform: translateY(0.75rem) scale(0.96);
@@ -284,9 +335,11 @@
   align-items: center;
   justify-content: center;
 
+  width: 2.75rem;
+  height: 2.75rem;
   border: 0;
   border-radius: 6px;
-  padding: 0.2rem 0.5rem;
+  padding: 0;
   background: transparent;
   color: var(--text-color);
   font-size: 1.75rem;
@@ -317,7 +370,7 @@
 }
 
 .ai-assistant__message {
-  max-width: 88%;
+  max-width: 100%;
   padding: 0.5rem 0.75rem;
   border-radius: 14px;
 
@@ -327,23 +380,30 @@
   overflow-wrap: anywhere;
 }
 
+/* The user's words get a small, muted chip — enough to tell turns apart,
+   not a large card competing with the recipe. */
 .ai-assistant__message--user {
   align-self: flex-end;
-  background: var(--food-color);
-  color: var(--page-bg);
+  max-width: 85%;
+  padding: 0.4rem 0.7rem;
+  background: color-mix(in srgb, var(--food-color) 18%, var(--card-bg));
+  border: 1px solid color-mix(in srgb, var(--food-color) 35%, var(--border-color));
+  color: var(--text-color);
   border-bottom-right-radius: 4px;
 }
 
+/* Replies read like ordinary page content rather than boxed chatbot output. */
 .ai-assistant__message--assistant {
-  align-self: flex-start;
-  background: var(--hover-bg);
+  align-self: stretch;
+  padding: 0.15rem 0.2rem;
+  background: transparent;
+  border: 0;
   color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-bottom-left-radius: 4px;
 }
 
 .ai-assistant__message--error {
   align-self: flex-start;
+  max-width: 95%;
   background: color-mix(in srgb, var(--danger-color) 12%, var(--card-bg));
   border: 1px solid color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
   color: var(--danger-color);
@@ -351,7 +411,7 @@
 }
 
 .ai-assistant__message--intro {
-  align-self: flex-start;
+  align-self: stretch;
   background: transparent;
   border: 1px dashed var(--border-color);
   color: var(--text-muted);
@@ -398,9 +458,9 @@
 
 .ai-assistant__status {
   flex: 0 0 auto;
-  min-height: 1.1rem;
+  min-height: 1.35rem;
   margin: 0;
-  padding: 0 1rem;
+  padding: 0.1rem 1rem;
 
   color: var(--text-muted);
   font-size: 0.8rem;
@@ -443,7 +503,7 @@
 }
 
 .ai-assistant__field--dictation .ai-assistant__input {
-  padding-right: 2.4rem;
+  padding-right: 3.25rem;
 }
 
 .ai-assistant__input {
@@ -452,6 +512,7 @@
   min-width: 0;
   resize: none;
 
+  min-height: 2.75rem;
   padding: 0.55rem 0.75rem;
   border: 1px solid var(--border-color);
   border-radius: 14px;
@@ -506,7 +567,11 @@
 }
 
 .ai-assistant__send:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ai-assistant--busy .ai-assistant__send:disabled {
   cursor: wait;
 }
 
@@ -514,7 +579,7 @@
 
 .ai-assistant__mic-button {
   position: absolute;
-  right: 0.4rem;
+  right: 0.3rem;
   top: 50%;
   z-index: 6;
 
@@ -522,8 +587,8 @@
   align-items: center;
   justify-content: center;
 
-  width: 2rem;
-  height: 2rem;
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
 
   border: 0;
@@ -567,30 +632,60 @@
   text-align: center;
 }
 
-/* ---------- Mobile ---------- */
+/* ---------- Responsive presentation ---------- */
+/* Between a phone and a desk-sized window the floating card simply gets a
+   little more room; it stays anchored to the orb. */
 
-@media (max-width: 600px) {
-  /* On a phone the panel pops out upper-left of the bubble (it is anchored
-     near the top of the screen), leaving the lower-right corner — and the
-     bubble — free for the thumb and the microphone popup. */
+@media (min-width: 640px) and (max-width: 1023px) {
   .ai-assistant__panel {
-    top: calc(0.75rem + env(safe-area-inset-top));
-    bottom: auto;
-    right: 0.5rem;
-    left: 0.5rem;
+    width: min(26rem, calc(100vw - 3rem));
+    height: min(38rem, calc(100dvh - 8rem - var(--assistant-keyboard-offset, 0px)));
+  }
+}
+
+/* Below 640px the conversation becomes a purpose-built, full-width sheet
+   that rises from the orb rather than a shrunken desktop card. The launcher
+   stays visible just below the sheet, so the same tap always dismisses it.
+   --assistant-keyboard-offset is set by ai-assistant.js from visualViewport
+   for browsers that only shrink that viewport when the keyboard opens. */
+@media (max-width: 639px) {
+  .ai-assistant__panel {
+    top: auto;
+    bottom: calc(4.75rem + var(--assistant-keyboard-offset, 0px) + env(safe-area-inset-bottom));
+    right: 0;
+    left: 0;
     width: auto;
-    height: min(58dvh, 33rem);
-    transform-origin: bottom right;
+    height: min(88vh, calc(100vh - 6rem));
+    height: min(
+      88dvh,
+      calc(100dvh - 6rem - var(--assistant-keyboard-offset, 0px) - env(safe-area-inset-top))
+    );
+    max-height: none;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 16px 16px 0 0;
+    transform-origin: bottom center;
+  }
+
+  .ai-assistant__header {
+    border-radius: 16px 16px 0 0;
   }
 
   .ai-assistant__button {
     right: 1rem;
-    bottom: calc(1rem + env(safe-area-inset-bottom));
+    bottom: calc(1rem + var(--assistant-keyboard-offset, 0px) + env(safe-area-inset-bottom));
   }
 
   .ai-assistant__mic {
     right: 1rem;
-    bottom: calc(1rem + 4rem + env(safe-area-inset-bottom));
+    bottom: calc(5rem + var(--assistant-keyboard-offset, 0px) + env(safe-area-inset-bottom));
+    max-width: calc(100vw - 2rem);
+  }
+
+  /* Breathing room above the home indicator on a phone. */
+  .ai-assistant__composer {
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
   }
 }
 
@@ -600,12 +695,14 @@
   .ai-assistant__button,
   .ai-assistant__panel,
   .ai-assistant__mic,
+  .ai-assistant__mic-button,
   .ai-assistant__button svg {
     transition: none;
   }
 
   .ai-assistant__status--busy,
-  .ai-assistant__mic-icon {
+  .ai-assistant__mic-icon,
+  .ai-assistant--busy .ai-assistant__button {
     animation: none;
   }
 }
@@ -705,9 +802,12 @@
 }
 
 .ai-assistant__message--rendered table {
+  display: block;
+  max-width: 100%;
   margin: 0 0 0.5em;
   border-collapse: collapse;
   font-size: 0.9em;
+  overflow-x: auto;
 }
 
 .ai-assistant__message--rendered th,

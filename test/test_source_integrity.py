@@ -408,9 +408,15 @@ def test_regen_builds_site_without_modifying_the_source_tree(tmp_path: Path, mon
     assert "Peach Cobbler" in index
     assert "/dinner/recipe.html" in index
     assert "/dessert/nested/recipe.html" in index
+    # Both page types ask the browser to resize around the virtual keyboard,
+    # which keeps the assistant's composer visible on phones. Recipe pages
+    # normalize attribute order, so check the value rather than the whole tag.
+    viewport = "width=device-width, initial-scale=1.0, interactive-widget=resizes-content"
+    assert viewport in index
 
     recipe_html = (site / "dinner" / "recipe.html").read_text(encoding="utf-8")
     assert "Braised Greens" in recipe_html
+    assert viewport in recipe_html
     assert 'src="/assets/recipe-editor/recipe-editor.js?v=' in recipe_html
 
 
