@@ -128,6 +128,21 @@ def assistant_class(driver) -> str:
     return driver.execute_script("return document.querySelector('.ai-assistant').className;")
 
 
+def wait_panel_settled(driver) -> None:
+    """Wait out the panel's open transition before measuring geometry.
+
+    The panel animates from ``scale(0.96)``/translated to its resting state
+    over 200ms; ``getBoundingClientRect`` reports interpolated values until
+    then, which would measure a shrunken card and a displaced sheet.
+    """
+
+    WebDriverWait(driver, 5).until(
+        lambda d: d.execute_script(
+            "const panel = document.querySelector('.ai-assistant__panel');" "return panel && getComputedStyle(panel).transform === 'none';"
+        )
+    )
+
+
 def test_assistant_bubble_answers_questions(driver, ai_configured_server):
     open_page(driver, f"{ai_configured_server.url}/index.html")
 
@@ -175,6 +190,7 @@ def test_assistant_mobile_sheet_fills_the_screen_above_the_orb(driver, ai_config
 
     wait_visible(driver, ".ai-assistant__button").click()
     wait_visible(driver, ".ai-assistant__panel")
+    wait_panel_settled(driver)
 
     rect = driver.execute_script("""
         const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
@@ -211,6 +227,7 @@ def test_assistant_panel_is_a_floating_card_anchored_to_the_orb(driver, ai_confi
 
     wait_visible(driver, ".ai-assistant__button").click()
     wait_visible(driver, ".ai-assistant__panel")
+    wait_panel_settled(driver)
 
     rect = driver.execute_script("""
         const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
@@ -239,6 +256,7 @@ def test_assistant_sheet_does_not_overflow_a_narrow_screen(driver, ai_configured
 
     wait_visible(driver, ".ai-assistant__button").click()
     wait_visible(driver, ".ai-assistant__panel")
+    wait_panel_settled(driver)
 
     metrics = driver.execute_script("""
         const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
@@ -288,6 +306,7 @@ def test_assistant_controls_meet_touch_and_type_minimums(driver, ai_configured_s
 
     wait_visible(driver, ".ai-assistant__button").click()
     wait_visible(driver, ".ai-assistant__input")
+    wait_panel_settled(driver)
 
     metrics = driver.execute_script("""
         const close = document.querySelector('.ai-assistant__close').getBoundingClientRect();
