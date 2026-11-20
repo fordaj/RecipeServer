@@ -20,7 +20,7 @@ flowchart TD
     classDef jsFile fill:#fbe86f,stroke:#a16207,color:#423806
 ```
 
-Assembles the full HTML document for a recipe page: `<head>` asset references, the header with the sandwich menu, the home icon and the recipe scaler, and the `<script>` block at the end of `<body>`.
+Assembles the full HTML document for a recipe page: `<head>` asset references, the header with the sandwich menu, the home icon and the recipe scaler, and the `<script>` block at the end of `<body>`. The `<head>` also carries the `viewport` meta (`width=device-width, initial-scale=1.0, interactive-widget=resizes-content`), so the on-screen keyboard resizes the layout viewport and fixed UI — like the AI assistant's composer — stays above it.
 
 ## Key contents
 

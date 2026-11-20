@@ -297,6 +297,7 @@
         this.available && status.dictation_enabled !== false && isSecurePage() && canRecord();
       this.buildDom();
       this.bindScroll();
+      this.bindViewport();
     }
 
     buildDom() {
@@ -468,7 +469,11 @@
         }
       });
 
-      this.input.addEventListener("input", () => this.autoResize());
+      this.input.addEventListener("input", () => {
+        this.autoResize();
+        this.syncSendState();
+      });
+      this.syncSendState();
       return form;
     }
 
@@ -523,6 +528,31 @@
         },
         { passive: true },
       );
+    }
+
+    bindViewport() {
+      const viewport = window.visualViewport;
+      if (!viewport) {
+        return;
+      }
+
+      const update = () => {
+        // On browsers that only shrink the visual viewport (iOS Safari) the
+        // layout viewport keeps its full height, so the panel would sit
+        // behind the keyboard. Lift it by exactly the keyboard height; where
+        // the layout viewport itself resizes (interactive-widget=
+        // resizes-content) this difference is ~0 and the CSS anchoring
+        // already does the work.
+        const offset = Math.max(
+          0,
+          Math.round(window.innerHeight - viewport.height - viewport.offsetTop),
+        );
+        this.wrapper.style.setProperty("--ai-assistant-keyboard-offset", `${offset}px`);
+      };
+
+      viewport.addEventListener("resize", update, { passive: true });
+      viewport.addEventListener("scroll", update, { passive: true });
+      update();
     }
 
     updateVisibility() {
@@ -945,6 +975,7 @@
       this.setOpen(true);
       this.input.value = text;
       this.autoResize();
+      this.syncSendState();
 
       this.pillState = "complete";
       this.showPill("complete");
@@ -955,8 +986,23 @@
 
     // ----- Conversation ----- //
 
+    isNearBottom() {
+      // Within about one line of the bottom counts as "at the bottom", so
+      // new messages follow the conversation only while the reader is
+      // already following it — never yanking someone who scrolled up.
+      const box = this.messages;
+      return box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+    }
+
+    scrollToBottom() {
+      this.messages.scrollTop = this.messages.scrollHeight;
+    }
+
     async appendMessage(role, text) {
       this.messages.querySelector(".ai-assistant__message--intro")?.remove();
+
+      // Decide before the new bubble changes the scroll geometry.
+      const follow = this.isNearBottom();
 
       const className =
         role === "user"
@@ -991,11 +1037,14 @@
         bubble.textContent = text;
       }
 
-      this.messages.scrollTop = this.messages.scrollHeight;
+      if (follow) {
+        this.scrollToBottom();
+      }
       return bubble;
     }
 
     appendReloadNotice(path) {
+      const follow = this.isNearBottom();
       const notice = createElement("div", "ai-assistant__notice");
       const text = createElement("span", null, `The recipe was updated${path ? `: ${path}` : ""}.`);
       const reload = createElement("button", "ai-assistant__notice-button", "Reload page");
@@ -1003,7 +1052,9 @@
       reload.addEventListener("click", () => window.location.reload());
       notice.append(text, reload);
       this.messages.append(notice);
-      this.messages.scrollTop = this.messages.scrollHeight;
+      if (follow) {
+        this.scrollToBottom();
+      }
     }
 
     setStatus(message, busy) {
@@ -1013,12 +1064,22 @@
 
     setBusy(busy) {
       this.busy = busy;
-      if (this.sendButton) {
-        this.sendButton.disabled = busy;
-      }
+      // The wrapper class drives the orb's breathing "working" ring, so the
+      // state is visible even with the panel closed.
+      this.wrapper.classList.toggle("ai-assistant--busy", busy);
+      this.syncSendState();
       if (this.input) {
         this.input.disabled = busy;
       }
+    }
+
+    syncSendState() {
+      if (!this.sendButton || !this.input) {
+        return;
+      }
+      // Send waits for something to send: disabled while the composer is
+      // empty and while the model is working.
+      this.sendButton.disabled = this.busy || !this.input.value.trim();
     }
 
     rememberTurn(role, content) {

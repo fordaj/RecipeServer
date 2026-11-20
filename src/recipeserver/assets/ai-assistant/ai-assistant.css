@@ -2,8 +2,10 @@
 /* A floating bubble in the bottom-right corner. On mobile it disappears
    while scrolling down and comes back when scrolling up (the behavior is
    driven by ai-assistant.js through the .ai-assistant--hidden class); on
-   wider screens it stays put. Colors come from definitions.css so light
-   and dark mode are both handled by the shared theme tokens. */
+   wider screens it stays put. On mobile the conversation is a full-width
+   sheet resting just above the bubble; on wider screens it is a floating
+   panel anchored to it. Colors come from definitions.css so light and dark
+   mode are both handled by the shared theme tokens. */
 
 .ai-assistant {
   /* The wrapper is unpositioned; the button and panel are fixed to the
@@ -52,6 +54,11 @@
   transform: scale(1.06);
 }
 
+/* Pressed: a small give so a tap feels physical. */
+.ai-assistant__button:active {
+  transform: scale(0.97);
+}
+
 .ai-assistant__button:focus-visible {
   outline: 2px solid var(--food-color);
   outline-offset: 3px;
@@ -61,6 +68,23 @@
   width: 1.6rem;
   height: 1.6rem;
   flex-shrink: 0;
+}
+
+/* ---------- Processing state ---------- */
+/* The launcher itself says the assistant is working — a soft ring that
+   breathes around the orb — so the state is visible even with the panel
+   closed. Excluded while dictating, whose red ring is the stronger signal. */
+
+.ai-assistant--busy:not(.ai-assistant--dictating) .ai-assistant__button {
+  animation: ai-assistant-orb-busy 1.6s ease-in-out infinite;
+}
+
+@keyframes ai-assistant-orb-busy {
+  50% {
+    box-shadow:
+      0 0 0 0.35rem color-mix(in srgb, var(--food-color) 18%, transparent),
+      var(--subtle-shadow);
+  }
 }
 
 /* ---------- Dictating state (long-press hold) ---------- */
@@ -214,20 +238,25 @@
 .ai-assistant__panel {
   position: fixed;
   right: 1.25rem;
-  bottom: calc(1.25rem + 4rem + env(safe-area-inset-bottom));
+  bottom: calc(
+    1.25rem + 4rem + env(safe-area-inset-bottom) + var(--ai-assistant-keyboard-offset, 0px)
+  );
   z-index: 9001;
 
   display: flex;
   flex-direction: column;
 
+  /* The keyboard offset (visualViewport, set by ai-assistant.js) lifts the
+     panel and shrinks it by the same amount, so its top edge stays put
+     while the composer rises above the virtual keyboard. */
   width: min(24rem, calc(100vw - 2.5rem));
-  height: min(34rem, 65dvh);
+  height: min(34rem, calc(65dvh - var(--ai-assistant-keyboard-offset, 0px)));
 
   border: 1px solid var(--border-color);
   border-radius: 16px;
   background: var(--card-bg);
   color: var(--text-color);
-  box-shadow: 0 12px 40px rgb(0 0 0 / 18%);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 15%);
 
   overflow: hidden;
   visibility: hidden;
@@ -284,9 +313,12 @@
   align-items: center;
   justify-content: center;
 
+  /* A full-size dismiss target (the accessibility floor is 44x44). */
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
   border: 0;
   border-radius: 6px;
-  padding: 0.2rem 0.5rem;
   background: transparent;
   color: var(--text-color);
   font-size: 1.75rem;
@@ -317,41 +349,44 @@
 }
 
 .ai-assistant__message {
-  max-width: 88%;
-  padding: 0.5rem 0.75rem;
-  border-radius: 14px;
+  max-width: 92%;
 
   font-size: 0.95rem;
-  line-height: 1.5;
+  line-height: 1.55;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
+/* The user's own words read as an understated chip, not a large card. */
 .ai-assistant__message--user {
   align-self: flex-end;
-  background: var(--food-color);
-  color: var(--page-bg);
+  padding: 0.45rem 0.8rem;
+  border-radius: 14px;
   border-bottom-right-radius: 4px;
+  background: color-mix(in srgb, var(--food-color) 14%, var(--card-bg));
+  color: var(--text-color);
 }
 
+/* Assistant replies read as natural content: no card, no border. */
 .ai-assistant__message--assistant {
-  align-self: flex-start;
-  background: var(--hover-bg);
+  align-self: stretch;
+  padding: 0.2rem 0;
   color: var(--text-color);
-  border: 1px solid var(--border-color);
-  border-bottom-left-radius: 4px;
 }
 
 .ai-assistant__message--error {
-  align-self: flex-start;
-  background: color-mix(in srgb, var(--danger-color) 12%, var(--card-bg));
-  border: 1px solid color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
+  align-self: stretch;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger-color) 10%, var(--card-bg));
+  border: 1px solid color-mix(in srgb, var(--danger-color) 40%, var(--card-bg));
   color: var(--danger-color);
-  border-bottom-left-radius: 4px;
 }
 
 .ai-assistant__message--intro {
-  align-self: flex-start;
+  align-self: stretch;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
   background: transparent;
   border: 1px dashed var(--border-color);
   color: var(--text-muted);
@@ -376,7 +411,8 @@
 
 .ai-assistant__notice-button {
   flex: 0 0 auto;
-  padding: 0.35rem 0.7rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
   border: 1px solid var(--food-color);
   border-radius: 6px;
   background: transparent;
@@ -442,8 +478,10 @@
   min-width: 0;
 }
 
+/* Room for the inline microphone, which is a full-size (44px) target
+   sitting at the field's right edge. */
 .ai-assistant__field--dictation .ai-assistant__input {
-  padding-right: 2.4rem;
+  padding-right: 3.5rem;
 }
 
 .ai-assistant__input {
@@ -462,6 +500,9 @@
   font: inherit;
   font-size: 1rem;
   line-height: 1.4;
+  /* One composer row is a comfortable touch target whether or not the
+     inline microphone is offered. */
+  min-height: 2.75rem;
   max-height: 8rem;
   overflow-y: auto;
 }
@@ -507,6 +548,11 @@
 
 .ai-assistant__send:disabled {
   opacity: 0.5;
+  cursor: default;
+}
+
+/* Disabled because the model is working reads as a wait, not a refusal. */
+.ai-assistant--busy .ai-assistant__send:disabled {
   cursor: wait;
 }
 
@@ -514,7 +560,7 @@
 
 .ai-assistant__mic-button {
   position: absolute;
-  right: 0.4rem;
+  right: 0.35rem;
   top: 50%;
   z-index: 6;
 
@@ -522,8 +568,9 @@
   align-items: center;
   justify-content: center;
 
-  width: 2rem;
-  height: 2rem;
+  /* 44px: the touch-target floor, matched to the send button. */
+  width: 2.75rem;
+  height: 2.75rem;
   padding: 0;
 
   border: 0;
@@ -570,22 +617,28 @@
 /* ---------- Mobile ---------- */
 
 @media (max-width: 600px) {
-  /* On a phone the panel pops out upper-left of the bubble (it is anchored
-     near the top of the screen), leaving the lower-right corner — and the
-     bubble — free for the thumb and the microphone popup. */
+  /* A full-width sheet that rests just above the orb instead of a
+     shrunken desktop panel: it fills 75–95% of the dynamic viewport,
+     stays clear of the notch and the home indicator, and leaves the orb
+     visible and tappable below it, so dismissal never becomes confusing.
+     The keyboard offset (visualViewport, set by ai-assistant.js) lifts
+     the sheet and shrinks it by the same amount: the composer rises above
+     the virtual keyboard while the header stays put. */
   .ai-assistant__panel {
     top: calc(0.75rem + env(safe-area-inset-top));
-    bottom: auto;
-    right: 0.5rem;
-    left: 0.5rem;
+    bottom: calc(5rem + env(safe-area-inset-bottom) + var(--ai-assistant-keyboard-offset, 0px));
+    left: 0;
+    right: 0;
     width: auto;
-    /* Grow with the conversation from a comfortable minimum up to nearly
-       the whole screen. dvh tracks the visible viewport, so the ceiling
-       shrinks to the space left above the on-screen keyboard. */
     height: auto;
-    min-height: min(58dvh, 33rem);
-    max-height: calc(100dvh - 0.75rem - env(safe-area-inset-top) - 0.5rem);
+    min-height: 0;
     transform-origin: bottom right;
+  }
+
+  /* The sheet covers the page: lock the page behind it so the keyboard
+     or a stray drag cannot scroll the application underneath. */
+  body:has(.ai-assistant--open) {
+    overflow: hidden;
   }
 
   .ai-assistant__button {
@@ -610,6 +663,7 @@
   }
 
   .ai-assistant__status--busy,
+  .ai-assistant--busy .ai-assistant__button,
   .ai-assistant__mic-icon {
     animation: none;
   }

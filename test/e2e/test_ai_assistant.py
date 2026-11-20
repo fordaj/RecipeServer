@@ -169,34 +169,143 @@ def test_assistant_bubble_hides_on_scroll_down_and_returns_on_scroll_up(driver, 
     WebDriverWait(driver, 5).until(lambda d: "ai-assistant--hidden" not in assistant_class(d))
 
 
-def test_assistant_panel_grows_to_nearly_the_full_mobile_screen(driver, ai_configured_server):
+def test_assistant_mobile_sheet_fills_the_screen_above_the_orb(driver, ai_configured_server):
     driver.set_window_size(390, 844)
     open_page(driver, f"{ai_configured_server.url}/index.html")
 
     wait_visible(driver, ".ai-assistant__button").click()
     wait_visible(driver, ".ai-assistant__panel")
 
-    # Fill the conversation so the panel grows past its minimum height.
-    driver.execute_script("""
-        const messages = document.querySelector('.ai-assistant__messages');
-        for (let i = 0; i < 40; i++) {
-          const bubble = document.createElement('div');
-          bubble.className = 'ai-assistant__message ai-assistant__message--assistant';
-          bubble.textContent = 'A reply with enough words to occupy a few lines in the conversation area. '.repeat(2);
-          messages.appendChild(bubble);
-        }
+    rect = driver.execute_script("""
+        const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
+        const orb = document.querySelector('.ai-assistant__button').getBoundingClientRect();
+        return {
+          panel: { top: panel.top, bottom: panel.bottom, left: panel.left, right: panel.right, height: panel.height },
+          orb: { top: orb.top, bottom: orb.bottom },
+          viewport: { width: document.documentElement.clientWidth, height: window.innerHeight },
+        };
         """)
+
+    panel, orb, viewport = rect["panel"], rect["orb"], rect["viewport"]
+
+    # A full-width sheet: no horizontal margins.
+    assert panel["left"] <= 1
+    assert panel["right"] >= viewport["width"] - 1
+
+    # It fills 75-95% of the dynamic viewport and starts near the top.
+    # Measured against innerHeight, with a few pixels of tolerance for the
+    # dvh/innerHeight rounding differences across platforms.
+    share = panel["height"] / viewport["height"]
+    assert 0.75 <= share <= 0.95
+    assert -1 <= panel["top"] <= viewport["height"] * 0.05
+
+    # The orb stays visible and tappable below the sheet.
+    assert orb["top"] >= panel["bottom"] - 1
+    assert orb["bottom"] <= viewport["height"] + 1
+
+
+@pytest.mark.parametrize("width", [1440, 1024, 768])
+def test_assistant_panel_is_a_floating_card_anchored_to_the_orb(driver, ai_configured_server, width):
+    driver.set_window_size(width, 900)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
 
     rect = driver.execute_script("""
-        const r = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
-        return { top: r.top, bottom: r.bottom, height: r.height, viewport: window.innerHeight };
+        const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
+        const orb = document.querySelector('.ai-assistant__button').getBoundingClientRect();
+        return {
+          panel: { top: panel.top, bottom: panel.bottom, left: panel.left, right: panel.right, width: panel.width },
+          orb: { top: orb.top, right: orb.right },
+        };
         """)
 
-    # It grows with the conversation up to nearly the whole visible screen,
-    # while staying anchored near the top (dvh accounts for the keyboard).
-    # A small tolerance absorbs the dvh/innerHeight rounding on some platforms.
-    assert rect["viewport"] * 0.85 < rect["height"] < rect["viewport"] * 1.05
-    assert rect["top"] >= -1
+    panel, orb = rect["panel"], rect["orb"]
+
+    # The floating card is 360-420px wide and is not full-bleed.
+    assert 360 <= panel["width"] <= 420
+    assert panel["left"] >= 1
+
+    # It is right-aligned with the orb and rests just above it, so the
+    # launcher is never covered.
+    assert abs(panel["right"] - orb["right"]) <= 2
+    assert orb["top"] >= panel["bottom"] - 1
+
+
+def test_assistant_sheet_does_not_overflow_a_narrow_screen(driver, ai_configured_server):
+    driver.set_window_size(320, 568)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__panel")
+
+    metrics = driver.execute_script("""
+        const panel = document.querySelector('.ai-assistant__panel').getBoundingClientRect();
+        const doc = document.documentElement;
+        return {
+          left: panel.left,
+          right: panel.right,
+          clientWidth: doc.clientWidth,
+          scrollWidth: doc.scrollWidth,
+        };
+        """)
+
+    # Neither the sheet nor the page overflows horizontally at 320px.
+    assert metrics["left"] >= -1
+    assert metrics["right"] <= metrics["clientWidth"] + 1
+    assert metrics["scrollWidth"] <= metrics["clientWidth"] + 1
+
+
+def test_assistant_send_waits_for_something_to_send(driver, ai_configured_server):
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__input")
+
+    send = wait_visible(driver, ".ai-assistant__send")
+    prompt = driver.find_element("css selector", ".ai-assistant__input")
+
+    # Nothing to send yet: the button waits.
+    assert send.get_attribute("disabled") is not None
+
+    prompt.send_keys("Hello")
+    assert send.get_attribute("disabled") is None
+
+    # Emptying the composer (through the input event the browser fires)
+    # disables it again.
+    driver.execute_script("""
+        const input = document.querySelector('.ai-assistant__input');
+        input.value = '';
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        """)
+    assert send.get_attribute("disabled") is not None
+
+
+def test_assistant_controls_meet_touch_and_type_minimums(driver, ai_configured_server):
+    driver.set_window_size(390, 844)
+    open_page(driver, f"{ai_configured_server.url}/index.html")
+
+    wait_visible(driver, ".ai-assistant__button").click()
+    wait_visible(driver, ".ai-assistant__input")
+
+    metrics = driver.execute_script("""
+        const close = document.querySelector('.ai-assistant__close').getBoundingClientRect();
+        const send = document.querySelector('.ai-assistant__send').getBoundingClientRect();
+        const input = document.querySelector('.ai-assistant__input');
+        return {
+          close: { width: close.width, height: close.height },
+          send: { width: send.width, height: send.height },
+          inputFontSize: parseFloat(getComputedStyle(input).fontSize),
+        };
+        """)
+
+    # 44px touch targets and 16px text (iOS Safari zooms smaller text).
+    assert metrics["close"]["width"] >= 44
+    assert metrics["close"]["height"] >= 44
+    assert metrics["send"]["width"] >= 44
+    assert metrics["send"]["height"] >= 44
+    assert metrics["inputFontSize"] >= 16
 
 
 def test_assistant_placeholder_is_not_clipped_by_the_dictation_layout(driver, ai_configured_server):
