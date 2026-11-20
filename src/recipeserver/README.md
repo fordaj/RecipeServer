@@ -44,7 +44,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 - [markdown_to_html/extras.py](markdown_to_html/extras.py.md) — contributor, sources, and version blocks
 - [markdown_to_html/feedback.py](markdown_to_html/feedback.py.md) — comments and ratings sections
 - [markdown_to_html/icons.py](markdown_to_html/icons.py.md) — asset SVG loading
-- [index_html_generator.py](index_html_generator.py.md) — the searchable/sortable index and metadata warnings
+- [index_html_generator.py](index_html_generator.py.md) — the searchable/sortable index, metadata warnings, and per-recipe card colors
 - [image_handler.py](image_handler.py.md) — supported images, hero selection, accent colors
 - [color_utils.py](color_utils.py.md) — dark-mode accent remapping
 

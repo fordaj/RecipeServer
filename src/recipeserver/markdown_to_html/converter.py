@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup, Tag
 
 from .._logger import logger
 from ..config import Configuration
-from ..image_handler import DEFAULT_TITLE, ImageToColorConverter, get_first_image_in_dir
+from ..image_handler import DEFAULT_TITLE, get_recipe_accent_color
 from ..metadata_linter import lint_recipe_metadata
 from ..recipe_utils import as_list, is_finite_rating_score, json_default, slug_to_title
 from . import extras, feedback, overview, page, quantities
@@ -120,19 +120,10 @@ class MarkdownToHTMLConverter:
         """Return an accent color derived from the recipe's hero image.
 
         Falls back to the configured food color when there is no usable
-        hero image.
+        hero image. The derivation is shared with the index generator, so a
+        recipe page and its index card always show the same color.
         """
-        fallback = getattr(self.cfg, "food_color", None) or DEFAULT_TITLE
-        image = get_first_image_in_dir(recipe_directory)
-        if not image:
-            return fallback
-
-        logger.file(f"Found image: {image}")
-        try:
-            return ImageToColorConverter().get_hex_color_from_image(image)
-        except (OSError, ValueError) as exc:
-            logger.warning(f'Could not derive an accent color from "{image}": {exc}')
-            return fallback
+        return get_recipe_accent_color(recipe_directory, getattr(self.cfg, "food_color", None) or DEFAULT_TITLE)
 
     @staticmethod
     def _serialize_metadata_json(metadata: dict[str, object]) -> str:
