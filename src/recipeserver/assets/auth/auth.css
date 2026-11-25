@@ -8,11 +8,11 @@
   display: none !important;
 }
 
-/* Inline the user's name in the Sign out row: a darker gray name, a muted
-   dot separator, then the action label. */
+/* Inline the user's name in the Sign out row: "Sign out · Name", with the
+   name a darker gray than the action label and a muted dot separator. */
 .sandwich-menu__item .sandwich-menu__status {
   margin: 0;
-  color: var(--text-color);
+  color: color-mix(in srgb, var(--text-color) 80%, black);
   font-size: inherit;
   line-height: inherit;
 }

@@ -44,7 +44,7 @@
       separator.className = "sandwich-menu__status-dot";
       separator.setAttribute("aria-hidden", "true");
       separator.textContent = "·";
-      labelSpan.append(user, separator, document.createTextNode(label));
+      labelSpan.append(document.createTextNode(label), separator, user);
     } else {
       labelSpan.textContent = label;
     }
