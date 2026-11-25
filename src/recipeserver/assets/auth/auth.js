@@ -27,14 +27,27 @@
     return svg || "";
   }
 
-  function menuButton(label, attributes, iconUrl) {
+  function menuButton(label, attributes, iconUrl, name = "") {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "sandwich-menu__item";
     button.setAttribute("role", "menuitem");
     for (const [name, value] of Object.entries(attributes)) button.setAttribute(name, value);
     const labelSpan = document.createElement("span");
-    labelSpan.textContent = label;
+    if (name) {
+      // The signed-in user's name shares the Sign out row, separated by a
+      // dot. Values come from /api/auth/status, never from the config API.
+      const user = document.createElement("span");
+      user.className = "sandwich-menu__status";
+      user.textContent = name;
+      const separator = document.createElement("span");
+      separator.className = "sandwich-menu__status-dot";
+      separator.setAttribute("aria-hidden", "true");
+      separator.textContent = "·";
+      labelSpan.append(user, separator, document.createTextNode(label));
+    } else {
+      labelSpan.textContent = label;
+    }
     button.append(labelSpan);
     if (iconUrl) {
       icon(iconUrl, "sandwich-menu__item-icon").then((svg) => {
@@ -75,16 +88,13 @@
     const anchor = panel.querySelector(".sandwich-menu__status");
     const insert = (element) => panel.insertBefore(element, anchor || null);
 
-    if (status.name) {
-      const user = document.createElement("p");
-      user.className = "sandwich-menu__status";
-      user.textContent = status.name;
-      user.hidden = false;
-      insert(user);
-    }
-
     if (status.authenticated) {
-      const logout = menuButton("Sign out", { "data-auth-logout": "" }, ICONS.signOut);
+      const logout = menuButton(
+        "Sign out",
+        { "data-auth-logout": "" },
+        ICONS.signOut,
+        status.name || "",
+      );
       logout.addEventListener("click", () => signOut(logout));
       insert(logout);
     } else {
