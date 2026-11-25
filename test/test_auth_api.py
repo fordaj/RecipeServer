@@ -1,9 +1,10 @@
 import json
 from functools import partial
+from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from threading import Thread
 from urllib.error import HTTPError
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import pytest
@@ -234,6 +235,48 @@ def test_login_and_logout_cookies(auth_server):
     assert "Max-Age=0" in headers["Set-Cookie"]
     assert "HttpOnly" in headers["Set-Cookie"]
     assert "Secure" in headers["Set-Cookie"]
+
+
+def _connection(base):
+    parts = urlsplit(base)
+    return HTTPConnection(parts.hostname, parts.port)
+
+
+def test_logout_post_does_not_desync_keep_alive(auth_server):
+    """A leftover POST body must not turn the next request into a 501."""
+    base, _manager, _config_file = auth_server
+    connection = _connection(base)
+    try:
+        connection.request("POST", "/api/auth/logout", body="{}", headers=owner_headers())
+        first = connection.getresponse()
+        assert first.status == 200
+        first.read()
+
+        connection.request("GET", "/api/auth/status")
+        second = connection.getresponse()
+        assert second.status == 200
+        assert json.loads(second.read())["enabled"] is True
+    finally:
+        connection.close()
+
+
+def test_denied_post_does_not_desync_keep_alive(auth_server):
+    base, _manager, _config_file = auth_server
+    connection = _connection(base)
+    try:
+        # Guest defaults to View, so this write is denied by the gate before
+        # any handler reads the body.
+        connection.request("POST", "/api/markdown", body="{}", headers={"Content-Type": "application/json"})
+        first = connection.getresponse()
+        assert first.status == 401  # anonymous caller is asked to sign in
+        first.read()
+
+        connection.request("GET", "/api/auth/status")
+        second = connection.getresponse()
+        assert second.status == 200
+        assert json.loads(second.read())["enabled"] is True
+    finally:
+        connection.close()
 
 
 def test_bad_callback_state_clears_the_flow_cookie(auth_server):

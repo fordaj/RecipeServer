@@ -38,7 +38,7 @@ from PIL import Image, UnidentifiedImageError
 
 from . import ai_assistant, ai_recipe, assistant_render
 from . import history as recipe_history
-from .authorization import AuthManager, Decision, Permission
+from .authorization import MUTATING_METHODS, AuthManager, Decision, Permission
 from .oidc import FLOW_TTL_SECONDS, OIDCError
 from .retention import get_retention_manager
 from .session import FLOW_COOKIE, SESSION_COOKIE, clear_cookie_header, cookie_header, parse_cookies
@@ -927,6 +927,12 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self._identity = result.identity
         if result.decision is Decision.ALLOW:
             return False
+        # An early error response must still consume the request body. With
+        # HTTP/1.1 keep-alive, unread bytes (e.g. a POST's "{}") are parsed as
+        # the start of the next request line, producing 501 "Unsupported
+        # method ('{}GET')" on the following request.
+        if method.upper() in MUTATING_METHODS:
+            self._discard_request_body()
         if result.decision is Decision.LOGIN:
             login_url = auth.login_url(path)
             if path.startswith("/api/"):
@@ -939,6 +945,27 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         else:
             self._send_auth_error(403, "Access denied", "You do not have permission to view this page.")
         return True
+
+    def _discard_request_body(self) -> None:
+        """Drain a declared request body so the next keep-alive request is clean."""
+        header = self.headers.get("Content-Length")
+        if not header:
+            return
+        try:
+            length = int(header)
+        except ValueError:
+            self.close_connection = True
+            return
+        if length <= 0:
+            return
+        if length > self.MAX_IMAGE_UPLOAD_SIZE:
+            # Do not block on a body we are not going to use.
+            self.close_connection = True
+            return
+        try:
+            self.rfile.read(length)
+        except OSError:
+            self.close_connection = True
 
     def _redirect_to(self, location: str) -> None:
         """Send a short redirect body; cookies are supplied via pending headers."""
@@ -1566,8 +1593,12 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def _handle_auth_logout(self) -> None:
         """Clear the signed session cookie. Also requires a CSRF token."""
         if not self._auth_available():
+            self._discard_request_body()
             self.send_error(404, "Unknown API endpoint")
             return
+        # The browser posts "{}"; drain it before responding so keep-alive
+        # stays in sync (see _discard_request_body).
+        self._discard_request_body()
         if self._identity is not None and not self.auth.csrf_ok(self.headers, self._identity):
             self._send_json(403, {"error": "Invalid CSRF token"})
             return
