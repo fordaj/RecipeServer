@@ -8,6 +8,7 @@ flowchart TD
     core --> server("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>server.py<br/>site + /api/*</u>")
     core --> retention("<img src='barnacle:scissors.svg' width='20' alt=''/><br/><u>retention.py<br/>history pruning</u>")
     core --> tray("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>tray.py<br/>system tray</u>")
+    core --> auth("<img src='barnacle:shield.svg' width='20' alt=''/><br/><u>auth_config.py / authorization.py<br/>optional OIDC gate</u>")
     click main href "__main__.py.md"
     click core href "core.py.md"
     click converter href "markdown_to_html/converter.py.md"
@@ -15,7 +16,8 @@ flowchart TD
     click server href "server.py.md"
     click retention href "retention.py.md"
     click tray href "tray.py.md"
-    class main,core,index,server,tray,retention goFile
+    click auth href "authorization.py.md"
+    class main,core,index,server,tray,retention,auth goFile
     class converter folder
     classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
     classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
@@ -47,6 +49,13 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 - [index_html_generator.py](index_html_generator.py.md) — the searchable/sortable index and metadata warnings
 - [image_handler.py](image_handler.py.md) — supported images, hero selection, accent colors
 - [color_utils.py](color_utils.py.md) — dark-mode accent remapping
+
+## Optional authentication
+
+- [auth_config.py](auth_config.py.md) — environment/TOML/default precedence, validation, persistent signing secret
+- [oidc.py](oidc.py.md) — discovery, PKCE, state/nonce, ID-token verification
+- [session.py](session.py.md) — signed cookies, expiry, CSRF token
+- [authorization.py](authorization.py.md) — None/View/Edit permissions, Owner privilege, central request gate
 
 ## HTTP and editing
 

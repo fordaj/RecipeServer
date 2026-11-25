@@ -50,6 +50,8 @@ RECIPE_FEEDBACK_JS = "/assets/recipe-feedback.js"
 TIMELINE_JS = "/assets/recipe-history/timeline.js"
 TIME_JS = "/assets/time.js"
 ICONS_JS = "/assets/icons.js"
+AUTH_CSS = "/assets/auth/auth.css"
+AUTH_JS = "/assets/auth/auth.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
 LOGO_SVG = "/assets/logo.svg"
 
@@ -103,6 +105,8 @@ def _versioned_assets() -> dict[str, str]:
             "definitions_css": DEFINITIONS_CSS_PATH,
             "base_css": BASE_CSS_PATH,
             "dialog_shell_css": DIALOG_SHELL_CSS_PATH,
+            "auth_css": AUTH_CSS,
+            "auth_js": AUTH_JS,
             "ai_assistant_css": AI_ASSISTANT_CSS_PATH,
             "style_css": CSS_PATH,
             "recipe_scaler_css": RECIPE_SCALER_CSS,
@@ -155,6 +159,7 @@ def build_recipe_html(
         <link rel="stylesheet" href="{assets["definitions_css"]}">
         <link rel="stylesheet" href="{assets["base_css"]}">
         <link rel="stylesheet" href="{assets["dialog_shell_css"]}">
+        <link rel="stylesheet" href="{assets["auth_css"]}">
         <link rel="stylesheet" href="{assets["ai_assistant_css"]}">
         <link rel="stylesheet" href="{MENU_CSS_URL}">
         <link rel="stylesheet" href="{assets["style_css"]}">
@@ -194,6 +199,7 @@ def build_recipe_html(
         <script defer src="{assets["fields_js"]}"></script>
         <script defer src="{assets["dialogs_js"]}"></script>
         <script defer src="{assets["recipe_editor_js"]}"></script>
+        <script defer src="{assets["auth_js"]}"></script>
     </body>
     </html>
     """)

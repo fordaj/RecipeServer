@@ -2,7 +2,8 @@
 
 ```mermaid
 flowchart TD
-    main("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.main(cfg)</u>") --> regen("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>Core.regen()")
+    main("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.main(cfg)</u>") --> auth("<img src='barnacle:shield.svg' width='20' alt=''/><br/><u>load_auth_settings()<br/>AuthManager · fail closed</u>")
+    main --> regen("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>Core.regen()")
     regen --> ids("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_ensure_recipe_ids()<br/>stable recipe_id</u>")
     ids --> convert("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>parallel convert<br/>recipe.md → html</u>")
     convert --> index("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_update_index()<br/>index.html</u>")
@@ -10,6 +11,7 @@ flowchart TD
     main --> tray("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Tray(...)<br/>menu · open · quit</u>")
     main --> retention("<img src='barnacle:scissors.svg' width='20' alt=''/><br/><u>RetentionManager<br/>background retention</u>")
     click main href "__main__.py.md"
+    click auth href "authorization.py.md"
     click convert href "markdown_to_html/converter.py.md"
     click index href "index_html_generator.py.md"
     click server href "server.py.md"
@@ -35,9 +37,9 @@ The application spine. `main(cfg)` builds the site, starts the HTTP server, and 
   - `on_recipes_deleted(paths)` — drop deleted recipes from the index and unlink their pages.
   - `on_config_save()` — full rebuild after a configuration change. A forced background retention pass is then requested, so a switch of `timeline_retention` (GFS ⇄ Unlimited) is applied without resetting or migrating history — it is a no-op under Unlimited. (Dictation needs no teardown on a configuration save: the Ollama server and its model are managed outside the app — see [transcriber.py.md](transcriber.py.md).)
 - `parse_args()` — `--log-level LEVEL` (`-l`), choices from `LogLevel` ([_logger.py.md](_logger.py.md)), default `INFO`.
-- `main(cfg)` — `Core(cfg)` → `regen()` → the shared retention manager ([retention.py.md](retention.py.md)) is configured with `cfg` and started (an initial full scan plus the periodic sweep) → `Server(...)` ([server.py.md](server.py.md)) → `Tray(...)` ([tray.py.md](tray.py.md)). On macOS the tray runs on the main thread; elsewhere it runs detached and this thread polls the shutdown event. The shutdown path stops the HTTP server, the tray, and the periodic retention thread (in-flight prunes may finish first — they are interruption-safe).
+- `main(cfg)` — optional auth is resolved first: `load_auth_settings(cfg.get_auth_values())` ([auth_config.py.md](auth_config.py.md)) validates the environment/TOML/default settings and an `AuthManager` ([authorization.py.md](authorization.py.md)) performs OIDC discovery; a bad configuration logs an error and exits before the listener opens. Then `Core(cfg)` → `regen()` → the shared retention manager ([retention.py.md](retention.py.md)) is configured with `cfg` and started (an initial full scan plus the periodic sweep) → `Server(..., auth=auth_manager)` ([server.py.md](server.py.md)) → `Tray(...)` ([tray.py.md](tray.py.md)). On macOS the tray runs on the main thread; elsewhere it runs detached and this thread polls the shutdown event. The shutdown path stops the HTTP server, the tray, and the periodic retention thread (in-flight prunes may finish first — they are interruption-safe).
 
-The server binds `0.0.0.0` on the configured port (default 8000) by default — LAN-reachable, with no authentication; set `server_bind_address` to `127.0.0.1` to restrict it to this machine (see [config.py.md](config.py.md)). If the port is in use at startup, `Server.start()` logs an error and exits (see [server.py.md](server.py.md)).
+The server binds `0.0.0.0` on the configured port (default 8000) by default — LAN-reachable, with no authentication **unless OIDC is enabled**; set `server_bind_address` to `127.0.0.1` to restrict it to this machine (see [config.py.md](config.py.md)). When OIDC is enabled, serve over HTTPS so the signed cookies carry the `Secure` attribute. If the port is in use at startup, `Server.start()` logs an error and exits (see [server.py.md](server.py.md)).
 
 ## Related pages
 

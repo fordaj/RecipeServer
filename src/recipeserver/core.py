@@ -8,7 +8,10 @@ from shutil import copy2, copytree, rmtree
 from threading import Event, Lock
 
 from ._logger import logger, LogLevel
+from .auth_config import AuthConfigError, load_auth_settings
+from .authorization import AuthManager
 from .config import Configuration
+from .oidc import OIDCError
 from .history import write_file_atomic
 from .image_handler import IMAGE_EXTENSIONS
 from .index_html_generator import IndexHTMLGenerator, Recipe
@@ -263,6 +266,17 @@ def parse_args():
 
 
 def main(cfg: Configuration):
+    # Authentication is validated and the provider is discovered before the
+    # listener opens. A broken OIDC configuration must fail loudly, never fall
+    # back to an unauthenticated server.
+    try:
+        auth_values = cfg.get_auth_values() if hasattr(cfg, "get_auth_values") else {}
+        auth_settings = load_auth_settings(auth_values)
+        auth_manager = AuthManager(auth_settings) if auth_settings.enabled else None
+    except (AuthConfigError, OIDCError) as exc:
+        logger.error(f"Authentication configuration error: {exc}")
+        sys.exit(1)
+
     core = Core(cfg)
     core.regen()
 
@@ -272,12 +286,14 @@ def main(cfg: Configuration):
     retention_manager.configure(cfg)
     retention_manager.start()
 
-    server = Server(
-        cfg,
-        on_markdown_saved=core.on_markdown_save,
-        on_config_saved=core.on_config_save,
-        on_recipes_deleted=core.on_recipes_deleted,
-    )
+    server_kwargs = {
+        "on_markdown_saved": core.on_markdown_save,
+        "on_config_saved": core.on_config_save,
+        "on_recipes_deleted": core.on_recipes_deleted,
+    }
+    if auth_manager is not None:
+        server_kwargs["auth"] = auth_manager
+    server = Server(cfg, **server_kwargs)
     server.start()
 
     shutdown_event = Event()
