@@ -1,0 +1,77 @@
+/* Access settings dialog. The shell and buttons reuse dialog-shell.css and
+   the shared config-editor classes so it matches the Configuration dialog. */
+
+/* Several controls (menu items, the create button) set `display` in CSS,
+   which outranks the user-agent [hidden] rule. auth.js hides unauthorized
+   controls with the `hidden` attribute, so make that stick on both pages. */
+[hidden] {
+  display: none !important;
+}
+
+/* Inline the user's name in the Sign out row: "Sign out · Name", with the
+   name a darker gray than the action label and a muted dot separator. */
+.sandwich-menu__item .sandwich-menu__status {
+  margin: 0;
+  color: color-mix(in srgb, var(--text-color) 80%, black);
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.sandwich-menu__status-dot {
+  margin: 0 0.35rem;
+  color: var(--muted-color);
+}
+
+.access-settings-dialog {
+  width: min(480px, calc(100% - 2rem));
+  max-width: none;
+  padding: 1rem;
+  box-sizing: border-box;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  color: var(--text-color);
+}
+
+.access-settings-dialog::backdrop {
+  background: var(--dialog-backdrop);
+}
+
+.access-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.access-settings__header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.access-settings .config-editor__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 1rem;
+}
+
+.access-settings select {
+  font: inherit;
+  font-size: 1rem;
+  padding: 0.4rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-color);
+}
+
+.access-settings select:focus-visible,
+.access-settings button:focus-visible {
+  outline: 2px solid var(--food-color);
+}
+
+.access-settings .config-editor__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}

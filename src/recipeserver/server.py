@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import difflib
+import html
 import json
 import shutil
 import re
@@ -37,7 +38,10 @@ from PIL import Image, UnidentifiedImageError
 
 from . import ai_assistant, ai_recipe, assistant_render
 from . import history as recipe_history
+from .authorization import MUTATING_METHODS, AuthManager, Decision, Permission
+from .oidc import FLOW_TTL_SECONDS, OIDCError
 from .retention import get_retention_manager
+from .session import FLOW_COOKIE, SESSION_COOKIE, clear_cookie_header, cookie_header, parse_cookies
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import (
@@ -822,6 +826,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         on_config_saved: ConfigSavedCallback | None = None,
         on_recipes_deleted: RecipesDeletedCallback | None = None,
         config: Configuration | None = None,
+        auth: AuthManager | None = None,
         **kwargs,
     ):
         self._source_directory = Path(source_directory).resolve()
@@ -829,6 +834,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self.on_config_saved = on_config_saved
         self.on_recipes_deleted = on_recipes_deleted
         self.config = config
+        self.auth = auth
+        self._identity = None
+        # Headers queued by handlers (e.g. Set-Cookie) are emitted by end_headers.
+        self._pending_headers: list[tuple[str, str]] = []
         self._response_status = 200
         super().__init__(*args, **kwargs)
 
@@ -895,9 +904,111 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             and not self._has_buffered_header(b"transfer-encoding")
         ):
             self.send_header("Content-Length", "0")
+        for name, value in self._pending_headers:
+            self.send_header(name, value)
+        self._pending_headers = []
         super().end_headers()
 
+    # ----- authentication gate ----------------------------------------------
+
+    def _auth_gate(self, method: str) -> bool:
+        """Enforce authentication/authorization before any dispatch.
+
+        Returns True when a response was sent and the caller must stop. The
+        gate also covers generated static pages and ``HEAD`` requests, which
+        would otherwise bypass the API dispatcher entirely.
+        """
+        auth = self.auth
+        if auth is None or not auth.enabled:
+            return False
+
+        path = urlsplit(getattr(self, "path", "") or "").path
+        result = auth.decide(path, method, self.headers, parse_cookies(self.headers.get("Cookie")))
+        self._identity = result.identity
+        if result.decision is Decision.ALLOW:
+            return False
+        # An early error response must still consume the request body. With
+        # HTTP/1.1 keep-alive, unread bytes (e.g. a POST's "{}") are parsed as
+        # the start of the next request line, producing 501 "Unsupported
+        # method ('{}GET')" on the following request.
+        if method.upper() in MUTATING_METHODS:
+            self._discard_request_body()
+        if result.decision is Decision.LOGIN:
+            login_url = auth.login_url(path)
+            if path.startswith("/api/"):
+                self._send_json(401, {"error": "Authentication required", "loginUrl": login_url})
+            else:
+                self._redirect_to(login_url)
+            return True
+        if path.startswith("/api/"):
+            self._send_json(403, {"error": "You do not have permission to do that"})
+        else:
+            self._send_auth_error(403, "Access denied", "You do not have permission to view this page.")
+        return True
+
+    def _discard_request_body(self) -> None:
+        """Drain a declared request body so the next keep-alive request is clean."""
+        header = self.headers.get("Content-Length")
+        if not header:
+            return
+        try:
+            length = int(header)
+        except ValueError:
+            self.close_connection = True
+            return
+        if length <= 0:
+            return
+        if length > self.MAX_IMAGE_UPLOAD_SIZE:
+            # Do not block on a body we are not going to use.
+            self.close_connection = True
+            return
+        try:
+            self.rfile.read(length)
+        except OSError:
+            self.close_connection = True
+
+    def _redirect_to(self, location: str) -> None:
+        """Send a short redirect body; cookies are supplied via pending headers."""
+        body = b"<!doctype html><html><head><meta charset='utf-8'><title>Redirecting</title></head><body><p>Redirecting&hellip;</p></body></html>"
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def _send_auth_error(self, status: int, title: str, message: str) -> None:
+        """Render a generic, non-leaking authentication error page."""
+        body = (
+            "<!doctype html><html><head><meta charset='utf-8'>"
+            f"<title>{html.escape(title)}</title></head><body>"
+            f"<h1>{html.escape(title)}</h1><p>{html.escape(message)}</p></body></html>"
+        ).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+        if self.command != "HEAD":
+            self.wfile.write(body)
+
+    def _queue_cookie(self, name: str, value: str, max_age: int) -> None:
+        """Queue a Set-Cookie header using the live auth configuration."""
+        secure = bool(self.auth and self.auth.settings.secure_cookies)
+        self._pending_headers.append(("Set-Cookie", cookie_header(name, value, max_age, secure=secure)))
+
+    def do_HEAD(self):
+        if self._auth_gate("HEAD"):
+            return
+        super().do_HEAD()
+
     def do_GET(self):
+        if self._auth_gate("GET"):
+            return
         parsed = urlsplit(self.path)
         path = parsed.path
 
@@ -914,6 +1025,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         path = path.rstrip("/") or "/"
         simple_handlers = {
             "/health": self._handle_health,
+            "/api/auth/status": self._handle_auth_status,
+            "/api/auth/login": self._handle_auth_login,
+            "/api/auth/callback": self._handle_auth_callback,
+            "/api/auth/settings": self._handle_auth_settings_get,
             "/api/ai-status": self._handle_ai_status,
             "/api/config": self._handle_config_get,
             "/api/metadata-options": self._handle_metadata_options,
@@ -949,6 +1064,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         return False
 
     def do_POST(self):
+        if self._auth_gate("POST"):
+            return
         path = urlsplit(self.path).path
 
         if self._dispatch_post_api(path):
@@ -959,6 +1076,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def _dispatch_post_api(self, path: str) -> bool:
         path = path.rstrip("/") or "/"
         exact_handlers = {
+            "/api/auth/logout": self._handle_auth_logout,
+            "/api/auth/settings": self._handle_auth_settings_post,
             "/api/bulk-editor": self._handle_bulk_editor_post,
             "/api/bulk-delete": self._handle_bulk_delete,
             "/api/config": self._handle_config_update,
@@ -986,6 +1105,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         return False
 
     def do_DELETE(self):
+        if self._auth_gate("DELETE"):
+            return
         parsed = urlsplit(self.path)
         if parsed.path != "/api/recipe":
             self.send_error(404, "Unknown API endpoint")
@@ -1052,6 +1173,86 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_health(self) -> None:
         self._send_json(200, {"status": "ok"})
+
+    # ----- GET handlers: optional authentication ----------------------------
+
+    def _auth_available(self) -> bool:
+        return self.auth is not None and self.auth.enabled
+
+    def _secure_cookies(self) -> bool:
+        return bool(self.auth and self.auth.settings.secure_cookies)
+
+    def _handle_auth_status(self) -> None:
+        if not self._auth_available():
+            self._send_json(
+                200,
+                {
+                    "enabled": False,
+                    "authenticated": False,
+                    "permission": "edit",
+                    "canEdit": True,
+                    "isOwner": False,
+                    "name": None,
+                    "csrfToken": None,
+                    "loginUrl": "/api/auth/login",
+                    "logoutUrl": "/api/auth/logout",
+                    "callbackPath": "/api/auth/callback",
+                },
+            )
+            return
+        self._send_json(200, self.auth.status(self._identity))
+
+    def _handle_auth_login(self) -> None:
+        if not self._auth_available():
+            self.send_error(404, "Unknown API endpoint")
+            return
+        query = parse_qs(urlsplit(self.path).query)
+        next_values = query.get("next", [])
+        try:
+            location, cookie = self.auth.begin_login(next_values[0] if next_values else "/")
+        except OIDCError as exc:
+            logger.warning(f"Unable to start OIDC login: {exc.detail or exc.message}")
+            self._send_auth_error(503, "Sign-in unavailable", "Sign-in is temporarily unavailable.")
+            return
+        self._queue_cookie(FLOW_COOKIE, cookie, FLOW_TTL_SECONDS)
+        self._redirect_to(location)
+
+    def _handle_auth_callback(self) -> None:
+        if not self._auth_available():
+            self.send_error(404, "Unknown API endpoint")
+            return
+        params = parse_qs(urlsplit(self.path).query)
+        flow_cookie = parse_cookies(self.headers.get("Cookie")).get(FLOW_COOKIE)
+        # The flow cookie is single-use: clear it even when the callback fails.
+        self._pending_headers.append(("Set-Cookie", clear_cookie_header(FLOW_COOKIE, secure=self._secure_cookies())))
+        try:
+            _session, cookie, return_to = self.auth.finish_login(params, flow_cookie)
+        except OIDCError as exc:
+            logger.warning(f"OIDC login failed: {exc.detail or exc.message}")
+            self._send_auth_error(400, "Sign-in failed", exc.message)
+            return
+        self._queue_cookie(SESSION_COOKIE, cookie, self.auth.settings.session_lifetime_minutes * 60)
+        self._redirect_to(return_to)
+
+    def _handle_auth_settings_get(self) -> None:
+        if not self._auth_available():
+            self.send_error(404, "Unknown API endpoint")
+            return
+        self._send_json(200, self.auth.access.to_json())
+
+    def _handle_auth_settings_post(self) -> None:
+        if not self._auth_available():
+            self.send_error(404, "Unknown API endpoint")
+            return
+        try:
+            payload = self._read_json_payload()
+            guest = Permission.parse(str(payload.get("guest", "")))
+            authenticated = Permission.parse(str(payload.get("authenticated", "")))
+        except (_RequestTooLarge, ValueError) as exc:
+            self._send_payload_error(exc)
+            return
+        self.auth.update_access(guest, authenticated)
+        self._send_json(200, {"success": True, **self.auth.access.to_json()})
 
     def _handle_ai_status(self) -> None:
         logger.debug("Received /api/ai-status request")
@@ -1388,6 +1589,21 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self._send_json(200, {"text": text})
 
     # ----- POST handlers: configuration and AI -----------------------------
+
+    def _handle_auth_logout(self) -> None:
+        """Clear the signed session cookie. Also requires a CSRF token."""
+        if not self._auth_available():
+            self._discard_request_body()
+            self.send_error(404, "Unknown API endpoint")
+            return
+        # The browser posts "{}"; drain it before responding so keep-alive
+        # stays in sync (see _discard_request_body).
+        self._discard_request_body()
+        if self._identity is not None and not self.auth.csrf_ok(self.headers, self._identity):
+            self._send_json(403, {"error": "Invalid CSRF token"})
+            return
+        self._pending_headers.append(("Set-Cookie", clear_cookie_header(SESSION_COOKIE, secure=self._secure_cookies())))
+        self._send_json(200, {"success": True})
 
     def _handle_config_update(self) -> None:
         try:
@@ -2900,7 +3116,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(body)
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
 
 # ---------------------------------------------------------------------------
@@ -2938,11 +3155,13 @@ class Server:
         on_markdown_saved: MarkdownSavedCallback | None = None,
         on_config_saved: ConfigSavedCallback | None = None,
         on_recipes_deleted: RecipesDeletedCallback | None = None,
+        auth: AuthManager | None = None,
     ):
         self.cfg = cfg
         self.on_markdown_saved = on_markdown_saved
         self.on_config_saved = on_config_saved
         self.on_recipes_deleted = on_recipes_deleted
+        self.auth = auth
         self._http_server: ThreadingHTTPServer | None = None
         self._thread: Thread | None = None
 
@@ -2995,6 +3214,7 @@ class Server:
             on_config_saved=self.on_config_saved,
             on_recipes_deleted=self.on_recipes_deleted,
             config=self.cfg,
+            auth=self.auth,
         )
 
         try:

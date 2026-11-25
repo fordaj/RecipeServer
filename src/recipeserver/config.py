@@ -12,6 +12,7 @@ from tkinter import Tk, filedialog
 from urllib.parse import urlsplit
 
 from ._logger import logger
+from .auth_config import AUTH_TOML_KEYS
 from .retention import DEFAULT_RETENTION_POLICY, RETENTION_POLICIES, RETENTION_POLICY_LABELS, normalize_retention_policy
 
 MODEL_ENDPOINT_KEY = "model_endpoint"
@@ -474,6 +475,9 @@ class Configuration:
         self.new_recipe_prompt: str = ""
         self.new_recipe_from_image_prompt: str = ""
         self._config_file: Path | None = None
+        # Raw auth keys from the TOML file. They are never part of CONFIG_FIELDS,
+        # so they cannot be edited through /api/config or returned to the browser.
+        self._auth_values: dict[str, str] = {}
 
     @property
     def source_directory(self) -> Path:
@@ -718,6 +722,15 @@ class Configuration:
             for field in CONFIG_FIELDS
         ]
 
+    def get_auth_values(self) -> dict[str, str]:
+        """Raw auth settings read from the TOML file (never from the web API).
+
+        The returned mapping is a copy: callers cannot mutate the configuration
+        through it, and none of these keys appear in ``get_config_values()`` or
+        ``field_specs()``, which are the only values ``GET /api/config`` serves.
+        """
+        return dict(self._auth_values)
+
     def get_config_values(self) -> dict[str, str]:
         """Current values of every editable configuration field."""
         values: dict[str, str] = {}
@@ -777,6 +790,21 @@ class Configuration:
         known_keys = _known_toml_keys()
         keep_alive_keys = {ALL_PURPOSE_MODEL_KEEP_ALIVE_KEY, IMAGE_ANALYSIS_MODEL_KEEP_ALIVE_KEY, TRANSCRIPTION_KEEP_ALIVE_KEY}
         for key, value in data.items():
+            # Auth keys are intentionally outside CONFIG_FIELDS: keep them in
+            # their own mapping so they survive config saves and never leak to
+            # the configuration editor or the generated site.
+            if key in AUTH_TOML_KEYS:
+                # Hand-edited files naturally use a real TOML boolean for
+                # auth_enabled and a bare integer for the lifetime.
+                if key == "auth_enabled" and isinstance(value, bool):
+                    settings[key] = "true" if value else "false"
+                elif key == "session_lifetime_minutes" and isinstance(value, int) and not isinstance(value, bool):
+                    settings[key] = str(value)
+                elif isinstance(value, str):
+                    settings[key] = value.strip()
+                else:
+                    logger.warning(f"Ignoring invalid authentication configuration value for {key!r}")
+                continue
             # server_port is written as a TOML string but hand-edited files
             # often contain a bare integer; accept both and normalize to text.
             if key == SERVER_PORT_KEY and isinstance(value, int) and not isinstance(value, bool):
@@ -902,6 +930,10 @@ class Configuration:
                 lines.append(f"{key} = {value}")
             else:
                 lines.append(f"{key} = {_toml_string(value)}")
+        # Preserve hand-written auth keys (including secrets) across saves.
+        # They are never written by the web API, only read back from TOML.
+        for key, value in self._auth_values.items():
+            lines.append(f"{key} = {_toml_string(value)}")
 
         logger.debug(
             f"Saving configuration to {config_file}"
@@ -1023,6 +1055,7 @@ class Configuration:
     def handle_configuration(self, optional_config_path: Path | None = None):
         config_file = self._resolve_config_file(optional_config_path)
         config_source, settings = self._read_and_parse_config(config_file)
+        self._auth_values = {key: settings[key] for key in AUTH_TOML_KEYS if key in settings}
 
         self.source_directory = self._resolve_source_directory(config_source)
         self._apply_loaded_settings(settings)

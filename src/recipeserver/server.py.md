@@ -2,7 +2,8 @@
 
 ```mermaid
 flowchart TD
-    req("<img src='barnacle:globe.svg' width='20' alt=''/><br/>browser / curl") --> handler("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>RecipeRequestHandler")
+    req("<img src='barnacle:globe.svg' width='20' alt=''/><br/>browser / curl") --> gate("<img src='barnacle:shield.svg' width='20' alt=''/><br/><u>optional auth gate<br/>authorization.py</u>")
+    gate --> handler("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>RecipeRequestHandler")
     handler --> static("<img src='barnacle:folder.svg' width='20' alt=''/><br/>static files<br/>from site dir")
     handler --> api("<img src='barnacle:route.svg' width='20' alt=''/><br/>/api/* routes")
     api --> edit("<img src='barnacle:file-code.svg' width='20' alt=''/><br/>recipe-editor · metadata<br/>markdown · bulk-*")
@@ -11,6 +12,7 @@ flowchart TD
     api --> hist("<img src='barnacle:archive.svg' width='20' alt=''/><br/><u>/api/history/*<br/>list · preview · compare · restore</u>")
     edit --> callbacks("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>on_markdown_save → core.py<br/>re-render page + index</u>")
     callbacks --> retention("<img src='barnacle:scissors.svg' width='20' alt=''/><br/><u>retention.py<br/>background pruning</u>")
+    click gate href "authorization.py.md"
     click ai href "ai_assistant.py.md"
     click misc href "metadata_options.py.md"
     click hist href "history.py.md"
@@ -22,7 +24,7 @@ flowchart TD
     classDef folder fill:#f0c558,stroke:#8a6d1c,color:#332a05
 ```
 
-`ThreadingHTTPServer` serving the generated site plus the JSON editing APIs. The handler (`RecipeRequestHandler`, a `SimpleHTTPRequestHandler`) serves static files out of the site directory and dispatches `/api/*` routes; the `Server` wrapper owns the thread lifecycle. There is no authentication — the server binds `0.0.0.0` by default on the configured port (default 8000), which makes the site reachable on the local network from next start; `server_bind_address = "127.0.0.1"` restricts it to this machine.
+`ThreadingHTTPServer` serving the generated site plus the JSON editing APIs. The handler (`RecipeRequestHandler`, a `SimpleHTTPRequestHandler`) serves static files out of the site directory and dispatches `/api/*` routes; the `Server` wrapper owns the thread lifecycle. Authentication is optional and off by default — the server binds `0.0.0.0` by default on the configured port (default 8000), which makes the site reachable on the local network from next start; `server_bind_address = "127.0.0.1"` restricts it to this machine. When OIDC is enabled, every request first passes through the central gate in [authorization.py.md](authorization.py.md), including generated pages and `HEAD` requests.
 
 The server classes (`_RecipeThreadingHTTPServer`, and its IPv6 subclass `_ThreadingHTTPServerIPv6`) set `request_queue_size = LISTEN_BACKLOG` (128) instead of the `socketserver` default of 5: Windows answers a connection that arrives with a full listen backlog with an explicit reset (`WSAECONNREFUSED`) instead of silently dropping the SYN for the client to retransmit as Linux and macOS do, which turned a burst of upstream connections from a reverse proxy into intermittent 502 Bad Gateway for the page's assets.
 
@@ -33,6 +35,10 @@ The server classes (`_RecipeThreadingHTTPServer`, and its IPv6 subclass `_Thread
 `__init__(cfg, on_markdown_saved=None, on_config_saved=None, on_recipes_deleted=None)`. `start()` checks the port is free (`_port_in_use`, probing loopback for a wildcard bind); if it is not, it logs an error and `sys.exit(1)`. Otherwise it binds the configured `server_bind_address` (an IP literal, `0.0.0.0` by default; a `:` in the literal selects an IPv6 socket via `_ThreadingHTTPServerIPv6`, which subclasses the same backlog-enlarged base `_RecipeThreadingHTTPServer` used for IPv4), serves from `cfg.site_directory`, and runs `serve_forever()` on a daemon thread named `RecipeServer`. A startup warning is logged whenever the bind is not loopback, because the site has no authentication. `stop()` calls `shutdown()`/`server_close()` and joins. `is_running` reports whether the thread is alive; `port` reads `cfg.server_port` and `bind_address` reads `cfg.server_bind_address`.
 
 `0.0.0.0` is the default (the maintainer's explicit choice): the site is reachable from the local network, including as `<hostname>.local:8000`, knowing it has no authentication. `127.0.0.1` (loopback-only) is the recommended setting when using a reverse proxy for remote access — the name `localhost` is still not accepted, because it may resolve to IPv6 first. The site is served over HTTPS by a local reverse proxy (or tunnel) that forwards to `http://127.0.0.1:<port>`; that proxy is what makes the dictation button available (see below).
+
+## Authentication gate
+
+When an `AuthManager` is supplied, `do_GET`, `do_HEAD`, `do_POST`, and `do_DELETE` call `_auth_gate()` before any dispatch. Static files fall through to `SimpleHTTPRequestHandler`, so covering `HEAD` as well as `GET` is essential; `/assets/*` and `/health` remain public so the sign-in UI and its icons can load. Insufficient permission for an anonymous caller redirects to login for pages and answers JSON 401 with a `loginUrl` for `/api/*`; an authenticated caller gets 403. Mutations additionally require the `X-CSRF-Token` header (for signed-in callers) and an acceptable `Origin`/`Sec-Fetch-Site`. Early gate responses and `POST /api/auth/logout` drain the declared request body (`_discard_request_body`) before replying: with HTTP/1.1 keep-alive, unread bytes such as the logout's `{}` would otherwise prefix the next request line and produce a 501 "Unsupported method ('{}GET')". See [authorization.py.md](authorization.py.md), [session.py.md](session.py.md), and [oidc.py.md](oidc.py.md).
 
 ## HTTP protocol
 
@@ -46,6 +52,11 @@ The handler speaks **HTTP/1.1** with keep-alive. (`SimpleHTTPRequestHandler` def
 | Method   | Path                                       | Handler                                                                                                                                              |
 | -------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | GET      | `/health`                                  | health check                                                                                                                                         |
+| GET      | `/api/auth/status`                         | auth enabled/authenticated/permission/Owner flags and CSRF token (no secrets)                                                                        |
+| GET      | `/api/auth/login`                          | start OIDC login; 302 to the provider and set the signed flow cookie                                                                                 |
+| GET      | `/api/auth/callback`                       | OIDC callback: validate state/nonce, verify ID token, set the session cookie                                                                         |
+| POST     | `/api/auth/logout`                         | clear the session cookie (CSRF token required when signed in)                                                                                        |
+| GET/POST | `/api/auth/settings`                       | Owner-only Guest/authenticated permission defaults                                                                                                   |
 | GET      | `/api/ai-status`                           | AI configured/reachable probe; also reports `dictation_enabled` ([ai_recipe.py.md](ai_recipe.py.md))                                                 |
 | GET      | `/api/config`                              | current configuration values + field specs + per-model probe (`models`) — see below                                                                  |
 | POST     | `/api/config`                              | validate + persist configuration; triggers full rebuild                                                                                              |

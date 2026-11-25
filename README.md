@@ -95,9 +95,34 @@ Open the site in either of these ways:
 - Click the tray icon and choose **Open Recipes**.
 - Visit [http://127.0.0.1:8000](http://127.0.0.1:8000) directly.
 
-The server listens on `0.0.0.0` by default, so the site is reachable from other machines on the local network (including as `http://<hostname>.local:8000`). The site has **no authentication** — anyone who can reach this machine can load and edit your recipes over plain HTTP; to restrict it to this machine only, set the **Bind address** (`server_bind_address`) in Configuration to `127.0.0.1` and restart. To reach the site from a phone with HTTPS (and without opening the LAN), put a local reverse proxy or tunnel in front of it that terminates HTTPS — for example `tailscale serve --bg http://127.0.0.1:8000`, Caddy, or a Cloudflare Tunnel. The proxy forwards to `http://127.0.0.1:8000` and sets `X-Forwarded-Proto: https`; that is what enables the dictation button (see below). (When the bind is the wildcard `0.0.0.0`, the tray's **Open Recipes** still opens `http://127.0.0.1:8000`, which the wildcard bind also answers on.)
+The server listens on `0.0.0.0` by default, so the site is reachable from other machines on the local network (including as `http://<hostname>.local:8000`). The site has **no authentication by default** (unless you enable OIDC as described below) — anyone who can reach this machine can load and edit your recipes over plain HTTP; to restrict it to this machine only, set the **Bind address** (`server_bind_address`) in Configuration to `127.0.0.1` and restart. To reach the site from a phone with HTTPS (and without opening the LAN), put a local reverse proxy or tunnel in front of it that terminates HTTPS — for example `tailscale serve --bg http://127.0.0.1:8000`, Caddy, or a Cloudflare Tunnel. The proxy forwards to `http://127.0.0.1:8000` and sets `X-Forwarded-Proto: https`; that is what enables the dictation button (see below). (When the bind is the wildcard `0.0.0.0`, the tray's **Open Recipes** still opens `http://127.0.0.1:8000`, which the wildcard bind also answers on.)
 
 Addresses must be IP literals; `localhost` is not accepted (the name may resolve to IPv6 first, which the IPv4 socket does not listen on). Use `::` to bind every IPv6 interface instead of IPv4. For remote access with more privacy than the LAN provides, combine the proxy route with `server_bind_address = "127.0.0.1"` so the only way in is through the proxy.
+
+## Optional OIDC authentication
+
+Authentication is off by default. To turn it on, add these keys to your existing `recipe-server-cfg.toml` (in the user-data directory — on Windows, `%LOCALAPPDATA%\recipe-server\recipe-server-cfg.toml`; on macOS, `~/Library/Application Support/recipe-server/recipe-server-cfg.toml`):
+
+```toml
+auth_enabled = "true"
+oidc_issuer = "https://auth.example.com"
+oidc_client_id = "recipeserver"
+oidc_client_secret = "replace-with-a-long-random-client-secret"
+oidc_redirect_uri = "https://recipes.example.com/api/auth/callback"
+oidc_owner_sub = "the-sub-claim-of-your-owner-account"
+# session_secret = "a-long-random-signing-secret"   # optional; generated and persisted if omitted
+# session_lifetime_minutes = "720"                  # optional; 12 hours by default
+```
+
+Register `https://recipes.example.com/api/auth/callback` as the application's redirect URI with your provider (Pocket ID and other standards-compliant providers work). The issuer and redirect URI must be HTTPS except for loopback development URLs.
+
+Every setting can instead be supplied as an environment variable: `AUTH_ENABLED`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_REDIRECT_URI`, `OIDC_OWNER_SUB`, `SESSION_SECRET`, `SESSION_LIFETIME_MINUTES`. **Precedence is environment variable → `recipe-server-cfg.toml` → application default.** An explicitly present environment variable wins, even if it is empty. Missing or invalid settings are a startup error — the app never silently disables security.
+
+The auth keys are deliberately not part of the Configuration dialog. They are **never returned by `GET /api/config`, written into generated pages, or served with the site**; saving the Configuration dialog preserves them in the TOML file. Serve the site over HTTPS so the signed session cookie gets the `Secure` attribute.
+
+Sessions are signed cookies with no server-side store: they stay valid across restarts (the signing secret is generated once and persisted to `<user-data>/recipe-server/session-secret`), but an individual session cannot be revoked from the server. Logging out clears only that browser's cookie (the identity provider's own session is not ended); signing in again therefore requests `prompt=login` so the provider shows its sign-in page instead of silently re-authenticating. Changing `SESSION_SECRET`/`session_secret` or deleting the secret file invalidates every session at once. Permissions are checked on every request, so changing the Owner's Guest/authenticated defaults takes effect immediately; disabling an account at the identity provider does not affect an already-issued cookie until it expires.
+
+The Owner gets an **Access settings** entry in the site menu to set Guest access and the authenticated-user default to None, View, or Edit. Anonymous visitors get the Guest default; authenticated non-owners get the authenticated default; the Owner has full access. Editing controls are hidden for users without Edit permission, but the server enforces the rules on every API and page request regardless of the UI.
 
 Use the **+** button in the index to create a recipe. Choose an existing folder or enter a new folder path relative to the configured recipe directory, then write the recipe in Markdown. The editor can also upload supported images beside the recipe; images added while editing an existing recipe are saved to that recipe's folder.
 
@@ -334,7 +359,7 @@ Runtime logs are written under `.logs/` in the directory where the app was start
 
 - **The configured port is unavailable:** RecipeServer listens on the port set in Configuration (default 8000) on the configured bind address (default `0.0.0.0`). Either stop whatever else is using that port or change `server_port` in `recipe-server-cfg.toml` (or use **Configuration**) and restart the app.
 - **`http://<hostname>.local:8000` does not load:** It binds `0.0.0.0` by default, which should answer on the LAN. Check the configured **Bind address** (`server_bind_address`) — anything but `0.0.0.0` (for example a previous `127.0.0.1`) restricts where it answers. Also confirm the firewall allows the port, and that the app is running.
-- **You don't want the site reachable on the LAN:** The site has no authentication and is reachable by anyone on the network by default. Set the **Bind address** (`server_bind_address`) to `127.0.0.1` in Configuration and restart; the tray opens the site on loopback. For remote access prefer the reverse-proxy route above, with `X-Forwarded-Proto: https`.
+- **You don't want the site reachable on the LAN:** The site has no authentication by default (enable OIDC above to add it) and is reachable by anyone on the network. Set the **Bind address** (`server_bind_address`) to `127.0.0.1` in Configuration and restart; the tray opens the site on loopback. For remote access prefer the reverse-proxy route above, with `X-Forwarded-Proto: https`.
 - **Via Tailscale the page sometimes loads without styling or scripts:** This was caused by the HTTP/1.0 protocol default, which made the browser open a fresh TCP connection for every asset — through a relay any dropped connection lost that asset (sometimes all of them, hence raw HTML). The server now speaks HTTP/1.1 with keep-alive and sends `Cache-Control` on every response. Generated pages also register a service worker (`assets/sw.js`) that serves `/assets/*` cache-first, so after the first successful load the assets no longer depend on the network at all. If you still see it, check that `tailscale serve status` shows `proxy http://127.0.0.1:8000`, that no other `tailscale serve`/`funnel` configuration is overriding it, and that the iPad is not routing Safari through a different VPN/proxy (e.g. iCloud Private Relay) that resets connections.
 - **No tray icon appears:** Check that the app is running in a desktop session with tray support. On Linux, an X11-compatible `pystray` backend is required.
 - **The folder picker does not appear:** Make sure the Python installation includes Tk.
@@ -573,7 +598,7 @@ tools/                      # bundled fordaj/* binaries + update.sh refreshers
 - The AI assistant can rewrite only the recipe being viewed (the update tool takes no path) and never deletes anything. The conversation is ephemeral.
 - The AI integration is opt-in and uses only the configured local endpoint. `NewRecipePrompt.md` is read at startup, `AssistantPrompt.md` on every assistant request, not when the app is built.
 - Generated pages use root-absolute URLs such as `/assets/...`. They must be served from the site root; opening the HTML files directly will not load their assets.
-- The server uses the port set in Configuration (default `8000`) and the bind address set in Configuration (`server_bind_address`, default `0.0.0.0` — reachable on the LAN with no authentication). Serve it over HTTPS through a local reverse proxy or tunnel; the dictation button only appears on those pages. Set `server_bind_address` to `127.0.0.1` to keep the site on this machine. The site is served with HTTP/1.1 keep-alive so browsers reuse one connection per host instead of opening a fresh connection per asset.
+- The server uses the port set in Configuration (default `8000`) and the bind address set in Configuration (`server_bind_address`, default `0.0.0.0` — reachable on the LAN with no authentication unless OIDC is enabled). Serve it over HTTPS through a local reverse proxy or tunnel; the dictation button only appears on those pages. Set `server_bind_address` to `127.0.0.1` to keep the site on this machine. The site is served with HTTP/1.1 keep-alive so browsers reuse one connection per host instead of opening a fresh connection per asset.
 - There is no JavaScript build step. Frontend assets are served directly, and KaTeX is vendored in `src/recipeserver/assets/katex`.
 
 ## KaTeX
