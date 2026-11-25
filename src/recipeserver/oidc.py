@@ -109,6 +109,11 @@ class OIDCClient:
             "nonce": nonce,
             "code_challenge": challenge,
             "code_challenge_method": "S256",
+            # Signing out clears only RecipeServer's cookie; the provider's
+            # SSO session may still be active. prompt=login makes the provider
+            # show its sign-in page again instead of silently re-authenticating
+            # and bouncing straight back to the callback.
+            "prompt": "login",
         }
         return f"{self._endpoints['authorization_endpoint']}?{urlencode(params)}"
 

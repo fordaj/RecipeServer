@@ -125,6 +125,7 @@ def test_discovery_token_exchange_and_verification(provider):
     location = client.authorization_url(flow["state"], flow["nonce"], challenge)
     assert "code_challenge_method=S256" in location
     assert "client_id=recipeserver" in location
+    assert "prompt=login" in location
 
     id_token = client.exchange_code("the-code", flow["verifier"])
     assert provider.last_token_body["code"] == ["the-code"]

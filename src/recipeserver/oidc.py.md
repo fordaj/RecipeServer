@@ -32,5 +32,6 @@ Provider-agnostic OIDC authorization-code flow. `OIDCClient.discover()` fetches 
 - **Nonce**: generated per login, sent in the authorize request, and compared with the `nonce` claim after verification.
 - **ID token**: verified with PyJWT against discovery-provided JWKS (signature, `iss`, `aud`, `exp`, `iat`, `sub` required); a 30-second leeway covers clock skew. Only asymmetric algorithms are accepted.
 - **Return URL**: `safe_return_to()` permits only same-origin relative paths, blocking `//host`, absolute URLs, backslashes, CRLF, and `/api/auth/*` loops.
+- **Re-authentication**: the authorize request includes `prompt=login`. Logout clears only RecipeServer's cookie; the provider's SSO session may still be valid, and without this the next sign-in would silently bounce straight back to the callback instead of showing the provider's sign-in page.
 
 Login flows and sessions are signed cookies rather than server-side state, so no database or in-memory session map is needed (see [session.py.md](session.py.md)). Provider error values are never echoed; failures produce a generic page, while a short, sanitized detail is logged server-side only.
