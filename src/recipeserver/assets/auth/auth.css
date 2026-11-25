@@ -1,6 +1,13 @@
 /* Access settings dialog. The shell and buttons reuse dialog-shell.css and
    the shared config-editor classes so it matches the Configuration dialog. */
 
+/* Several controls (menu items, the create button) set `display` in CSS,
+   which outranks the user-agent [hidden] rule. auth.js hides unauthorized
+   controls with the `hidden` attribute, so make that stick on both pages. */
+[hidden] {
+  display: none !important;
+}
+
 .access-settings-dialog {
   width: min(480px, calc(100% - 2rem));
   max-width: none;
