@@ -232,12 +232,65 @@
     await openAccessDialog();
   }
 
-  // Turn a 401 from any other page script into a sign-in redirect.
   const originalFetch = window.fetch.bind(window);
-  window.fetch = async (...args) => {
-    const response = await originalFetch(...args);
+
+  async function loadStatus() {
+    try {
+      const response = await originalFetch(STATUS_URL, { credentials: "same-origin" });
+      return response.ok ? await response.json() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Start the status request as soon as this script runs. The token is needed
+  // by writes from every other page script, including ones the visitor can
+  // trigger before the menu finishes initializing.
+  const statusReady = loadStatus().then((value) => {
+    status = value;
+    return value;
+  });
+
+  const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+  function sameOriginMutation(input, init) {
+    const method = (
+      init?.method ||
+      (input instanceof Request ? input.method : "GET") ||
+      "GET"
+    ).toUpperCase();
+    if (!MUTATING_METHODS.has(method)) return false;
+    let url;
+    try {
+      url = new URL(input instanceof Request ? input.url : String(input), window.location.href);
+    } catch {
+      return false;
+    }
+    return url.origin === window.location.origin;
+  }
+
+  function withCsrfToken(input, init) {
+    if (!status?.csrfToken) return init;
+    const headers = new Headers(
+      init?.headers ?? (input instanceof Request ? input.headers : undefined),
+    );
+    if (headers.has("X-CSRF-Token")) return init;
+    headers.set("X-CSRF-Token", status.csrfToken);
+    return { ...init, headers };
+  }
+
+  // The server requires X-CSRF-Token on every mutation once the visitor is
+  // signed in. Generated pages are static and shared, so no other script can
+  // know the token: attach it centrally to same-origin writes instead of
+  // editing every fetch call site. Also turn a 401 from any page script into
+  // a sign-in redirect.
+  window.fetch = async (input, init) => {
+    const needsToken = sameOriginMutation(input, init);
+    if (needsToken) await statusReady;
+    const response = await originalFetch(input, needsToken ? withCsrfToken(input, init) : init);
     if (response.status === 401 && status?.enabled) {
-      const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
+      const url =
+        typeof input === "string" ? input : input instanceof Request ? input.url : input?.url || "";
       if (!url.includes(STATUS_URL)) {
         try {
           const data = await response.clone().json();
@@ -251,15 +304,9 @@
   };
 
   async function init() {
-    try {
-      const response = await originalFetch(STATUS_URL, { credentials: "same-origin" });
-      if (!response.ok) return;
-      status = await response.json();
-    } catch {
-      return;
-    }
-    if (!status?.enabled) return;
-    hideEditingControls(status.canEdit);
+    const current = await statusReady;
+    if (!current?.enabled) return;
+    hideEditingControls(current.canEdit);
     addAuthMenuItems();
   }
 
