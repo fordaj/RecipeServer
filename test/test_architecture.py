@@ -84,6 +84,12 @@ def test_http_and_assistant_path_checks_share_one_implementation():
     assert _delegates_to("server.py", "_resolve_recipe_directory", "resolve_recipe_folder")
 
 
+def test_transcriber_uses_the_canonical_ollama_chat_url():
+    tree = _tree("transcriber.py")
+    assert '"/api/chat"' not in _string_literals(tree)
+    assert "ollama_chat_url" in _imported_names(tree)
+
+
 @pytest.mark.parametrize("relative_path", DOMAIN_MODULES)
 def test_domain_modules_do_not_import_higher_layers(relative_path: str):
     assert not (_imported_names(_tree(relative_path)) & HIGHER_LAYER_MODULES)

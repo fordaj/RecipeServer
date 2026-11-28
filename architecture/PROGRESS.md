@@ -83,6 +83,15 @@ protection the service worker exists to provide. The three browser/Python
 extension sets now agree, and `test/test_service_worker.py` parses all three
 to fail on future drift. Evidence: `5 passed`.
 
+### Batch 5 — canonical Ollama chat URL in the transcriber (pending commit)
+
+`transcriber.py` no longer declares its own `/api/chat` constant or builds the
+chat URL itself; it calls `ai_recipe.ollama_chat_url`. The shared error-body
+read limit replaces a near-identical local copy (2048 vs 2000 bytes). A
+structural test prevents the local path literal from returning. Evidence:
+`87 passed, 3 skipped` across architecture, transcriber, live-transcription,
+and speech-button tests.
+
 ## Verification record
 
 | Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
@@ -92,4 +101,5 @@ to fail on future drift. Evidence: `5 passed`.
 | 1     | focused 129 passed, 1 skipped; full 620 passed, 20 skipped, 1 known flaky e2e | clean      | generated, no broken local links | `74d9ffe` |
 | 2     | focused 3 passed; console script and import probe verified                    | clean      | generated                        | `1b0fbfa` |
 | 3     | focused 82 passed + 35 passed; final full run pending                         | clean      | generated                        | `9d616fc` |
-| 4     | focused 5 passed; final full run pending                                      | clean      | generated                        | pending   |
+| 4     | focused 5 passed; final full run pending                                      | clean      | generated                        | `1d7532f` |
+| 5     | focused 87 passed, 3 skipped; final full run pending                          | clean      | generated                        | pending   |

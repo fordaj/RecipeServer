@@ -29,7 +29,7 @@ Strips the Qwen3-ASR envelope from the model's reply: a leading `language <name>
 
 ## `transcribe_wav(endpoint, model, wav_audio, keep_alive=None)`
 
-Builds the `/api/chat` request body (`model`, `messages: [{role: "user", content: "", images: [<base64 WAV>]}]`, `stream: false`, `think: false`, plus `keep_alive` when configured) and posts it with `urllib`. The configured endpoint is normalized the same way the AI endpoints are (`normalize_ollama_base_url` in [ai_recipe.py.md](ai_recipe.py.md), so a trailing `/v1`-style suffix is accepted and stripped).
+Builds the `/api/chat` request body (the route and URL builder come from [ai_recipe.py.md](ai_recipe.py.md), not a second local constant) (`model`, `messages: [{role: "user", content: "", images: [<base64 WAV>]}]`, `stream: false`, `think: false`, plus `keep_alive` when configured) and posts it with `urllib`. The configured endpoint is normalized the same way the AI endpoints are (`normalize_ollama_base_url` in [ai_recipe.py.md](ai_recipe.py.md), so a trailing `/v1`-style suffix is accepted and stripped).
 
 Error handling (all surfaced as 503 at the endpoint): connection refused / unreachable server, HTTP errors (a 404 means the model is not installed and raises an actionable "pull it with `ollama pull …`" message; other statuses quote the server's own error body), a response that is not JSON, a payload without a `message`, a message without text content, an oversized response, and request timeouts. The read timeout is `REQUEST_TIMEOUT_SECONDS = 180` because a cold Ollama server loads the model into memory on the first request — cold-start latency is not a connection failure and simply takes longer; once loaded, a short clip transcribes in well under a second.
 

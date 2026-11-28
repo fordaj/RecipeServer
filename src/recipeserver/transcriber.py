@@ -36,7 +36,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from ._logger import logger
-from .ai_recipe import keep_alive_seconds, normalize_ollama_base_url
+from .ai_recipe import ERROR_BODY_READ_BYTES, keep_alive_seconds, normalize_ollama_base_url, ollama_chat_url
 
 
 # The transcription failures the HTTP layer surfaces as 503 (the feature is
@@ -55,14 +55,9 @@ SAMPLE_RATE = 16000
 # was still loading is the bug reports this avoids.
 REQUEST_TIMEOUT_SECONDS = 180.0
 
-# How much of an error response body to quote in the raised message.
-ERROR_BODY_READ_BYTES = 2048
-
 # Hard ceiling on the JSON body Ollama returns; a transcription reply is a
 # few hundred bytes.
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
-
-OLLAMA_CHAT_PATH = "/api/chat"
 
 # The Qwen3-ASR models answer with a ``language <name><asr_text>`` envelope
 # around the transcription. Some builds omit the language tag and emit only
@@ -163,7 +158,7 @@ def _build_chat_payload(model: str, wav_audio: bytes, keep_alive: object = None)
 def transcribe_wav(endpoint: str, model: str, wav_audio: bytes, keep_alive: object = None) -> str:
     """Post a WAV recording to the Ollama chat API and return the text."""
     base_url = normalize_ollama_base_url(endpoint)
-    chat_url = f"{base_url}{OLLAMA_CHAT_PATH}"
+    chat_url = ollama_chat_url(endpoint)
     body = json.dumps(_build_chat_payload(model, wav_audio, keep_alive_seconds(keep_alive))).encode("utf-8")
     request = Request(
         chat_url,
