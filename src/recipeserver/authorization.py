@@ -211,6 +211,26 @@ class AuthManager:
                 return False
         return True
 
+    @staticmethod
+    def disabled_status() -> dict:
+        """The status payload when authentication is not configured.
+
+        The browser reads the same keys in both cases, so the shape lives with
+        the status producer rather than being restated in the HTTP handler.
+        """
+        return {
+            "enabled": False,
+            "authenticated": False,
+            "permission": "edit",
+            "canEdit": True,
+            "isOwner": False,
+            "name": None,
+            "csrfToken": None,
+            "loginUrl": "/api/auth/login",
+            "logoutUrl": "/api/auth/logout",
+            "callbackPath": "/api/auth/callback",
+        }
+
     def status(self, identity: Session | None) -> dict:
         """The only auth information exposed to the browser (no secrets)."""
         permission = self.permission(identity)

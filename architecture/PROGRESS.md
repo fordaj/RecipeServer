@@ -316,6 +316,15 @@ Clean full suite with no deselection and no edits during execution:
 **697 passed, 20 skipped** in 450 s. Formatting and docs generation clean.
 `server.py` is down to 2437 lines from the 3262-line baseline (−825).
 
+### Batch 23 — config APIs and auth status shape leave the handler (pending commit)
+
+`config_endpoints.py` now owns config payload shaping, model probing, applying
+edited values, and the live dictation/transcription settings.
+`AuthManager.disabled_status()` is the single owner of the non-secret auth
+status shape used when authentication is off. The handler keeps routing,
+response codes, and the rebuild-after-save callback. Evidence: `102 passed`
+for config, auth, architecture, and speech tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -356,3 +365,4 @@ the rest.
 | 20    | focused 5 + 125 passed; full 685 passed, 1 known order-flaky e2e; deselected run clean | clean      | generated, no broken links       | `091d286` |
 | 21    | focused 71 passed; final clean full 692 passed, 20 skipped (no deselection)            | clean      | generated, no broken local links | `a70a25d` |
 | 22    | focused 112 passed; final clean full 697 passed, 20 skipped                            | clean      | generated, no broken local links | `2956595` |
+| 23    | focused 102 passed; full run pending                                                   | clean      | generated                        | pending   |

@@ -39,14 +39,8 @@ from .config import (
     _validate_transcription_endpoint,
     _validate_transcription_model,
 )
-from .config_defaults import (
-    DEFAULT_DICTATION_ENABLED,
-    DEFAULT_KEEP_ALIVE_MINUTES,
-    DEFAULT_SERVER_BIND_ADDRESS,
-    DEFAULT_SERVER_PORT,
-    DEFAULT_TRANSCRIPTION_ENDPOINT,
-    DEFAULT_TRANSCRIPTION_MODEL,
-)
+from .config_endpoints import apply_config_payload, config_payload, dictation_enabled, transcription_settings
+from .config_defaults import DEFAULT_SERVER_BIND_ADDRESS, DEFAULT_SERVER_PORT
 from .image_handler import IMAGE_EXTENSIONS
 from .metadata_options import collect_metadata_options
 from .recipe_history_api import (
@@ -709,21 +703,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_auth_status(self) -> None:
         if not self._auth_available():
-            self._send_json(
-                200,
-                {
-                    "enabled": False,
-                    "authenticated": False,
-                    "permission": "edit",
-                    "canEdit": True,
-                    "isOwner": False,
-                    "name": None,
-                    "csrfToken": None,
-                    "loginUrl": "/api/auth/login",
-                    "logoutUrl": "/api/auth/logout",
-                    "callbackPath": "/api/auth/callback",
-                },
-            )
+            self._send_json(200, AuthManager.disabled_status())
             return
         self._send_json(200, self.auth.status(self._identity))
 
@@ -790,47 +770,19 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         # The browser needs this to decide whether the AI bubble is
         # long-pressable for dictation.
-        status["dictation_enabled"] = self._dictation_enabled()
+        status["dictation_enabled"] = dictation_enabled(self.config)
         logger.debug(f"Responding to /api/ai-status with {status}")
         self._send_json(200, status)
 
     def _handle_config_get(self) -> None:
         logger.debug("Received /api/config request")
         try:
-            if self.config is None:
-                raise ValueError("Configuration is not available")
-            self._send_json(
-                200,
-                {
-                    "values": self.config.get_config_values(),
-                    "fields": self.config.field_specs(),
-                    "models": self._probe_configured_models(),
-                },
-            )
+            self._send_json(200, config_payload(self.config))
         except ValueError as exc:
             self._send_json(500, {"error": str(exc)})
         except Exception:
             logger.exception("Failed to read configuration")
             self._send_json(500, {"error": "Unable to read configuration"})
-
-    def _probe_configured_models(self) -> dict:
-        """Probe the three configured models' installation metadata.
-
-        Best-effort: reports each model's on-disk size and whether it can be
-        kept loaded, so the Configuration dialog can show the model size and
-        disable the keep-alive setting when the model cannot be resident.
-        Never raises; per-model failures are reported in the probe result.
-        """
-        config = self.config
-        if config is None:
-            return {}
-        ai_endpoint = getattr(config, "model_endpoint", "") or ""
-        transcription_endpoint = getattr(config, "transcription_endpoint", "") or DEFAULT_TRANSCRIPTION_ENDPOINT
-        return {
-            "all_purpose_model_name": ai_recipe.model_info(ai_endpoint, getattr(config, "all_purpose_model_name", "")),
-            "image_analysis_model": ai_recipe.model_info(ai_endpoint, getattr(config, "image_analysis_model", "")),
-            "transcription_model": ai_recipe.model_info(transcription_endpoint, getattr(config, "transcription_model", "")),
-        }
 
     def _handle_recipe_folders_get(self) -> None:
         try:
@@ -1039,27 +991,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         return False
 
-    def _dictation_enabled(self) -> bool:
-        """Report whether dictation is enabled in the saved configuration."""
-        return getattr(self.config, "dictation_enabled", DEFAULT_DICTATION_ENABLED) if self.config is not None else DEFAULT_DICTATION_ENABLED
-
-    @staticmethod
-    def _transcription_settings(config) -> dict:
-        """Resolve the Ollama transcription settings for a request.
-
-        Reads the live configuration, falling back to the documented defaults
-        when the configuration is missing keys (or missing entirely, as in
-        some tests).
-        """
-        return {
-            "endpoint": getattr(config, "transcription_endpoint", "") or DEFAULT_TRANSCRIPTION_ENDPOINT,
-            "model": getattr(config, "transcription_model", "") or DEFAULT_TRANSCRIPTION_MODEL,
-            "keep_alive": getattr(config, "transcription_keep_alive", "") or DEFAULT_KEEP_ALIVE_MINUTES,
-        }
-
     def _handle_transcription(self) -> None:
         """Transcribe a recorded audio clip into text."""
-        if not self._dictation_enabled():
+        if not dictation_enabled(self.config):
             self._send_json(403, {"error": "Dictation is disabled in the server configuration"})
             return
 
@@ -1093,7 +1027,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(400, {"error": "Incomplete audio recording"})
             return
 
-        transcription = self._transcription_settings(self.config)
+        transcription = transcription_settings(self.config)
         try:
             text = transcriber.transcribe(audio, suffix=suffix, **transcription)
         except TranscriberUnavailable as exc:
@@ -1134,10 +1068,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_config_update(self) -> None:
         try:
-            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
-            if self.config is None:
-                raise ValueError("Configuration is not available")
-            changed = self.config.apply_config_values(payload.get("values"))
+            changed, values = apply_config_payload(self.config, self.rfile, self.headers, self.MAX_REQUEST_SIZE)
         except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
@@ -1155,7 +1086,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 self._send_json(500, {"error": "Configuration saved, but regeneration failed"})
                 return
 
-        self._send_json(200, {"success": True, "values": self.config.get_config_values(), "changed": changed})
+        self._send_json(200, {"success": True, "values": values, "changed": changed})
 
     def _handle_test_transcription(self) -> None:
         """Verify the configured transcription server and model actually work.
@@ -1172,7 +1103,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_payload_error(exc)
             return
 
-        saved = self._transcription_settings(self.config)
+        saved = transcription_settings(self.config)
 
         def pick(key: str, fallback: str) -> str:
             value = payload.get(key)

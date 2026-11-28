@@ -85,7 +85,8 @@ def test_both_streaming_endpoints_share_the_sse_framing(relative_path: str):
     [
         ("config.py", ("DEFAULT_SERVER_PORT", "DEFAULT_KEEP_ALIVE_MINUTES", "DEFAULT_DICTATION_ENABLED", "DEFAULT_FOOD_COLOR")),
         ("ai_recipe.py", ("DEFAULT_KEEP_ALIVE_MINUTES",)),
-        ("server.py", ("DEFAULT_DICTATION_ENABLED", "DEFAULT_KEEP_ALIVE_MINUTES", "DEFAULT_TRANSCRIPTION_MODEL")),
+        ("server.py", ("DEFAULT_SERVER_BIND_ADDRESS", "DEFAULT_SERVER_PORT")),
+        ("config_endpoints.py", ("DEFAULT_DICTATION_ENABLED", "DEFAULT_KEEP_ALIVE_MINUTES", "DEFAULT_TRANSCRIPTION_MODEL")),
         ("index_html_generator.py", ("DEFAULT_DICTATION_ENABLED", "DEFAULT_FOOD_COLOR")),
         ("tray.py", ("DEFAULT_SERVER_PORT",)),
         ("markdown_to_html/converter.py", ("DEFAULT_FOOD_COLOR",)),
@@ -100,6 +101,14 @@ def test_configuration_defaults_have_one_leaf_definition(relative_path: str, nam
 
 def test_config_defaults_is_a_leaf_module():
     assert not (_imported_names(_tree("config_defaults.py")) & {"config", "server", "core", "retention"})
+
+
+def test_config_and_auth_status_shapes_have_one_owner():
+    server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
+    for name in ("_probe_configured_models", "_transcription_settings", "_dictation_enabled"):
+        assert f"def {name}" not in server_source
+    assert '"csrfToken": None' not in server_source
+    assert "from .config_endpoints import" in server_source
 
 
 def test_history_api_operations_are_not_implemented_in_the_handler():
