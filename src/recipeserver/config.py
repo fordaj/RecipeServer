@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 
 from ._logger import logger
 from .auth_config import AUTH_TOML_KEYS
-from .retention import DEFAULT_RETENTION_POLICY, RETENTION_POLICIES, RETENTION_POLICY_LABELS, normalize_retention_policy
+from .retention_policy import DEFAULT_RETENTION_POLICY, RETENTION_POLICIES, RETENTION_POLICY_LABELS, normalize_retention_policy
 
 MODEL_ENDPOINT_KEY = "model_endpoint"
 MODEL_NAME_KEY = "model_name"  # Legacy key, read-only compatibility for the all-purpose model.

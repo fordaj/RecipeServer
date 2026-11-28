@@ -65,6 +65,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 - [recipe_metadata.py](recipe_metadata.py.md) — front-matter field registry and validation
 - [history.py](history.py.md) — recipe revision history (immutable snapshots in the user-data directory)
 - [retention.py](retention.py.md) — timeline revision retention policies (GFS / Unlimited) that prune snapshots
+- [retention_policy.py](retention_policy.py.md) — leaf vocabulary and live-value provider shared by config and retention
 - [transcriber.py](transcriber.py.md) — Ollama Qwen3-ASR transcription for the dictation button
 - [ai_recipe.py](ai_recipe.py.md) — optional Ollama integration, recipe drafting
 - [ai_assistant.py](ai_assistant.py.md) — optional Ollama chat assistant behind the floating bubble

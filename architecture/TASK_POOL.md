@@ -30,6 +30,7 @@ Ranked by (risk reduction × maintenance saving) / migration cost. Status values
 | 16  | Remove dead code: `history.snapshot_exists` and unused imports (`FLOW_COOKIE` in `authorization.py`, `ImageDraw` in `tray.py`).     | dependency map DEAD-CODE                                                         | done (batch 8)     |
 | 17  | Enforce "no inline SVG / data:image/svg+xml" and sibling-doc/Mermaid rules with repository tests.                                   | `test/test_architecture.py`                                                      | done (batch 9)     |
 | 18  | Record product decisions, major architectural changes, and breaking migrations as pending confirmation.                             | programme constraint                                                             | candidate          |
+| 19  | Break config↔retention coupling with a leaf policy module and a provider contract.                                                  | `retention_policy.py`; `test/test_architecture.py`                               | done (batch 17)    |
 
 Rejected: stale `__pycache__` cleanup — a full scan found every `.pyc` has a
 matching `.py` source; the suspected orphans were build noise, not source.

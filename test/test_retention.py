@@ -9,11 +9,23 @@ from pathlib import Path
 import pytest
 
 from recipeserver import history, retention
+from recipeserver.retention_policy import DEFAULT_RETENTION_POLICY, policy_provider
 from test.helpers import read_metadata, request_json, running_recipe_server
 
 NOW = datetime(2026, 11, 17, 12, 0, 0, tzinfo=timezone.utc)
 RECIPE_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 RECIPE_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+
+
+def test_policy_provider_reads_the_live_configuration_value():
+    from types import SimpleNamespace
+
+    config = SimpleNamespace(timeline_retention="unlimited")
+    read = policy_provider(config)
+    assert read() == "unlimited"
+    config.timeline_retention = "gfs"
+    assert read() == "gfs"
+    assert policy_provider(SimpleNamespace())() == DEFAULT_RETENTION_POLICY
 
 
 def make_manager(policy: object = "gfs") -> retention.RetentionManager:

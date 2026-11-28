@@ -78,6 +78,18 @@ def test_both_streaming_endpoints_share_the_sse_framing(relative_path: str):
         assert "_send_sse_event" in calls
 
 
+def test_configuration_and_retention_share_a_leaf_policy_module():
+    config_imports = _imported_names(_tree("config.py"))
+    retention_imports = _imported_names(_tree("retention.py"))
+    policy_imports = _imported_names(_tree("retention_policy.py"))
+
+    assert "retention" not in config_imports
+    assert "config" not in retention_imports
+    assert "retention_policy" in config_imports
+    assert "retention_policy" in retention_imports
+    assert not (policy_imports & (HIGHER_LAYER_MODULES | {"history", "server", "core"})), f"policy leaf imports higher layers: {policy_imports}"
+
+
 def test_rating_rules_are_not_redefined_in_the_http_layer():
     server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
     for name in ("_validate_ratings", "_apply_rating_override", "_validate_bulk_rating", "_now_utc_iso"):

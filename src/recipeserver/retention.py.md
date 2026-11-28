@@ -20,7 +20,7 @@ flowchart LR
     class store folder
 ```
 
-Configurable retention for the recipe revision history in [history.py.md](history.py.md), which is otherwise unbounded. Retention is a server-level policy — there is no per-user, per-profile, or per-timeline setting — exposed through the Configuration dialog as **Timeline retention** (`timeline_retention` in `recipe-server-cfg.toml`):
+Configurable retention for the recipe revision history in [history.py.md](history.py.md), which is otherwise unbounded. The policy vocabulary and the live-value provider contract live in [retention_policy.py.md](retention_policy.py.md); this module owns the GFS schedule and the background executor. Retention is a server-level policy — there is no per-user, per-profile, or per-timeline setting — exposed through the Configuration dialog as **Timeline retention** (`timeline_retention` in `recipe-server-cfg.toml`):
 
 - `gfs` (Grandfather-Father-Son) — the default, for new installations and for installations whose configuration has no `timeline_retention` key. Keeps every revision from the last 24 hours, one revision per hour for the last 7 days, one per day for the last 30 days, one per week (ISO week) for the last 12 months, and one per calendar month older than that.
 - `unlimited` — keeps every revision indefinitely, preserving the pre-retention behavior.
