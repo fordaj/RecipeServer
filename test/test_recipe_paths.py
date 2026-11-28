@@ -11,6 +11,7 @@ from recipeserver.recipe_paths import (
     MARKDOWN_FILE_SUFFIX,
     RECIPE_FILENAME,
     display_path,
+    iter_recipe_files,
     resolve_recipe_file,
     resolve_recipe_folder,
 )
@@ -90,6 +91,18 @@ def test_resolve_recipe_folder_accepts_root_and_nested_folders(source: Path):
 def test_resolve_recipe_folder_rejects_unsafe_paths(source: Path, requested: str, message: str):
     with pytest.raises(ValueError, match=message):
         resolve_recipe_folder(source, requested)
+
+
+def test_iter_recipe_files_is_sorted_and_skips_symlinks(tmp_path: Path):
+    root = tmp_path / "recipes"
+    (root / "b").mkdir(parents=True)
+    (root / "a").mkdir(parents=True)
+    (root / "b" / RECIPE_FILENAME).write_text("# B\n", encoding="utf-8")
+    (root / "a" / RECIPE_FILENAME).write_text("# A\n", encoding="utf-8")
+    (root / "notes.md").write_text("# Not a recipe\n", encoding="utf-8")
+
+    assert iter_recipe_files(root) == [root / "a" / RECIPE_FILENAME, root / "b" / RECIPE_FILENAME]
+    assert iter_recipe_files(tmp_path / "missing") == []
 
 
 def test_display_path_returns_library_relative_posix_path(source: Path):

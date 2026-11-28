@@ -51,7 +51,7 @@ from .ai_recipe import (
     resolve_ai_config,
     resolve_model_name,
 )
-from .recipe_paths import MARKDOWN_FILE_SUFFIX, RECIPE_FILENAME, display_path, resolve_recipe_file
+from .recipe_paths import MARKDOWN_FILE_SUFFIX, display_path, iter_recipe_files, resolve_recipe_file
 from .recipe_utils import first_heading, slug_to_title
 
 # Conversation management. The browser keeps its own copy; these caps keep
@@ -239,9 +239,7 @@ def _list_recipes(source_directory: Path) -> dict[str, Any]:
     if not root.is_dir():
         return {"recipes": recipes, "truncated": False}
 
-    for recipe_file in sorted(root.rglob(RECIPE_FILENAME)):
-        if recipe_file.is_symlink() or not recipe_file.is_file():
-            continue
+    for recipe_file in iter_recipe_files(root):
         try:
             head = recipe_file.read_text(encoding="utf-8", errors="replace")[:8192]
         except OSError:

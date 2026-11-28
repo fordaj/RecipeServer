@@ -78,6 +78,11 @@ def test_both_streaming_endpoints_share_the_sse_framing(relative_path: str):
         assert "_send_sse_event" in calls
 
 
+@pytest.mark.parametrize("relative_path", ["core.py", "metadata_options.py", "ai_assistant.py"])
+def test_recipe_discovery_has_one_implementation(relative_path: str):
+    assert "iter_recipe_files" in _imported_names(_tree(relative_path))
+
+
 def test_http_and_assistant_path_checks_share_one_implementation():
     assert _delegates_to("server.py", "_resolve_markdown_path", "resolve_recipe_file")
     assert _delegates_to("ai_assistant.py", "_resolve_recipe_path", "resolve_recipe_file")

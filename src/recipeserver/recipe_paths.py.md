@@ -22,7 +22,8 @@ browser API and the assistant.
 
 - `RECIPE_FILENAME` — the exact filename that marks a recipe directory (`recipe.md`).
 - `MARKDOWN_FILE_SUFFIX` — the accepted suffix for editable/readable paths (`.md`).
-- `resolve_recipe_file(source_directory, requested_path, *, action="edit")` —
+- `iter_recipe_files(source_directory)` — every `recipe.md` under the library, sorted and excluding symlinks; the one way the core, metadata options, and assistant discover recipes.
+- `resolve_recipe_file(source_directory, requested_path, *, action="edited")` —
   reject empty, non-string, backslash-containing, NUL-containing, absolute,
   `..`-traversing, and non-Markdown paths; resolve the result and confirm it
   still sits under the source directory. Symlink escapes are rejected because

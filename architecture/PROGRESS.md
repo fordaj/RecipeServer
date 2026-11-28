@@ -142,6 +142,15 @@ Generated pages load the new asset before both consumers. Evidence:
 `7 passed` for the node reader test and progress test, `35 passed` for the
 assistant unit and e2e tests.
 
+### Batch 12 — one canonical recipe iterator (pending commit)
+
+`recipe_paths.iter_recipe_files` now discovers recipes for `core`,
+`metadata_options`, and the assistant. All three previously used their own
+`rglob` expressions with different sorting/symlink handling. The canonical
+version is sorted and skips symlinks, which also makes duplicate-`recipe_id`
+assignment deterministic. Evidence: `98 passed, 1 skipped` across path,
+architecture, assistant, metadata-options, and identity tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -168,5 +177,6 @@ the rest.
 | 9     | focused 27 passed; final full run pending                                     | clean      | generated                        | `1a50ea2` |
 | 10    | focused 44 passed; final full run pending                                     | clean      | generated                        | `12c718e` |
 | 1–8   | full: **631 passed, 20 skipped** (448 s)                                      | clean      | generated, no broken local links | see above |
-| final | final full run covering batches 9–10 pending                                  | clean      | generated                        | pending   |
-| 11    | focused 7 passed + 35 passed; final full run pending                          | clean      | generated                        | pending   |
+| 9–10  | full: **635 passed, 20 skipped** (453 s)                                      | clean      | generated, no broken local links | see above |
+| 11    | focused 7 passed + 35 passed; final full run pending                          | clean      | generated                        | `e8e20b1` |
+| 12    | focused 98 passed, 1 skipped; final full run pending                          | clean      | generated                        | pending   |

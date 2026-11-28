@@ -17,6 +17,18 @@ RECIPE_FILENAME = "recipe.md"
 MARKDOWN_FILE_SUFFIX = ".md"
 
 
+def iter_recipe_files(source_directory: Path) -> list[Path]:
+    """Return every recipe in the library, sorted and excluding symlinks.
+
+    Sorting makes the duplicate-``recipe_id`` rule deterministic, and skipping
+    symlinks keeps a link outside the library from being treated as a recipe.
+    """
+    root = Path(source_directory)
+    if not root.is_dir():
+        return []
+    return sorted(path for path in root.rglob(RECIPE_FILENAME) if not path.is_symlink() and path.is_file())
+
+
 def resolve_recipe_file(source_directory: Path, requested_path: object, *, action: str = "edited") -> Path:
     """Return the resolved path of a library-relative Markdown file.
 

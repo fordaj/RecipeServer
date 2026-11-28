@@ -20,7 +20,7 @@ from pathlib import Path
 import frontmatter
 
 from ._logger import logger
-from .recipe_paths import RECIPE_FILENAME
+from .recipe_paths import iter_recipe_files
 from .recipe_utils import normalize_reviewer_name, normalize_source_dict, read_categories
 
 # Fields the editor fills from a dropdown. Multi-value fields hold a list of
@@ -98,14 +98,6 @@ def _source_values(metadata: dict, key: str) -> list[str]:
     return [value] if value else []
 
 
-def _recipe_files(root: Path) -> list[Path]:
-    """Return the recipe Markdown files in the source tree."""
-    if not root.is_dir():
-        return []
-
-    return [recipe_file for recipe_file in sorted(root.rglob(RECIPE_FILENAME)) if not recipe_file.is_symlink() and recipe_file.is_file()]
-
-
 def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str, object]]]:
     """Return the values used by each dropdown field and how many recipes use them.
 
@@ -119,7 +111,7 @@ def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str,
     counts: dict[str, dict[str, int]] = {field: {} for field in (*OPTION_FIELDS, *FEEDBACK_OPTION_FIELDS, *SOURCE_OPTION_FIELDS)}
     root = Path(source_directory)
 
-    for recipe_file in _recipe_files(root):
+    for recipe_file in iter_recipe_files(root):
         try:
             metadata = frontmatter.loads(recipe_file.read_text(encoding="utf-8")).metadata
         except Exception:
