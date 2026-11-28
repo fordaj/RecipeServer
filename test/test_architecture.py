@@ -78,6 +78,13 @@ def test_both_streaming_endpoints_share_the_sse_framing(relative_path: str):
         assert "_send_sse_event" in calls
 
 
+def test_image_reference_rules_do_not_live_in_the_http_layer():
+    server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
+    assert "def fallback_main_image" not in server_source
+    assert "def first_image_reference" not in server_source
+    assert "from .recipe_images import" in server_source
+
+
 @pytest.mark.parametrize("relative_path", ["core.py", "metadata_options.py", "ai_assistant.py"])
 def test_recipe_discovery_has_one_implementation(relative_path: str):
     assert "iter_recipe_files" in _imported_names(_tree(relative_path))

@@ -109,7 +109,9 @@ def test_rename_endpoint_is_registered_and_images_are_listed():
     # The editor payload carries the images sitting next to the Markdown file.
     assert '"images": self._list_recipe_images(file_path)' in server
     # The delete endpoint falls the hero back to an alphabetically first image.
-    assert "_fallback_main_image" in server
+    canonical = (BASE / "recipe_images.py").read_text(encoding="utf-8")
+    assert "def fallback_main_image" in canonical
+    assert "fallback_main_image" in server
 
 
 def test_image_name_field_keeps_16px_text():

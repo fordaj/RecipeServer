@@ -151,6 +151,19 @@ version is sorted and skips symlinks, which also makes duplicate-`recipe_id`
 assignment deterministic. Evidence: `98 passed, 1 skipped` across path,
 architecture, assistant, metadata-options, and identity tests.
 
+### Batch 13 — image-reference rules leave the HTTP layer (pending commit)
+
+`recipe_images.py` now owns Markdown image-link rewriting, hero detection,
+and delete fallback. The duplicated text helpers are deleted from `server.py`;
+the rename/upload/delete endpoints call the canonical module directly.
+`test_image_reference_parity.py` and `test_recipe_main_image.py` were migrated.
+Evidence: `65 passed` across image, parity, main-image, image-API, and
+architecture tests.
+
+A full-suite run started before batch 12 was contaminated by edits made during
+the run (it collected a new doc-page assertion before the page existed), so it
+is not recorded as verification. A clean final run follows.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -179,4 +192,5 @@ the rest.
 | 1–8   | full: **631 passed, 20 skipped** (448 s)                                      | clean      | generated, no broken local links | see above |
 | 9–10  | full: **635 passed, 20 skipped** (453 s)                                      | clean      | generated, no broken local links | see above |
 | 11    | focused 7 passed + 35 passed; final full run pending                          | clean      | generated                        | `e8e20b1` |
-| 12    | focused 98 passed, 1 skipped; final full run pending                          | clean      | generated                        | pending   |
+| 12    | focused 98 passed, 1 skipped; final full run pending                          | clean      | generated                        | `9bdd859` |
+| 13    | focused 65 passed; clean final full run pending                               | clean      | generated                        | pending   |

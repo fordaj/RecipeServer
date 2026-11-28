@@ -14,7 +14,9 @@ from pathlib import Path
 import pytest
 
 from recipeserver.image_handler import IMAGE_EXTENSIONS
-from recipeserver.server import _first_image_reference, _basename_of_src, _is_external_src
+from recipeserver.recipe_images import first_image_reference as _first_image_reference
+from recipeserver.recipe_images import basename_of_src as _basename_of_src
+from recipeserver.recipe_images import is_external_src as _is_external_src
 
 BASE = Path(__file__).parents[1] / "src" / "recipeserver"
 EDITOR_JS = BASE / "assets" / "recipe-editor" / "recipe-editor.js"

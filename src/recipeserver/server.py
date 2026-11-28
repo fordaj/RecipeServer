@@ -31,7 +31,7 @@ from io import BytesIO
 from mimetypes import guess_type
 from pathlib import Path, PureWindowsPath
 from threading import Thread
-from urllib.parse import parse_qs, quote, unquote, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 import frontmatter
 from PIL import Image, UnidentifiedImageError
@@ -57,6 +57,7 @@ from .config import (
 )
 from .image_handler import IMAGE_EXTENSIONS
 from .metadata_options import collect_metadata_options
+from .recipe_images import fallback_main_image, image_name_pattern, replace_image_reference
 from .recipe_paths import RECIPE_FILENAME, display_path, resolve_recipe_file, resolve_recipe_folder
 from .shopping_list import scrape_ingredients
 from .recipe_utils import (
@@ -646,121 +647,9 @@ def _validate_ratings(value: object) -> list[dict]:
     return validated
 
 
-# ----- image listing and renaming helpers -----------------------------------
-# The editor lets people see the images that sit next to a recipe Markdown
-# file, rename them, and promote one to the first image link in the Markdown
-# (the recipe page hero). These helpers keep the rules in one place.
-
-
-def _image_name_pattern(name: str) -> re.Pattern:
-    """Match ``name`` only when it is not glued to more filename characters.
-
-    A plain substring replace would corrupt references such as
-    ``chocolate-cake.png`` when renaming ``cake.png``.
-    """
-    return re.compile(r"(?P<prefix>^|[^A-Za-z0-9_.-])" + re.escape(name) + r"(?![A-Za-z0-9_.-])")
-
-
-def _replace_image_reference(content: str, source: str, target: str) -> str:
-    updated = _image_name_pattern(source).sub(lambda match: match.group("prefix") + target, content)
-    quoted_source = quote(source)
-    if quoted_source != source:
-        updated = _image_name_pattern(quoted_source).sub(lambda match: match.group("prefix") + quote(target), updated)
-    return updated
-
-
-# Match a Markdown image reference: the src token (optionally in angle brackets)
-# followed by an optional title and the closing paren. Only the src is captured.
-_MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(\s*(?P<image_src><[^>\n]*>|[^)\s>]+)(?:(?:\s+\"[^\"]*\")?\s*\))")
-_HTML_IMG_RE = re.compile(r"<img\b[^>]*?\bsrc\s*=\s*[\"'](?P<image_src>[^\"']+)[\"']", re.IGNORECASE)
-_EXTERNAL_SRC_RE = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
-
-
-def _is_external_src(src: str) -> bool:
-    return _EXTERNAL_SRC_RE.match(src) is not None
-
-
-def _basename_of_src(src: str) -> str:
-    clean = src.split("?", 1)[0].split("#", 1)[0]
-    clean = clean.replace("&amp;", "&").replace("&quot;", '"').replace("&lt;", "<").replace("&gt;", ">")
-    segments = [segment for segment in clean.split("/") if segment]
-    return unquote(segments[-1]) if segments else ""
-
-
-def _first_image_reference(content: str) -> dict | None:
-    """Locate the first image in the Markdown, Markdown or HTML syntax."""
-    candidates: list[dict] = []
-    for match in _MARKDOWN_IMAGE_RE.finditer(content):
-        src_raw = match.group("image_src")
-        src = src_raw[1:-1] if src_raw.startswith("<") and src_raw.endswith(">") else src_raw
-        candidates.append(
-            {
-                "span_start": match.start(),
-                "span_end": match.end(),
-                "src_start": match.start("image_src"),
-                "src_end": match.end("image_src"),
-                "src": src,
-                "kind": "markdown",
-            }
-        )
-    for match in _HTML_IMG_RE.finditer(content):
-        span_end = match.end()
-        closing = content.find(">", match.end())
-        if closing != -1:
-            span_end = closing + 1
-        candidates.append(
-            {
-                "span_start": match.start(),
-                "span_end": span_end,
-                "src_start": match.start("image_src"),
-                "src_end": match.end("image_src"),
-                "src": match.group("image_src"),
-                "kind": "html",
-            }
-        )
-    if not candidates:
-        return None
-    return min(candidates, key=lambda candidate: candidate["span_start"])
-
-
-def _remove_image_span(content: str, span_start: int, span_end: int) -> str:
-    """Remove the image; when it sits alone on its line, drop the line too."""
-    line_start = content.rfind("\n", 0, span_start) + 1
-    line_end_index = content.find("\n", span_end)
-    line_end = line_end_index if line_end_index != -1 else len(content)
-    before = content[line_start:span_start]
-    after = content[span_end:line_end]
-    if before.strip() == "" and after.strip() == "":
-        remove_end = line_end + 1 if line_end < len(content) and content[line_end] == "\n" else line_end
-        return content[:line_start] + content[remove_end:]
-    return content[:span_start] + content[span_end:]
-
-
-def _fallback_main_image(content: str, deleted_name: str, remaining_names: list[str]) -> tuple[str | None, str | None]:
-    """Point the main image at a still-existing file after a delete.
-
-    The main image is the first image link in the Markdown. If it pointed at
-    the deleted file, rewrite it to the first remaining image alphabetically;
-    with none remaining, remove the dangling link. Returns
-    (updated_content, fallback_name) or (None, None) when nothing changed.
-    """
-    first = _first_image_reference(content)
-    if first is None or _is_external_src(first["src"]):
-        return None, None
-    if _basename_of_src(first["src"]) != deleted_name:
-        return None, None
-
-    if remaining_names:
-        target = remaining_names[0]
-        if first["kind"] == "html":
-            replacement = target.replace("&", "&amp;").replace('"', "&quot;")
-        elif re.search(r"[\s<>()]", target):
-            replacement = f"<{target}>"
-        else:
-            replacement = target
-        return content[: first["src_start"]] + replacement + content[first["src_end"] :], target
-
-    return _remove_image_span(content, first["span_start"], first["span_end"]), None
+# Image-reference text rules live in recipe_images.py; the endpoints below
+# call them directly so there is one implementation of hero selection and
+# reference rewriting.
 
 
 def _validate_image_filename(filename: str) -> None:
@@ -2159,7 +2048,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         try:
             content = file_path.read_text(encoding="utf-8")
-            updated = _replace_image_reference(content, source_name, target_name)
+            updated = replace_image_reference(content, source_name, target_name)
             if updated != content:
                 _save_recipe_contents(file_path, updated)
         except recipe_history.HistoryError:
@@ -2263,10 +2152,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
         try:
             content = file_path.read_text(encoding="utf-8")
-            referenced = bool(_image_name_pattern(image_name).search(content))
+            referenced = bool(image_name_pattern(image_name).search(content))
             quoted_name = quote(image_name)
             if not referenced and quoted_name != image_name:
-                referenced = bool(_image_name_pattern(quoted_name).search(content))
+                referenced = bool(image_name_pattern(quoted_name).search(content))
             target.unlink()
         except OSError:
             logger.exception(f"Failed to delete image {target}")
@@ -2277,7 +2166,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         # image in the folder alphabetically when the deleted file was it.
         try:
             remaining = [image["name"] for image in self._list_recipe_images(file_path)]
-            updated, fallback_target = _fallback_main_image(content, image_name, remaining)
+            updated, fallback_target = fallback_main_image(content, image_name, remaining)
             if updated is not None and updated != content:
                 _save_recipe_contents(file_path, updated)
                 logger.info(f"Main image fell back to {fallback_target if fallback_target else 'nothing (image link removed)'}")
