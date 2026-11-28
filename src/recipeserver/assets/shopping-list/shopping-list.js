@@ -107,14 +107,7 @@
     const url = new URL(SHOPPING_LIST_API, window.location.origin);
     for (const path of paths) url.searchParams.append("path", path);
 
-    const response = await fetch(url, { cache: "no-store" });
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
-    }
-
-    return result;
+    return window.RecipeApi.requestJson(url, { cache: "no-store" });
   }
 
   // ----- State ----- //

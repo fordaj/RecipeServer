@@ -10,6 +10,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { createDocument } = require("./dom_stub.js");
+const API_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "api.js");
 
 const SPEECH_JS = path.join(
   __dirname,
@@ -143,6 +144,7 @@ async function main() {
   };
   globalThis.document = document;
 
+  require(API_JS);
   require(SPEECH_JS);
 
   // ----- Without HTTPS there is no dictation button ----- //

@@ -346,6 +346,19 @@ Clean full suite with no deselection and no edits during execution:
 **709 passed, 20 skipped** in 447 s. Formatting and docs generation clean.
 `server.py` is down to 2359 lines from the 3262-line baseline (−903).
 
+### Batch 25 — shared browser JSON wrapper (pending commit)
+
+`assets/api.js` is now the single fetch/JSON/error-unwrap wrapper for the
+eight page bundles that had their own copies. `requestJson` supports
+`expectSuccess` and a custom fallback message, attaches the response status to
+errors for the "no makes yet means 0" case, and `throwResponseError` handles a
+streaming response's error path. The speech button's missing `.catch` is fixed
+by the shared parser. Node tests cover success, server errors, non-JSON 503s,
+and success-flag validation; AST tests prevent the copies returning.
+
+The task pool is reconciled with the full duplicate-implementation inventory:
+clusters 21–27 are recorded with `candidate`/`deferred` status and evidence.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -388,3 +401,4 @@ the rest.
 | 22    | focused 112 passed; final clean full 697 passed, 20 skipped                            | clean      | generated, no broken local links | `2956595` |
 | 23    | focused 102 passed; final clean full 702 passed, 20 skipped                            | clean      | generated, no broken local links | `f174d27` |
 | 24    | focused 81 passed; final clean full 709 passed, 20 skipped                             | clean      | generated, no broken local links | `52421b7` |
+| 25    | focused 76 passed; full run pending                                           | clean      | generated                        | pending   |

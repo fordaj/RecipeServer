@@ -103,6 +103,25 @@ def test_config_defaults_is_a_leaf_module():
     assert not (_imported_names(_tree("config_defaults.py")) & {"config", "server", "core", "retention"})
 
 
+BROWSER_API_BUNDLES = (
+    "recipe-editor/recipe-editor.js",
+    "recipe-history/timeline.js",
+    "dialogs.js",
+    "recipe-feedback.js",
+    "shopping-list/shopping-list.js",
+    "ai-assistant/ai-assistant.js",
+    "config-editor.js",
+    "speech-button/speech-button.js",
+)
+
+
+def test_browser_json_requests_share_one_wrapper():
+    for relative in BROWSER_API_BUNDLES:
+        source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")
+        assert "window.RecipeApi.requestJson" in source, f"{relative} does not use the shared wrapper"
+        assert "response.json().catch(() => ({}))" not in source, f"{relative} still unwraps responses itself"
+
+
 def test_auth_flow_decisions_are_not_in_the_handler():
     server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
     assert "def _queue_cookie" not in server_source

@@ -10,6 +10,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { Element, createDocument } = require("./dom_stub.js");
+const API_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "api.js");
 
 const CONFIG_EDITOR_JS = path.join(
   __dirname,
@@ -220,6 +221,7 @@ async function main() {
     };
   };
 
+  require(API_JS);
   require(CONFIG_EDITOR_JS);
 
   // Clicking the Configuration entry opens (and populates) the dialog.

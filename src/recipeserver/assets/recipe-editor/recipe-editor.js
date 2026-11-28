@@ -113,17 +113,6 @@ Try this
 
   // ----- Path and fetch helpers ----- //
 
-  async function fetchJson(url, options = {}) {
-    const response = await fetch(url, options);
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
-    }
-
-    return result;
-  }
-
   // ----- API requests ----- //
 
   async function requestEditor(path, payload = null, images = []) {
@@ -131,7 +120,7 @@ Try this
     if (payload === null) url.searchParams.set("path", path);
 
     const requestBody = payload === null ? null : createRequestBody({ path, ...payload }, images);
-    return fetchJson(url, {
+    return window.RecipeApi.requestJson(url, {
       method: payload === null ? "GET" : "POST",
       cache: "no-store",
       headers: requestBody?.headers ?? {},
@@ -142,12 +131,12 @@ Try this
   async function requestBulkEditor(paths) {
     const url = new URL(BULK_EDITOR_API, window.location.origin);
     for (const path of paths) url.searchParams.append("path", path);
-    const result = await fetchJson(url, { cache: "no-store" });
+    const result = await window.RecipeApi.requestJson(url, { cache: "no-store" });
     return result.recipes;
   }
 
   async function requestBulkSave(paths, payload) {
-    return fetchJson(new URL(BULK_EDITOR_API, window.location.origin), {
+    return window.RecipeApi.requestJson(new URL(BULK_EDITOR_API, window.location.origin), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paths, ...payload }),
@@ -155,26 +144,26 @@ Try this
   }
 
   async function requestRecipeFolders() {
-    const result = await fetchJson(new URL(RECIPE_FOLDERS_API, window.location.origin), {
+    const result = await window.RecipeApi.requestJson(new URL(RECIPE_FOLDERS_API, window.location.origin), {
       cache: "no-store",
     });
     return result.folders;
   }
 
   async function requestMetadataOptions() {
-    const result = await fetchJson(new URL(METADATA_OPTIONS_API, window.location.origin), {
+    const result = await window.RecipeApi.requestJson(new URL(METADATA_OPTIONS_API, window.location.origin), {
       cache: "no-store",
     });
     return result.options ?? {};
   }
 
   async function requestAiStatus() {
-    return fetchJson(new URL(AI_STATUS_API, window.location.origin), { cache: "no-store" });
+    return window.RecipeApi.requestJson(new URL(AI_STATUS_API, window.location.origin), { cache: "no-store" });
   }
 
   async function createRecipe(folder, createFolder, content, metadata, images) {
     const requestBody = createRequestBody({ folder, createFolder, content, metadata }, images);
-    return fetchJson(new URL(RECIPE_API, window.location.origin), {
+    return window.RecipeApi.requestJson(new URL(RECIPE_API, window.location.origin), {
       method: "POST",
       cache: "no-store",
       headers: requestBody.headers ?? {},
@@ -185,11 +174,11 @@ Try this
   async function deleteRecipe(path) {
     const url = new URL(RECIPE_API, window.location.origin);
     url.searchParams.set("path", path);
-    return fetchJson(url, { method: "DELETE", cache: "no-store" });
+    return window.RecipeApi.requestJson(url, { method: "DELETE", cache: "no-store" });
   }
 
   async function requestImageRename(path, from, to) {
-    return fetchJson(new URL(RECIPE_IMAGES_RENAME_API, window.location.origin), {
+    return window.RecipeApi.requestJson(new URL(RECIPE_IMAGES_RENAME_API, window.location.origin), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path, from, to }),
@@ -197,7 +186,7 @@ Try this
   }
 
   async function requestImageDelete(path, name) {
-    return fetchJson(new URL(RECIPE_IMAGES_DELETE_API, window.location.origin), {
+    return window.RecipeApi.requestJson(new URL(RECIPE_IMAGES_DELETE_API, window.location.origin), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path, name }),
@@ -206,7 +195,7 @@ Try this
 
   async function requestImageUpload(path, file) {
     const requestBody = createRequestBody({ path }, [file]);
-    return fetchJson(new URL(RECIPE_IMAGES_UPLOAD_API, window.location.origin), {
+    return window.RecipeApi.requestJson(new URL(RECIPE_IMAGES_UPLOAD_API, window.location.origin), {
       method: "POST",
       cache: "no-store",
       headers: requestBody.headers ?? {},
@@ -217,18 +206,18 @@ Try this
   async function getMakes(path) {
     const url = new URL(MAKES_METADATA_API, window.location.origin);
     url.searchParams.set("path", path);
-    const response = await fetch(url, { cache: "no-store" });
-    if (response.status === 404) return 0;
-
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.error || `Unable to load makes count (HTTP ${response.status})`);
+    try {
+      const result = await window.RecipeApi.requestJson(url, { cache: "no-store", fallbackMessage: "Unable to load makes count" });
+      return normalizeMakes(result.value);
+    } catch (error) {
+      // No makes value yet is a valid empty state, not an error.
+      if (error.status === 404) return 0;
+      throw error;
     }
-    return normalizeMakes(result.value);
   }
 
   async function saveMakes(path, makes) {
-    const result = await fetchJson(new URL(MAKES_METADATA_API, window.location.origin), {
+    const result = await window.RecipeApi.requestJson(new URL(MAKES_METADATA_API, window.location.origin), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path, value: makes }),
@@ -287,8 +276,7 @@ Try this
     });
 
     if (!response.ok) {
-      const result = await response.json().catch(() => ({}));
-      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
+      await window.RecipeApi.throwResponseError(response);
     }
 
     return readAiStream(response, onEvent);

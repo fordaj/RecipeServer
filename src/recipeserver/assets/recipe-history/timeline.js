@@ -53,20 +53,6 @@
     };
   }
 
-  function fetchJson(url, options) {
-    return fetch(url, options).then((response) =>
-      response
-        .json()
-        .catch(() => ({}))
-        .then((body) => {
-          if (!response.ok) {
-            throw new Error(body.error || `Request failed (HTTP ${response.status})`);
-          }
-          return body;
-        }),
-    );
-  }
-
   function buildDialog() {
     const dialog = document.createElement("dialog");
     dialog.className = "recipe-history-dialog";
@@ -249,7 +235,7 @@
       if (!snapshot) return;
       setStatus("Building the diff…");
       try {
-        const result = await fetchJson(
+        const result = await window.RecipeApi.requestJson(
           `${COMPARE_API}?path=${encodeURIComponent(markdownPath)}&snapshot=${encodeURIComponent(snapshot.id)}`,
         );
         renderDiff(diffElement, result.diff || "");
@@ -266,7 +252,7 @@
     const refresh = async () => {
       setStatus("Loading versions…");
       try {
-        const result = await fetchJson(`${LIST_API}?path=${encodeURIComponent(markdownPath)}`);
+        const result = await window.RecipeApi.requestJson(`${LIST_API}?path=${encodeURIComponent(markdownPath)}`);
         state.snapshots = Array.isArray(result.snapshots) ? result.snapshots : [];
         if (state.selected && !state.snapshots.some((snapshot) => snapshot.id === state.selected)) {
           state.selected = null;
@@ -319,7 +305,7 @@
       restoreButton.disabled = true;
       setStatus("Restoring…");
       try {
-        await fetchJson(RESTORE_API, {
+        await window.RecipeApi.requestJson(RESTORE_API, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ path: markdownPath, snapshot: snapshot.id }),

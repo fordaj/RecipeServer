@@ -175,16 +175,12 @@
 
   // Server-side Markdown rendering (same pipeline as the recipe bodies).
   async function fetchRenderedMarkdown(text) {
-    const response = await fetch(ASSISTANT_MARKDOWN_API, {
+    const result = await window.RecipeApi.requestJson(ASSISTANT_MARKDOWN_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ markdown: text }),
+      fallbackMessage: "Unable to render the message",
     });
-
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result?.error || `Unable to render the message (HTTP ${response.status})`);
-    }
     return typeof result?.html === "string" ? result.html : "";
   }
 
@@ -912,19 +908,14 @@
 
       let text = "";
       try {
-        const response = await fetch(TRANSCRIBE_URL, {
+        const result = await window.RecipeApi.requestJson(TRANSCRIBE_URL, {
           method: "POST",
           headers: {
             "Content-Type": blob.type || "application/octet-stream",
           },
           body: blob,
+          fallbackMessage: "Transcription failed",
         });
-
-        const result = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(result?.error || "Transcription failed");
-        }
 
         text = String(result?.text || "").trim();
       } catch (error) {

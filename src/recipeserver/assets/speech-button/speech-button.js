@@ -230,19 +230,14 @@
       button.disabled = true;
 
       try {
-        const response = await fetch(TRANSCRIBE_URL, {
+        const result = await window.RecipeApi.requestJson(TRANSCRIBE_URL, {
           method: "POST",
           headers: {
             "Content-Type": blob.type || "application/octet-stream",
           },
           body: blob,
+          fallbackMessage: "Transcription failed",
         });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || "Transcription failed");
-        }
 
         // A search query never needs the full stop the model closes
         // utterances with, so the transcript must not end in one.

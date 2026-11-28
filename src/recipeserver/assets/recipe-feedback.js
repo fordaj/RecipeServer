@@ -7,13 +7,10 @@
   // away.
 
   function fetchMetadataOptions() {
-    return fetch("/api/metadata-options", { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Failed to load metadata options (HTTP ${response.status})`);
-        }
-        return response.json();
-      })
+    return window.RecipeApi.requestJson("/api/metadata-options", {
+      cache: "no-store",
+      fallbackMessage: "Failed to load metadata options",
+    })
       .then((data) => data?.options ?? {})
       .catch((error) => {
         // Without the library values the dropdowns only offer "Add new…".
@@ -139,17 +136,14 @@
     return data.value;
   }
 
-  async function saveMetadata(field, recipePath, value) {
-    const response = await fetch(`/api/metadata/${field}`, {
+  function saveMetadata(field, recipePath, value) {
+    return window.RecipeApi.requestJson(`/api/metadata/${field}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: recipePath, value }),
+      expectSuccess: true,
+      fallbackMessage: `Unable to save ${field}`,
     });
-    const result = await response.json().catch(() => ({}));
-
-    if (!response.ok || result.success !== true) {
-      throw new Error(result.error || `Unable to save ${field} (HTTP ${response.status})`);
-    }
   }
 
   // ----- Busy state and inline errors ----- //
