@@ -58,22 +58,29 @@ from .config import (
 from .image_handler import IMAGE_EXTENSIONS
 from .metadata_options import collect_metadata_options
 from .recipe_images import fallback_main_image, image_name_pattern, replace_image_reference
+from .recipe_metadata import (
+    BULK_EDITABLE_FIELDS,
+    EDITOR_METADATA_FIELDS,
+    apply_editor_metadata,
+    drop_legacy_category,
+    editor_metadata,
+    metadata_field_name,
+    validate_assistant_metadata,
+    validate_editor_field,
+    validate_editor_metadata,
+)
 from .recipe_paths import RECIPE_FILENAME, display_path, resolve_recipe_file, resolve_recipe_folder
 from .shopping_list import scrape_ingredients
 from .recipe_utils import (
     CATEGORIES_FIELD,
     LEGACY_CATEGORY_FIELD,
     canonical_recipe_id,
-    clean_source_fields,
-    collapse_status,
     extract_recipe_id,
     is_finite_rating_score,
     is_valid_recipe_id,
     json_default,
     new_recipe_id,
-    normalize_legacy_category,
     normalize_reviewer_name,
-    normalize_source_dict,
     set_recipe_id,
 )
 from .transcriber import TranscriberUnavailable, TranscriptionError, get_transcriber
@@ -291,212 +298,6 @@ def _xml_local_name(name: str) -> str:
     return name.rsplit("}", 1)[-1].lower()
 
 
-def _canonical_category_field(field_name: str) -> str:
-    """Map the legacy singular ``category`` field name onto ``categories``."""
-    return CATEGORIES_FIELD if field_name == LEGACY_CATEGORY_FIELD else field_name
-
-
-def _metadata_field_name(path: str) -> str | None:
-    """Extract the metadata field name from an API path, if present."""
-    field_name = path.rsplit("/", 1)[-1]
-    return _canonical_category_field(field_name) if field_name else None
-
-
-def _drop_legacy_category(metadata: dict) -> None:
-    """Remove the legacy singular field once the plural one has been written."""
-    metadata.pop(LEGACY_CATEGORY_FIELD, None)
-
-
-# ---------------------------------------------------------------------------
-# Editor metadata schema and validation
-# ---------------------------------------------------------------------------
-
-EDITOR_METADATA_FIELDS = {
-    "tags": "string_list",
-    "cuisine": "string_list",
-    "categories": "string_list",
-    "meals": "string_list",
-    "makes": "non_negative_integer",
-    "difficulty": "number",
-    "contributor": "string",
-    "status": "string",
-    "createdOn": "string",
-    "updatedOn": "string",
-    "archived": "boolean",
-    "source": "object",
-}
-
-# Fields a bulk edit may overwrite. ``updatedOn`` is always refreshed by the
-# server, so it is never accepted as a bulk-editable field.
-BULK_EDITABLE_FIELDS = tuple(field for field in EDITOR_METADATA_FIELDS if field != "updatedOn")
-
-
-def _editor_metadata(metadata: dict) -> dict:
-    """Return editable metadata, mapping the legacy singular category field."""
-    merged = dict(metadata)
-    normalize_legacy_category(merged)
-    values = {field: merged.get(field) for field in EDITOR_METADATA_FIELDS}
-
-    # Status is a single string; older recipes may store a list.
-    values["status"] = collapse_status(values.get("status"))
-
-    # The editor edits one source at a time; older recipes may store a list.
-    values["source"] = normalize_source_dict(values["source"])
-
-    # ``archived`` defaults to False when absent (or not a boolean).
-    values["archived"] = metadata.get("archived") is True
-
-    return values
-
-
-def _source_is_empty(source: dict | None) -> bool:
-    return not source or not any(value is not None for value in source.values())
-
-
-def _recipe_folder_name(content: str, metadata: dict) -> str:
-    heading = re.search(r"^\s{0,3}#\s+(?P<heading>.+?)\s*#*\s*$", content, re.MULTILINE)
-    title = heading.group("heading") if heading else metadata.get("title")
-    if not isinstance(title, str):
-        title = ""
-
-    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', " ", title)
-    name = " ".join(name.split()).strip(" .")
-    if not name:
-        name = "New Recipe"
-
-    encoded_name = name.encode("utf-8")[:RECIPE_FOLDER_NAME_MAX_BYTES]
-    name = encoded_name.decode("utf-8", errors="ignore").rstrip(" .") or "New Recipe"
-    if _is_windows_reserved_name(name):
-        name = f"_{name}"
-    return name
-
-
-def _apply_editor_metadata(existing: dict, values: dict) -> None:
-    """Apply validated editor fields while preserving extra sources."""
-    for field, value in values.items():
-        if field == "source":
-            _apply_source_metadata(existing, value)
-        else:
-            existing[field] = value
-
-
-def _apply_source_metadata(existing: dict, value: dict | None) -> None:
-    new_source = None if _source_is_empty(value) else value
-    current = existing.get("source")
-
-    if isinstance(current, list):
-        sources = [source for source in current if isinstance(source, dict)]
-        if new_source is None:
-            sources = sources[1:]
-        elif sources:
-            sources[0] = new_source
-        else:
-            sources = [new_source]
-
-        if sources:
-            existing["source"] = sources
-        else:
-            existing.pop("source", None)
-        return
-
-    if new_source is None:
-        existing.pop("source", None)
-    else:
-        existing["source"] = new_source
-
-
-def _validate_string_list_field(field: str, value: object) -> list[str]:
-    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-        raise ValueError(f"'{field}' must be a list of strings or null")
-    return value
-
-
-def _validate_string_field(field: str, value: object) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"'{field}' must be a string or null")
-    return value
-
-
-def _validate_number_field(field: str, value: object) -> int | float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f"'{field}' must be a number or null")
-    return value
-
-
-def _validate_boolean_field(field: str, value: object) -> bool:
-    if not isinstance(value, bool):
-        raise ValueError(f"'{field}' must be a boolean or null")
-    return value
-
-
-def _validate_source_field(field: str, value: object) -> dict | None:
-    if isinstance(value, list):
-        source = normalize_source_dict(value)
-        if source is None:
-            return None
-    elif not isinstance(value, dict):
-        raise ValueError(f"'{field}' must be an object or null")
-    else:
-        source = value
-    return clean_source_fields(source)
-
-
-def _validate_editor_field(field: str, expected_type: str, value: object) -> object:
-    validators = {
-        "string_list": _validate_string_list_field,
-        "string": _validate_string_field,
-        "non_negative_integer": lambda field, value: _validate_makes(value),
-        "number": _validate_number_field,
-        "boolean": _validate_boolean_field,
-    }
-    if expected_type in validators:
-        return validators[expected_type](field, value)
-    if expected_type == "object" and field == "source":
-        return _validate_source_field(field, value)
-    return value
-
-
-def _validate_editor_metadata(metadata: object) -> dict:
-    if not isinstance(metadata, dict):
-        raise ValueError("Expected a metadata object")
-
-    validated = {}
-    for field, expected_type in EDITOR_METADATA_FIELDS.items():
-        value = metadata.get(field)
-        if value is None:
-            validated[field] = None
-        else:
-            validated[field] = _validate_editor_field(field, expected_type, value)
-
-    return validated
-
-
-def _validate_assistant_metadata(metadata: object) -> dict:
-    """Validate a partial editor-metadata object for the AI assistant.
-
-    Only the keys present are validated and returned; ``updatedOn`` (which
-    the server always manages) and unknown fields are rejected, so a
-    misbehaving model cannot sneak in an arbitrary front-matter key. A
-    value of null clears the field, matching the editor's semantics.
-    """
-    if not isinstance(metadata, dict):
-        raise ValueError("Expected a metadata object")
-
-    validated = {}
-    for key, value in metadata.items():
-        if key == "updatedOn":
-            raise ValueError("'updatedOn' is managed by the server")
-        expected_type = EDITOR_METADATA_FIELDS.get(key)
-        if expected_type is None:
-            raise ValueError(f"Unknown metadata field: {key}")
-        if value is None:
-            validated[key] = None
-        else:
-            validated[key] = _validate_editor_field(key, expected_type, value)
-
-    return validated
-
-
 # ---------------------------------------------------------------------------
 # Bulk operation validation
 # ---------------------------------------------------------------------------
@@ -586,15 +387,6 @@ def _apply_rating_override(ratings: object, name: str, score: int | float) -> li
         updated.append({"name": name, "created": now, "updated": now, "id": str(uuid.uuid4()), "rating": score})
 
     return updated
-
-
-def _validate_makes(value: object) -> int | None:
-    """Validate a ``makes`` counter value for the per-field metadata endpoint."""
-    if value is None:
-        return None
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise ValueError("'makes' must be a non-negative integer or null")
-    return value
 
 
 def _validate_rating_entry(index: int, rating: object) -> tuple[str, str, dict]:
@@ -1242,7 +1034,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self._handle_metadata_get(parsed.path, file_path)
 
     def _handle_metadata_get(self, path: str, file_path: Path) -> None:
-        field_name = _metadata_field_name(path)
+        field_name = metadata_field_name(path)
         if field_name is None:
             self._send_json(400, {"error": "Expected a metadata field name"})
             return
@@ -1277,7 +1069,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self._send_json(
             200,
             {
-                "metadata": _editor_metadata(recipe_post.metadata),
+                "metadata": editor_metadata(recipe_post.metadata),
                 "content": recipe_post.content,
                 "images": self._list_recipe_images(file_path),
             },
@@ -1333,7 +1125,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 recipes.append(
                     {
                         "path": raw_path,
-                        "metadata": _editor_metadata(recipe_post.metadata),
+                        "metadata": editor_metadata(recipe_post.metadata),
                         "ratings": ratings if isinstance(ratings, list) else [],
                     }
                 )
@@ -1759,11 +1551,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         """
 
         def apply_edit(content: str, metadata: dict) -> str:
-            validated = _validate_assistant_metadata(metadata)
+            validated = validate_assistant_metadata(metadata)
             try:
                 recipe_post = _read_recipe_post(file_path)
-                _apply_editor_metadata(recipe_post.metadata, validated)
-                _drop_legacy_category(recipe_post.metadata)
+                apply_editor_metadata(recipe_post.metadata, validated)
+                drop_legacy_category(recipe_post.metadata)
                 recipe_post.metadata["updatedOn"] = _now_utc_iso()
                 recipe_post.content = content
                 self._write_recipe_post_with_images(file_path, recipe_post, [], exclusive=False)
@@ -1872,7 +1664,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             folder = payload.get("folder")
             create_folder = payload.get("createFolder")
             content = payload.get("content")
-            metadata = _validate_editor_metadata(payload.get("metadata"))
+            metadata = validate_editor_metadata(payload.get("metadata"))
 
             if not isinstance(folder, str) or not isinstance(create_folder, bool):
                 raise ValueError("Expected string folder and boolean createFolder fields")
@@ -1946,7 +1738,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             payload, images = self._read_recipe_payload()
             path = payload.get("path")
             content = payload.get("content")
-            metadata = _validate_editor_metadata(payload.get("metadata"))
+            metadata = validate_editor_metadata(payload.get("metadata"))
 
             if not isinstance(path, str) or not isinstance(content, str):
                 raise ValueError("Expected string fields: path and content")
@@ -1966,8 +1758,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 return
 
             recipe_post = _read_recipe_post(file_path)
-            _apply_editor_metadata(recipe_post.metadata, metadata)
-            _drop_legacy_category(recipe_post.metadata)
+            apply_editor_metadata(recipe_post.metadata, metadata)
+            drop_legacy_category(recipe_post.metadata)
             recipe_post.metadata["updatedOn"] = _now_utc_iso()
             recipe_post.content = content
 
@@ -2206,7 +1998,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self._send_json(200, {"success": True, "images": self._list_recipe_images(file_path), "referenced": referenced})
 
     def _handle_metadata_post(self, path: str) -> None:
-        field_name = _metadata_field_name(path)
+        field_name = metadata_field_name(path)
         if field_name is None:
             self._send_json(400, {"error": "Expected a metadata field name"})
             return
@@ -2222,7 +2014,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 value = _validate_ratings(value)
             elif field_name in EDITOR_METADATA_FIELDS:
                 if value is not None:
-                    value = _validate_editor_field(field_name, EDITOR_METADATA_FIELDS[field_name], value)
+                    value = validate_editor_field(field_name, EDITOR_METADATA_FIELDS[field_name], value)
 
             file_path = self._resolve_markdown_path(recipe_path)
         except (_RequestTooLarge, ValueError) as exc:
@@ -2243,7 +2035,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 else:
                     metadata.pop(field_name, None)
                 if field_name == CATEGORIES_FIELD:
-                    _drop_legacy_category(metadata)
+                    drop_legacy_category(metadata)
 
             _, changed = _update_recipe_post(file_path, mutate)
             logger.info(f"Updated metadata field '{field_name}' in file: {file_path}")
@@ -2307,7 +2099,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             payload = self._read_json_payload()
             raw_paths = _validate_bulk_paths(payload.get("paths"))
             fields = _validate_bulk_fields(payload.get("fields"))
-            metadata = _validate_editor_metadata(payload.get("metadata")) if payload.get("metadata") is not None else {}
+            metadata = validate_editor_metadata(payload.get("metadata")) if payload.get("metadata") is not None else {}
             rating_override = _validate_bulk_rating(payload.get("rating"))
             if not metadata and rating_override is None:
                 raise ValueError("Expected 'metadata' and/or 'rating'")
@@ -2350,8 +2142,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             def mutate(post: frontmatter.Post) -> None:
                 if metadata:
                     subset = {field: metadata.get(field) for field in fields}
-                    _apply_editor_metadata(post.metadata, subset)
-                    _drop_legacy_category(post.metadata)
+                    apply_editor_metadata(post.metadata, subset)
+                    drop_legacy_category(post.metadata)
                 if rating_override is not None:
                     name, score = rating_override
                     post.metadata["ratings"] = _apply_rating_override(post.metadata.get("ratings"), name, score)

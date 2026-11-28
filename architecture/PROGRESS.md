@@ -171,6 +171,16 @@ A full-suite run started before batch 12 was contaminated by edits made during
 the run (it collected a new doc-page assertion before the page existed), so it
 is not recorded as verification. A clean final run follows.
 
+### Batch 14 — canonical front-matter schema and validation (pending commit)
+
+`recipe_metadata.py` now owns the editor field registry, its validators, the
+read/write projection used by the editor and assistant, and the bulk-editable
+field set. `server.py` calls those functions instead of defining them; its
+private copies are deleted. `ai_recipe.py` derives the multi-value field set
+from the same registry instead of restating it. Tests were migrated to the
+canonical imports. Evidence: `81 passed` for the editor/rating/bulk/HTTP/AI
+test set and `80 passed` for AI recipe, schema, and architecture tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -201,4 +211,5 @@ the rest.
 | 11    | focused 7 passed + 35 passed; final full run pending                          | clean      | generated                        | `e8e20b1` |
 | 12    | focused 98 passed, 1 skipped; final full run pending                          | clean      | generated                        | `9bdd859` |
 | 13    | focused 65 passed; clean final full run pending                               | clean      | generated                        | `6f358da` |
-| final | **648 passed, 20 skipped** (454 s), clean run with no mid-run edits           | clean      | generated, no broken local links | pending   |
+| final | **648 passed, 20 skipped** (454 s), clean run with no mid-run edits           | clean      | generated, no broken local links | `e02c59a` |
+| 14    | focused 81 passed + 80 passed; clean full run pending                         | clean      | generated                        | pending   |

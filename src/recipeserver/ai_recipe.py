@@ -21,6 +21,7 @@ from PIL import Image, UnidentifiedImageError
 
 from ._logger import logger
 from ._version import PACKAGE_VERSION
+from .recipe_metadata import STRING_LIST_FIELDS
 from .recipe_utils import (
     SOURCE_FORMAT_LABELS,
     clean_source_fields,
@@ -86,8 +87,6 @@ IMAGE_MIME_TYPES = {
     ".tiff": "image/tiff",
     ".tif": "image/tiff",
 }
-
-LIST_FIELDS = ("tags", "cuisine", "categories", "meals")
 
 _CODE_FENCE_RE = re.compile(
     r"^\s*```(?:markdown|md)?\s*\n(?P<body>.*)\n```\s*$",
@@ -1037,7 +1036,7 @@ def _ollama_chat(
 
 def _normalize_list_fields(normalized: dict[str, Any]) -> None:
     """Split comma-separated strings into lists for the multi-value fields."""
-    for field in LIST_FIELDS:
+    for field in STRING_LIST_FIELDS:
         value = normalized.get(field)
         if isinstance(value, str):
             normalized[field] = [item.strip() for item in value.split(",") if item.strip()]

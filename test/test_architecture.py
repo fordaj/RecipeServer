@@ -78,6 +78,21 @@ def test_both_streaming_endpoints_share_the_sse_framing(relative_path: str):
         assert "_send_sse_event" in calls
 
 
+def test_ai_drafting_uses_the_canonical_multi_value_fields():
+    tree = _tree("ai_recipe.py")
+    assert "STRING_LIST_FIELDS" in _imported_names(tree)
+    assert "LIST_FIELDS" not in _imported_names(tree)
+
+
+def test_editor_metadata_schema_and_validation_have_one_owner():
+    server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
+    assert "def validate_editor_metadata" not in server_source
+    assert "def _validate_editor_metadata" not in server_source
+    assert "def validate_assistant_metadata" not in server_source
+    for name in ("EDITOR_METADATA_FIELDS", "validate_editor_metadata", "validate_assistant_metadata"):
+        assert name in server_source
+
+
 def test_image_reference_rules_do_not_live_in_the_http_layer():
     server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
     assert "def fallback_main_image" not in server_source

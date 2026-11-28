@@ -10,18 +10,19 @@ from urllib.request import Request, urlopen
 import frontmatter
 import pytest
 
-from recipeserver.server import RecipeRequestHandler, _validate_makes
+from recipeserver.recipe_metadata import validate_makes
+from recipeserver.server import RecipeRequestHandler
 
 
 @pytest.mark.parametrize("value", [None, 0, 1, 42])
 def test_validate_makes_accepts_non_negative_integers(value):
-    assert _validate_makes(value) == value
+    assert validate_makes(value) == value
 
 
 @pytest.mark.parametrize("value", [-1, 1.5, True, False, "3", [3], {"value": 3}])
 def test_validate_makes_rejects_invalid_values(value):
     with pytest.raises(ValueError):
-        _validate_makes(value)
+        validate_makes(value)
 
 
 def request_json(url: str, payload: dict | None = None) -> tuple[int, dict]:
