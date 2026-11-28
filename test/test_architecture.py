@@ -100,6 +100,13 @@ def test_config_defaults_is_a_leaf_module():
     assert not (_imported_names(_tree("config_defaults.py")) & {"config", "server", "core", "retention"})
 
 
+def test_request_parsing_is_not_implemented_in_the_handler():
+    server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
+    for name in ("_read_body", "_read_json_payload", "_parse_multipart_message", "_validate_uploaded_images", "_write_uploaded_images"):
+        assert f"def {name}" not in server_source
+    assert "from .request_payload import" in server_source
+
+
 def test_configuration_and_retention_share_a_leaf_policy_module():
     config_imports = _imported_names(_tree("config.py"))
     retention_imports = _imported_names(_tree("retention.py"))

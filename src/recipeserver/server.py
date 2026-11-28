@@ -19,9 +19,6 @@ import sys
 import tempfile
 import time
 from collections.abc import Callable
-from email.message import Message
-from email.parser import BytesParser
-from email.policy import default
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from mimetypes import guess_type
@@ -78,6 +75,15 @@ from .recipe_metadata import (
     validate_ratings,
 )
 from .recipe_paths import RECIPE_FILENAME, display_path, resolve_recipe_file, resolve_recipe_folder
+from .request_payload import (
+    RequestTooLarge,
+    read_ai_recipe_payload,
+    read_json_payload,
+    read_recipe_payload,
+    remove_uploaded_images,
+    validate_uploaded_images,
+    write_uploaded_images,
+)
 from .shopping_list import scrape_ingredients
 from .recipe_utils import (
     CATEGORIES_FIELD,
@@ -153,10 +159,6 @@ RECIPE_FOLDER_NAME_MAX_BYTES = 200
 MARKDOWN_NOT_FOUND_ERROR = "Markdown file not found"
 
 # SVG elements that can carry executable or externally loaded content.
-
-
-class _RequestTooLarge(ValueError):
-    """Raised when a request body exceeds the accepted size."""
 
 
 class _StreamClosed(Exception):
@@ -655,7 +657,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _send_payload_error(self, exc: Exception) -> None:
         """Send the standard response for a failed request-body parse."""
-        if isinstance(exc, _RequestTooLarge):
+        if isinstance(exc, RequestTooLarge):
             self._send_json(413, {"error": "Request body too large"})
             return
         self._send_json(400, {"error": str(exc)})
@@ -781,10 +783,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self.send_error(404, "Unknown API endpoint")
             return
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             guest = Permission.parse(str(payload.get("guest", "")))
             authenticated = Permission.parse(str(payload.get("authenticated", "")))
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
         self.auth.update_access(guest, authenticated)
@@ -1145,11 +1147,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_config_update(self) -> None:
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             if self.config is None:
                 raise ValueError("Configuration is not available")
             changed = self.config.apply_config_values(payload.get("values"))
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
         except OSError:
@@ -1178,8 +1180,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         configuration.
         """
         try:
-            payload = self._read_json_payload()
-        except (_RequestTooLarge, ValueError) as exc:
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -1225,7 +1227,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def _handle_ai_recipe(self) -> None:
         try:
             request = self._validate_ai_recipe_request()
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             logger.warning(f"Invalid AI recipe request: {exc}")
             self._send_payload_error(exc)
             return
@@ -1236,7 +1238,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._run_ai_recipe(request)
 
     def _validate_ai_recipe_request(self) -> dict:
-        payload, images = self._read_ai_recipe_payload()
+        payload, images = read_ai_recipe_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE, self.MAX_IMAGE_UPLOAD_SIZE)
         input_type = payload.get("inputType")
         input_value = payload.get("input")
 
@@ -1246,7 +1248,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         if input_type == "image":
             if not images:
                 raise ValueError("Expected at least one recipe image upload")
-            images = self._validate_uploaded_images(images)
+            images = validate_uploaded_images(images, max_count=self.MAX_IMAGE_UPLOAD_COUNT, max_size=self.MAX_IMAGE_UPLOAD_SIZE)
             for filename, _content in images:
                 if Path(filename).suffix.lower() not in ai_recipe.IMAGE_MIME_TYPES:
                     raise ValueError(f"Unsupported image type for AI generation: {filename}. Use a JPG, PNG, GIF, WebP, BMP, or TIFF image.")
@@ -1360,7 +1362,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     def _handle_ai_assistant(self) -> None:
         try:
             request = self._validate_ai_assistant_request()
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             logger.warning(f"Invalid AI assistant request: {exc}")
             self._send_payload_error(exc)
             return
@@ -1374,7 +1376,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._run_ai_assistant(request)
 
     def _validate_ai_assistant_request(self) -> dict | None:
-        payload = self._read_json_payload()
+        payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
         message = ai_assistant.sanitize_message(payload.get("message"))
         history = ai_assistant.sanitize_history(payload.get("history"))
 
@@ -1494,13 +1496,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_assistant_markdown(self) -> None:
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             markdown_text = payload.get("markdown")
             if not isinstance(markdown_text, str) or not markdown_text.strip():
                 raise ValueError("Expected a non-empty markdown string")
             if len(markdown_text) > assistant_render.MAX_RENDER_CHARS:
                 raise ValueError(f"The Markdown is too long (at most {assistant_render.MAX_RENDER_CHARS} characters)")
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -1516,7 +1518,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_recipe_create(self) -> None:
         try:
-            payload, images = self._read_recipe_payload()
+            payload, images = read_recipe_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE, self.MAX_IMAGE_UPLOAD_SIZE)
             folder = payload.get("folder")
             create_folder = payload.get("createFolder")
             content = payload.get("content")
@@ -1528,9 +1530,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 raise ValueError("Expected string field: content")
             if "\x00" in content:
                 raise ValueError("Markdown content contains a null character")
-            images = self._validate_uploaded_images(images)
+            images = validate_uploaded_images(images, max_count=self.MAX_IMAGE_UPLOAD_COUNT, max_size=self.MAX_IMAGE_UPLOAD_SIZE)
             folder_path = self._resolve_recipe_directory(folder)
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -1591,7 +1593,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_recipe_editor_post(self) -> None:
         try:
-            payload, images = self._read_recipe_payload()
+            payload, images = read_recipe_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE, self.MAX_IMAGE_UPLOAD_SIZE)
             path = payload.get("path")
             content = payload.get("content")
             metadata = validate_editor_metadata(payload.get("metadata"))
@@ -1600,9 +1602,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 raise ValueError("Expected string fields: path and content")
             if "\x00" in content:
                 raise ValueError("Markdown content contains a null character")
-            images = self._validate_uploaded_images(images)
+            images = validate_uploaded_images(images, max_count=self.MAX_IMAGE_UPLOAD_COUNT, max_size=self.MAX_IMAGE_UPLOAD_SIZE)
             file_path = self._resolve_markdown_path(path)
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -1644,11 +1646,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         snapshotted; in that case the recipe is left untouched and no staged
         images are kept.
         """
-        written_images = self._write_uploaded_images(file_path.parent, images)
+        written_images = write_uploaded_images(file_path.parent, images)
         try:
             return _save_recipe_contents(file_path, frontmatter.dumps(recipe_post), exclusive=exclusive)
         except Exception:
-            self._remove_uploaded_images(written_images)
+            remove_uploaded_images(written_images)
             raise
 
     def _handle_recipe_images_rename_post(self) -> None:
@@ -1659,7 +1661,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         and the recipe is regenerated so the hero and index stay in sync.
         """
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             path = payload.get("path")
             from_name = payload.get("from")
             to_name = payload.get("to")
@@ -1672,7 +1674,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             target_name = validate_image_name(to_name, field="to")
             if source_name == target_name:
                 raise ValueError("Enter a different name to rename the image")
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -1738,22 +1740,22 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         listing so the UI can update in place.
         """
         try:
-            payload, images = self._read_recipe_payload()
+            payload, images = read_recipe_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE, self.MAX_IMAGE_UPLOAD_SIZE)
             path = payload.get("path")
             if not isinstance(path, str):
                 raise ValueError("Expected string field: path")
-            images = self._validate_uploaded_images(images)
+            images = validate_uploaded_images(images, max_count=self.MAX_IMAGE_UPLOAD_COUNT, max_size=self.MAX_IMAGE_UPLOAD_SIZE)
             if not images:
                 raise ValueError("Choose at least one image to upload")
             file_path = self._resolve_existing_markdown_path(path)
             if file_path is None:
                 return
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
         try:
-            self._write_uploaded_images(file_path.parent, images)
+            write_uploaded_images(file_path.parent, images)
         except FileExistsError as exc:
             self._send_json(409, {"error": str(exc)})
             return
@@ -1780,7 +1782,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         says so so the editor can warn the user.
         """
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             path = payload.get("path")
             name = payload.get("name")
             if not isinstance(path, str) or not isinstance(name, str):
@@ -1789,7 +1791,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if file_path is None:
                 return
             image_name = validate_image_name(name, field="name")
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -1860,7 +1862,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             return
 
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             recipe_path = payload.get("path")
             value = payload.get("value")
             if not isinstance(recipe_path, str):
@@ -1873,7 +1875,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                     value = validate_editor_field(field_name, EDITOR_METADATA_FIELDS[field_name], value)
 
             file_path = self._resolve_markdown_path(recipe_path)
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -1913,7 +1915,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_markdown_post(self) -> None:
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             path = payload.get("path")
             content = payload.get("content")
             if not isinstance(path, str) or not isinstance(content, str):
@@ -1921,7 +1923,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if "\x00" in content:
                 raise ValueError("Markdown content contains a null character")
             file_path = self._resolve_markdown_path(path)
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -1952,7 +1954,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_bulk_editor_post(self) -> None:
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             raw_paths = _validate_bulk_paths(payload.get("paths"))
             fields = _validate_bulk_fields(payload.get("fields"))
             metadata = validate_editor_metadata(payload.get("metadata")) if payload.get("metadata") is not None else {}
@@ -1960,7 +1962,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             if not metadata and rating_override is None:
                 raise ValueError("Expected 'metadata' and/or 'rating'")
             file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -2014,10 +2016,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_bulk_delete(self) -> None:
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             raw_paths = _validate_bulk_paths(payload.get("paths"))
             file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -2288,13 +2290,13 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_history_restore(self) -> None:
         try:
-            payload = self._read_json_payload()
+            payload = read_json_payload(self.rfile, self.headers, self.MAX_REQUEST_SIZE)
             path = payload.get("path")
             snapshot_id = payload.get("snapshot")
             recipe_id_param = payload.get("recipeId")
             if not isinstance(path, str) or not isinstance(snapshot_id, str):
                 raise ValueError("Expected string fields: path and snapshot")
-        except (_RequestTooLarge, ValueError) as exc:
+        except (RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
 
@@ -2395,152 +2397,6 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 archive_path.unlink(missing_ok=True)
 
     # ----- request payload parsing -----------------------------------------
-
-    def _read_body(self, max_size: int, too_large_message: str) -> bytes:
-        content_length = self.headers.get("Content-Length")
-        if content_length is None:
-            raise ValueError("Missing Content-Length")
-
-        try:
-            length = int(content_length)
-        except ValueError:
-            raise ValueError("Invalid Content-Length") from None
-
-        if length < 0:
-            raise ValueError("Invalid Content-Length")
-        if length > max_size:
-            raise _RequestTooLarge(too_large_message)
-
-        return self.rfile.read(length)
-
-    def _read_json_payload(self) -> dict:
-        body = self._read_body(self.MAX_REQUEST_SIZE, "Request body too large")
-        try:
-            payload = json.loads(body)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid JSON: {exc.msg}") from exc
-
-        if not isinstance(payload, dict):
-            raise ValueError("Expected a JSON object")
-        return payload
-
-    def _parse_multipart_message(self, body: bytes, content_type: str) -> Message:
-        message = BytesParser(policy=default).parsebytes(b"Content-Type: " + content_type.encode("ascii") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body)
-        if not message.is_multipart():
-            raise ValueError("Invalid multipart request")
-        return message
-
-    def _read_multipart_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
-        """Read a multipart/form-data body into its text fields and file uploads."""
-        content_type = self.headers.get("Content-Type", "")
-        body = self._read_body(self.MAX_IMAGE_UPLOAD_SIZE, "Image upload request too large")
-        message = self._parse_multipart_message(body, content_type)
-
-        payload: dict = {}
-        images: list[tuple[str, bytes]] = []
-        for part in message.iter_parts():
-            field_name = part.get_param("name", header="content-disposition")
-            if not isinstance(field_name, str):
-                raise ValueError("Invalid multipart field")
-
-            filename = part.get_filename()
-            content = part.get_payload(decode=True) or b""
-            if filename is not None:
-                if field_name != "images":
-                    raise ValueError("Unexpected uploaded file field")
-                images.append((filename, content))
-                continue
-
-            try:
-                payload[field_name] = content.decode("utf-8")
-            except UnicodeDecodeError as exc:
-                raise ValueError(f"Invalid text field: {field_name}") from exc
-
-        return payload, images
-
-    def _is_multipart_request(self) -> bool:
-        return self.headers.get("Content-Type", "").lower().startswith("multipart/form-data")
-
-    def _read_ai_recipe_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
-        """Read an AI recipe request, which may carry multipart image uploads."""
-        if not self._is_multipart_request():
-            return self._read_json_payload(), []
-
-        payload, images = self._read_multipart_payload()
-        if "stream" in payload:
-            if payload["stream"] not in {"true", "false"}:
-                raise ValueError("Invalid stream value")
-            payload["stream"] = payload["stream"] == "true"
-        return payload, images
-
-    def _read_recipe_payload(self) -> tuple[dict, list[tuple[str, bytes]]]:
-        if not self._is_multipart_request():
-            return self._read_json_payload(), []
-
-        payload, images = self._read_multipart_payload()
-        if "metadata" in payload:
-            try:
-                payload["metadata"] = json.loads(payload["metadata"])
-            except json.JSONDecodeError as exc:
-                raise ValueError("Invalid metadata JSON") from exc
-        if "createFolder" in payload:
-            if payload["createFolder"] not in {"true", "false"}:
-                raise ValueError("Invalid createFolder value")
-            payload["createFolder"] = payload["createFolder"] == "true"
-
-        return payload, images
-
-    # ----- image upload validation -----------------------------------------
-
-    def _validate_uploaded_images(self, images: list[tuple[str, bytes]]) -> list[tuple[str, bytes]]:
-        if len(images) > self.MAX_IMAGE_UPLOAD_COUNT:
-            raise ValueError(f"Upload no more than {self.MAX_IMAGE_UPLOAD_COUNT} images at a time")
-
-        validated = []
-        names = set()
-        total_size = 0
-        for filename, content in images:
-            validate_image_filename(filename)
-            if Path(filename).suffix.lower() not in IMAGE_EXTENSIONS:
-                raise ValueError(f"Unsupported image type: {filename}")
-            if not content:
-                raise ValueError(f"Image is empty: {filename}")
-            validate_image_content(filename, content)
-
-            normalized_name = filename.casefold()
-            if normalized_name in names:
-                raise ValueError(f"Duplicate image filename: {filename}")
-            names.add(normalized_name)
-            total_size += len(content)
-            if total_size > self.MAX_IMAGE_UPLOAD_SIZE:
-                raise _RequestTooLarge("Image upload request too large")
-            validated.append((filename, content))
-
-        return validated
-
-    @staticmethod
-    def _write_uploaded_images(directory: Path, images: list[tuple[str, bytes]]) -> list[Path]:
-        existing_names = {entry.name.casefold() for entry in directory.iterdir()}
-        for filename, _ in images:
-            if filename.casefold() in existing_names:
-                raise FileExistsError(f"An item named {filename} already exists in the recipe folder")
-
-        written = []
-        try:
-            for filename, content in images:
-                image_path = directory / filename
-                with image_path.open("xb") as image_file:
-                    written.append(image_path)
-                    image_file.write(content)
-        except Exception:
-            RecipeRequestHandler._remove_uploaded_images(written)
-            raise
-        return written
-
-    @staticmethod
-    def _remove_uploaded_images(images: list[Path]) -> None:
-        for image in images:
-            image.unlink(missing_ok=True)
 
     # ----- path safety and folder helpers ----------------------------------
 

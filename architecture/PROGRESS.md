@@ -265,6 +265,15 @@ Clean full suite covering both batches, with no edits during execution:
 **680 passed, 20 skipped** in 445 s. Formatting and docs generation clean.
 `server.py` is down to 2734 lines from the 3262-line baseline.
 
+### Batch 20 — request parsing leaves the HTTP layer (pending commit)
+
+`request_payload.py` now owns Content-Length checks, JSON decoding, multipart
+parsing, the two payload dialects, upload validation, and staged image writes.
+The handler supplies its stream, headers, and limits and calls the module
+directly; its duplicated helpers are deleted. Evidence: `5 passed` for the new
+payload tests and `125 passed` across architecture, HTTP, image API, AI,
+creation, and bulk tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -302,3 +311,4 @@ the rest.
 | 17    | focused 65 + 142 passed; final clean full 664 passed, 20 skipped              | clean      | generated, no broken local links | `56716ec` |
 | 18    | focused 207 passed; covered by the final 680-passed run                       | clean      | generated, no broken local links | `7645f6b` |
 | 19    | focused 75 + 69 passed; final clean full 680 passed, 20 skipped               | clean      | generated, no broken local links | `16b053c` |
+| 20    | focused 5 + 125 passed; clean full run pending                                | clean      | generated                        | pending   |
