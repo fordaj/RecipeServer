@@ -340,6 +340,12 @@ keep-alive test caught as a hang; it is restored via `AuthAction.success`.
 Evidence: `81 passed` for auth endpoint, auth API/OIDC/session, architecture,
 and bulk tests.
 
+### Batch 24 verification (final)
+
+Clean full suite with no deselection and no edits during execution:
+**709 passed, 20 skipped** in 447 s. Formatting and docs generation clean.
+`server.py` is down to 2359 lines from the 3262-line baseline (−903).
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -381,4 +387,4 @@ the rest.
 | 21    | focused 71 passed; final clean full 692 passed, 20 skipped (no deselection)            | clean      | generated, no broken local links | `a70a25d` |
 | 22    | focused 112 passed; final clean full 697 passed, 20 skipped                            | clean      | generated, no broken local links | `2956595` |
 | 23    | focused 102 passed; final clean full 702 passed, 20 skipped                            | clean      | generated, no broken local links | `f174d27` |
-| 24    | focused 81 passed; full run pending                                                    | clean      | generated                        | pending   |
+| 24    | focused 81 passed; final clean full 709 passed, 20 skipped                             | clean      | generated, no broken local links | `52421b7` |
