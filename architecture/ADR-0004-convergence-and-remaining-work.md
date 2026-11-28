@@ -2,41 +2,44 @@
 
 ```mermaid
 flowchart TD
-    done("<img src='barnacle:check.svg' width='20' alt=''/><br/><u>10 batches<br/>canonical owners</u>") --> guard("<img src='barnacle:shield.svg' width='20' alt=''/><br/><u>CI tests<br/>enforce the rules</u>")
-    guard --> remaining("<img src='barnacle:list.svg' width='20' alt=''/><br/><u>Large refactors<br/>deferred</u>")
+    early("<img src='barnacle:check.svg' width='20' alt=''/><br/><u>10 batches<br/>first owners</u>") --> later("<img src='barnacle:check.svg' width='20' alt=''/><br/><u>14 more<br/>server decomposition</u>")
+    later --> guard("<img src='barnacle:shield.svg' width='20' alt=''/><br/><u>CI tests<br/>enforce the rules</u>")
+    guard --> remaining("<img src='barnacle:list.svg' width='20' alt=''/><br/><u>Optional browser<br/>controller sharing</u>")
     click remaining href "TASK_POOL.md"
 ```
 
 ## Status
 
-Accepted.
+Accepted; superseded in scope by batches 11–24 (the decision to stop was
+revisited and the deferred items were completed).
 
 ## Context
 
-Ten batches have moved the codebase toward the target architecture: canonical
-owners for library paths, startup, SSE framing, math rendering, image
-extensions, accent colors, title extraction, and several config defaults; dead
-code removed; structural tests added to CI.
+The first ten batches established canonical owners for paths, startup, SSE
+framing, math rendering, image extensions, accent colors, title extraction, and
+config defaults. This ADR originally recorded the large `server.py`
+decomposition, front-matter validation, and browser controller sharing as
+deferred.
 
 ## Decision
 
-Stop here rather than start the large, higher-risk decompositions in the same
-programme:
+The deferred items were subsequently taken up as bounded batches rather than
+left open:
 
-- Splitting `server.py` (3262 lines) into cohesive modules without creating
-  forwarding shells.
-- Consolidating front-matter validation across `server.py`, `ai_recipe.py`,
-  `ai_assistant.py`, and `recipe_utils.py`.
-- Sharing the browser SSE reader and dictation controller between the recipe
-  editor and the assistant.
-
-These are recorded as `candidate`/`deferred` in [TASK_POOL.md](TASK_POOL.md)
-with evidence. Each needs a dedicated behavioural baseline, a migration of
-all callers, and its own verification cycle.
+- `server.py` was decomposed into `request_payload`, `recipe_images`,
+  `recipe_history_api`, `ai_streaming`, `config_endpoints`, and `auth_endpoints`;
+  it went from 3262 to 2359 lines while keeping routing and response codes.
+- Front-matter validation moved to `recipe_metadata`; config defaults and the
+  retention policy moved to leaf modules.
+- The browser SSE reader was unified in `assets/sse.js`. Dictation-controller
+  sharing between the search button and the assistant remains an optional
+  candidate: the two triggers have different labels and insertion policies, so
+  the duplication there is small and deliberate.
 
 ## Consequences
 
-The current state is internally consistent and fully verified; remaining work
-is additive and can be taken up in focused batches without invalidating the
-decisions recorded here. Structural tests fail loudly if a replaced
-duplication returns.
+The task pool has no unaddressed high-value architectural deviations. Every
+structural rule is enforced by tests in CI, and the full suite passes without
+deselection. A future change should preserve the ownership boundaries listed in
+[TASK_POOL.md](TASK_POOL.md); the AST tests fail if a replaced duplication
+returns.
