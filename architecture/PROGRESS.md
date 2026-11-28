@@ -407,6 +407,16 @@ dates. Evidence: `71 passed` for date-label, architecture, and conversion tests.
 Clean full suite with no deselection and no edits during execution:
 **722 passed, 20 skipped** in 455 s. Formatting and docs generation clean.
 
+### Batch 29 — one lazy KaTeX loader (pending commit)
+
+`assets/katex-loader.js` owns on-demand KaTeX loading with an `autoRender`
+option, script-load timeouts, and — unlike both originals — discards failed
+script tags so the promise can be retried. The assistant and shopping list
+delegate with their respective flags. Node tests cover success, auto-render,
+no-duplicate loads, and retry after failure; AST/load-order tests prevent the
+copies returning. Evidence: `66 passed` for loader, architecture, service
+worker, and AI progress tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -453,3 +463,4 @@ the rest.
 | 26    | focused 61 passed; final clean full 716 passed, 20 skipped                             | clean      | generated, no broken local links | `b186f7b` |
 | 27    | focused 89 passed; final clean full 717 passed, 20 skipped                             | clean      | generated, no broken local links | `ae97984` |
 | 28    | focused 71 passed; final clean full 722 passed, 20 skipped                             | clean      | generated, no broken local links | `ff90fc7` |
+| 29    | focused 66 passed; full run pending                                                    | clean      | generated                        | pending   |

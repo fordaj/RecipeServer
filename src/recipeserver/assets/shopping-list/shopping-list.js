@@ -3,8 +3,6 @@
   const SHOPPING_LIST_ASSETS = "/assets/shopping-list";
   const SHOPPING_LIST_API = "/api/shopping-list";
   const RECIPE_SCALER_URL = "/assets/recipe-scaler.html";
-  const KATEX_CSS_URL = "/assets/katex/dist/katex.min.css";
-  const KATEX_JS_URL = "/assets/katex/dist/katex.min.js";
   const PRINTER_ICON_URL = "/assets/printer.svg";
   const LIST_ICON_URL = "/assets/list.svg";
   const COPY_ICON_URL = "/assets/copy.svg";
@@ -18,7 +16,6 @@
   let dialog = null;
   let state = null;
   let scalerMarkup = "";
-  let katexPromise = null;
   let loading = false;
 
   // ----- Markup and assets ----- //
@@ -70,35 +67,6 @@
 
     scalerMarkup = await response.text();
     return scalerMarkup;
-  }
-
-  // KaTeX is only needed once the shopping list opens, so it is loaded on demand
-  // instead of on every index page view.
-  function loadKatex() {
-    if (typeof window.katex?.render === "function") return Promise.resolve();
-    if (katexPromise) return katexPromise;
-
-    katexPromise = new Promise((resolve, reject) => {
-      if (!document.querySelector(`link[href="${KATEX_CSS_URL}"]`)) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = KATEX_CSS_URL;
-        document.head.append(link);
-      }
-
-      const existing = document.querySelector(`script[src="${KATEX_JS_URL}"]`);
-      const script = existing ?? document.createElement("script");
-
-      script.addEventListener("load", () => resolve());
-      script.addEventListener("error", () => reject(new Error("Unable to load KaTeX")));
-
-      if (!existing) {
-        script.src = KATEX_JS_URL;
-        document.head.append(script);
-      }
-    });
-
-    return katexPromise;
   }
 
   // ----- API ----- //
@@ -541,7 +509,7 @@
           requestIngredients(paths),
         ]);
         scalerMarkup = markup;
-        await loadKatex();
+        await window.RecipeKatexLoader.ensureKatex({ autoRender: false });
 
         const ingredientsByPath = new Map(
           (payload.recipes ?? []).map((recipe) => [recipe.path, recipe.ingredients ?? []]),

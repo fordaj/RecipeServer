@@ -29,9 +29,6 @@
   const SEND_ICON_URL = "/assets/send.svg";
   const MICROPHONE_ICON_URL = "/assets/microphone.svg";
   const CHECKMARK_ICON_URL = "/assets/checkmark.svg";
-  const KATEX_CSS_URL = "/assets/katex/dist/katex.min.css";
-  const KATEX_JS_URL = "/assets/katex/dist/katex.min.js";
-  const KATEX_AUTO_RENDER_URL = "/assets/katex/dist/contrib/auto-render.min.js";
   // Give the browser a moment to show the assistant's reply before the
   // open_recipe redirect navigates the page away.
   const OPEN_REDIRECT_DELAY_MS = 1200;
@@ -95,75 +92,6 @@
   // The recipe pages ship KaTeX on every page; the index does not, so the
   // bubble loads it on first rendered message instead of every page view.
 
-  let katexPromise = null;
-
-  function loadScript(url) {
-    return new Promise((resolve, reject) => {
-      const SCRIPT_LOAD_TIMEOUT_MS = 8000;
-      const existing = document.querySelector(`script[src="${url}"]`);
-      if (existing && existing.dataset.loaded === "true") {
-        resolve();
-        return;
-      }
-
-      const script = existing ?? document.createElement("script");
-      let timeout = 0;
-      const cleanup = () => window.clearTimeout(timeout);
-      script.addEventListener("load", () => {
-        cleanup();
-        script.dataset.loaded = "true";
-        resolve();
-      });
-      script.addEventListener("error", () => {
-        cleanup();
-        reject(new Error(`Unable to load ${url}`));
-      });
-      timeout = window.setTimeout(() => {
-        // The tag exists but its load event already fired (eagerly loaded,
-        // e.g. on a recipe page, and failed there). Bounded wait, then fall back.
-        reject(new Error(`Timed out loading ${url}`));
-      }, SCRIPT_LOAD_TIMEOUT_MS);
-      if (!existing) {
-        script.src = url;
-        script.defer = true;
-        document.head.append(script);
-      }
-    });
-  }
-
-  function loadKatex() {
-    if (
-      typeof window.katex?.render === "function" &&
-      typeof window.renderMathInElement === "function"
-    ) {
-      return Promise.resolve();
-    }
-    if (katexPromise) {
-      return katexPromise;
-    }
-
-    katexPromise = (async () => {
-      if (!document.querySelector(`link[href="${KATEX_CSS_URL}"]`)) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = KATEX_CSS_URL;
-        document.head.append(link);
-      }
-
-      if (typeof window.katex?.render !== "function") {
-        await loadScript(KATEX_JS_URL);
-      }
-      if (typeof window.renderMathInElement !== "function") {
-        await loadScript(KATEX_AUTO_RENDER_URL);
-      }
-    })().catch((error) => {
-      katexPromise = null;
-      throw error;
-    });
-
-    return katexPromise;
-  }
-
   // Server-side Markdown rendering (same pipeline as the recipe bodies).
   async function fetchRenderedMarkdown(text) {
     const result = await window.RecipeApi.requestJson(ASSISTANT_MARKDOWN_API, {
@@ -213,7 +141,7 @@
 
   async function renderMathInBubble(bubble) {
     try {
-      await loadKatex();
+      await window.RecipeKatexLoader.ensureKatex({ autoRender: true });
     } catch (error) {
       // The page still shows the amounts as plain fractions; not fatal.
       console.warn("KaTeX could not be loaded for the chat message.", error);

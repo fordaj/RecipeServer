@@ -115,6 +115,13 @@ BROWSER_API_BUNDLES = (
 )
 
 
+def test_browser_katex_loading_has_one_owner():
+    for relative in ("ai-assistant/ai-assistant.js", "shopping-list/shopping-list.js"):
+        source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")
+        assert "RecipeKatexLoader" in source
+        assert "katex.min.js" not in source
+
+
 def test_browser_date_labels_have_one_owner():
     for relative in ("time.js", "recipe-history/timeline.js"):
         source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")
