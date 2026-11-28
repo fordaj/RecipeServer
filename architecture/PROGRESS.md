@@ -296,6 +296,12 @@ confirm text and for `document.readyState === "complete"` with longer
 timeouts, so the order-dependent full-suite failure is addressed rather than
 deselected (`1e36769`).
 
+### Batch 21 verification (final)
+
+Clean full suite with no deselection and no edits during execution:
+**692 passed, 20 skipped** in 448 s. Formatting and docs generation clean.
+`server.py` is down to 2491 lines from the 3262-line baseline.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -334,4 +340,4 @@ the rest.
 | 18    | focused 207 passed; covered by the final 680-passed run                                | clean      | generated, no broken local links | `7645f6b` |
 | 19    | focused 75 + 69 passed; final clean full 680 passed, 20 skipped                        | clean      | generated, no broken local links | `16b053c` |
 | 20    | focused 5 + 125 passed; full 685 passed, 1 known order-flaky e2e; deselected run clean | clean      | generated, no broken links       | `091d286` |
-| 21    | focused 71 passed; full run pending                                                    | clean      | generated                        | pending   |
+| 21    | focused 71 passed; final clean full 692 passed, 20 skipped (no deselection)            | clean      | generated, no broken local links | `a70a25d` |
