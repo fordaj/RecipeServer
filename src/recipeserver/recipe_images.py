@@ -8,7 +8,17 @@ independently of the request handler that calls them.
 from __future__ import annotations
 
 import re
+import xml.etree.ElementTree as ET
+from io import BytesIO
+from pathlib import PureWindowsPath
 from urllib.parse import quote, unquote
+
+from PIL import Image, UnidentifiedImageError
+
+from .image_handler import IMAGE_EXTENSIONS
+from .recipe_utils import is_windows_reserved_name
+
+_SVG_BLOCKED_TAGS = frozenset({"script", "foreignobject"})
 
 # Match a Markdown image reference: the src token (optionally in angle brackets)
 # followed by an optional title and the closing paren. Only the src is captured.
@@ -120,3 +130,85 @@ def fallback_main_image(content: str, deleted_name: str, remaining_names: list[s
         return content[: first["src_start"]] + replacement + content[first["src_end"] :], target
 
     return remove_image_span(content, first["span_start"], first["span_end"]), None
+
+
+# ----- Uploaded image validation ----- #
+
+
+def _xml_local_name(name: str) -> str:
+    """Strip any XML namespace from a tag or attribute name."""
+    return name.rsplit("}", 1)[-1].lower()
+
+
+def validate_image_filename(filename: str) -> None:
+    windows_path = PureWindowsPath(filename)
+    if (
+        not filename
+        or filename in {".", ".."}
+        or "/" in filename
+        or "\\" in filename
+        or windows_path.name != filename
+        or any(ord(character) < 32 or character in '<>:"|?*' for character in filename)
+        or filename.endswith((".", " "))
+    ):
+        raise ValueError("Invalid image filename")
+
+    if is_windows_reserved_name(filename.split(".", 1)[0]):
+        raise ValueError("Invalid image filename")
+
+
+def validate_svg_attribute(filename: str, attribute: str, value: str) -> None:
+    """Reject event-handler attributes and external references in an SVG."""
+    attr_name = _xml_local_name(attribute)
+    if attr_name.startswith("on"):
+        raise ValueError(f"SVG contains unsupported active content: {filename}")
+
+    if attr_name not in {"href", "style"}:
+        return
+
+    lowered_value = value.lower()
+    references_external_url = "url(" in lowered_value and "url(#" not in lowered_value
+    references_external_href = attribute.lower().endswith("href") and not value.startswith("#")
+    if references_external_url or references_external_href:
+        raise ValueError(f"SVG contains unsupported external content: {filename}")
+
+
+def validate_image_name(name: str, *, field: str) -> str:
+    """Validate a bare image filename (no directories) for the rename API."""
+    try:
+        validate_image_filename(name)
+    except ValueError as exc:
+        raise ValueError(f"{field}: {exc}") from exc
+    if PureWindowsPath(name).suffix.lower() not in IMAGE_EXTENSIONS:
+        raise ValueError(f"{field} must keep a supported image extension ({', '.join(sorted(IMAGE_EXTENSIONS))})")
+    return name
+
+
+def validate_svg_content(filename: str, content: bytes) -> None:
+    if b"<!doctype" in content.lower():
+        raise ValueError(f"Invalid SVG image: {filename}")
+    try:
+        root = ET.fromstring(content)
+    except ET.ParseError as exc:
+        raise ValueError(f"Invalid SVG image: {filename}") from exc
+    if _xml_local_name(root.tag) != "svg":
+        raise ValueError(f"Invalid SVG image: {filename}")
+
+    for element in root.iter():
+        if _xml_local_name(element.tag) in _SVG_BLOCKED_TAGS:
+            raise ValueError(f"SVG contains unsupported active content: {filename}")
+        for attribute, value in element.attrib.items():
+            validate_svg_attribute(filename, attribute, value)
+
+
+def validate_image_content(filename: str, content: bytes) -> None:
+    extension = PureWindowsPath(filename).suffix.lower()
+    if extension == ".svg":
+        validate_svg_content(filename, content)
+        return
+
+    try:
+        with Image.open(BytesIO(content)) as image:
+            image.verify()
+    except (OSError, UnidentifiedImageError) as exc:
+        raise ValueError(f"Invalid image file: {filename}") from exc

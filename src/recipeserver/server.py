@@ -18,21 +18,18 @@ import socket
 import sys
 import tempfile
 import time
-import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from email.message import Message
 from email.parser import BytesParser
 from email.policy import default
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
-from io import BytesIO
 from mimetypes import guess_type
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 from threading import Thread
 from urllib.parse import parse_qs, quote, urlsplit
 
 import frontmatter
-from PIL import Image, UnidentifiedImageError
 
 from . import ai_assistant, ai_recipe, assistant_render
 from . import history as recipe_history
@@ -58,7 +55,14 @@ from .config_defaults import (
 )
 from .image_handler import IMAGE_EXTENSIONS
 from .metadata_options import collect_metadata_options
-from .recipe_images import fallback_main_image, image_name_pattern, replace_image_reference
+from .recipe_images import (
+    fallback_main_image,
+    image_name_pattern,
+    replace_image_reference,
+    validate_image_content,
+    validate_image_filename,
+    validate_image_name,
+)
 from .recipe_metadata import (
     BULK_EDITABLE_FIELDS,
     EDITOR_METADATA_FIELDS,
@@ -82,6 +86,7 @@ from .recipe_utils import (
     extract_recipe_id,
     is_finite_rating_score,
     is_valid_recipe_id,
+    is_windows_reserved_name,
     json_default,
     new_recipe_id,
     normalize_reviewer_name,
@@ -147,14 +152,7 @@ transcriber = get_transcriber()
 RECIPE_FOLDER_NAME_MAX_BYTES = 200
 MARKDOWN_NOT_FOUND_ERROR = "Markdown file not found"
 
-# Windows device names that may not be used as filenames (with or without an
-# extension). Applied to both recipe folder names and image filenames.
-WINDOWS_RESERVED_FILENAMES = frozenset(
-    {"CON", "PRN", "AUX", "NUL"} | {f"COM{number}" for number in range(1, 10)} | {f"LPT{number}" for number in range(1, 10)}
-)
-
 # SVG elements that can carry executable or externally loaded content.
-_SVG_BLOCKED_TAGS = frozenset({"script", "foreignobject"})
 
 
 class _RequestTooLarge(ValueError):
@@ -287,35 +285,6 @@ def _update_recipe_post(path: Path, mutate: Callable[[frontmatter.Post], None]) 
     return post, changed
 
 
-def _is_windows_reserved_name(stem: str) -> bool:
-    """Check a filename stem (no extension) against Windows reserved device names."""
-    return stem.upper() in WINDOWS_RESERVED_FILENAMES
-
-
-def _xml_local_name(name: str) -> str:
-    """Strip any XML namespace from a tag or attribute name."""
-    return name.rsplit("}", 1)[-1].lower()
-
-
-def _recipe_folder_name(content: str, metadata: dict) -> str:
-    """Choose the new recipe's folder name from its heading or title."""
-    heading = re.search(r"^\s{0,3}#\s+(?P<heading>.+?)\s*#*\s*$", content, re.MULTILINE)
-    title = heading.group("heading") if heading else metadata.get("title")
-    if not isinstance(title, str):
-        title = ""
-
-    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', " ", title)
-    name = " ".join(name.split()).strip(" .")
-    if not name:
-        name = "New Recipe"
-
-    encoded_name = name.encode("utf-8")[:RECIPE_FOLDER_NAME_MAX_BYTES]
-    name = encoded_name.decode("utf-8", errors="ignore").rstrip(" .") or "New Recipe"
-    if _is_windows_reserved_name(name):
-        name = f"_{name}"
-    return name
-
-
 # ---------------------------------------------------------------------------
 # Bulk operation validation
 # ---------------------------------------------------------------------------
@@ -356,47 +325,22 @@ def _validate_bulk_fields(value: object) -> list[str]:
 # reference rewriting.
 
 
-def _validate_image_filename(filename: str) -> None:
-    windows_path = PureWindowsPath(filename)
-    if (
-        not filename
-        or filename in {".", ".."}
-        or "/" in filename
-        or "\\" in filename
-        or windows_path.name != filename
-        or any(ord(character) < 32 or character in '<>:"|?*' for character in filename)
-        or filename.endswith((".", " "))
-    ):
-        raise ValueError("Invalid image filename")
+def _recipe_folder_name(content: str, metadata: dict) -> str:
+    """Choose the new recipe's folder name from its heading or title."""
+    heading = re.search(r"^\s{0,3}#\s+(?P<heading>.+?)\s*#*\s*$", content, re.MULTILINE)
+    title = heading.group("heading") if heading else metadata.get("title")
+    if not isinstance(title, str):
+        title = ""
 
-    if _is_windows_reserved_name(filename.split(".", 1)[0]):
-        raise ValueError("Invalid image filename")
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', " ", title)
+    name = " ".join(name.split()).strip(" .")
+    if not name:
+        name = "New Recipe"
 
-
-def _validate_svg_attribute(filename: str, attribute: str, value: str) -> None:
-    """Reject event-handler attributes and external references in an SVG."""
-    attr_name = _xml_local_name(attribute)
-    if attr_name.startswith("on"):
-        raise ValueError(f"SVG contains unsupported active content: {filename}")
-
-    if attr_name not in {"href", "style"}:
-        return
-
-    lowered_value = value.lower()
-    references_external_url = "url(" in lowered_value and "url(#" not in lowered_value
-    references_external_href = attribute.lower().endswith("href") and not value.startswith("#")
-    if references_external_url or references_external_href:
-        raise ValueError(f"SVG contains unsupported external content: {filename}")
-
-
-def _validate_image_name(name: str, *, field: str) -> str:
-    """Validate a bare image filename (no directories) for the rename API."""
-    try:
-        _validate_image_filename(name)
-    except ValueError as exc:
-        raise ValueError(f"{field}: {exc}") from exc
-    if Path(name).suffix.lower() not in IMAGE_EXTENSIONS:
-        raise ValueError(f"{field} must keep a supported image extension ({', '.join(sorted(IMAGE_EXTENSIONS))})")
+    encoded_name = name.encode("utf-8")[:RECIPE_FOLDER_NAME_MAX_BYTES]
+    name = encoded_name.decode("utf-8", errors="ignore").rstrip(" .") or "New Recipe"
+    if is_windows_reserved_name(name):
+        name = f"_{name}"
     return name
 
 
@@ -1724,8 +1668,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             file_path = self._resolve_existing_markdown_path(path)
             if file_path is None:
                 return
-            source_name = _validate_image_name(from_name, field="from")
-            target_name = _validate_image_name(to_name, field="to")
+            source_name = validate_image_name(from_name, field="from")
+            target_name = validate_image_name(to_name, field="to")
             if source_name == target_name:
                 raise ValueError("Enter a different name to rename the image")
         except (_RequestTooLarge, ValueError) as exc:
@@ -1844,7 +1788,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             file_path = self._resolve_existing_markdown_path(path)
             if file_path is None:
                 return
-            image_name = _validate_image_name(name, field="name")
+            image_name = validate_image_name(name, field="name")
         except (_RequestTooLarge, ValueError) as exc:
             self._send_payload_error(exc)
             return
@@ -2556,12 +2500,12 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         names = set()
         total_size = 0
         for filename, content in images:
-            _validate_image_filename(filename)
+            validate_image_filename(filename)
             if Path(filename).suffix.lower() not in IMAGE_EXTENSIONS:
                 raise ValueError(f"Unsupported image type: {filename}")
             if not content:
                 raise ValueError(f"Image is empty: {filename}")
-            self._validate_image_content(filename, content)
+            validate_image_content(filename, content)
 
             normalized_name = filename.casefold()
             if normalized_name in names:
@@ -2573,36 +2517,6 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             validated.append((filename, content))
 
         return validated
-
-    @staticmethod
-    def _validate_image_content(filename: str, content: bytes) -> None:
-        extension = Path(filename).suffix.lower()
-        if extension == ".svg":
-            RecipeRequestHandler._validate_svg_content(filename, content)
-            return
-
-        try:
-            with Image.open(BytesIO(content)) as image:
-                image.verify()
-        except (OSError, UnidentifiedImageError) as exc:
-            raise ValueError(f"Invalid image file: {filename}") from exc
-
-    @staticmethod
-    def _validate_svg_content(filename: str, content: bytes) -> None:
-        if b"<!doctype" in content.lower():
-            raise ValueError(f"Invalid SVG image: {filename}")
-        try:
-            root = ET.fromstring(content)
-        except ET.ParseError as exc:
-            raise ValueError(f"Invalid SVG image: {filename}") from exc
-        if _xml_local_name(root.tag) != "svg":
-            raise ValueError(f"Invalid SVG image: {filename}")
-
-        for element in root.iter():
-            if _xml_local_name(element.tag) in _SVG_BLOCKED_TAGS:
-                raise ValueError(f"SVG contains unsupported active content: {filename}")
-            for attribute, value in element.attrib.items():
-                _validate_svg_attribute(filename, attribute, value)
 
     @staticmethod
     def _write_uploaded_images(directory: Path, images: list[tuple[str, bytes]]) -> list[Path]:

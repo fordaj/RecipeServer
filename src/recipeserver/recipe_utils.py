@@ -24,6 +24,17 @@ LEGACY_CATEGORY_FIELD = "category"
 # Identity never depends on the file path, so renames and moves keep history.
 RECIPE_ID_FIELD = "recipe_id"
 
+# Windows device names may not be used as a file or folder name, with or
+# without an extension. Shared by recipe folder naming and image validation.
+WINDOWS_RESERVED_FILENAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"} | {f"COM{number}" for number in range(1, 10)} | {f"LPT{number}" for number in range(1, 10)}
+)
+
+
+def is_windows_reserved_name(stem: str) -> bool:
+    return stem.upper() in WINDOWS_RESERVED_FILENAMES
+
+
 # Source fields the editor and the AI drafts know how to render and save.
 SOURCE_FIELDS = ("author", "title", "format", "url")
 # Canonical labels for the source format, keyed by its lower-cased spelling.

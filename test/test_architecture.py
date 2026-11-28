@@ -145,8 +145,8 @@ def test_editor_metadata_schema_and_validation_have_one_owner():
 
 def test_image_reference_rules_do_not_live_in_the_http_layer():
     server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
-    assert "def fallback_main_image" not in server_source
-    assert "def first_image_reference" not in server_source
+    for name in ("fallback_main_image", "first_image_reference", "validate_image_content", "validate_svg_content", "validate_image_name"):
+        assert f"def {name}" not in server_source
     assert "from .recipe_images import" in server_source
 
 

@@ -248,6 +248,17 @@ copies: keep-alive `"0"` in the AI drafter/config placeholders, the dictation
 AST tests enforce the single definition. Evidence: `207 passed` for the
 affected config, AI, rendering, tray, speech, and architecture tests.
 
+### Batch 19 — uploaded-image validation leaves the HTTP layer (pending commit)
+
+`recipe_images.py` now also owns image filename and content validation,
+including SVG active-content screening; the Windows reserved-name rule moved
+to `recipe_utils.py` so folder naming and image validation share it. The
+handler's duplicate helpers and static methods are deleted. A focused test
+caught an over-broad extraction that removed `_recipe_folder_name` again; it
+was restored and is covered by the architecture assertion. Evidence:
+`75 passed` for image, architecture, and image-API tests (69 passed for the
+wider API/creation set).
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -283,4 +294,5 @@ the rest.
 | 15    | focused 62 + 64 passed; final clean full 661 passed, 20 skipped               | clean      | generated, no broken local links | `94ccca1` |
 | 16    | focused 143 passed; final clean full 662 passed, 20 skipped                   | clean      | generated, no broken local links | `c6322c9` |
 | 17    | focused 65 + 142 passed; final clean full 664 passed, 20 skipped              | clean      | generated, no broken local links | `56716ec` |
-| 18    | focused 207 passed; clean full run pending                                    | clean      | generated                        | pending   |
+| 18    | focused 207 passed; final clean full run pending                              | clean      | generated, no broken local links | `7645f6b` |
+| 19    | focused 75 + 69 passed; clean full run pending                                | clean      | generated                        | pending   |

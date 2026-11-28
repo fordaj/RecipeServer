@@ -32,6 +32,12 @@ two in step.
   hero at the first remaining name after a delete, or remove the dangling link;
   returns `(content, new_name)` or `(None, None)` when nothing changed.
 
+The same module validates uploaded image names and content:
+`validate_image_filename`, `validate_image_name`, `validate_image_content`, and
+`validate_svg_content` (SVG scripts, event handlers, and external references
+are rejected). Those are file rules, so they sit with the reference rules
+rather than in the HTTP handler.
+
 ## Callers
 
 [server.py.md](server.py.md) uses these helpers in the rename, upload, and

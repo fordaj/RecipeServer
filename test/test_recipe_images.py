@@ -1,11 +1,20 @@
 """Text rules for rewriting image references in recipe Markdown."""
 
+from io import BytesIO
+
+from PIL import Image
+import pytest
+
 from recipeserver.recipe_images import (
     basename_of_src,
     fallback_main_image,
     first_image_reference,
     is_external_src,
     replace_image_reference,
+    validate_image_content,
+    validate_image_filename,
+    validate_image_name,
+    validate_svg_content,
 )
 
 
@@ -31,6 +40,37 @@ def test_source_helpers_ignore_query_fragment_and_entities():
     assert basename_of_src("dir/a&amp;b.png") == "a&b.png"
     assert is_external_src("https://example.com/a.png")
     assert not is_external_src("images/a.png")
+
+
+@pytest.mark.parametrize("name", ["", "..", "../a.png", "C:\\a.png", "CON.png", "a b.png "])
+def test_validate_image_filename_rejects_unsafe_names(name: str):
+    with pytest.raises(ValueError):
+        validate_image_filename(name)
+
+
+def test_validate_image_name_requires_a_supported_extension():
+    assert validate_image_name("photo.PNG", field="name") == "photo.PNG"
+    with pytest.raises(ValueError, match="supported image extension"):
+        validate_image_name("notes.txt", field="name")
+
+
+def test_validate_image_content_accepts_real_images_and_rejects_garbage():
+    buffer = BytesIO()
+    Image.new("RGB", (4, 4)).save(buffer, format="PNG")
+    validate_image_content("photo.png", buffer.getvalue())
+    with pytest.raises(ValueError, match="Invalid image file"):
+        validate_image_content("photo.png", b"not an image")
+
+
+def test_validate_svg_content_rejects_active_content():
+    validate_svg_content("icon.svg", b'<svg xmlns="http://www.w3.org/2000/svg"><circle r="1"/></svg>')
+    for body in (
+        b"<!doctype svg><svg/>",
+        b'<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>',
+        b'<svg xmlns="http://www.w3.org/2000/svg"><a href="https://example.com"/></svg>',
+    ):
+        with pytest.raises(ValueError):
+            validate_svg_content("icon.svg", body)
 
 
 def test_fallback_main_image_uses_remaining_name_or_removes_link():
