@@ -28,9 +28,9 @@ from . import ai_assistant, ai_recipe, assistant_render
 from .ai_streaming import run_stream
 from . import history as recipe_history
 from .authorization import MUTATING_METHODS, AuthManager, Decision, Permission
-from .oidc import FLOW_TTL_SECONDS, OIDCError
+from .auth_endpoints import AuthAction, begin_login, finish_login, logout, queue_cookie_header
 from .retention import get_retention_manager
-from .session import FLOW_COOKIE, SESSION_COOKIE, clear_cookie_header, cookie_header, parse_cookies
+from .session import parse_cookies
 from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import (
@@ -515,11 +515,6 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
-    def _queue_cookie(self, name: str, value: str, max_age: int) -> None:
-        """Queue a Set-Cookie header using the live auth configuration."""
-        secure = bool(self.auth and self.auth.settings.secure_cookies)
-        self._pending_headers.append(("Set-Cookie", cookie_header(name, value, max_age, secure=secure)))
-
     def do_HEAD(self):
         if self._auth_gate("HEAD"):
             return
@@ -707,37 +702,37 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             return
         self._send_json(200, self.auth.status(self._identity))
 
+    def _apply_auth_action(self, action: AuthAction) -> None:
+        """Apply the cookie/redirect/error actions chosen by auth_endpoints."""
+        if action.clear_cookie is not None:
+            self._pending_headers.append(("Set-Cookie", action.clear_cookie))
+        if action.cookie is not None:
+            self._pending_headers.append(("Set-Cookie", queue_cookie_header(self.auth, action.cookie)))
+        if action.error is not None:
+            status, title, message = action.error
+            if action.error_json:
+                self._send_json(status, {"error": message})
+            else:
+                self._send_auth_error(status, title, message)
+            return
+        if action.redirect is not None:
+            self._redirect_to(action.redirect)
+        elif action.success:
+            self._send_json(200, {"success": True})
+
     def _handle_auth_login(self) -> None:
-        if not self._auth_available():
+        action = begin_login(self.auth, self.path)
+        if action is None:
             self.send_error(404, "Unknown API endpoint")
             return
-        query = parse_qs(urlsplit(self.path).query)
-        next_values = query.get("next", [])
-        try:
-            location, cookie = self.auth.begin_login(next_values[0] if next_values else "/")
-        except OIDCError as exc:
-            logger.warning(f"Unable to start OIDC login: {exc.detail or exc.message}")
-            self._send_auth_error(503, "Sign-in unavailable", "Sign-in is temporarily unavailable.")
-            return
-        self._queue_cookie(FLOW_COOKIE, cookie, FLOW_TTL_SECONDS)
-        self._redirect_to(location)
+        self._apply_auth_action(action)
 
     def _handle_auth_callback(self) -> None:
-        if not self._auth_available():
+        action = finish_login(self.auth, self.path, self.headers)
+        if action is None:
             self.send_error(404, "Unknown API endpoint")
             return
-        params = parse_qs(urlsplit(self.path).query)
-        flow_cookie = parse_cookies(self.headers.get("Cookie")).get(FLOW_COOKIE)
-        # The flow cookie is single-use: clear it even when the callback fails.
-        self._pending_headers.append(("Set-Cookie", clear_cookie_header(FLOW_COOKIE, secure=self._secure_cookies())))
-        try:
-            _session, cookie, return_to = self.auth.finish_login(params, flow_cookie)
-        except OIDCError as exc:
-            logger.warning(f"OIDC login failed: {exc.detail or exc.message}")
-            self._send_auth_error(400, "Sign-in failed", exc.message)
-            return
-        self._queue_cookie(SESSION_COOKIE, cookie, self.auth.settings.session_lifetime_minutes * 60)
-        self._redirect_to(return_to)
+        self._apply_auth_action(action)
 
     def _handle_auth_settings_get(self) -> None:
         if not self._auth_available():
@@ -1053,18 +1048,14 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _handle_auth_logout(self) -> None:
         """Clear the signed session cookie. Also requires a CSRF token."""
-        if not self._auth_available():
-            self._discard_request_body()
+        action = logout(self.auth, self._identity, self.headers)
+        # The browser posts "{}"; drain it before responding so keep-alive
+        # stays in sync (see _discard_request_body), including when auth is off.
+        self._discard_request_body()
+        if action is None:
             self.send_error(404, "Unknown API endpoint")
             return
-        # The browser posts "{}"; drain it before responding so keep-alive
-        # stays in sync (see _discard_request_body).
-        self._discard_request_body()
-        if self._identity is not None and not self.auth.csrf_ok(self.headers, self._identity):
-            self._send_json(403, {"error": "Invalid CSRF token"})
-            return
-        self._pending_headers.append(("Set-Cookie", clear_cookie_header(SESSION_COOKIE, secure=self._secure_cookies())))
-        self._send_json(200, {"success": True})
+        self._apply_auth_action(action)
 
     def _handle_config_update(self) -> None:
         try:

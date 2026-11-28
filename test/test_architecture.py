@@ -103,6 +103,14 @@ def test_config_defaults_is_a_leaf_module():
     assert not (_imported_names(_tree("config_defaults.py")) & {"config", "server", "core", "retention"})
 
 
+def test_auth_flow_decisions_are_not_in_the_handler():
+    server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
+    assert "def _queue_cookie" not in server_source
+    assert "self.auth.begin_login(" not in server_source
+    assert "self.auth.finish_login(" not in server_source
+    assert "from .auth_endpoints import" in server_source
+
+
 def test_config_and_auth_status_shapes_have_one_owner():
     server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
     for name in ("_probe_configured_models", "_transcription_settings", "_dictation_enabled"):

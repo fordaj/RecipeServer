@@ -331,6 +331,15 @@ Clean full suite with no deselection and no edits during execution:
 **702 passed, 20 skipped** in 448 s. Formatting and docs generation clean.
 `server.py` is down to 2368 lines from the 3262-line baseline (−894).
 
+### Batch 24 — auth flow decisions leave the handler (pending commit)
+
+`auth_endpoints.py` now owns the OIDC login/callback/logout decisions and
+returns a small `AuthAction` record; the handler applies its cookies, redirect,
+and error actions. A first migration lost logout's success response, which the
+keep-alive test caught as a hang; it is restored via `AuthAction.success`.
+Evidence: `81 passed` for auth endpoint, auth API/OIDC/session, architecture,
+and bulk tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -372,3 +381,4 @@ the rest.
 | 21    | focused 71 passed; final clean full 692 passed, 20 skipped (no deselection)            | clean      | generated, no broken local links | `a70a25d` |
 | 22    | focused 112 passed; final clean full 697 passed, 20 skipped                            | clean      | generated, no broken local links | `2956595` |
 | 23    | focused 102 passed; final clean full 702 passed, 20 skipped                            | clean      | generated, no broken local links | `f174d27` |
+| 24    | focused 81 passed; full run pending                                                    | clean      | generated                        | pending   |
