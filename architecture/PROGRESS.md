@@ -189,12 +189,13 @@ in `server.py`. Restored it and added an architectural assertion so it cannot
 be swept up in another extraction. Evidence: `72 passed` for creation, schema,
 architecture, archived, and makes tests.
 
-### Batch 14 verification
+### Batch 14 verification (final)
 
-Full suite after the fix: `657 passed, 20 skipped, 1 failed` — the failure is
-the known flaky `test/e2e/test_timeline.py::test_timeline_preview_compare_and_restore`,
-which passes in isolation (`3 passed` for the whole file) and has passed in
-earlier full runs. One more clean full run follows.
+One full run hit the known flaky
+`test/e2e/test_timeline.py::test_timeline_preview_compare_and_restore`
+(`657 passed, 20 skipped, 1 failed`); the file passes in isolation (`3 passed`).
+A clean re-run with no edits during execution: **658 passed, 20 skipped** in
+445 s. Formatting and docs generation are clean.
 
 ## Programme diff summary
 
@@ -227,4 +228,4 @@ the rest.
 | 12    | focused 98 passed, 1 skipped; final full run pending                          | clean      | generated                        | `9bdd859` |
 | 13    | focused 65 passed; clean final full run pending                               | clean      | generated                        | `6f358da` |
 | final | **648 passed, 20 skipped** (454 s), clean run with no mid-run edits           | clean      | generated, no broken local links | `e02c59a` |
-| 14    | focused 81 + 80 + 72 passed; full 657 passed, 20 skipped, 1 known flaky e2e   | clean      | generated                        | `0d7205a` |
+| 14    | focused 81 + 80 + 72 passed; final clean full 658 passed, 20 skipped          | clean      | generated, no broken local links | `0d7205a` |
