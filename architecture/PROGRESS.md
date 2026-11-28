@@ -375,6 +375,11 @@ assistant delegate to it; their local copies are deleted. Added node tests, a
 load-order test, and AST enforcement. Evidence: `61 passed` for page-path,
 architecture, ratings, and API wrapper tests.
 
+### Batch 26 verification (final)
+
+Clean full suite with no deselection and no edits during execution:
+**716 passed, 20 skipped** in 456 s. Formatting and docs generation clean.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -418,4 +423,4 @@ the rest.
 | 23    | focused 102 passed; final clean full 702 passed, 20 skipped                            | clean      | generated, no broken local links | `f174d27` |
 | 24    | focused 81 passed; final clean full 709 passed, 20 skipped                             | clean      | generated, no broken local links | `52421b7` |
 | 25    | focused 76 passed; clean full 712 passed, 20 skipped                                   | clean      | generated, no broken local links | `16a7035` |
-| 26    | focused 61 passed; full run pending                                                    | clean      | generated                        | pending   |
+| 26    | focused 61 passed; final clean full 716 passed, 20 skipped                             | clean      | generated, no broken local links | `b186f7b` |
