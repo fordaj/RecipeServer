@@ -68,6 +68,16 @@ def test_markdown_suffix_has_one_definition(relative_path: str):
     assert ".md" not in _string_literals(_tree(relative_path))
 
 
+@pytest.mark.parametrize("relative_path", ["server.py"])
+def test_both_streaming_endpoints_share_the_sse_framing(relative_path: str):
+    tree = _tree(relative_path)
+    for handler in ("_stream_ai_recipe", "_stream_ai_assistant"):
+        node = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == handler)
+        calls = {call.func.attr for call in ast.walk(node) if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)}
+        assert "_begin_event_stream" in calls
+        assert "_send_sse_event" in calls
+
+
 def test_http_and_assistant_path_checks_share_one_implementation():
     assert _delegates_to("server.py", "_resolve_markdown_path", "resolve_recipe_file")
     assert _delegates_to("ai_assistant.py", "_resolve_recipe_path", "resolve_recipe_file")

@@ -1750,7 +1750,8 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             logger.info(f"AI recipe generation succeeded ({len(result.get('content', ''))} characters of Markdown)")
             self._send_json(200, result)
 
-    def _stream_ai_recipe(self, request: dict) -> None:
+    def _begin_event_stream(self) -> None:
+        """Send the shared headers for a Server-Sent Events response."""
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -1759,37 +1760,41 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.close_connection = True
 
-        def send_event(event: dict) -> None:
-            event_type = str(event.get("type", "message")).replace("\n", "")
-            body = json.dumps(event, default=json_default).encode("utf-8")
-            try:
-                self.wfile.write(f"event: {event_type}\n".encode("utf-8"))
-                self.wfile.write(b"data: " + body + b"\n\n")
-                self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError) as exc:
-                raise _StreamClosed from exc
+    def _send_sse_event(self, event: dict) -> None:
+        """Write one SSE frame; a closed browser stream becomes ``_StreamClosed``."""
+        event_type = str(event.get("type", "message")).replace("\n", "")
+        body = json.dumps(event, default=json_default).encode("utf-8")
+        try:
+            self.wfile.write(f"event: {event_type}\n".encode("utf-8"))
+            self.wfile.write(b"data: " + body + b"\n\n")
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError) as exc:
+            raise _StreamClosed from exc
+
+    def _stream_ai_recipe(self, request: dict) -> None:
+        self._begin_event_stream()
 
         try:
-            result = self._generate_ai_recipe(request, event_callback=send_event)
+            result = self._generate_ai_recipe(request, event_callback=self._send_sse_event)
         except _StreamClosed:
             logger.debug("AI progress stream closed by the browser")
             return
         except (ai_recipe.ModelUnavailable, ai_recipe.ModelRequestError, ai_recipe.SourceFetchError, ValueError) as exc:
             logger.warning(f"AI recipe generation failed: {exc}")
             try:
-                send_event({"type": ai_recipe.EVENT_ERROR, "state": ai_recipe.STATUS_ERROR, "message": str(exc)})
+                self._send_sse_event({"type": ai_recipe.EVENT_ERROR, "state": ai_recipe.STATUS_ERROR, "message": str(exc)})
             except _StreamClosed:
                 pass
         except Exception:
             logger.exception("Failed to generate a recipe with the local model")
             try:
-                send_event({"type": ai_recipe.EVENT_ERROR, "state": ai_recipe.STATUS_ERROR, "message": "Unable to generate recipe"})
+                self._send_sse_event({"type": ai_recipe.EVENT_ERROR, "state": ai_recipe.STATUS_ERROR, "message": "Unable to generate recipe"})
             except _StreamClosed:
                 pass
         else:
             logger.info(f"AI recipe generation succeeded ({len(result.get('content', ''))} characters of Markdown)")
             try:
-                send_event({"type": ai_recipe.EVENT_RESULT, "result": result})
+                self._send_sse_event({"type": ai_recipe.EVENT_RESULT, "result": result})
             except _StreamClosed:
                 logger.debug("AI result was not delivered because the browser closed the stream")
 
@@ -1919,45 +1924,29 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             self._send_json(200, result)
 
     def _stream_ai_assistant(self, request: dict) -> None:
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Connection", "close")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
-        self.close_connection = True
-
-        def send_event(event: dict) -> None:
-            event_type = str(event.get("type", "message")).replace("\n", "")
-            body = json.dumps(event, default=json_default).encode("utf-8")
-            try:
-                self.wfile.write(f"event: {event_type}\n".encode("utf-8"))
-                self.wfile.write(b"data: " + body + b"\n\n")
-                self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError) as exc:
-                raise _StreamClosed from exc
+        self._begin_event_stream()
 
         try:
-            result = self._generate_ai_assistant(request, event_callback=send_event)
+            result = self._generate_ai_assistant(request, event_callback=self._send_sse_event)
         except _StreamClosed:
             logger.debug("AI assistant stream closed by the browser")
             return
         except (ai_recipe.ModelUnavailable, ai_recipe.ModelRequestError, ValueError) as exc:
             logger.warning(f"AI assistant failed: {exc}")
             try:
-                send_event({"type": ai_assistant.EVENT_ERROR, "state": ai_assistant.STATUS_ERROR, "message": str(exc)})
+                self._send_sse_event({"type": ai_assistant.EVENT_ERROR, "state": ai_assistant.STATUS_ERROR, "message": str(exc)})
             except _StreamClosed:
                 pass
         except Exception:
             logger.exception("Failed to run the AI assistant")
             try:
-                send_event({"type": ai_assistant.EVENT_ERROR, "state": ai_assistant.STATUS_ERROR, "message": "Unable to run the assistant"})
+                self._send_sse_event({"type": ai_assistant.EVENT_ERROR, "state": ai_assistant.STATUS_ERROR, "message": "Unable to run the assistant"})
             except _StreamClosed:
                 pass
         else:
             logger.info(f"AI assistant replied ({len(result.get('reply', ''))} characters, edited={result.get('edited')})")
             try:
-                send_event({"type": ai_assistant.EVENT_RESULT, "result": result})
+                self._send_sse_event({"type": ai_assistant.EVENT_RESULT, "result": result})
             except _StreamClosed:
                 logger.debug("AI assistant result was not delivered because the browser closed the stream")
 

@@ -18,7 +18,7 @@ flowchart TD
 
 The package owns one public function, `main()`, which is the console-script
 entry point declared in `pyproject.toml` (`recipeserver = "recipeserver:main"`)
-and the function [__main__.py.md](__main__.py.md) calls for
+and the function [**main**.py.md](__main__.py.md) calls for
 `python -m recipeserver`. Both routes therefore execute the same startup
 sequence, and the console script works without arguments.
 

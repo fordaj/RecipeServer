@@ -36,10 +36,7 @@ def test_module_entry_point_uses_the_same_sequence():
 
 
 def test_importing_a_leaf_module_does_not_load_the_server_stack():
-    program = (
-        "import sys; import recipeserver.shopping_list; "
-        "print('\\n'.join(sorted(m for m in sys.modules if m.startswith('recipeserver'))))"
-    )
+    program = "import sys; import recipeserver.shopping_list; " "print('\\n'.join(sorted(m for m in sys.modules if m.startswith('recipeserver'))))"
     result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
 

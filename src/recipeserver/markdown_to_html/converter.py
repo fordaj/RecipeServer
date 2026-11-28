@@ -85,13 +85,17 @@ class MarkdownToHTMLConverter:
         has_comments = self._has_comments(self.metadata)
 
         # ----- Render Markdown body ----- #
+        # Generic arithmatex output is what the vendored KaTeX auto-render
+        # understands (\(…\) / \[…\]). The chat renderer uses the same settings;
+        # test_math_rendering.py keeps the two in agreement.
         markdown_renderer = markdown.Markdown(
             extensions=[
                 "pymdownx.extra",
                 "pymdownx.blocks.html",
                 "pymdownx.tasklist",
                 "pymdownx.arithmatex",
-            ]
+            ],
+            extension_configs={"pymdownx.arithmatex": {"generic": True}},
         )
         body = markdown_renderer.convert(post.content)
 

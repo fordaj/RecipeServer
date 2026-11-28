@@ -4,7 +4,8 @@
 flowchart LR
     base("<img src='barnacle:check.svg' width='20' alt=''/><br/>Baseline") --> b1("<img src='barnacle:pen-line.svg' width='20' alt=''/><br/>Batch 1")
     b1 --> b2("<img src='barnacle:pen-line.svg' width='20' alt=''/><br/>Batch 2")
-    b2 --> next("<img src='barnacle:circle-dot.svg' width='20' alt=''/><br/>…")
+    b2 --> b3("<img src='barnacle:pen-line.svg' width='20' alt=''/><br/>Batch 3")
+    b3 --> next("<img src='barnacle:circle-dot.svg' width='20' alt=''/><br/>…")
     click next href "TASK_POOL.md"
 ```
 
@@ -15,7 +16,7 @@ Worktree: `arch-entropy` (isolated from `main`).
 - Commit: `f802330` (`fix(auth): attach CSRF token to same-origin browser writes`)
 - Command: `uv run pytest -q --disable-warnings`
 - Result: **580 passed, 19 skipped** (461 s)
-- Formatting: to be checked with `./scripts/format.sh --check` before each commit.
+- Formatting: `./scripts/format.sh --check` clean.
 
 ## Intended architecture (to converge toward)
 
@@ -30,27 +31,56 @@ Worktree: `arch-entropy` (isolated from `main`).
 
 ### Batch 0 — architecture governance (`9cdbf9c`)
 
-Created the progress file, task pool, and ADR-0001; excluded `architecture/`
-from the generated site. No production code changed. Formatting check clean.
+Progress file, task pool, and ADR-0001; `architecture/` excluded from the
+generated site. No production code changed.
 
-### Batch 1 — canonical library-path rules (in progress)
+### Batch 1 — canonical library-path rules (`74d9ffe`)
 
-Single owner for `recipe.md`/`.md` constants and for Markdown-path, folder-path,
-and display-path rules: new `src/recipeserver/recipe_paths.py`. Migrated
+`src/recipeserver/recipe_paths.py` is the single owner of `recipe.md`/`.md`
+constants and of Markdown-path, folder-path, and display-path rules. Migrated
 `server.py`, `ai_assistant.py`, `core.py`, `metadata_options.py`, and
-`index_html_generator.py`; removed the duplicated validators and the
-independent bind-address default from `server.py`. Added behavioural tests and
-structural tests in `test/test_architecture.py`. Fixed an inaccurate
-HTTPS-trust docstring in `server.py`.
+`index_html_generator.py`; deleted the duplicated validators and the
+independent bind-address default in `server.py`. Added behavioural tests and
+structural tests. ADR-0002 records the decision.
 
-Evidence: focused run `129 passed, 1 skipped`; first full run exposed one stale
-test that read the removed constant (migrated to the canonical one) and one
-flaky e2e test that passes in isolation. Final full run pending.
+Evidence: focused run `129 passed, 1 skipped`; full run after this batch
+`620 passed, 20 skipped, 1 failed` — the failure is
+`test/e2e/test_timeline.py::test_timeline_preview_compare_and_restore`, which
+passes in isolation and when the whole file is run (`3 passed`). It is a
+pre-existing order/resource flake, not a regression.
+
+### Batch 2 — one startup entry point, light package import (`1b0fbfa`)
+
+`recipeserver:main` now owns the startup sequence (previously the console
+script raised `TypeError: main() missing 1 required positional argument: 'cfg'`).
+`python -m recipeserver` calls the same function. Lazy imports remove the
+package-root cycle: importing `recipeserver.shopping_list` now loads only
+`recipeserver` and that module — no `core`, `server`, `tray`, `config`,
+`tkinter`, or `pystray`. ADR-0003 records the decision.
+
+Evidence: `3 passed` for `test/test_startup_entrypoints.py`;
+`uv run recipeserver --help` exits 0 with the expected usage; direct import
+probe prints only the two package modules and `False False` for
+tkinter/pystray.
+
+### Batch 3 — shared SSE framing and generic-mode math (pending commit)
+
+The two streaming endpoints now call one `_begin_event_stream()` and one
+`_send_sse_event()` instead of carrying byte-identical closures. The recipe
+Markdown renderer now uses `pymdownx.arithmatex` generic mode, so recipe-page
+math produces the same `\(…\)`/`\[…\]` markup the chat renderer emits and the
+vendored KaTeX auto-render can typeset. Structural test guards SSE delegation;
+`test/test_math_rendering.py` guards the two renderers' agreement.
+
+Evidence: `82 passed` for architecture + AI recipe + AI assistant tests;
+`35 passed` for math + recipe-render + assistant-render tests.
 
 ## Verification record
 
-| Batch | Tests                                            | Formatting | Docs                             | Commit    |
-| ----- | ------------------------------------------------ | ---------- | -------------------------------- | --------- |
-| —     | baseline: 580 passed, 19 skipped                 | —          | —                                | `f802330` |
-| 0     | n/a (docs only)                                  | clean      | n/a                              | `9cdbf9c` |
-| 1     | focused: 129 passed, 1 skipped; full run pending | clean      | generated, no broken local links | pending   |
+| Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
+| ----- | ----------------------------------------------------------------------------- | ---------- | -------------------------------- | --------- |
+| —     | baseline: 580 passed, 19 skipped                                              | clean      | —                                | `f802330` |
+| 0     | docs only                                                                     | clean      | n/a                              | `9cdbf9c` |
+| 1     | focused 129 passed, 1 skipped; full 620 passed, 20 skipped, 1 known flaky e2e | clean      | generated, no broken local links | `74d9ffe` |
+| 2     | focused 3 passed; console script and import probe verified                    | clean      | generated                        | `1b0fbfa` |
+| 3     | focused 82 passed + 35 passed; final full run pending                         | clean      | generated                        | pending   |
