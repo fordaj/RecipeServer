@@ -181,6 +181,14 @@ from the same registry instead of restating it. Tests were migrated to the
 canonical imports. Evidence: `81 passed` for the editor/rating/bulk/HTTP/AI
 test set and `80 passed` for AI recipe, schema, and architecture tests.
 
+### Batch 14 fix — restore HTTP-layer folder naming
+
+The full suite after batch 14 caught one regression: the extracted block had
+also removed `_recipe_folder_name`, which uses HTTP-layer constants and belongs
+in `server.py`. Restored it and added an architectural assertion so it cannot
+be swept up in another extraction. Evidence: `72 passed` for creation, schema,
+architecture, archived, and makes tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python

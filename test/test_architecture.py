@@ -91,6 +91,8 @@ def test_editor_metadata_schema_and_validation_have_one_owner():
     assert "def validate_assistant_metadata" not in server_source
     for name in ("EDITOR_METADATA_FIELDS", "validate_editor_metadata", "validate_assistant_metadata"):
         assert name in server_source
+    # Folder naming is HTTP-layer policy and must stay in the handler.
+    assert "def _recipe_folder_name" in server_source
 
 
 def test_image_reference_rules_do_not_live_in_the_http_layer():

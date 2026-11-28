@@ -298,6 +298,25 @@ def _xml_local_name(name: str) -> str:
     return name.rsplit("}", 1)[-1].lower()
 
 
+def _recipe_folder_name(content: str, metadata: dict) -> str:
+    """Choose the new recipe's folder name from its heading or title."""
+    heading = re.search(r"^\s{0,3}#\s+(?P<heading>.+?)\s*#*\s*$", content, re.MULTILINE)
+    title = heading.group("heading") if heading else metadata.get("title")
+    if not isinstance(title, str):
+        title = ""
+
+    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', " ", title)
+    name = " ".join(name.split()).strip(" .")
+    if not name:
+        name = "New Recipe"
+
+    encoded_name = name.encode("utf-8")[:RECIPE_FOLDER_NAME_MAX_BYTES]
+    name = encoded_name.decode("utf-8", errors="ignore").rstrip(" .") or "New Recipe"
+    if _is_windows_reserved_name(name):
+        name = f"_{name}"
+    return name
+
+
 # ---------------------------------------------------------------------------
 # Bulk operation validation
 # ---------------------------------------------------------------------------
