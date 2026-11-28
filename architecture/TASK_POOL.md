@@ -28,7 +28,7 @@ Ranked by (risk reduction × maintenance saving) / migration cost. Status values
 | 14  | Image-reference manipulation moved out of the HTTP layer into a domain owner.                                                       | `server.py:656-766`                                                     | candidate         |
 | 15  | `server.py` (3262 lines) owns routing, parsing, writes, history, images, AI streaming, config; decompose without forwarding shells. | `server.py` function inventory                                          | deferred (large)  |
 | 16  | Remove dead code: `history.snapshot_exists` and unused imports (`FLOW_COOKIE` in `authorization.py`, `ImageDraw` in `tray.py`).     | dependency map DEAD-CODE                                                | done (batch 8)    |
-| 17  | Enforce "no inline SVG / data:image/svg+xml" and sibling-doc/Mermaid rules with repository tests.                                   | config/state map ENFORCEMENT                                            | candidate         |
+| 17  | Enforce "no inline SVG / data:image/svg+xml" and sibling-doc/Mermaid rules with repository tests.                                   | `test/test_architecture.py`                                             | done (batch 9)    |
 | 18  | Record product decisions, major architectural changes, and breaking migrations as pending confirmation.                             | programme constraint                                                    | candidate         |
 
 Rejected: stale `__pycache__` cleanup — a full scan found every `.pyc` has a

@@ -117,6 +117,14 @@ import in `authorization.py` and `ImageDraw` import in `tray.py`, with the
 sibling doc updated. Evidence: `38 passed` across history, auth, and tray
 tests.
 
+### Batch 9 — enforce documentation and icon standards (pending commit)
+
+`test/test_architecture.py` now fails when source contains an inline `<svg>`
+or `data:image/svg+xml` URI (vendored KaTeX excluded), when a Python module has
+no sibling `.py.md`, or when a documentation page lacks a leading Mermaid
+diagram. These standards previously existed only in `AGENTS.md`. Evidence:
+`27 passed`.
+
 ## Verification record
 
 | Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
@@ -130,4 +138,5 @@ tests.
 | 5     | focused 87 passed, 3 skipped; final full run pending                          | clean      | generated                        | `404fb12` |
 | 6     | focused 27 passed + 54 passed; final full run pending                         | clean      | generated                        | `db61f8c` |
 | 7     | focused 83 passed, 1 skipped; final full run pending                          | clean      | generated                        | `ffaa942` |
-| 8     | focused 38 passed; final full run pending                                     | clean      | generated                        | pending   |
+| 8     | focused 38 passed; final full run pending                                     | clean      | generated                        | `719cc82` |
+| 9     | focused 27 passed; final full run pending                                     | clean      | generated                        | pending   |

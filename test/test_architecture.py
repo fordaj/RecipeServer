@@ -98,3 +98,33 @@ def test_transcriber_uses_the_canonical_ollama_chat_url():
 @pytest.mark.parametrize("relative_path", DOMAIN_MODULES)
 def test_domain_modules_do_not_import_higher_layers(relative_path: str):
     assert not (_imported_names(_tree(relative_path)) & HIGHER_LAYER_MODULES)
+
+
+SOURCE_FILE_SUFFIXES = {".py", ".js", ".css", ".html"}
+
+
+def test_no_inline_svg_outside_vendored_katex():
+    for path in SOURCE.rglob("*"):
+        if not path.is_file() or path.suffix not in SOURCE_FILE_SUFFIXES or "katex" in path.parts:
+            continue
+        text = path.read_text(encoding="utf-8")
+        assert "<svg" not in text, f"inline SVG in {path}; use an assets/*.svg file"
+        assert "data:image/svg+xml" not in text, f"encoded SVG in {path}; use an assets/*.svg file"
+
+
+def test_every_python_module_has_a_sibling_documentation_page():
+    for path in SOURCE.rglob("*.py"):
+        if "__pycache__" in path.parts:
+            continue
+        assert path.with_name(f"{path.name}.md").is_file(), f"missing documentation page for {path}"
+
+
+PROMPT_FILES = {"NewRecipePrompt.md", "NewRecipeFromImagePrompt.md", "FindOneForMePrompt.md", "AssistantPrompt.md"}
+
+
+def test_documentation_pages_open_with_a_mermaid_diagram():
+    for path in SOURCE.rglob("*.md"):
+        if path.name in PROMPT_FILES or "assets" in path.parts:
+            continue
+        head = path.read_text(encoding="utf-8")[:2000]
+        assert "```mermaid" in head, f"no Mermaid diagram at the top of {path}"
