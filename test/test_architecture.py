@@ -84,6 +84,13 @@ def test_http_and_assistant_path_checks_share_one_implementation():
     assert _delegates_to("server.py", "_resolve_recipe_directory", "resolve_recipe_folder")
 
 
+def test_tray_uses_the_canonical_server_defaults():
+    tree = _tree("tray.py")
+    imported = _imported_names(tree)
+    assert {"DEFAULT_SERVER_PORT", "LOCALHOST", "WILDCARD_BIND_ADDRESSES"} <= imported
+    assert "8000" not in _string_literals(tree)
+
+
 @pytest.mark.parametrize("relative_path", ["markdown_to_html/converter.py", "ai_assistant.py"])
 def test_title_extraction_has_one_owner(relative_path: str):
     assert "first_heading" in _imported_names(_tree(relative_path))

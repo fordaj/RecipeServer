@@ -125,6 +125,13 @@ no sibling `.py.md`, or when a documentation page lacks a leading Mermaid
 diagram. These standards previously existed only in `AGENTS.md`. Evidence:
 `27 passed`.
 
+### Batch 10 — canonical server defaults in the tray (pending commit)
+
+The tray's "Open Recipes" action uses `DEFAULT_SERVER_PORT`, `LOCALHOST`, and
+`WILDCARD_BIND_ADDRESSES` from their owning modules instead of repeating the
+literals. A structural test prevents the port literal from returning.
+Evidence: `44 passed` for tray and architecture tests.
+
 ## Verification record
 
 | Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
@@ -139,4 +146,5 @@ diagram. These standards previously existed only in `AGENTS.md`. Evidence:
 | 6     | focused 27 passed + 54 passed; final full run pending                         | clean      | generated                        | `db61f8c` |
 | 7     | focused 83 passed, 1 skipped; final full run pending                          | clean      | generated                        | `ffaa942` |
 | 8     | focused 38 passed; final full run pending                                     | clean      | generated                        | `719cc82` |
-| 9     | focused 27 passed; final full run pending                                     | clean      | generated                        | pending   |
+| 9     | focused 27 passed; final full run pending                                     | clean      | generated                        | `1a50ea2` |
+| 10    | focused 44 passed; final full run pending                                     | clean      | generated                        | pending   |
