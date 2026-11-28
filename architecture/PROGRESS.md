@@ -206,6 +206,11 @@ caught by focused tests during the batch (a name-rewrite slip and a missing
 timestamp helper) and fixed before commit. Evidence: `64 passed` for schema,
 architecture, ratings, and bulk-editor tests.
 
+### Batch 15 verification (final)
+
+Clean full suite with no edits during execution: **661 passed, 20 skipped** in
+445 s. Formatting and documentation generation clean.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -238,4 +243,4 @@ the rest.
 | 13    | focused 65 passed; clean final full run pending                               | clean      | generated                        | `6f358da` |
 | final | **648 passed, 20 skipped** (454 s), clean run with no mid-run edits           | clean      | generated, no broken local links | `e02c59a` |
 | 14    | focused 81 + 80 + 72 passed; final clean full 658 passed, 20 skipped          | clean      | generated, no broken local links | `0d7205a` |
-| 15    | focused 62 + 64 passed; clean full run pending                                | clean      | generated                        | pending   |
+| 15    | focused 62 + 64 passed; final clean full 661 passed, 20 skipped               | clean      | generated, no broken local links | `94ccca1` |
