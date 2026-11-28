@@ -259,6 +259,12 @@ was restored and is covered by the architecture assertion. Evidence:
 `75 passed` for image, architecture, and image-API tests (69 passed for the
 wider API/creation set).
 
+### Batches 18–19 verification (final)
+
+Clean full suite covering both batches, with no edits during execution:
+**680 passed, 20 skipped** in 445 s. Formatting and docs generation clean.
+`server.py` is down to 2734 lines from the 3262-line baseline.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -294,5 +300,5 @@ the rest.
 | 15    | focused 62 + 64 passed; final clean full 661 passed, 20 skipped               | clean      | generated, no broken local links | `94ccca1` |
 | 16    | focused 143 passed; final clean full 662 passed, 20 skipped                   | clean      | generated, no broken local links | `c6322c9` |
 | 17    | focused 65 + 142 passed; final clean full 664 passed, 20 skipped              | clean      | generated, no broken local links | `56716ec` |
-| 18    | focused 207 passed; final clean full run pending                              | clean      | generated, no broken local links | `7645f6b` |
-| 19    | focused 75 + 69 passed; clean full run pending                                | clean      | generated                        | pending   |
+| 18    | focused 207 passed; covered by the final 680-passed run                       | clean      | generated, no broken local links | `7645f6b` |
+| 19    | focused 75 + 69 passed; final clean full 680 passed, 20 skipped               | clean      | generated, no broken local links | `16b053c` |
