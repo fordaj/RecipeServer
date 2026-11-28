@@ -34,6 +34,13 @@ Worktree: `arch-entropy` (isolated from `main`).
 Progress file, task pool, and ADR-0001; `architecture/` excluded from the
 generated site. No production code changed.
 
+### Final verification (all 13 batches)
+
+`uv run pytest -q --disable-warnings` → **648 passed, 20 skipped** in 454 s,
+run after the last commit with no edits during execution. `./scripts/format.sh
+--check` clean; `./scripts/docs.sh` generated 55 pages with no broken local
+links. Earlier contaminated run (edits during execution) is excluded.
+
 ### Batch 1 — canonical library-path rules (`74d9ffe`)
 
 `src/recipeserver/recipe_paths.py` is the single owner of `recipe.md`/`.md`
@@ -193,4 +200,5 @@ the rest.
 | 9–10  | full: **635 passed, 20 skipped** (453 s)                                      | clean      | generated, no broken local links | see above |
 | 11    | focused 7 passed + 35 passed; final full run pending                          | clean      | generated                        | `e8e20b1` |
 | 12    | focused 98 passed, 1 skipped; final full run pending                          | clean      | generated                        | `9bdd859` |
-| 13    | focused 65 passed; clean final full run pending                               | clean      | generated                        | pending   |
+| 13    | focused 65 passed; clean final full run pending                               | clean      | generated                        | `6f358da` |
+| final | **648 passed, 20 skipped** (454 s), clean run with no mid-run edits           | clean      | generated, no broken local links | pending   |
