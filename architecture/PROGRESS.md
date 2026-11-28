@@ -75,6 +75,14 @@ vendored KaTeX auto-render can typeset. Structural test guards SSE delegation;
 Evidence: `82 passed` for architecture + AI recipe + AI assistant tests;
 `35 passed` for math + recipe-render + assistant-render tests.
 
+### Batch 4 — service-worker image extensions (pending commit)
+
+`assets/sw.js` omitted `.bmp`, `.tiff`, and `.tif` from the set that gets
+stale-while-revalidate caching, so those hero images lost the flaky-network
+protection the service worker exists to provide. The three browser/Python
+extension sets now agree, and `test/test_service_worker.py` parses all three
+to fail on future drift. Evidence: `5 passed`.
+
 ## Verification record
 
 | Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
@@ -83,4 +91,5 @@ Evidence: `82 passed` for architecture + AI recipe + AI assistant tests;
 | 0     | docs only                                                                     | clean      | n/a                              | `9cdbf9c` |
 | 1     | focused 129 passed, 1 skipped; full 620 passed, 20 skipped, 1 known flaky e2e | clean      | generated, no broken local links | `74d9ffe` |
 | 2     | focused 3 passed; console script and import probe verified                    | clean      | generated                        | `1b0fbfa` |
-| 3     | focused 82 passed + 35 passed; final full run pending                         | clean      | generated                        | pending   |
+| 3     | focused 82 passed + 35 passed; final full run pending                         | clean      | generated                        | `9d616fc` |
+| 4     | focused 5 passed; final full run pending                                      | clean      | generated                        | pending   |

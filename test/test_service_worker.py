@@ -6,10 +6,13 @@ scope the browser allows from /assets/sw.js (its own directory).
 
 from pathlib import Path
 from types import SimpleNamespace
+import re
 import shutil
 import subprocess
 
 import pytest
+
+from recipeserver.image_handler import IMAGE_EXTENSIONS
 
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
 from recipeserver.markdown_to_html import MarkdownToHTMLConverter
@@ -26,6 +29,20 @@ def test_service_worker_file_caches_content_hashed_assets_first():
     assert "/assets/" in sw
     # Pages themselves are never cached: the server sends no-store for HTML.
     assert "index.html" not in sw
+
+
+def _js_extensions(source: str, marker: str) -> set[str]:
+    start = source.index(marker) + len(marker)
+    end = source.index("]", start)
+    return set(re.findall(r'"(\.[a-z0-9]+)"', source[start:end]))
+
+
+def test_image_extension_sets_agree_across_python_and_browser():
+    sw = (ASSETS_DIR / "sw.js").read_text(encoding="utf-8")
+    editor = (ASSETS_DIR / "recipe-editor" / "recipe-editor.js").read_text(encoding="utf-8")
+
+    assert _js_extensions(sw, "const IMAGE_EXTENSIONS = [") == IMAGE_EXTENSIONS
+    assert _js_extensions(editor, "const CLIENT_IMAGE_EXTENSIONS = new Set([") == IMAGE_EXTENSIONS
 
 
 def test_service_worker_is_valid_javascript():

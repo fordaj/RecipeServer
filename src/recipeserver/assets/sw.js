@@ -13,7 +13,20 @@
 const ASSET_CACHE = "recipe-assets-v1";
 const IMAGE_CACHE = "recipe-images-v1";
 const ASSET_PREFIX = "/assets/";
-const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif", ".svg"];
+// Keep in sync with image_handler.IMAGE_EXTENSIONS and the editor's
+// CLIENT_IMAGE_EXTENSIONS; test_service_worker.py enforces the parity.
+const IMAGE_EXTENSIONS = [
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+  ".gif",
+  ".bmp",
+  ".tiff",
+  ".tif",
+  ".svg",
+  ".avif",
+];
 
 self.addEventListener("install", () => {
   // Take over as soon as possible; the page stays in control either way.
