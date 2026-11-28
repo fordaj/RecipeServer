@@ -86,6 +86,12 @@ def test_rating_rules_are_not_redefined_in_the_http_layer():
         assert name in server_source
 
 
+def test_assistant_imports_only_the_public_ai_transport():
+    for node in ast.walk(_tree("ai_assistant.py")):
+        if isinstance(node, ast.ImportFrom) and node.module == "ai_recipe":
+            assert all(not alias.name.startswith("_") for alias in node.names)
+
+
 def test_ai_drafting_uses_the_canonical_multi_value_fields():
     tree = _tree("ai_recipe.py")
     assert "STRING_LIST_FIELDS" in _imported_names(tree)

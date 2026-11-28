@@ -15,7 +15,7 @@ import pytest
 
 from recipeserver.ai_recipe import (
     _ThinkingStreamFilter,
-    _metrics_from_ollama_payload,
+    metrics_from_ollama_payload,
     _parse_chat_payload,
     _split_embedded_thinking,
     is_model_loaded,
@@ -954,7 +954,7 @@ def test_thinking_stream_filter_handles_unmatched_closing_tag():
 
 
 def test_metrics_from_ollama_payload_normalizes_nanoseconds():
-    metrics = _metrics_from_ollama_payload(METRICS)
+    metrics = metrics_from_ollama_payload(METRICS)
 
     assert metrics == {
         "model_load_seconds": 1.5,

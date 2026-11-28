@@ -259,7 +259,7 @@ def ollama_tags_url(endpoint: str) -> str:
     return f"{normalize_ollama_base_url(endpoint)}{OLLAMA_TAGS_PATH}"
 
 
-def _read_response(response, limit: int) -> bytes:
+def read_response(response, limit: int) -> bytes:
     content_length = response.headers.get("Content-Length")
     if content_length is not None:
         try:
@@ -331,7 +331,7 @@ def _fetch_model_names(
         if not 200 <= response.status < 300:
             logger.log(http_error_level, f"{description} to {url} returned HTTP {response.status}")
             return []
-        payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
+        payload = json.loads(read_response(response, MAX_MODEL_RESPONSE_BYTES))
 
     return _model_names_from_payload(payload, name_keys)
 
@@ -364,7 +364,7 @@ def _model_catalog(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS)
     with urlopen(request, timeout=timeout) as response:
         if not 200 <= response.status < 300:
             raise ModelRequestError(f"Model list request to {tags_url} returned HTTP {response.status}")
-        payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
+        payload = json.loads(read_response(response, MAX_MODEL_RESPONSE_BYTES))
     if not isinstance(payload, dict):
         raise ModelRequestError("Model list response was not a JSON object")
     entries = payload.get("models")
@@ -770,7 +770,7 @@ def _duration_seconds(payload: dict[str, Any], key: str) -> float | None:
     return value / 1_000_000_000
 
 
-def _metrics_from_ollama_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def metrics_from_ollama_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize Ollama's nanosecond timings into display-friendly metrics."""
     load_seconds = _duration_seconds(payload, "load_duration")
     generation_seconds = _duration_seconds(payload, "eval_duration")
@@ -865,7 +865,7 @@ def _parse_chat_payload(payload: object) -> ChatResult:
     return ChatResult(
         content=content,
         thinking=thinking,
-        metrics=_metrics_from_ollama_payload(payload),
+        metrics=metrics_from_ollama_payload(payload),
         finish_reason=payload.get("done_reason"),
     )
 
@@ -918,7 +918,7 @@ def _read_chat_stream(
 
         if payload.get("done"):
             finish_reason = payload.get("done_reason")
-            metrics = _metrics_from_ollama_payload(payload)
+            metrics = metrics_from_ollama_payload(payload)
             break
 
     final_content, final_thinking = filter_.finish()
@@ -988,7 +988,7 @@ def _ollama_chat(
             if stream:
                 result = _read_chat_stream(response, on_thinking=on_thinking, on_content=on_content)
             else:
-                body = _read_response(response, MAX_MODEL_RESPONSE_BYTES)
+                body = read_response(response, MAX_MODEL_RESPONSE_BYTES)
                 logger.debug(f"Received {len(body)} bytes from the model")
                 try:
                     response_payload = json.loads(body)

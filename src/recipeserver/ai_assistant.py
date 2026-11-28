@@ -44,8 +44,8 @@ from .ai_recipe import (
     USER_AGENT,
     ModelRequestError,
     ModelUnavailable,
-    _metrics_from_ollama_payload,
-    _read_response,
+    metrics_from_ollama_payload,
+    read_response,
     keep_alive_seconds,
     ollama_chat_url,
     resolve_ai_config,
@@ -466,7 +466,7 @@ def _chat_message(
 
     try:
         with response:
-            body = _read_response(response, MAX_MODEL_RESPONSE_BYTES)
+            body = read_response(response, MAX_MODEL_RESPONSE_BYTES)
     except (OSError, TimeoutError) as exc:
         logger.error(f"Assistant model response from {chat_url} was interrupted: {exc}")
         raise ModelRequestError(f"The model response was interrupted: {exc}") from exc
@@ -486,7 +486,7 @@ def _chat_message(
     if not isinstance(message, dict):
         raise ModelRequestError("The model returned a response without a message")
 
-    return message, _metrics_from_ollama_payload(payload)
+    return message, metrics_from_ollama_payload(payload)
 
 
 def _parse_tool_calls(message: dict[str, Any]) -> list[dict[str, Any]]:
