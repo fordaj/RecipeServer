@@ -218,6 +218,11 @@ public names; the assistant no longer imports private helpers from the drafting
 module. An architecture test prevents private cross-module imports. Evidence:
 `143 passed` across AI recipe, assistant, architecture, and transcriber tests.
 
+### Batch 16 verification (final)
+
+Clean full suite with no edits during execution: **662 passed, 20 skipped** in
+446 s. Formatting and documentation generation clean.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -251,4 +256,4 @@ the rest.
 | final | **648 passed, 20 skipped** (454 s), clean run with no mid-run edits           | clean      | generated, no broken local links | `e02c59a` |
 | 14    | focused 81 + 80 + 72 passed; final clean full 658 passed, 20 skipped          | clean      | generated, no broken local links | `0d7205a` |
 | 15    | focused 62 + 64 passed; final clean full 661 passed, 20 skipped               | clean      | generated, no broken local links | `94ccca1` |
-| 16    | focused 143 passed; clean full run pending                                    | clean      | generated                        | pending   |
+| 16    | focused 143 passed; final clean full 662 passed, 20 skipped                   | clean      | generated, no broken local links | `c6322c9` |
