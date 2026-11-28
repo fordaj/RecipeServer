@@ -22,3 +22,4 @@ flowchart LR
 - [ADR-0001](ADR-0001-architecture-governance.md) — why this record exists and how batches are structured.
 - [ADR-0002](ADR-0002-canonical-library-paths.md) — one owner for library path rules (batch 1).
 - [ADR-0003](ADR-0003-one-startup-entry-point.md) — one startup entry point, no eager import cycle (batch 2).
+- [ADR-0004](ADR-0004-convergence-and-remaining-work.md) — convergence point and deferred work.
