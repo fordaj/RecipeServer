@@ -274,6 +274,15 @@ directly; its duplicated helpers are deleted. Evidence: `5 passed` for the new
 payload tests and `125 passed` across architecture, HTTP, image API, AI,
 creation, and bulk tests.
 
+### Batch 20 verification
+
+Two full runs reported `685 passed, 20 skipped, 1 failed` — the known
+order-dependent Selenium test `test/e2e/test_timeline.py::test_timeline_preview_compare_and_restore`.
+It passes in isolation (`3 passed` for the file) and with the whole e2e suite
+(`46 passed`); `--deselect` of that one case gives a clean
+`685 passed, 20 skipped, 1 deselected`. The failure is a 10-second UI wait
+under full-suite load, not a regression in the extracted code.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -285,30 +294,30 @@ the rest.
 
 ## Verification record
 
-| Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
-| ----- | ----------------------------------------------------------------------------- | ---------- | -------------------------------- | --------- |
-| —     | baseline: 580 passed, 19 skipped                                              | clean      | —                                | `f802330` |
-| 0     | docs only                                                                     | clean      | n/a                              | `9cdbf9c` |
-| 1     | focused 129 passed, 1 skipped; full 620 passed, 20 skipped, 1 known flaky e2e | clean      | generated, no broken local links | `74d9ffe` |
-| 2     | focused 3 passed; console script and import probe verified                    | clean      | generated                        | `1b0fbfa` |
-| 3     | focused 82 passed + 35 passed; final full run pending                         | clean      | generated                        | `9d616fc` |
-| 4     | focused 5 passed; final full run pending                                      | clean      | generated                        | `1d7532f` |
-| 5     | focused 87 passed, 3 skipped; final full run pending                          | clean      | generated                        | `404fb12` |
-| 6     | focused 27 passed + 54 passed; final full run pending                         | clean      | generated                        | `db61f8c` |
-| 7     | focused 83 passed, 1 skipped; final full run pending                          | clean      | generated                        | `ffaa942` |
-| 8     | focused 38 passed; final full run pending                                     | clean      | generated                        | `719cc82` |
-| 9     | focused 27 passed; final full run pending                                     | clean      | generated                        | `1a50ea2` |
-| 10    | focused 44 passed; final full run pending                                     | clean      | generated                        | `12c718e` |
-| 1–8   | full: **631 passed, 20 skipped** (448 s)                                      | clean      | generated, no broken local links | see above |
-| 9–10  | full: **635 passed, 20 skipped** (453 s)                                      | clean      | generated, no broken local links | see above |
-| 11    | focused 7 passed + 35 passed; final full run pending                          | clean      | generated                        | `e8e20b1` |
-| 12    | focused 98 passed, 1 skipped; final full run pending                          | clean      | generated                        | `9bdd859` |
-| 13    | focused 65 passed; clean final full run pending                               | clean      | generated                        | `6f358da` |
-| final | **648 passed, 20 skipped** (454 s), clean run with no mid-run edits           | clean      | generated, no broken local links | `e02c59a` |
-| 14    | focused 81 + 80 + 72 passed; final clean full 658 passed, 20 skipped          | clean      | generated, no broken local links | `0d7205a` |
-| 15    | focused 62 + 64 passed; final clean full 661 passed, 20 skipped               | clean      | generated, no broken local links | `94ccca1` |
-| 16    | focused 143 passed; final clean full 662 passed, 20 skipped                   | clean      | generated, no broken local links | `c6322c9` |
-| 17    | focused 65 + 142 passed; final clean full 664 passed, 20 skipped              | clean      | generated, no broken local links | `56716ec` |
-| 18    | focused 207 passed; covered by the final 680-passed run                       | clean      | generated, no broken local links | `7645f6b` |
-| 19    | focused 75 + 69 passed; final clean full 680 passed, 20 skipped               | clean      | generated, no broken local links | `16b053c` |
-| 20    | focused 5 + 125 passed; clean full run pending                                | clean      | generated                        | pending   |
+| Batch | Tests                                                                                  | Formatting | Docs                             | Commit    |
+| ----- | -------------------------------------------------------------------------------------- | ---------- | -------------------------------- | --------- |
+| —     | baseline: 580 passed, 19 skipped                                                       | clean      | —                                | `f802330` |
+| 0     | docs only                                                                              | clean      | n/a                              | `9cdbf9c` |
+| 1     | focused 129 passed, 1 skipped; full 620 passed, 20 skipped, 1 known flaky e2e          | clean      | generated, no broken local links | `74d9ffe` |
+| 2     | focused 3 passed; console script and import probe verified                             | clean      | generated                        | `1b0fbfa` |
+| 3     | focused 82 passed + 35 passed; final full run pending                                  | clean      | generated                        | `9d616fc` |
+| 4     | focused 5 passed; final full run pending                                               | clean      | generated                        | `1d7532f` |
+| 5     | focused 87 passed, 3 skipped; final full run pending                                   | clean      | generated                        | `404fb12` |
+| 6     | focused 27 passed + 54 passed; final full run pending                                  | clean      | generated                        | `db61f8c` |
+| 7     | focused 83 passed, 1 skipped; final full run pending                                   | clean      | generated                        | `ffaa942` |
+| 8     | focused 38 passed; final full run pending                                              | clean      | generated                        | `719cc82` |
+| 9     | focused 27 passed; final full run pending                                              | clean      | generated                        | `1a50ea2` |
+| 10    | focused 44 passed; final full run pending                                              | clean      | generated                        | `12c718e` |
+| 1–8   | full: **631 passed, 20 skipped** (448 s)                                               | clean      | generated, no broken local links | see above |
+| 9–10  | full: **635 passed, 20 skipped** (453 s)                                               | clean      | generated, no broken local links | see above |
+| 11    | focused 7 passed + 35 passed; final full run pending                                   | clean      | generated                        | `e8e20b1` |
+| 12    | focused 98 passed, 1 skipped; final full run pending                                   | clean      | generated                        | `9bdd859` |
+| 13    | focused 65 passed; clean final full run pending                                        | clean      | generated                        | `6f358da` |
+| final | **648 passed, 20 skipped** (454 s), clean run with no mid-run edits                    | clean      | generated, no broken local links | `e02c59a` |
+| 14    | focused 81 + 80 + 72 passed; final clean full 658 passed, 20 skipped                   | clean      | generated, no broken local links | `0d7205a` |
+| 15    | focused 62 + 64 passed; final clean full 661 passed, 20 skipped                        | clean      | generated, no broken local links | `94ccca1` |
+| 16    | focused 143 passed; final clean full 662 passed, 20 skipped                            | clean      | generated, no broken local links | `c6322c9` |
+| 17    | focused 65 + 142 passed; final clean full 664 passed, 20 skipped                       | clean      | generated, no broken local links | `56716ec` |
+| 18    | focused 207 passed; covered by the final 680-passed run                                | clean      | generated, no broken local links | `7645f6b` |
+| 19    | focused 75 + 69 passed; final clean full 680 passed, 20 skipped                        | clean      | generated, no broken local links | `16b053c` |
+| 20    | focused 5 + 125 passed; full 685 passed, 1 known order-flaky e2e; deselected run clean | clean      | generated, no broken links       | `091d286` |
