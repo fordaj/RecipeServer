@@ -7,14 +7,22 @@ rather than in the HTTP handler so every caller enforces the same rules.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from .recipe_utils import (
     CATEGORIES_FIELD,
     LEGACY_CATEGORY_FIELD,
     clean_source_fields,
     collapse_status,
+    is_finite_rating_score,
+    new_recipe_id,
     normalize_legacy_category,
+    normalize_reviewer_name,
     normalize_source_dict,
+    utc_now_iso,
 )
+
+MAX_RATING_NAME_LENGTH = 100
 
 # Field name → value kind. The metadata API and the JS editor derive their
 # accepted fields from this registry.
@@ -185,6 +193,110 @@ def validate_editor_metadata(metadata: object) -> dict:
             validated[field] = None
         else:
             validated[field] = validate_editor_field(field, expected_type, value)
+
+    return validated
+
+
+# ----- Ratings (front-matter list) ----- #
+
+
+def validate_rating_name(name: object, label: str) -> str:
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_RATING_NAME_LENGTH:
+        raise ValueError(f"{label} must be 1 to {MAX_RATING_NAME_LENGTH} characters")
+    return name.strip()
+
+
+def validate_rating_score(score: object, label: str) -> int | float:
+    if not is_finite_rating_score(score):
+        raise ValueError(f"{label} must be a number between 0 and 10")
+    if score < 0 or score > 10:
+        raise ValueError(f"{label} must be between 0 and 10")
+    return score
+
+
+def validate_bulk_rating(value: object) -> tuple[str, int | float] | None:
+    """Validate a bulk rating override: add a named rating, overriding ties."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("'rating' must be an object with 'name' and 'rating'")
+
+    name = validate_rating_name(value.get("name"), "'rating.name'")
+    score = validate_rating_score(value.get("rating", value.get("score")), "'rating.rating'")
+    return name, score
+
+
+def apply_rating_override(ratings: object, name: str, score: int | float) -> list[dict]:
+    """Return ratings with the named rating added or overridden in place."""
+    current = ratings if isinstance(ratings, list) else []
+    updated: list[dict] = []
+    replaced = False
+    normalized = normalize_reviewer_name(name)
+    now = utc_now_iso()
+
+    for item in current:
+        if not isinstance(item, dict):
+            continue
+
+        existing = item.get("name")
+        if isinstance(existing, str) and normalize_reviewer_name(existing) == normalized:
+            updated.append({**item, "name": existing.strip(), "rating": score, "updated": now})
+            replaced = True
+        else:
+            updated.append(item)
+
+    if not replaced:
+        updated.append({"name": name, "created": now, "updated": now, "id": new_recipe_id(), "rating": score})
+
+    return updated
+
+
+def _validate_rating_entry(index: int, rating: object) -> tuple[str, str, dict]:
+    if not isinstance(rating, dict):
+        raise ValueError(f"Rating {index + 1} must be an object")
+
+    label = f"Rating {index + 1}"
+    name = validate_rating_name(rating.get("name"), label)
+    rating_id = rating.get("id")
+    score = validate_rating_score(rating.get("rating"), label)
+
+    if not isinstance(rating_id, str) or not rating_id.strip() or rating_id != rating_id.strip():
+        raise ValueError(f"{label} must have an ID")
+
+    for field in ("created", "updated"):
+        timestamp = rating.get(field)
+        if not isinstance(timestamp, str):
+            raise ValueError(f"Rating {index + 1} must have a {field} timestamp")
+        try:
+            datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"Rating {index + 1} has an invalid {field} timestamp") from exc
+
+    normalized_rating = rating.copy()
+    normalized_rating["name"] = name
+    return normalize_reviewer_name(name), rating_id, normalized_rating
+
+
+def validate_ratings(value: object) -> list[dict]:
+    if not isinstance(value, list):
+        raise ValueError("'ratings' must be a list")
+
+    validated = []
+    names = set()
+    ids = set()
+
+    for index, rating in enumerate(value):
+        normalized_name, rating_id, normalized_rating = _validate_rating_entry(index, rating)
+
+        if normalized_name in names:
+            raise ValueError("There can only be one rating per name")
+        names.add(normalized_name)
+
+        if rating_id in ids:
+            raise ValueError("Rating IDs must be unique")
+        ids.add(rating_id)
+
+        validated.append(normalized_rating)
 
     return validated
 

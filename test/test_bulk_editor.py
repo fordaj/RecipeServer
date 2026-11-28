@@ -13,12 +13,8 @@ from bs4 import BeautifulSoup
 from types import SimpleNamespace
 
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
-from recipeserver.server import (
-    RecipeRequestHandler,
-    _apply_rating_override,
-    _validate_bulk_fields,
-    _validate_bulk_rating,
-)
+from recipeserver.recipe_metadata import apply_rating_override, validate_bulk_rating
+from recipeserver.server import RecipeRequestHandler, _validate_bulk_fields
 
 
 def _write_recipe(path: Path, metadata: str):
@@ -58,9 +54,9 @@ def _post(url, payload):
 
 def test_apply_rating_override_replaces_same_name_and_adds_new(bulk_server):
     base = [{"name": "Kim", "rating": 5, "id": "r1", "created": "2026-01-01T00:00:00Z", "updated": "2026-01-01T00:00:00Z"}]
-    overridden = _apply_rating_override(base, "kim", 9)
+    overridden = apply_rating_override(base, "kim", 9)
     assert len(overridden) == 1 and overridden[0]["rating"] == 9 and overridden[0]["id"] == "r1"
-    added = _apply_rating_override(base, "Andy", 7)
+    added = apply_rating_override(base, "Andy", 7)
     assert len(added) == 2 and added[1]["name"] == "Andy" and added[1]["id"]
 
 
@@ -68,8 +64,8 @@ def test_validate_bulk_helpers_reject_bad_input():
     with pytest.raises(ValueError):
         _validate_bulk_fields(["updatedOn"])
     with pytest.raises(ValueError):
-        _validate_bulk_rating({"name": "", "rating": 5})
-    assert _validate_bulk_rating({"name": "Andy", "score": 8}) == ("Andy", 8)
+        validate_bulk_rating({"name": "", "rating": 5})
+    assert validate_bulk_rating({"name": "Andy", "score": 8}) == ("Andy", 8)
 
 
 def test_bulk_editor_get_returns_metadata_and_ratings(bulk_server):

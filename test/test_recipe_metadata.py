@@ -8,11 +8,14 @@ from recipeserver.recipe_metadata import (
     BULK_EDITABLE_FIELDS,
     EDITOR_METADATA_FIELDS,
     apply_editor_metadata,
+    apply_rating_override,
     editor_metadata,
     metadata_field_name,
     source_is_empty,
     validate_assistant_metadata,
+    validate_bulk_rating,
     validate_editor_metadata,
+    validate_ratings,
 )
 
 
@@ -70,6 +73,28 @@ def test_source_is_empty():
     assert source_is_empty(None)
     assert source_is_empty({})
     assert not source_is_empty({"author": "a"})
+
+
+def test_rating_helpers_live_with_the_metadata_schema():
+    timestamp = "2026-10-27T01:38:21.996Z"
+    assert validate_bulk_rating({"name": " Kim ", "score": 8}) == ("Kim", 8)
+    with pytest.raises(ValueError):
+        validate_bulk_rating({"name": "Kim", "rating": 11})
+
+    ratings = [{"name": "Kim", "id": "r1", "rating": 7, "created": timestamp, "updated": timestamp}]
+    assert validate_ratings(ratings) == ratings
+    with pytest.raises(ValueError, match="one rating per name"):
+        validate_ratings(ratings + [{**ratings[0], "id": "r2"}])
+
+
+def test_rating_override_reuses_the_existing_entry_id():
+    timestamp = "2026-10-27T01:38:21.996Z"
+    ratings = [{"name": "Kim", "id": "r1", "rating": 7, "created": timestamp, "updated": timestamp}]
+    updated = apply_rating_override(ratings, "kim", 9)
+    assert len(updated) == 1
+    assert updated[0]["id"] == "r1"
+    assert updated[0]["rating"] == 9
+    assert updated[0]["name"] == "Kim"
 
 
 def test_bulk_editable_fields_exclude_the_server_managed_timestamp():

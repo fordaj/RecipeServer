@@ -42,6 +42,7 @@ Small, deliberately narrow helpers shared across the renderers and the server. K
 
 - `json_default(value)` — `date`/`datetime` → ISO strings for `json.dumps`.
 - `meta_time_html(raw_value, text_prefix="")` — the shared `"· <time>"` markup fragment; `<time>` carries `data-local-time` for timestamps and `data-time-prefix` when a prefix is given. Used by [markdown_to_html/extras.py.md](markdown_to_html/extras.py.md) and [index_html_generator.py.md](index_html_generator.py.md).
+- `utc_now_iso()` — current UTC time as a millisecond ISO string ending in `Z`; the one writer for `updatedOn` and rating timestamps.
 - `slug_to_title(slug)` — directory-slug → Title Case fallback title.
 - `first_heading(text)` — the first level-one Markdown heading outside a fenced code block, or `None`. The renderer, index title fallback, and assistant's `list_recipes` all use this one rule before falling back to front matter or the slug.
 

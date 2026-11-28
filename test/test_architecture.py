@@ -78,6 +78,14 @@ def test_both_streaming_endpoints_share_the_sse_framing(relative_path: str):
         assert "_send_sse_event" in calls
 
 
+def test_rating_rules_are_not_redefined_in_the_http_layer():
+    server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
+    for name in ("_validate_ratings", "_apply_rating_override", "_validate_bulk_rating", "_now_utc_iso"):
+        assert f"def {name}" not in server_source
+    for name in ("validate_ratings", "apply_rating_override", "validate_bulk_rating"):
+        assert name in server_source
+
+
 def test_ai_drafting_uses_the_canonical_multi_value_fields():
     tree = _tree("ai_recipe.py")
     assert "STRING_LIST_FIELDS" in _imported_names(tree)

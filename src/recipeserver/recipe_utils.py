@@ -78,6 +78,11 @@ def parse_metadata_datetime(value: object) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def utc_now_iso() -> str:
+    """Current UTC time as a millisecond ISO string ending in ``Z``."""
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def is_finite_rating_score(score: object) -> bool:
     """Return True when *score* is a usable numeric rating value."""
     return isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(score)

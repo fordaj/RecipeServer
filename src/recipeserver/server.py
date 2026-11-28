@@ -18,10 +18,8 @@ import socket
 import sys
 import tempfile
 import time
-import uuid
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
-from datetime import datetime, timezone
 from email.message import Message
 from email.parser import BytesParser
 from email.policy import default
@@ -62,12 +60,15 @@ from .recipe_metadata import (
     BULK_EDITABLE_FIELDS,
     EDITOR_METADATA_FIELDS,
     apply_editor_metadata,
+    apply_rating_override,
     drop_legacy_category,
     editor_metadata,
     metadata_field_name,
     validate_assistant_metadata,
+    validate_bulk_rating,
     validate_editor_field,
     validate_editor_metadata,
+    validate_ratings,
 )
 from .recipe_paths import RECIPE_FILENAME, display_path, resolve_recipe_file, resolve_recipe_folder
 from .shopping_list import scrape_ingredients
@@ -82,6 +83,7 @@ from .recipe_utils import (
     new_recipe_id,
     normalize_reviewer_name,
     set_recipe_id,
+    utc_now_iso,
 )
 from .transcriber import TranscriberUnavailable, TranscriptionError, get_transcriber
 
@@ -140,7 +142,6 @@ transcriber = get_transcriber()
 # Shared by recipe creation, the metadata endpoints, and image validation.
 
 RECIPE_FOLDER_NAME_MAX_BYTES = 200
-MAX_RATING_NAME_LENGTH = 100
 MARKDOWN_NOT_FOUND_ERROR = "Markdown file not found"
 
 # Windows device names that may not be used as filenames (with or without an
@@ -283,11 +284,6 @@ def _update_recipe_post(path: Path, mutate: Callable[[frontmatter.Post], None]) 
     return post, changed
 
 
-def _now_utc_iso() -> str:
-    """Current UTC time as a millisecond ISO string ending in ``Z``."""
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-
-
 def _is_windows_reserved_name(stem: str) -> bool:
     """Check a filename stem (no extension) against Windows reserved device names."""
     return stem.upper() in WINDOWS_RESERVED_FILENAMES
@@ -350,112 +346,6 @@ def _validate_bulk_fields(value: object) -> list[str]:
         raise ValueError(f"Unknown bulk-editable field(s): {', '.join(map(str, unknown))}")
 
     return list(dict.fromkeys(value))
-
-
-def _validate_rating_name(name: object, label: str) -> str:
-    if not isinstance(name, str) or not name.strip() or len(name.strip()) > MAX_RATING_NAME_LENGTH:
-        raise ValueError(f"{label} must be 1 to {MAX_RATING_NAME_LENGTH} characters")
-    return name.strip()
-
-
-def _validate_rating_score(score: object, label: str) -> int | float:
-    if not is_finite_rating_score(score):
-        raise ValueError(f"{label} must be a number between 0 and 10")
-    if score < 0 or score > 10:
-        raise ValueError(f"{label} must be between 0 and 10")
-    return score
-
-
-def _validate_bulk_rating(value: object) -> tuple[str, int | float] | None:
-    """Validate a bulk rating override: add a named rating, overriding ties."""
-    if value is None:
-        return None
-    if not isinstance(value, dict):
-        raise ValueError("'rating' must be an object with 'name' and 'rating'")
-
-    name = _validate_rating_name(value.get("name"), "'rating.name'")
-    score = _validate_rating_score(value.get("rating", value.get("score")), "'rating.rating'")
-    return name, score
-
-
-# ---------------------------------------------------------------------------
-# Rating validation and updates
-# ---------------------------------------------------------------------------
-
-
-def _apply_rating_override(ratings: object, name: str, score: int | float) -> list[dict]:
-    """Return ratings with the named rating added or overridden in place."""
-    current = ratings if isinstance(ratings, list) else []
-    updated: list[dict] = []
-    replaced = False
-    normalized = normalize_reviewer_name(name)
-    now = _now_utc_iso()
-
-    for item in current:
-        if not isinstance(item, dict):
-            continue
-
-        existing = item.get("name")
-        if isinstance(existing, str) and normalize_reviewer_name(existing) == normalized:
-            updated.append({**item, "name": existing.strip(), "rating": score, "updated": now})
-            replaced = True
-        else:
-            updated.append(item)
-
-    if not replaced:
-        updated.append({"name": name, "created": now, "updated": now, "id": str(uuid.uuid4()), "rating": score})
-
-    return updated
-
-
-def _validate_rating_entry(index: int, rating: object) -> tuple[str, str, dict]:
-    if not isinstance(rating, dict):
-        raise ValueError(f"Rating {index + 1} must be an object")
-
-    label = f"Rating {index + 1}"
-    name = _validate_rating_name(rating.get("name"), label)
-    rating_id = rating.get("id")
-    score = _validate_rating_score(rating.get("rating"), label)
-
-    if not isinstance(rating_id, str) or not rating_id.strip() or rating_id != rating_id.strip():
-        raise ValueError(f"{label} must have an ID")
-
-    for field in ("created", "updated"):
-        timestamp = rating.get(field)
-        if not isinstance(timestamp, str):
-            raise ValueError(f"Rating {index + 1} must have a {field} timestamp")
-        try:
-            datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-        except ValueError as exc:
-            raise ValueError(f"Rating {index + 1} has an invalid {field} timestamp") from exc
-
-    normalized_rating = rating.copy()
-    normalized_rating["name"] = name
-    return normalize_reviewer_name(name), rating_id, normalized_rating
-
-
-def _validate_ratings(value: object) -> list[dict]:
-    if not isinstance(value, list):
-        raise ValueError("'ratings' must be a list")
-
-    validated = []
-    names = set()
-    ids = set()
-
-    for index, rating in enumerate(value):
-        normalized_name, rating_id, normalized_rating = _validate_rating_entry(index, rating)
-
-        if normalized_name in names:
-            raise ValueError("There can only be one rating per name")
-        names.add(normalized_name)
-
-        if rating_id in ids:
-            raise ValueError("Rating IDs must be unique")
-        ids.add(rating_id)
-
-        validated.append(normalized_rating)
-
-    return validated
 
 
 # Image-reference text rules live in recipe_images.py; the endpoints below
@@ -1575,7 +1465,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 recipe_post = _read_recipe_post(file_path)
                 apply_editor_metadata(recipe_post.metadata, validated)
                 drop_legacy_category(recipe_post.metadata)
-                recipe_post.metadata["updatedOn"] = _now_utc_iso()
+                recipe_post.metadata["updatedOn"] = utc_now_iso()
                 recipe_post.content = content
                 self._write_recipe_post_with_images(file_path, recipe_post, [], exclusive=False)
             except (OSError, recipe_history.HistoryError) as exc:
@@ -1749,7 +1639,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     @staticmethod
     def _metadata_for_new_recipe(metadata: dict) -> dict:
         recipe_metadata = {key: value for key, value in metadata.items() if value is not None}
-        recipe_metadata["updatedOn"] = _now_utc_iso()
+        recipe_metadata["updatedOn"] = utc_now_iso()
         return recipe_metadata
 
     def _handle_recipe_editor_post(self) -> None:
@@ -1779,7 +1669,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             recipe_post = _read_recipe_post(file_path)
             apply_editor_metadata(recipe_post.metadata, metadata)
             drop_legacy_category(recipe_post.metadata)
-            recipe_post.metadata["updatedOn"] = _now_utc_iso()
+            recipe_post.metadata["updatedOn"] = utc_now_iso()
             recipe_post.content = content
 
             changed = self._write_recipe_post_with_images(file_path, recipe_post, images, exclusive=False)
@@ -2030,7 +1920,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                 raise ValueError("Expected string field: path")
 
             if field_name == "ratings":
-                value = _validate_ratings(value)
+                value = validate_ratings(value)
             elif field_name in EDITOR_METADATA_FIELDS:
                 if value is not None:
                     value = validate_editor_field(field_name, EDITOR_METADATA_FIELDS[field_name], value)
@@ -2119,7 +2009,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             raw_paths = _validate_bulk_paths(payload.get("paths"))
             fields = _validate_bulk_fields(payload.get("fields"))
             metadata = validate_editor_metadata(payload.get("metadata")) if payload.get("metadata") is not None else {}
-            rating_override = _validate_bulk_rating(payload.get("rating"))
+            rating_override = validate_bulk_rating(payload.get("rating"))
             if not metadata and rating_override is None:
                 raise ValueError("Expected 'metadata' and/or 'rating'")
             file_paths = [self._resolve_markdown_path(path) for path in raw_paths]
@@ -2165,9 +2055,9 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
                     drop_legacy_category(post.metadata)
                 if rating_override is not None:
                     name, score = rating_override
-                    post.metadata["ratings"] = _apply_rating_override(post.metadata.get("ratings"), name, score)
+                    post.metadata["ratings"] = apply_rating_override(post.metadata.get("ratings"), name, score)
                 if metadata or rating_override is not None:
-                    post.metadata["updatedOn"] = _now_utc_iso()
+                    post.metadata["updatedOn"] = utc_now_iso()
 
             _, changed = _update_recipe_post(file_path, mutate)
             if changed:

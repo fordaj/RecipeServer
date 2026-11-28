@@ -37,9 +37,12 @@ HTTP handler, so a rule change reaches every caller at once.
   `drop_legacy_category(metadata)` — the read/write normalization of the
   legacy `category` spelling.
 
-Ratings, comments, and recipe identity have their own canonical helpers in
-[recipe_utils.py.md](recipe_utils.py.md); the text rules for image references
-live in [recipe_images.py.md](recipe_images.py.md).
+The same module owns the `ratings` list rules: `validate_ratings`,
+`validate_bulk_rating`, and `apply_rating_override` (which reuses an existing
+entry's id when the same reviewer rates again). The UTC timestamp writer is
+`utc_now_iso` in [recipe_utils.py.md](recipe_utils.py.md). Comments and recipe
+identity helpers also live there; the text rules for image references live in
+[recipe_images.py.md](recipe_images.py.md).
 
 ## Related pages
 
