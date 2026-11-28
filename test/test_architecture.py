@@ -73,9 +73,11 @@ def test_both_streaming_endpoints_share_the_sse_framing(relative_path: str):
     tree = _tree(relative_path)
     for handler in ("_stream_ai_recipe", "_stream_ai_assistant"):
         node = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == handler)
-        calls = {call.func.attr for call in ast.walk(node) if isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)}
-        assert "_begin_event_stream" in calls
-        assert "_send_sse_event" in calls
+        calls = {call.func.id for call in ast.walk(node) if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)}
+        assert "run_stream" in calls
+    server_source = (SOURCE / relative_path).read_text(encoding="utf-8")
+    assert "def _send_sse_event" not in server_source
+    assert "def _begin_event_stream" not in server_source
 
 
 @pytest.mark.parametrize(

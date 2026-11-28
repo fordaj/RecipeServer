@@ -66,6 +66,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 - [recipe_metadata.py](recipe_metadata.py.md) — front-matter field registry and validation
 - [request_payload.py](request_payload.py.md) — request body parsing and image upload staging
 - [recipe_history_api.py](recipe_history_api.py.md) — history payloads, diffs and script-free previews
+- [ai_streaming.py](ai_streaming.py.md) — shared SSE framing and stream endpoint lifecycle
 - [history.py](history.py.md) — recipe revision history (immutable snapshots in the user-data directory)
 - [retention.py](retention.py.md) — timeline revision retention policies (GFS / Unlimited) that prune snapshots
 - [retention_policy.py](retention_policy.py.md) — leaf vocabulary and live-value provider shared by config and retention

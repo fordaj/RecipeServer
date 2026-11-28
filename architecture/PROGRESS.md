@@ -302,6 +302,14 @@ Clean full suite with no deselection and no edits during execution:
 **692 passed, 20 skipped** in 448 s. Formatting and docs generation clean.
 `server.py` is down to 2491 lines from the 3262-line baseline.
 
+### Batch 22 — AI streaming orchestration leaves the handler (pending commit)
+
+`ai_streaming.py` now owns the SSE wire format (`EventStream`) and the shared
+stream lifecycle (`run_stream`), including error/result terminal events and
+quiet browser disconnects. Both AI handlers delegate to it; their duplicated
+framing closures are deleted. Evidence: `112 passed` for streaming,
+architecture, AI recipe, and assistant tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -341,3 +349,4 @@ the rest.
 | 19    | focused 75 + 69 passed; final clean full 680 passed, 20 skipped                        | clean      | generated, no broken local links | `16b053c` |
 | 20    | focused 5 + 125 passed; full 685 passed, 1 known order-flaky e2e; deselected run clean | clean      | generated, no broken links       | `091d286` |
 | 21    | focused 71 passed; final clean full 692 passed, 20 skipped (no deselection)            | clean      | generated, no broken local links | `a70a25d` |
+| 22    | focused 112 passed; full run pending                                                   | clean      | generated                        | pending   |
