@@ -24,7 +24,7 @@ from platformdirs import user_data_path
 from ._logger import logger
 from .auth_config import AuthSettings
 from .oidc import OIDCError, OIDCClient, new_login_flow, read_login_flow
-from .session import FLOW_COOKIE, SESSION_COOKIE, Session, create_session, read_session
+from .session import SESSION_COOKIE, Session, create_session, read_session
 
 ACCESS_SETTINGS_FILENAME = "access-settings.json"
 MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})

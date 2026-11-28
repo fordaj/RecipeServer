@@ -43,7 +43,6 @@ A snapshot identifier embeds a UTC microsecond timestamp plus a random suffix: i
 - `sha256_text(content)` — hex SHA-256 of UTF-8 content; used to skip consecutive duplicate versions.
 - `make_snapshot_id(now=None)` / `is_valid_snapshot_id(id)` / `parse_snapshot_id(id)` — mint, validate, and parse snapshot identifiers (UTC).
 - `read_snapshot(recipe_id, snapshot_id)` — the exact stored Markdown; `FileNotFoundError` when missing.
-- `snapshot_exists(recipe_id, snapshot_id)` — existence check with the same validation.
 - `latest_snapshot(recipe_id)` — the newest snapshot path, or `None`.
 - `list_snapshots(recipe_id)` — `SnapshotInfo` items (`.id`, `.created`, `.size`), newest first.
 - `create_snapshot(recipe_id, content)` — store `content` as the newest snapshot; returns the path, or `None` when the newest snapshot already holds the identical content (consecutive duplicates are skipped by SHA-256). Raises `HistoryError` when the snapshot cannot be written; callers that snapshot before a save must abort the save in that case so the previous version is never lost.

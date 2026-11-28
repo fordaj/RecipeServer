@@ -1,7 +1,7 @@
 import webbrowser
 from pathlib import Path
 import pystray
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from .server import Server
 from ._logger import logger

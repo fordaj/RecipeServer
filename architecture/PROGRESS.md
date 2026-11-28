@@ -110,6 +110,13 @@ the other. The converter's private duplicate is deleted. Evidence:
 `83 passed, 1 skipped` across architecture, conversion, assistant, and path
 tests.
 
+### Batch 8 — dead-code removal (pending commit)
+
+Deleted the unused `history.snapshot_exists` and the unused `FLOW_COOKIE`
+import in `authorization.py` and `ImageDraw` import in `tray.py`, with the
+sibling doc updated. Evidence: `38 passed` across history, auth, and tray
+tests.
+
 ## Verification record
 
 | Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
@@ -122,4 +129,5 @@ tests.
 | 4     | focused 5 passed; final full run pending                                      | clean      | generated                        | `1d7532f` |
 | 5     | focused 87 passed, 3 skipped; final full run pending                          | clean      | generated                        | `404fb12` |
 | 6     | focused 27 passed + 54 passed; final full run pending                         | clean      | generated                        | `db61f8c` |
-| 7     | focused 83 passed, 1 skipped; final full run pending                          | clean      | generated                        | pending   |
+| 7     | focused 83 passed, 1 skipped; final full run pending                          | clean      | generated                        | `ffaa942` |
+| 8     | focused 38 passed; final full run pending                                     | clean      | generated                        | pending   |
