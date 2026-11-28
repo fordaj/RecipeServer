@@ -20,6 +20,7 @@ from pathlib import Path
 import frontmatter
 
 from ._logger import logger
+from .recipe_paths import RECIPE_FILENAME
 from .recipe_utils import normalize_reviewer_name, normalize_source_dict, read_categories
 
 # Fields the editor fills from a dropdown. Multi-value fields hold a list of
@@ -102,7 +103,7 @@ def _recipe_files(root: Path) -> list[Path]:
     if not root.is_dir():
         return []
 
-    return [recipe_file for recipe_file in sorted(root.rglob("recipe.md")) if not recipe_file.is_symlink() and recipe_file.is_file()]
+    return [recipe_file for recipe_file in sorted(root.rglob(RECIPE_FILENAME)) if not recipe_file.is_symlink() and recipe_file.is_file()]
 
 
 def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str, object]]]:

@@ -51,6 +51,7 @@ from .ai_recipe import (
     resolve_ai_config,
     resolve_model_name,
 )
+from .recipe_paths import MARKDOWN_FILE_SUFFIX, RECIPE_FILENAME, display_path, resolve_recipe_file
 from .recipe_utils import slug_to_title
 
 # Conversation management. The browser keeps its own copy; these caps keep
@@ -228,30 +229,8 @@ def sanitize_message(message: object) -> str:
 
 
 def _resolve_recipe_path(source_directory: Path, requested_path: object) -> Path:
-    """Validate a library-relative recipe path; mirrors the server's rules."""
-    if isinstance(requested_path, str):
-        requested_path = requested_path.strip()
-    if not isinstance(requested_path, str) or not requested_path:
-        raise ValueError("Expected a recipe path")
-    if "\\" in requested_path or "\x00" in requested_path:
-        raise ValueError("Invalid file path")
-
-    relative_path = Path(requested_path)
-    if relative_path.is_absolute() or ".." in relative_path.parts:
-        raise ValueError("Path must stay inside the source directory")
-    if relative_path.suffix.lower() != ".md":
-        raise ValueError("Only Markdown (.md) files can be read")
-
-    root = Path(source_directory).resolve()
-    file_path = (root / relative_path).resolve()
-    if not file_path.is_relative_to(root):
-        raise ValueError("Path must stay inside the source directory")
-    return file_path
-
-
-def display_path(source_directory: Path, file_path: Path) -> str:
-    """Return the library-relative POSIX path used for prompts and replies."""
-    return Path(file_path).resolve().relative_to(Path(source_directory).resolve()).as_posix()
+    """Validate a library-relative recipe path for a read-only tool call."""
+    return resolve_recipe_file(source_directory, requested_path, action="read")
 
 
 def _heading_title(text: str) -> str | None:
@@ -270,7 +249,7 @@ def _list_recipes(source_directory: Path) -> dict[str, Any]:
     if not root.is_dir():
         return {"recipes": recipes, "truncated": False}
 
-    for recipe_file in sorted(root.rglob("recipe.md")):
+    for recipe_file in sorted(root.rglob(RECIPE_FILENAME)):
         if recipe_file.is_symlink() or not recipe_file.is_file():
             continue
         try:
@@ -376,7 +355,7 @@ def _best_recipe_match(query: str, recipes: list[dict[str, str]]) -> tuple[float
 
 
 def _open_recipe_url(display_path: str) -> str:
-    if display_path.lower().endswith(".md"):
+    if display_path.lower().endswith(MARKDOWN_FILE_SUFFIX):
         return "/" + display_path[:-3] + ".html"
     return "/" + display_path
 

@@ -18,6 +18,7 @@ from .config import DEFAULT_FOOD_COLOR, DEFAULT_RECIPE_SERVER_NAME, Configuratio
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
+from .recipe_paths import MARKDOWN_FILE_SUFFIX
 from .recipe_utils import (
     iter_valid_rating_entries,
     meta_time_html,
@@ -485,7 +486,7 @@ class IndexHTMLGenerator:
 
         relative_path = html_path.relative_to(self.cfg.site_directory)
         url = "/" + relative_path.as_posix()
-        markdown_path = relative_path.with_suffix(".md").as_posix()
+        markdown_path = relative_path.with_suffix(MARKDOWN_FILE_SUFFIX).as_posix()
 
         title = self._resolve_title(recipe, html_path, metadata)
         hero_url = self._hero_image_url(html_path)

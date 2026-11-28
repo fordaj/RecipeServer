@@ -16,6 +16,7 @@ from .history import write_file_atomic
 from .image_handler import IMAGE_EXTENSIONS
 from .index_html_generator import IndexHTMLGenerator, Recipe
 from .markdown_to_html import MarkdownToHTMLConverter
+from .recipe_paths import RECIPE_FILENAME
 from .recipe_utils import extract_recipe_id, new_recipe_id, set_recipe_id
 from .retention import get_retention_manager
 from .server import Server
@@ -72,7 +73,7 @@ class Core:
         if not markdown.is_relative_to(working_dir):
             raise ValueError("Recipe must be inside the working directory")
 
-        if markdown.name != "recipe.md" or not markdown.is_file():
+        if markdown.name != RECIPE_FILENAME or not markdown.is_file():
             raise ValueError("Invalid recipe Markdown file")
 
         # Preserve the source directory structure under site/.
@@ -210,7 +211,7 @@ class Core:
         self.copy_assets(self.cfg.site_directory)
         timings["assets_copy"] = time.perf_counter() - assets_start
 
-        markdown_files = [markdown for markdown in working_dir.rglob("recipe.md") if markdown.is_file()]
+        markdown_files = [markdown for markdown in working_dir.rglob(RECIPE_FILENAME) if markdown.is_file()]
 
         self._ensure_recipe_ids(markdown_files)
 

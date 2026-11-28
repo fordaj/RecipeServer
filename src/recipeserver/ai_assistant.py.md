@@ -26,7 +26,7 @@ Called by [server.py.md](server.py.md) (`/api/ai-assistant`); the bubble itself 
 - `run_assistant(config, message, history, *, source_directory, current_file=None, current_path_display=None, apply_edit=None, event_callback=None)` — the agent loop. Returns `{reply, edited, path, metrics}` plus, when the model called `open_recipe` successfully, `open` (`{url, title, path}`; the browser redirects to the URL once the reply is delivered). Raises `ModelUnavailable` (not configured / unreachable), `ModelRequestError` (bad endpoint response, empty answer, tool-round limit) and `ValueError` (invalid input) — the same contract as the other AI entry points.
 - `sanitize_message(message)` — non-empty string, at most `MAX_MESSAGE_CHARS = 4000`.
 - `sanitize_history(history)` — keeps `user`/`assistant` text turns, at most `MAX_HISTORY_MESSAGES = 20` messages of at most `MAX_HISTORY_CHARS` characters each.
-- `display_path(source_directory, file_path)` — library-relative POSIX path used in prompts, results, and tool output.
+- `display_path(source_directory, file_path)` — re-exported from [recipe_paths.py.md](recipe_paths.py.md); library-relative POSIX path used in prompts, results, and tool output. The assistant's `read_recipe` path check also delegates to that module's `resolve_recipe_file`.
 - `_best_recipe_match(query, recipes)` — deterministic closest-match scoring for `open_recipe` (exact → tighter containment → substring either way → `difflib` ratio; the library path or title directory is matched the same way). Exported for tests.
 - `_load_assistant_prompt()` — reads `AssistantPrompt.md` fresh per request (edits apply on the next run), falls back to a minimal built-in prompt when the file is unreadable.
 

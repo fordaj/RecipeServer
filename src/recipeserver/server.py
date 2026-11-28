@@ -47,6 +47,7 @@ from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_ar
 from .config import (
     Configuration,
     DEFAULT_KEEP_ALIVE_MINUTES,
+    DEFAULT_SERVER_BIND_ADDRESS,
     DEFAULT_SERVER_PORT,
     DEFAULT_TRANSCRIPTION_ENDPOINT,
     DEFAULT_TRANSCRIPTION_MODEL,
@@ -56,6 +57,7 @@ from .config import (
 )
 from .image_handler import IMAGE_EXTENSIONS
 from .metadata_options import collect_metadata_options
+from .recipe_paths import RECIPE_FILENAME, display_path, resolve_recipe_file, resolve_recipe_folder
 from .shopping_list import scrape_ingredients
 from .recipe_utils import (
     CATEGORIES_FIELD,
@@ -95,7 +97,6 @@ ARCHIVE_STREAM_CHUNK_BYTES = 64 * 1024
 # 127.0.0.1 is used for the *default loopback fallbacks* instead of
 # "localhost" because the name may resolve to IPv6 first, which the IPv4
 # socket does not listen on.
-SERVER_BIND_ADDRESS = "0.0.0.0"
 LOCALHOST = "127.0.0.1"
 IPV6_WILDCARD = "::"
 IPV6_LOOPBACK = "::1"
@@ -130,8 +131,6 @@ transcriber = get_transcriber()
 # ----- Filename and metadata-field rules -----------------------------------
 # Shared by recipe creation, the metadata endpoints, and image validation.
 
-RECIPE_FILENAME = "recipe.md"
-MARKDOWN_FILE_SUFFIX = ".md"
 RECIPE_FOLDER_NAME_MAX_BYTES = 200
 MAX_RATING_NAME_LENGTH = 100
 MARKDOWN_NOT_FOUND_ERROR = "Markdown file not found"
@@ -1496,9 +1495,11 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
         The server itself only speaks plain HTTP, so the site is served over
         HTTPS through a local reverse proxy (or tunnel) that terminates TLS
         and forwards the request. Those proxies record the original protocol
-        in the ``X-Forwarded-Proto`` (or ``Forwarded``) header. The server
-        listens on the loopback interface only, so that header can only come
-        from a process on this machine.
+        in the ``X-Forwarded-Proto`` (or ``Forwarded``) header. Trusting that
+        header assumes the reverse proxy is the only direct client; the
+        default bind address is ``0.0.0.0``, so deployments exposed beyond the
+        machine should restrict ``server_bind_address`` to loopback or enable
+        authentication.
         """
         forwarded_proto = self.headers.get("X-Forwarded-Proto", "")
         if forwarded_proto:
@@ -1844,7 +1845,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             current_file = self._resolve_markdown_path(raw_path)
             if not self._require_markdown_file(current_file):
                 return None
-            current_path_display = ai_assistant.display_path(self.source_directory, current_file)
+            current_path_display = display_path(self.source_directory, current_file)
             logger.info(f"AI assistant request for {current_path_display}")
 
         return {
@@ -1882,7 +1883,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
             except Exception:
                 logger.exception(f"The assistant edited {file_path} but HTML regeneration failed")
                 return "The recipe was saved, but regenerating it failed; the page may be stale until the next rebuild."
-            return f"Saved {ai_assistant.display_path(self.source_directory, file_path)} and regenerated the page."
+            return f"Saved {display_path(self.source_directory, file_path)} and regenerated the page."
 
         return apply_edit
 
@@ -3048,35 +3049,10 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
     # ----- path safety and folder helpers ----------------------------------
 
     def _resolve_markdown_path(self, requested_path: str) -> Path:
-        if not requested_path or "\\" in requested_path or "\x00" in requested_path:
-            raise ValueError("Invalid file path")
-
-        relative_path = Path(requested_path)
-        if relative_path.is_absolute() or ".." in relative_path.parts:
-            raise ValueError("Path must stay inside the source directory")
-        if relative_path.suffix.lower() != MARKDOWN_FILE_SUFFIX:
-            raise ValueError("Only Markdown (.md) files can be edited")
-
-        root = self.source_directory
-        file_path = (root / relative_path).resolve()
-        if not file_path.is_relative_to(root):
-            raise ValueError("Path must stay inside the source directory")
-        return file_path
+        return resolve_recipe_file(self.source_directory, requested_path)
 
     def _resolve_recipe_directory(self, requested_path: str) -> Path:
-        if "\\" in requested_path or "\x00" in requested_path:
-            raise ValueError("Invalid folder path")
-        if requested_path and (requested_path.startswith("/") or any(part in {"", ".", ".."} for part in requested_path.split("/"))):
-            raise ValueError("Folder path must stay inside the source directory")
-
-        relative_path = Path(requested_path) if requested_path else Path()
-        if PureWindowsPath(requested_path).drive:
-            raise ValueError("Folder path must stay inside the source directory")
-
-        folder_path = (self.source_directory / relative_path).resolve()
-        if not folder_path.is_relative_to(self.source_directory):
-            raise ValueError("Folder path must stay inside the source directory")
-        return folder_path
+        return resolve_recipe_folder(self.source_directory, requested_path)
 
     def _create_recipe_folder(self, name: str) -> Path:
         suffix = 0
@@ -3172,8 +3148,8 @@ class Server:
 
     @property
     def bind_address(self) -> str:
-        """Configured bind address, falling back to the loopback default."""
-        return getattr(self.cfg, "server_bind_address", SERVER_BIND_ADDRESS) or SERVER_BIND_ADDRESS
+        """Configured bind address, falling back to the configured default."""
+        return getattr(self.cfg, "server_bind_address", DEFAULT_SERVER_BIND_ADDRESS) or DEFAULT_SERVER_BIND_ADDRESS
 
     def _port_in_use(self, port: int, host: str) -> bool:
         family = socket.AF_INET6 if ":" in host else socket.AF_INET

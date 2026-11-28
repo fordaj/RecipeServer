@@ -28,10 +28,29 @@ Worktree: `arch-entropy` (isolated from `main`).
 
 ## Completed batches
 
-_None yet._
+### Batch 0 — architecture governance (`9cdbf9c`)
+
+Created the progress file, task pool, and ADR-0001; excluded `architecture/`
+from the generated site. No production code changed. Formatting check clean.
+
+### Batch 1 — canonical library-path rules (in progress)
+
+Single owner for `recipe.md`/`.md` constants and for Markdown-path, folder-path,
+and display-path rules: new `src/recipeserver/recipe_paths.py`. Migrated
+`server.py`, `ai_assistant.py`, `core.py`, `metadata_options.py`, and
+`index_html_generator.py`; removed the duplicated validators and the
+independent bind-address default from `server.py`. Added behavioural tests and
+structural tests in `test/test_architecture.py`. Fixed an inaccurate
+HTTPS-trust docstring in `server.py`.
+
+Evidence: focused run `129 passed, 1 skipped`; first full run exposed one stale
+test that read the removed constant (migrated to the canonical one) and one
+flaky e2e test that passes in isolation. Final full run pending.
 
 ## Verification record
 
-| Batch | Tests                            | Formatting | Commit    |
-| ----- | -------------------------------- | ---------- | --------- |
-| —     | baseline: 580 passed, 19 skipped | —          | `f802330` |
+| Batch | Tests                                            | Formatting | Docs                             | Commit    |
+| ----- | ------------------------------------------------ | ---------- | -------------------------------- | --------- |
+| —     | baseline: 580 passed, 19 skipped                 | —          | —                                | `f802330` |
+| 0     | n/a (docs only)                                  | clean      | n/a                              | `9cdbf9c` |
+| 1     | focused: 129 passed, 1 skipped; full run pending | clean      | generated, no broken local links | pending   |

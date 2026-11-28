@@ -60,6 +60,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 ## HTTP and editing
 
 - [server.py](server.py.md) — `ThreadingHTTPServer`, the `/api/*` routes
+- [recipe_paths.py](recipe_paths.py.md) — canonical library-relative path rules and recipe filename constants
 - [history.py](history.py.md) — recipe revision history (immutable snapshots in the user-data directory)
 - [retention.py](retention.py.md) — timeline revision retention policies (GFS / Unlimited) that prune snapshots
 - [transcriber.py](transcriber.py.md) — Ollama Qwen3-ASR transcription for the dictation button
