@@ -338,15 +338,11 @@ def _fetch_model_names(
 
 
 def list_models(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> list[str]:
+    """Return the installed model names, using the same /api/tags reader as model_info."""
     models_url = ollama_tags_url(endpoint)
     logger.debug(f"Listing models from {models_url}")
-    names = _fetch_model_names(
-        models_url,
-        name_keys=("id", "name", "model"),
-        timeout=timeout,
-        description="Model list request",
-        http_error_level="WARNING",
-    )
+    catalog = _model_catalog(endpoint, timeout=timeout)
+    names = [name for name in (_entry_name(entry) for entry in catalog) if name]
     logger.debug(f"Models reported by {models_url}: {names}")
     return names
 

@@ -115,6 +115,15 @@ BROWSER_API_BUNDLES = (
 )
 
 
+def test_model_list_uses_the_catalog_reader():
+    source = (SOURCE / "ai_recipe.py").read_text(encoding="utf-8")
+    start = source.index("def list_models(")
+    end = source.index("def _model_catalog(", start)
+    body = source[start:end]
+    assert "_model_catalog(" in body
+    assert "_fetch_model_names(" not in body
+
+
 def test_browser_page_path_has_one_owner():
     for relative in ("recipe-feedback.js", "recipe-history/timeline.js", "ai-assistant/ai-assistant.js"):
         source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")
