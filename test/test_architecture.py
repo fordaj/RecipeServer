@@ -115,6 +115,16 @@ BROWSER_API_BUNDLES = (
 )
 
 
+def test_browser_page_path_has_one_owner():
+    for relative in ("recipe-feedback.js", "recipe-history/timeline.js", "ai-assistant/ai-assistant.js"):
+        source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")
+        if relative == "recipe-feedback.js":
+            assert "RecipePagePath.markdownPathFromLocation" in source
+        else:
+            assert "RecipePagePath." in source
+        assert "decodeURIComponent(window.location.pathname" not in source
+
+
 def test_browser_json_requests_share_one_wrapper():
     for relative in BROWSER_API_BUNDLES:
         source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")

@@ -11,12 +11,6 @@
   const TIMELINE_CSS_ID = "recipe-history-timeline-css";
   const RESTORE_CONFIRM_WINDOW_MS = 4000;
 
-  // The recipe this page renders; the markdown path is the page URL with the
-  // extension swapped, matching the other page scripts.
-  function markdownPathFromLocation() {
-    const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
-    return page.replace(/\.html$/i, ".md");
-  }
 
   function ensureStylesheet() {
     if (document.getElementById(TIMELINE_CSS_ID)) return;
@@ -122,7 +116,7 @@
     const diffElement = dialog.querySelector(".recipe-history__diff");
     const emptyState = dialog.querySelector(".recipe-history__empty");
     const status = dialog.querySelector(".recipe-history__status");
-    const markdownPath = markdownPathFromLocation();
+    const markdownPath = window.RecipePagePath.markdownPathFromLocation();
 
     const state = {
       snapshots: [],

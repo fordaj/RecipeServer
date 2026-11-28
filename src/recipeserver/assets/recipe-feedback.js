@@ -54,10 +54,8 @@
   }
 
   // ----- Path helpers ----- //
-  function getMarkdownPath() {
-    const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
-    return page.replace(/\.html$/i, ".md");
-  }
+  // The single implementation lives in assets/page-path.js.
+  const getMarkdownPath = window.RecipePagePath.markdownPathFromLocation;
 
   // ----- Identity helpers ----- //
   function createId() {

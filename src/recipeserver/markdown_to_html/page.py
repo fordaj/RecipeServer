@@ -52,6 +52,7 @@ TIME_JS = "/assets/time.js"
 ICONS_JS = "/assets/icons.js"
 SSE_JS = "/assets/sse.js"
 API_JS = "/assets/api.js"
+PAGE_PATH_JS = "/assets/page-path.js"
 AUTH_CSS = "/assets/auth/auth.css"
 AUTH_JS = "/assets/auth/auth.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
@@ -116,6 +117,7 @@ def _versioned_assets() -> dict[str, str]:
             "icons_js": ICONS_JS,
             "sse_js": SSE_JS,
             "api_js": API_JS,
+            "page_path_js": PAGE_PATH_JS,
             "recipe_js": RECIPE_JS,
             "recipe_scaler_js": RECIPE_SCALER_JS,
             "pull_down_page_refresh_js": PULL_DOWN_PAGE_REFRESH_JS,
@@ -182,6 +184,7 @@ def build_recipe_html(
         </main>
         <script defer src="{MENU_JS_URL}"></script>
         <script defer src="{assets["api_js"]}"></script>
+        <script defer src="{assets["page_path_js"]}"></script>
         <script defer src="{assets["time_js"]}"></script>
         <script defer src="{assets["icons_js"]}"></script>
         <script defer src="{assets["sse_js"]}"></script>

@@ -84,15 +84,6 @@
     return MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type)) || "";
   };
 
-  function recipePathFromLocation() {
-    // A recipe page embeds the metadata JSON; the index does not.
-    if (!document.getElementById("recipe-metadata")) {
-      return null;
-    }
-    const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
-    return page.replace(/\.html$/i, ".md");
-  }
-
   function createElement(tag, className, text) {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -248,7 +239,7 @@
       this.conversation = [];
       this.busy = false;
       this.open = false;
-      this.recipePath = recipePathFromLocation();
+      this.recipePath = window.RecipePagePath.recipePathFromLocation();
       this.mobileMedia = window.matchMedia(MOBILE_MEDIA_QUERY);
       this.lastScrollY = window.scrollY;
       this.scrollTicking = false;

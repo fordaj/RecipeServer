@@ -367,6 +367,14 @@ this batch hit the intermittent timeline e2e failure (`711 passed, 20 skipped,
 1 failed`); the diff-text wait was added afterward and the final run is clean.
 Formatting and docs generation are clean.
 
+### Batch 26 — one browser page-path helper (pending commit)
+
+`assets/page-path.js` is the single owner of the URL → library Markdown path
+derivation, including the index-page guard. Feedback, version history, and the
+assistant delegate to it; their local copies are deleted. Added node tests, a
+load-order test, and AST enforcement. Evidence: `61 passed` for page-path,
+architecture, ratings, and API wrapper tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -410,3 +418,4 @@ the rest.
 | 23    | focused 102 passed; final clean full 702 passed, 20 skipped                            | clean      | generated, no broken local links | `f174d27` |
 | 24    | focused 81 passed; final clean full 709 passed, 20 skipped                             | clean      | generated, no broken local links | `52421b7` |
 | 25    | focused 76 passed; clean full 712 passed, 20 skipped                                   | clean      | generated, no broken local links | `16a7035` |
+| 26    | focused 61 passed; full run pending                                                    | clean      | generated                        | pending   |

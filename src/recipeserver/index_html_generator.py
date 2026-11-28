@@ -36,6 +36,7 @@ TIME_JS_PATH = "/assets/time.js"
 ICONS_JS_PATH = "/assets/icons.js"
 SSE_JS_PATH = "/assets/sse.js"
 API_JS_PATH = "/assets/api.js"
+PAGE_PATH_JS_PATH = "/assets/page-path.js"
 
 # ----- Asset paths and URLs ----- #
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
@@ -812,6 +813,7 @@ class IndexHTMLGenerator:
             "icons_js": ICONS_JS_PATH,
             "sse_js": SSE_JS_PATH,
             "api_js": API_JS_PATH,
+            "page_path_js": PAGE_PATH_JS_PATH,
             "recipe_editor_css": RECIPE_EDITOR_CSS_PATH,
             "recipe_editor_js": RECIPE_EDITOR_JS_PATH,
             "fields_js": FIELDS_JS_PATH,
@@ -873,6 +875,7 @@ class IndexHTMLGenerator:
     <link rel="stylesheet" href="{urls['pull_down_page_refresh_css']}">
     <script src="{MENU_JS_URL}" defer></script>
     <script src="{urls['api_js']}" defer></script>
+    <script src="{urls['page_path_js']}" defer></script>
     <script src="{urls['icons_js']}" defer></script>
     <script src="{urls['sse_js']}" defer></script>
     <script src="{urls['ai_assistant_js']}" defer></script>
