@@ -37,6 +37,7 @@ ICONS_JS_PATH = "/assets/icons.js"
 SSE_JS_PATH = "/assets/sse.js"
 API_JS_PATH = "/assets/api.js"
 PAGE_PATH_JS_PATH = "/assets/page-path.js"
+DATE_LABELS_JS_PATH = "/assets/date-labels.js"
 
 # ----- Asset paths and URLs ----- #
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
@@ -814,6 +815,7 @@ class IndexHTMLGenerator:
             "sse_js": SSE_JS_PATH,
             "api_js": API_JS_PATH,
             "page_path_js": PAGE_PATH_JS_PATH,
+            "date_labels_js": DATE_LABELS_JS_PATH,
             "recipe_editor_css": RECIPE_EDITOR_CSS_PATH,
             "recipe_editor_js": RECIPE_EDITOR_JS_PATH,
             "fields_js": FIELDS_JS_PATH,
@@ -1104,6 +1106,7 @@ class IndexHTMLGenerator:
 </ul>
 {self._version_footer_html()}
 </main>
+<script defer src="{asset_urls['date_labels_js']}"></script>
 <script defer src="{asset_urls['time_js']}"></script>
 <script defer src="{asset_urls['pull_down_page_refresh_js']}"></script>
 </body>

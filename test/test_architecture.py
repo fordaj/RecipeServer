@@ -115,6 +115,13 @@ BROWSER_API_BUNDLES = (
 )
 
 
+def test_browser_date_labels_have_one_owner():
+    for relative in ("time.js", "recipe-history/timeline.js"):
+        source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")
+        assert "RecipeDates" in source
+        assert "getFullYear()" not in source, f"{relative} still decides the year itself"
+
+
 def test_model_list_uses_the_catalog_reader():
     source = (SOURCE / "ai_recipe.py").read_text(encoding="utf-8")
     start = source.index("def list_models(")

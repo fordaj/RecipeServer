@@ -394,6 +394,14 @@ tests.
 Clean full suite with no deselection and no edits during execution:
 **717 passed, 20 skipped** in 454 s. Formatting and docs generation clean.
 
+### Batch 28 — one date-label rule (pending commit)
+
+`assets/date-labels.js` owns the browser's month/day (+ year when not the
+current year) and time/full-date formatting; `time.js` and the history dialog
+delegate to it. Python's `display_date` gained an injectable `now` and a
+cross-language contract test compares its output with the JS helper for fixed
+dates. Evidence: `71 passed` for date-label, architecture, and conversion tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -439,3 +447,4 @@ the rest.
 | 25    | focused 76 passed; clean full 712 passed, 20 skipped                                   | clean      | generated, no broken local links | `16a7035` |
 | 26    | focused 61 passed; final clean full 716 passed, 20 skipped                             | clean      | generated, no broken local links | `b186f7b` |
 | 27    | focused 89 passed; final clean full 717 passed, 20 skipped                             | clean      | generated, no broken local links | `ae97984` |
+| 28    | focused 71 passed; full run pending                                                    | clean      | generated                        | pending   |

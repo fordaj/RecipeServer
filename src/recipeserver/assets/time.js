@@ -1,16 +1,5 @@
 (() => {
-  const currentYear = new Date().getFullYear();
-
-  const dateFormatter = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-
-  const dateWithYearFormatter = new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const { formatShortDate, formatFullDate } = window.RecipeDates;
 
   function localizeTime(element) {
     const timestamp = element.getAttribute("datetime");
@@ -19,11 +8,9 @@
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return;
 
-    const formatter = date.getFullYear() === currentYear ? dateFormatter : dateWithYearFormatter;
     const prefix = element.dataset.timePrefix || "";
-
-    element.textContent = `${prefix}${formatter.format(date)}`;
-    element.title = date.toLocaleString();
+    element.textContent = `${prefix}${formatShortDate(date)}`;
+    element.title = formatFullDate(timestamp);
   }
 
   document.querySelectorAll("time[data-local-time]").forEach(localizeTime);

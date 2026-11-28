@@ -136,10 +136,15 @@ def is_date_only(value: object) -> bool:
     return False
 
 
-def display_date(value: datetime) -> str:
-    """Format a UTC datetime for server-rendered fallback text."""
+def display_date(value: datetime, now: datetime | None = None) -> str:
+    """Format a UTC datetime for server-rendered fallback text.
+
+    The browser's `assets/date-labels.js` applies the same month/day rule, with
+    an injectable ``now`` so the shared contract can be tested on both sides.
+    """
     text = f"{value:%b} {value.day}"
-    if datetime.now(timezone.utc).year != value.year:
+    current = now or datetime.now(timezone.utc)
+    if current.year != value.year:
         text += f", {value.year}"
     return text
 

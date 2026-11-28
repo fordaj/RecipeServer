@@ -29,21 +29,12 @@
     return `${(kilobytes / 1024).toFixed(1)} MB`;
   }
 
-  function fullDate(iso) {
-    const date = new Date(iso);
-    return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
-  }
-
   function dateLabel(iso) {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return { date: iso, time: "" };
-    const currentYear = new Date().getFullYear();
-    const dateOptions = { month: "short", day: "numeric" };
-    if (date.getFullYear() !== currentYear) dateOptions.year = "numeric";
-    const timeOptions = { hour: "numeric", minute: "2-digit" };
     return {
-      date: date.toLocaleDateString(undefined, dateOptions),
-      time: date.toLocaleTimeString(undefined, timeOptions),
+      date: window.RecipeDates.formatShortDate(date),
+      time: window.RecipeDates.formatTime(date),
     };
   }
 
@@ -163,7 +154,7 @@
         return;
       }
 
-      toolbarTitle.textContent = fullDate(snapshot.created);
+      toolbarTitle.textContent = window.RecipeDates.formatFullDate(snapshot.created);
       toolbarTitle.title = `Snapshot ${snapshot.id} · ${formatSize(snapshot.size)}`;
       if (state.mode === "preview") {
         previewFrame.src = `${PREVIEW_API}?path=${encodeURIComponent(markdownPath)}&snapshot=${encodeURIComponent(snapshot.id)}`;
@@ -199,7 +190,7 @@
         button.className = "recipe-history__item";
         button.dataset.snapshotId = snapshot.id;
         button.setAttribute("aria-pressed", String(snapshot.id === state.selected));
-        button.title = fullDate(snapshot.created);
+        button.title = window.RecipeDates.formatFullDate(snapshot.created);
         const dateChip = document.createElement("span");
         dateChip.className = "recipe-history__date";
         dateChip.append(labels.date);
