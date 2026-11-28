@@ -1,23 +1,35 @@
 # The package initializer (`src/recipeserver/__init__.py`)
 
 ```mermaid
-flowchart LR
-    console("<img src='barnacle:file-cog.svg' width='20' alt=''/><br/>pyproject.toml<br/>console script") --> pkg("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>recipeserver/__init__.py</u>")
-    pkg --> core("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.py<br/>from .core import *</u>")
-    click pkg href "README.md"
-    click core href "core.py.md"
-    class pkg,core goFile
+flowchart TD
+    console("<img src='barnacle:file-cog.svg' width='20' alt=''/><br/>console script") --> main("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>recipeserver.main()<br/>lazy startup</u>")
+    module("<img src='barnacle:terminal.svg' width='20' alt=''/><br/>python -m recipeserver") --> main
+    main --> args("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.parse_args()</u>")
+    args --> log("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>_logger.setup_logger()</u>")
+    log --> cfg("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>Configuration.<br/>handle_configuration()</u>")
+    cfg --> run("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>core.main(cfg)</u>")
+    click args href "core.py.md"
+    click log href "_logger.py.md"
+    click cfg href "config.py.md"
+    click run href "core.py.md"
+    class main goFile
     classDef goFile fill:#8fd8ef,stroke:#0277a8,color:#08303d
 ```
 
-One line: `from .core import *`. It re-exports the public names of [core.py.md](core.py.md) — the `Core` class, `main`, `parse_args`, `get_worker_count`, and the worker-count/poll constants — at package scope.
+The package owns one public function, `main()`, which is the console-script
+entry point declared in `pyproject.toml` (`recipeserver = "recipeserver:main"`)
+and the function [__main__.py.md](__main__.py.md) calls for
+`python -m recipeserver`. Both routes therefore execute the same startup
+sequence, and the console script works without arguments.
 
-This is what makes the `recipeserver` console script declared in `pyproject.toml` (`recipeserver = "recipeserver:main"`) work: the entry point resolves `main` straight off the package.
-
-Note the import has side effects you should be aware of: importing `recipeserver` imports `core`, which imports `server`, `tray`, `index_html_generator`, and the rest of the stack, including `pystray` and `tkinter` via `config`. Importing the package is not import-light.
+The body imports the rest of the stack only when called. Importing
+`recipeserver` — or a leaf module such as `recipeserver.shopping_list` — no
+longer loads `core`, `server`, `tray`, `config`, `tkinter`, or `pystray`. This
+removes the import cycle that previously routed every module through the
+orchestrator. `test/test_startup_entrypoints.py` enforces both properties.
 
 ## Related pages
 
-- [core.py.md](core.py.md) — the startup pipeline and `Core`
+- [core.py.md](core.py.md) — `parse_args()` and `main(cfg)`
 - [**main**.md](__main__.py.md) — `python -m recipeserver` entry
 - [README.md](README.md) — the package hub
