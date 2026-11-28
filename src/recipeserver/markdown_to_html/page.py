@@ -10,7 +10,7 @@ from html import escape
 from textwrap import dedent
 
 from .._version import versioned_asset_url
-from ..color_utils import dark_mode_color
+from ..color_utils import accent_color_declarations
 from ..menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .icons import ASSETS_DIR, NOTEBOOK_SVG, icon_html
 
@@ -77,14 +77,7 @@ def doc_specific_overrides(heading_color: str) -> str:
     """Return the per-page CSS that applies the recipe's accent color."""
     return dedent(f"""
         <style>
-            :root {{
-                --food-color: {heading_color};
-            }}
-            @media (prefers-color-scheme: dark) {{
-                :root {{
-                    --food-color: {dark_mode_color(heading_color)};
-                }}
-            }}
+            {accent_color_declarations(heading_color)}
 
             .recipe-icon {{
                 color: var(--food-color);

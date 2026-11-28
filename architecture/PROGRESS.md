@@ -92,6 +92,15 @@ structural test prevents the local path literal from returning. Evidence:
 `87 passed, 3 skipped` across architecture, transcriber, live-transcription,
 and speech-button tests.
 
+### Batch 6 — one accent-color declaration owner (pending commit)
+
+`color_utils.accent_color_declarations` now owns the light/dark `--food-color`
+and `--food-color-hover` rules; the index and recipe-page builders wrap the
+same declarations. Previously recipe pages with a photo-derived accent kept
+the stylesheet's brown hover color. Tests assert the hover declaration on
+both generated page types. Evidence: `27 passed` for config-values and index
+tests, `54 passed` for the wider rendering test set.
+
 ## Verification record
 
 | Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
@@ -102,4 +111,5 @@ and speech-button tests.
 | 2     | focused 3 passed; console script and import probe verified                    | clean      | generated                        | `1b0fbfa` |
 | 3     | focused 82 passed + 35 passed; final full run pending                         | clean      | generated                        | `9d616fc` |
 | 4     | focused 5 passed; final full run pending                                      | clean      | generated                        | `1d7532f` |
-| 5     | focused 87 passed, 3 skipped; final full run pending                          | clean      | generated                        | pending   |
+| 5     | focused 87 passed, 3 skipped; final full run pending                          | clean      | generated                        | `404fb12` |
+| 6     | focused 27 passed + 54 passed; final full run pending                         | clean      | generated                        | pending   |

@@ -13,7 +13,7 @@ from bs4 import BeautifulSoup
 
 from ._logger import logger
 from ._version import PACKAGE_VERSION as VERSION, versioned_asset_url
-from .color_utils import dark_mode_color
+from .color_utils import accent_color_declarations
 from .config import DEFAULT_FOOD_COLOR, DEFAULT_RECIPE_SERVER_NAME, Configuration
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
@@ -105,9 +105,6 @@ _DETAIL_ICON_PATHS = {
     "archived": ARCHIVE_SVG,
     "status": INFO_SVG,
 }
-
-# Weight of the food color in the hover/dark-mode color-mix() declarations.
-FOOD_COLOR_HOVER_MIX_PERCENT = 82
 
 # Maximum number of reviewers shown in the review filter.
 MAX_REVIEW_FILTER_OPTIONS = 30
@@ -795,24 +792,6 @@ class IndexHTMLGenerator:
     # ----- Page section builders ----- #
 
     @staticmethod
-    def _food_color_style(food_color: str) -> str:
-        dark_food_color = dark_mode_color(food_color)
-        return dedent(f"""\
-<style>
-    :root {{
-        --food-color: {food_color};
-        --food-color-hover: color-mix(in srgb, {food_color} {FOOD_COLOR_HOVER_MIX_PERCENT}%, black);
-    }}
-    @media (prefers-color-scheme: dark) {{
-        :root {{
-            --food-color: {dark_food_color};
-            --food-color-hover: color-mix(in srgb, {dark_food_color} {FOOD_COLOR_HOVER_MIX_PERCENT}%, white);
-        }}
-    }}
-</style>
-""").rstrip("\n")
-
-    @staticmethod
     def _versioned_asset_urls() -> dict[str, str]:
         """Content-hash every local asset the page references, keyed by template name."""
         paths = {
@@ -1094,7 +1073,7 @@ class IndexHTMLGenerator:
     ) -> str:
         server_name_html = html.escape(self._server_name())
         food_color = getattr(self.cfg, "food_color", None) or DEFAULT_FOOD_COLOR
-        food_color_style = self._food_color_style(food_color)
+        food_color_style = f"<style>\n{accent_color_declarations(food_color)}\n</style>"
         filter_menus_html = self._filter_menus_html(filter_values)
         asset_urls = self._versioned_asset_urls()
         dictation_enabled = getattr(self.cfg, "dictation_enabled", True)
