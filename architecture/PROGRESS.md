@@ -389,6 +389,11 @@ swallowed connection errors); error propagation is unchanged. Added an AST
 test for the delegation. Evidence: `89 passed` for AI recipe and architecture
 tests.
 
+### Batch 27 verification (final)
+
+Clean full suite with no deselection and no edits during execution:
+**717 passed, 20 skipped** in 454 s. Formatting and docs generation clean.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -433,4 +438,4 @@ the rest.
 | 24    | focused 81 passed; final clean full 709 passed, 20 skipped                             | clean      | generated, no broken local links | `52421b7` |
 | 25    | focused 76 passed; clean full 712 passed, 20 skipped                                   | clean      | generated, no broken local links | `16a7035` |
 | 26    | focused 61 passed; final clean full 716 passed, 20 skipped                             | clean      | generated, no broken local links | `b186f7b` |
-| 27    | focused 89 passed; full run pending                                                    | clean      | generated                        | pending   |
+| 27    | focused 89 passed; final clean full 717 passed, 20 skipped                             | clean      | generated, no broken local links | `ae97984` |
