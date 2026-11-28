@@ -359,12 +359,13 @@ and success-flag validation; AST tests prevent the copies returning.
 The task pool is reconciled with the full duplicate-implementation inventory:
 clusters 21–27 are recorded with `candidate`/`deferred` status and evidence.
 
-### Batch 25 verification
+### Batch 25 verification (final)
 
-Full suite: one run hit the known intermittent timeline e2e failure
-(`711 passed, 20 skipped, 1 failed`), the next clean run gave
-**712 passed, 20 skipped**. The timeline dialog now also waits for the diff
-text to arrive before asserting it, reducing the order-dependent flake.
+Full suite after the final timeline wait hardening, with no deselection and no
+edits during execution: **712 passed, 20 skipped** in 451 s. An earlier run in
+this batch hit the intermittent timeline e2e failure (`711 passed, 20 skipped,
+1 failed`); the diff-text wait was added afterward and the final run is clean.
+Formatting and docs generation are clean.
 
 ## Programme diff summary
 
