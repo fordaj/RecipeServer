@@ -4,7 +4,7 @@
 flowchart TD
     config("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>config.py<br/>persisted settings</u>") --> api
     api("<img src='barnacle:layers.svg' width='20' alt=''/><br/><u>config_endpoints.py<br/>read · probe · apply</u>") --> handler("<img src='barnacle:file-code.svg' width='20' alt=''/><br/><u>server.py<br/>status codes + routing</u>")
-    api --> transcribe("<img src='barnacle:microphone.svg' width='20' alt=''/><br/>transcription + dictation settings")
+    api --> transcribe("<img src='barnacle:sliders-horizontal.svg' width='20' alt=''/><br/>transcription + dictation settings")
     click config href "config.py.md"
     click handler href "server.py.md"
     click transcribe href "transcriber.py.md"
