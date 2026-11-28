@@ -21,6 +21,7 @@ from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
 from .recipe_paths import MARKDOWN_FILE_SUFFIX
 from .recipe_utils import (
+    collect_metadata_values,
     iter_valid_rating_entries,
     meta_time_html,
     normalize_reviewer_name,
@@ -210,29 +211,6 @@ class IndexHTMLGenerator:
     # ----- Metadata helpers ----- #
 
     @staticmethod
-    def collect_metadata_values(metadata: dict, *keys: str) -> list[str]:
-        """Return metadata values consistently as a deduplicated string list."""
-        collected: list[str] = []
-        seen: set[str] = set()
-
-        for key in keys:
-            value = metadata.get(key, [])
-            if isinstance(value, str):
-                value = [value]
-            if not isinstance(value, list):
-                continue
-
-            for item in value:
-                if item is None:
-                    continue
-                text = str(item)
-                if text not in seen:
-                    seen.add(text)
-                    collected.append(text)
-
-        return collected
-
-    @staticmethod
     def serialize_for_html_attribute(value: list[object]) -> str:
         """Serialize a list safely for an HTML attribute."""
         return html.escape(json.dumps(value), quote=True)
@@ -392,7 +370,7 @@ class IndexHTMLGenerator:
                 f'<span class="recipe-rating" role="img" '
                 f'aria-label="Rated {average_rating:.1f} out of 10 '
                 f'from {rating_count} ratings">'
-                f'<span class="recipe-rating__star" aria-hidden="true">★</span>'
+                f'<span class="recipe-rating__star" aria-hidden="true">â˜…</span>'
                 f'<span class="recipe-rating__score">{average_rating:.1f}/10</span>'
                 f'<span class="recipe-rating__count">({rating_count})</span>'
                 "</span>"
@@ -429,7 +407,7 @@ class IndexHTMLGenerator:
         # Production callers always build Recipe with the converter's title,
         # which is the rendered <h1> text. Tests construct Recipe objects
         # directly without a title, so fall back to the generated page's
-        # heading — the same text the converter would have stored — before
+        # heading â€” the same text the converter would have stored â€” before
         # the front matter title and the directory name.
         if html_path.exists():
             recipe_page = BeautifulSoup(html_path.read_text(encoding="UTF-8"), "html.parser")
@@ -455,14 +433,14 @@ class IndexHTMLGenerator:
         exception shared with the browser's ``data-source-titles`` attribute.
         """
         source_titles = [source_title for source in sources if (source_title := self._source_title(source))]
-        contributors = [value.strip() for value in self.collect_metadata_values(metadata, "contributor") if value.strip()]
+        contributors = [value.strip() for value in collect_metadata_values(metadata, "contributor") if value.strip()]
         return {
-            "meals": self.collect_metadata_values(metadata, "meals"),
-            "categories": self.collect_metadata_values(metadata, "categories", "category"),
-            "tags": self.collect_metadata_values(metadata, "tags"),
-            "cuisine": self.collect_metadata_values(metadata, "cuisine"),
+            "meals": collect_metadata_values(metadata, "meals"),
+            "categories": collect_metadata_values(metadata, "categories", "category"),
+            "tags": collect_metadata_values(metadata, "tags"),
+            "cuisine": collect_metadata_values(metadata, "cuisine"),
             # Status is a single string value; only the first value is used.
-            "status": self.collect_metadata_values(metadata, "status")[:1],
+            "status": collect_metadata_values(metadata, "status")[:1],
             "contributors": contributors,
             "sourceTitles": source_titles,
         }

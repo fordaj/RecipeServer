@@ -21,7 +21,7 @@ import frontmatter
 
 from ._logger import logger
 from .recipe_paths import iter_recipe_files
-from .recipe_utils import normalize_reviewer_name, normalize_source_dict, read_categories
+from .recipe_utils import collect_metadata_values, normalize_reviewer_name, normalize_source_dict
 
 # Fields the editor fills from a dropdown. Multi-value fields hold a list of
 # values; single-value fields hold exactly one.
@@ -43,30 +43,6 @@ FEEDBACK_OPTION_FIELDS = {
     "commenters": ("comments", "author"),
     "raters": ("ratings", "name"),
 }
-
-
-def _field_values(metadata: dict, field: str) -> list[str]:
-    """Return the non-empty values one recipe stores for a single field."""
-    value = metadata.get(field)
-    if field == "categories":
-        # Older recipes may use the singular field name.
-        value = read_categories(metadata)
-
-    if value is None:
-        return []
-    if isinstance(value, str):
-        value = [value]
-    if not isinstance(value, (list, tuple)):
-        return []
-
-    values = []
-    for item in value:
-        if item is None:
-            continue
-        text = str(item).strip()
-        if text:
-            values.append(text)
-    return values
 
 
 def _feedback_names(metadata: dict, field: str) -> list[str]:
@@ -123,7 +99,7 @@ def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str,
 
         for field in OPTION_FIELDS:
             # A recipe counts once for every value it uses.
-            for value in dict.fromkeys(_field_values(metadata, field)):
+            for value in collect_metadata_values(metadata, field):
                 counts[field][value] = counts[field].get(value, 0) + 1
 
         for field, key in SOURCE_OPTION_FIELDS.items():

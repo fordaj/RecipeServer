@@ -168,6 +168,33 @@ def read_categories(metadata: Mapping[str, object]) -> object:
     return value
 
 
+def collect_metadata_values(metadata: Mapping, *keys: str) -> list[str]:
+    """Return the non-empty string values of *keys*, stripped and deduplicated.
+
+    One rule for both the index filter options and the editor dropdowns: scalar
+    strings count as one value, legacy singular ``category`` is read through
+    ``categories``, and a recipe contributes each distinct value once.
+    """
+    values: list[str] = []
+    seen: set[str] = set()
+    for key in keys:
+        value = read_categories(metadata) if key == CATEGORIES_FIELD else metadata.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, (list, tuple)):
+            continue
+        for item in value:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text and text not in seen:
+                seen.add(text)
+                values.append(text)
+    return values
+
+
 def normalize_legacy_category(metadata: dict) -> None:
     """Fold the legacy singular ``category`` into ``categories`` (in place)."""
     legacy = metadata.pop(LEGACY_CATEGORY_FIELD, None)

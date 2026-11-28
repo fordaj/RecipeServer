@@ -115,6 +115,15 @@ BROWSER_API_BUNDLES = (
 )
 
 
+def test_metadata_value_collection_has_one_owner():
+    for relative in ("index_html_generator.py", "metadata_options.py"):
+        source = (SOURCE / relative).read_text(encoding="utf-8")
+        assert "collect_metadata_values" in source
+        assert "def _field_values" not in source
+    index_source = (SOURCE / "index_html_generator.py").read_text(encoding="utf-8")
+    assert "def collect_metadata_values" not in index_source
+
+
 def test_browser_katex_loading_has_one_owner():
     for relative in ("ai-assistant/ai-assistant.js", "shopping-list/shopping-list.js"):
         source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")

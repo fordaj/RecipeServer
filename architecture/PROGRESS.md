@@ -422,6 +422,17 @@ worker, and AI progress tests.
 Clean full suite with no deselection and no edits during execution:
 **726 passed, 20 skipped** in 452 s. Formatting and docs generation clean.
 
+### Batch 30 — one metadata value collector (pending commit)
+
+`recipe_utils.collect_metadata_values` is now the single owner of reading
+metadata values as stripped, deduplicated strings, including the legacy
+`category` spelling. The index filter builder and the editor dropdown collector
+both use it, so `" tag"` can no longer produce an option that does not match
+the dropdown value. A first extraction removed too much of
+`index_html_generator.py`; the untouched helpers were restored from HEAD before
+verification. Evidence: `35 passed` for metadata-value, index, and
+metadata-options tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -469,3 +480,4 @@ the rest.
 | 27    | focused 89 passed; final clean full 717 passed, 20 skipped                             | clean      | generated, no broken local links | `ae97984` |
 | 28    | focused 71 passed; final clean full 722 passed, 20 skipped                             | clean      | generated, no broken local links | `ff90fc7` |
 | 29    | focused 66 passed; final clean full 726 passed, 20 skipped                             | clean      | generated, no broken local links | `1ad09b0` |
+| 30    | focused 35 passed; full run pending                                                    | clean      | generated                        | pending   |
