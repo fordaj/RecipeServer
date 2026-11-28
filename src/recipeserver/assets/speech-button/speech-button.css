@@ -48,7 +48,7 @@
 }
 
 .speech-button:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -146,19 +146,19 @@
 }
 
 .speech-button__status[data-state="recording"] {
-  color: var(--danger-color);
-  border-color: color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
+  color: var(--status-recording-color);
+  border-color: var(--status-recording-border);
 }
 
 .speech-button__status[data-state="transcribing"],
 .speech-button__status[data-state="complete"] {
-  color: var(--food-color);
-  border-color: var(--hover-border-color);
+  color: var(--status-progress-color);
+  border-color: var(--status-progress-border);
 }
 
 .speech-button__status[data-state="error"] {
-  color: var(--danger-color);
-  border-color: color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
+  color: var(--status-recording-color);
+  border-color: var(--status-recording-border);
 }
 
 .speech-button__status[data-state="preparing"] .speech-button__status-icon,

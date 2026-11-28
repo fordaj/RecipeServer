@@ -115,6 +115,17 @@ BROWSER_API_BUNDLES = (
 )
 
 
+def test_css_design_tokens_have_one_owner():
+    definitions = (SOURCE / "assets" / "definitions.css").read_text(encoding="utf-8")
+    assert "--focus-ring:" in definitions
+    assert "--status-recording-border:" in definitions
+    for path in (SOURCE / "assets").rglob("*.css"):
+        if "katex" in path.parts or path.name == "definitions.css":
+            continue
+        source = path.read_text(encoding="utf-8")
+        assert "outline: 2px solid var(--food-color);" not in source
+
+
 def test_browser_dictation_transport_has_one_owner():
     for relative in ("speech-button/speech-button.js", "ai-assistant/ai-assistant.js"):
         source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")

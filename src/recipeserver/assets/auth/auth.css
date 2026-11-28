@@ -67,7 +67,7 @@
 
 .access-settings select:focus-visible,
 .access-settings button:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 .access-settings .config-editor__footer {

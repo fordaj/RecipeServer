@@ -106,7 +106,7 @@
 .recipe-editor__footer button:focus-visible,
 .shopping-list__footer button:focus-visible,
 .config-editor__footer button:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 /* ---------- Status line ---------- */
@@ -191,7 +191,7 @@
 }
 
 .field-input:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-color: var(--food-color);
 }
 

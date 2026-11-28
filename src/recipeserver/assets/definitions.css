@@ -28,6 +28,15 @@
   --food-color: #8d5542;
   --food-color-hover: #754331;
 
+  /* Shared focus ring: one definition used by every focusable component. */
+  --focus-ring: 2px solid var(--food-color);
+
+  /* Shared dictation/status-pill states (recording vs in-progress/finished). */
+  --status-recording-color: var(--danger-color);
+  --status-recording-border: color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
+  --status-progress-color: var(--food-color);
+  --status-progress-border: var(--hover-border-color);
+
   /* Surfaces */
   --page-bg: #faf9f7;
   --card-bg: #ffffff;

@@ -35,6 +35,8 @@ left open:
   transport in `assets/dictation.js`. The two triggers keep their own UI and
   pointer wiring (different labels and insertion policies); the microphone,
   MediaRecorder lifecycle, and `/api/transcribe` call have one implementation.
+- Focus-ring and status-pill colors moved to tokens in `assets/definitions.css`;
+  the 43 component focus rules and both pill stylesheets now consume them.
 
 ## Consequences
 

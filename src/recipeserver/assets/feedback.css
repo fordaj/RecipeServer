@@ -71,7 +71,7 @@
 
 .recipe-comments__add:focus-visible,
 .recipe-ratings__add:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 /* Avatars */
@@ -187,7 +187,7 @@
 
 .recipe-rating__stars--slider:focus-visible {
   border-radius: 2px;
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 

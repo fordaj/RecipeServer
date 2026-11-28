@@ -143,7 +143,7 @@
 }
 
 .shopping-list__copy:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 .shopping-list__copy svg {
@@ -234,7 +234,7 @@
 }
 
 .shopping-list__ingredients input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 /* ---------- Actions ---------- */

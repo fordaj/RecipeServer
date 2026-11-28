@@ -454,6 +454,13 @@ dictation, architecture, speech-button, and AI progress tests.
 Clean full suite with no deselection and no edits during execution:
 **734 passed, 20 skipped** in 453 s. Formatting and docs generation clean.
 
+### Batch 32 — shared CSS design tokens (pending commit)
+
+`assets/definitions.css` now defines `--focus-ring` and the status-pill color
+tokens once; 43 component focus rules and both dictation status pill styles
+consume them instead of restating the same declarations. Tests assert the
+tokens are defined once and no component hard-codes the old values.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -503,3 +510,4 @@ the rest.
 | 29    | focused 66 passed; final clean full 726 passed, 20 skipped                             | clean      | generated, no broken local links | `1ad09b0` |
 | 30    | focused 35 passed; final clean full 730 passed, 20 skipped                             | clean      | generated, no broken local links | `4d7d768` |
 | 31    | focused 82 passed; final clean full 734 passed, 20 skipped                             | clean      | generated, no broken local links | `5f61770` |
+| 32    | focused 60 passed; full run pending                                                    | clean      | generated                        | pending   |
