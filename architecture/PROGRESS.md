@@ -132,6 +132,25 @@ The tray's "Open Recipes" action uses `DEFAULT_SERVER_PORT`, `LOCALHOST`, and
 literals. A structural test prevents the port literal from returning.
 Evidence: `44 passed` for tray and architecture tests.
 
+### Batch 11 — one browser SSE reader (pending commit)
+
+`assets/sse.js` now owns SSE frame parsing and stream reading. The recipe
+editor and the assistant both call `window.RecipeSSE.readEventStream`; their
+former copies are deleted. The reader honours both the `event:` line and the
+JSON `type`, flushes an unterminated final frame, and flushes the `TextDecoder`.
+Generated pages load the new asset before both consumers. Evidence:
+`7 passed` for the node reader test and progress test, `35 passed` for the
+assistant unit and e2e tests.
+
+## Programme diff summary
+
+From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
+modules alone: +226/−208 (net +18) — the added lines are mostly the two new
+cohesive owners (`recipe_paths.py`, accent declarations in `color_utils.py`)
+and the shared startup entry point; the removed lines are duplicated checks,
+constants, and forwarding code. Tests and sibling documentation account for
+the rest.
+
 ## Verification record
 
 | Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
@@ -147,4 +166,7 @@ Evidence: `44 passed` for tray and architecture tests.
 | 7     | focused 83 passed, 1 skipped; final full run pending                          | clean      | generated                        | `ffaa942` |
 | 8     | focused 38 passed; final full run pending                                     | clean      | generated                        | `719cc82` |
 | 9     | focused 27 passed; final full run pending                                     | clean      | generated                        | `1a50ea2` |
-| 10    | focused 44 passed; final full run pending                                     | clean      | generated                        | pending   |
+| 10    | focused 44 passed; final full run pending                                     | clean      | generated                        | `12c718e` |
+| 1–8   | full: **631 passed, 20 skipped** (448 s)                                      | clean      | generated, no broken local links | see above |
+| final | final full run covering batches 9–10 pending                                  | clean      | generated                        | pending   |
+| 11    | focused 7 passed + 35 passed; final full run pending                          | clean      | generated                        | pending   |

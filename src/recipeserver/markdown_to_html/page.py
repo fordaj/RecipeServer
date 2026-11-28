@@ -50,6 +50,7 @@ RECIPE_FEEDBACK_JS = "/assets/recipe-feedback.js"
 TIMELINE_JS = "/assets/recipe-history/timeline.js"
 TIME_JS = "/assets/time.js"
 ICONS_JS = "/assets/icons.js"
+SSE_JS = "/assets/sse.js"
 AUTH_CSS = "/assets/auth/auth.css"
 AUTH_JS = "/assets/auth/auth.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
@@ -112,6 +113,7 @@ def _versioned_assets() -> dict[str, str]:
             "katex_init_js": "/assets/katex-init.js",
             "time_js": TIME_JS,
             "icons_js": ICONS_JS,
+            "sse_js": SSE_JS,
             "recipe_js": RECIPE_JS,
             "recipe_scaler_js": RECIPE_SCALER_JS,
             "pull_down_page_refresh_js": PULL_DOWN_PAGE_REFRESH_JS,
@@ -179,6 +181,7 @@ def build_recipe_html(
         <script defer src="{MENU_JS_URL}"></script>
         <script defer src="{assets["time_js"]}"></script>
         <script defer src="{assets["icons_js"]}"></script>
+        <script defer src="{assets["sse_js"]}"></script>
         <script defer src="{assets["ai_assistant_js"]}"></script>
         <script defer src="{assets["recipe_js"]}"></script>
         <script defer src="{assets["recipe_scaler_js"]}"></script>

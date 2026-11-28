@@ -257,28 +257,11 @@ Try this
     };
   }
 
-  function parseAiEvent(block) {
-    let data = "";
-    for (const line of block.split("\n")) {
-      if (line.startsWith("data:")) data += line.slice(5).trimStart();
-    }
-    if (!data) return null;
-    return JSON.parse(data);
-  }
-
   async function readAiStream(response, onEvent) {
-    if (!response.body) throw new Error("The AI progress stream is unavailable.");
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
     let result;
     let streamError;
 
-    function handleBlock(block) {
-      const event = parseAiEvent(block);
-      if (!event) return;
-
+    await window.RecipeSSE.readEventStream(response.body, (event) => {
       onEvent?.(event);
 
       if (event.type === "error") {
@@ -286,23 +269,8 @@ Try this
       } else if (event.type === "result" && event.result) {
         result = event.result;
       }
-    }
+    });
 
-    while (true) {
-      const { done, value } = await reader.read();
-      buffer += decoder.decode(value, { stream: !done });
-
-      let separator = buffer.indexOf("\n\n");
-      while (separator !== -1) {
-        handleBlock(buffer.slice(0, separator));
-        buffer = buffer.slice(separator + 2);
-        separator = buffer.indexOf("\n\n");
-      }
-
-      if (done) break;
-    }
-
-    if (buffer.trim()) handleBlock(buffer);
     if (streamError) throw streamError;
     if (!result) throw new Error("The AI progress stream ended without a recipe.");
     return result;

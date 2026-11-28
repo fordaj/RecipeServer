@@ -1074,49 +1074,11 @@
     }
 
     async readEventStream(body) {
-      const reader = body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-
-        let boundary;
-        while ((boundary = buffer.indexOf("\n\n")) !== -1) {
-          const block = buffer.slice(0, boundary);
-          buffer = buffer.slice(boundary + 2);
-          await this.handleEventBlock(block);
-        }
-      }
+      await window.RecipeSSE.readEventStream(body, (event) => this.handleEventBlock(event));
     }
 
-    async handleEventBlock(block) {
-      let event = "message";
-      const dataLines = [];
-
-      for (const line of block.split("\n")) {
-        if (line.startsWith("event:")) {
-          event = line.slice(6).trim();
-        } else if (line.startsWith("data:")) {
-          dataLines.push(line.slice(5).replace(/^ /, ""));
-        }
-      }
-
-      if (!dataLines.length) {
-        return;
-      }
-
-      let data;
-      try {
-        data = JSON.parse(dataLines.join("\n"));
-      } catch {
-        return;
-      }
+    async handleEventBlock(data) {
+      const event = data.type;
 
       if (event === "status") {
         this.setStatus(data?.message || "", true);
