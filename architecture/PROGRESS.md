@@ -359,6 +359,13 @@ and success-flag validation; AST tests prevent the copies returning.
 The task pool is reconciled with the full duplicate-implementation inventory:
 clusters 21–27 are recorded with `candidate`/`deferred` status and evidence.
 
+### Batch 25 verification
+
+Full suite: one run hit the known intermittent timeline e2e failure
+(`711 passed, 20 skipped, 1 failed`), the next clean run gave
+**712 passed, 20 skipped**. The timeline dialog now also waits for the diff
+text to arrive before asserting it, reducing the order-dependent flake.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -401,4 +408,4 @@ the rest.
 | 22    | focused 112 passed; final clean full 697 passed, 20 skipped                            | clean      | generated, no broken local links | `2956595` |
 | 23    | focused 102 passed; final clean full 702 passed, 20 skipped                            | clean      | generated, no broken local links | `f174d27` |
 | 24    | focused 81 passed; final clean full 709 passed, 20 skipped                             | clean      | generated, no broken local links | `52421b7` |
-| 25    | focused 76 passed; full run pending                                           | clean      | generated                        | pending   |
+| 25    | focused 76 passed; clean full 712 passed, 20 skipped                                   | clean      | generated, no broken local links | `16a7035` |

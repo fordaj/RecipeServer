@@ -83,6 +83,9 @@ def test_timeline_preview_compare_and_restore(driver, recipe_server):
     # Compare renders a diff against the current recipe.
     driver.find_element(By.CSS_SELECTOR, '.recipe-history__mode[data-mode="compare"]').click()
     wait_visible(driver, ".recipe-history__diff:not([hidden])")
+    # The diff is filled asynchronously from /api/history/compare; waiting only
+    # for visibility can read an empty element on a busy full-suite run.
+    wait_text(driver, ".recipe-history__diff", "+Version two.", 20)
     diff_text = driver.find_element(By.CSS_SELECTOR, ".recipe-history__diff").text
     assert "+Version two." in diff_text
 
