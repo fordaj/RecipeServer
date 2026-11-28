@@ -232,6 +232,11 @@ directly or reaches through the package root for `history`. An architecture
 test enforces the dependency direction. Evidence: `65 passed` for retention,
 config, history, and architecture tests (142 passed for the wider set).
 
+### Batch 17 verification (final)
+
+Clean full suite with no edits during execution: **664 passed, 20 skipped** in
+446 s. Formatting and documentation generation clean.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -266,4 +271,4 @@ the rest.
 | 14    | focused 81 + 80 + 72 passed; final clean full 658 passed, 20 skipped          | clean      | generated, no broken local links | `0d7205a` |
 | 15    | focused 62 + 64 passed; final clean full 661 passed, 20 skipped               | clean      | generated, no broken local links | `94ccca1` |
 | 16    | focused 143 passed; final clean full 662 passed, 20 skipped                   | clean      | generated, no broken local links | `c6322c9` |
-| 17    | focused 65 + 142 passed; clean full run pending                               | clean      | generated                        | pending   |
+| 17    | focused 65 + 142 passed; final clean full 664 passed, 20 skipped              | clean      | generated, no broken local links | `56716ec` |
