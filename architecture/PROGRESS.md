@@ -449,6 +449,11 @@ recorder lifecycle, cancellation, transcription options, and empty results;
 AST/load-order tests prevent the copies returning. Evidence: `82 passed` for
 dictation, architecture, speech-button, and AI progress tests.
 
+### Batch 31 verification (final)
+
+Clean full suite with no deselection and no edits during execution:
+**734 passed, 20 skipped** in 453 s. Formatting and docs generation clean.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -497,4 +502,4 @@ the rest.
 | 28    | focused 71 passed; final clean full 722 passed, 20 skipped                             | clean      | generated, no broken local links | `ff90fc7` |
 | 29    | focused 66 passed; final clean full 726 passed, 20 skipped                             | clean      | generated, no broken local links | `1ad09b0` |
 | 30    | focused 35 passed; final clean full 730 passed, 20 skipped                             | clean      | generated, no broken local links | `4d7d768` |
-| 31    | focused 82 passed; full run pending                                                    | clean      | generated                        | pending   |
+| 31    | focused 82 passed; final clean full 734 passed, 20 skipped                             | clean      | generated, no broken local links | `5f61770` |
