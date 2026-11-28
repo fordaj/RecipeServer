@@ -438,6 +438,17 @@ metadata-options tests.
 Clean full suite with no deselection and no edits during execution:
 **730 passed, 20 skipped** in 449 s. Formatting and docs generation clean.
 
+### Batch 31 — shared dictation transport (pending commit)
+
+`assets/dictation.js` owns microphone capability checks, the MediaRecorder
+lifecycle (start/stop/cancel with track cleanup), MIME selection, and the
+`/api/transcribe` call. The search button and assistant keep only their own UI
+and pointer wiring; transcript insertion stays with the caller (search strips
+a trailing period, the assistant sends a chat message). Node tests cover the
+recorder lifecycle, cancellation, transcription options, and empty results;
+AST/load-order tests prevent the copies returning. Evidence: `82 passed` for
+dictation, architecture, speech-button, and AI progress tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -486,3 +497,4 @@ the rest.
 | 28    | focused 71 passed; final clean full 722 passed, 20 skipped                             | clean      | generated, no broken local links | `ff90fc7` |
 | 29    | focused 66 passed; final clean full 726 passed, 20 skipped                             | clean      | generated, no broken local links | `1ad09b0` |
 | 30    | focused 35 passed; final clean full 730 passed, 20 skipped                             | clean      | generated, no broken local links | `4d7d768` |
+| 31    | focused 82 passed; full run pending                                                    | clean      | generated                        | pending   |

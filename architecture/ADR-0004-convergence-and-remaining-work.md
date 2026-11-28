@@ -31,10 +31,10 @@ left open:
   it went from 3262 to 2359 lines while keeping routing and response codes.
 - Front-matter validation moved to `recipe_metadata`; config defaults and the
   retention policy moved to leaf modules.
-- The browser SSE reader was unified in `assets/sse.js`. Dictation-controller
-  sharing between the search button and the assistant remains an optional
-  candidate: the two triggers have different labels and insertion policies, so
-  the duplication there is small and deliberate.
+- The browser SSE reader was unified in `assets/sse.js`, and the dictation
+  transport in `assets/dictation.js`. The two triggers keep their own UI and
+  pointer wiring (different labels and insertion policies); the microphone,
+  MediaRecorder lifecycle, and `/api/transcribe` call have one implementation.
 
 ## Consequences
 

@@ -38,7 +38,7 @@ Ranked by (risk reduction × maintenance saving) / migration cost. Status values
 | 24  | One metadata value collector: index trims values, metadata-options strips; `" tag"` can miss the dropdown.                          | `recipe_utils.collect_metadata_values`; `test/test_metadata_values.py`                                                            | done (batch 30)      |
 | 25  | Shared focus-ring/status-pill CSS utilities instead of ~40 repeated rules.                                                          | `definitions.css`; component CSS files                                                                                            | deferred (cosmetic)  |
 | 26  | One model-name probe: `list_models` (id-first) vs `_model_catalog` (name-first) read `/api/tags` differently.                       | `ai_recipe.list_models` now uses `_model_catalog`; AST test                                                                       | done (batch 27)      |
-| 27  | One dictation controller for search button and assistant composer (different labels/insertion policies).                            | `speech-button.js`; `ai-assistant.js`                                                                                             | deferred (small)     |
+| 27  | One dictation controller for search button and assistant composer (different labels/insertion policies).                            | `assets/dictation.js`; `test/js/dictation_test.js`; `test/test_dictation_controller.py`                                           | done (batch 31)      |
 
 Rejected: stale `__pycache__` cleanup — a full scan found every `.pyc` has a
 matching `.py` source; the suspected orphans were build noise, not source.

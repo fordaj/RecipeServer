@@ -111,8 +111,15 @@ BROWSER_API_BUNDLES = (
     "shopping-list/shopping-list.js",
     "ai-assistant/ai-assistant.js",
     "config-editor.js",
-    "speech-button/speech-button.js",
+    "dictation.js",
 )
+
+
+def test_browser_dictation_transport_has_one_owner():
+    for relative in ("speech-button/speech-button.js", "ai-assistant/ai-assistant.js"):
+        source = (SOURCE / "assets" / relative).read_text(encoding="utf-8")
+        assert "RecipeDictation" in source
+        assert "new MediaRecorder" not in source
 
 
 def test_metadata_value_collection_has_one_owner():

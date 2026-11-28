@@ -22,6 +22,7 @@ const SPEECH_JS = path.join(
   "speech-button",
   "speech-button.js",
 );
+const DICTATION_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "dictation.js");
 
 // The DOM stub copies the properties of the event it is given, so a plain
 // object works better here than the browser's Event class.
@@ -145,6 +146,7 @@ async function main() {
   globalThis.document = document;
 
   require(API_JS);
+  require(DICTATION_JS);
   require(SPEECH_JS);
 
   // ----- Without HTTPS there is no dictation button ----- //

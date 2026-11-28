@@ -24,7 +24,6 @@
   const AI_STATUS_API = "/api/ai-status";
   const ASSISTANT_API = "/api/ai-assistant";
   const ASSISTANT_MARKDOWN_API = "/api/assistant-markdown";
-  const TRANSCRIBE_URL = "/api/transcribe";
   const AI_ICON_URL = "/assets/ai.svg";
   const SEND_ICON_URL = "/assets/send.svg";
   const MICROPHONE_ICON_URL = "/assets/microphone.svg";
@@ -44,17 +43,18 @@
   const TOP_OF_PAGE_PX = 10;
   const MOBILE_MEDIA_QUERY = "(max-width: 600px)";
 
-  // How long a press has to be held to be treated as dictation (a shorter
-  // press is a normal tap on the bubble) and how far a pointer may drift
-  // before the long press is cancelled.
-  const LONG_PRESS_MS = 450;
-  const MOVE_TOLERANCE_PX = 10;
-  // How long the "complete" and "error" microphone states stay visible.
-  const COMPLETE_STATE_MS = 1200;
-  const ERROR_STATE_MS = 2500;
-
-  // Containers the browser can record, most preferred first.
-  const MIME_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  // Microphone capability, MediaRecorder lifecycle and transcription are
+  // shared with the search-field dictation button.
+  const {
+    isSecurePage,
+    canRecord,
+    transcribe,
+    createRecorder,
+    LONG_PRESS_MS,
+    MOVE_TOLERANCE_PX,
+    COMPLETE_STATE_MS,
+    ERROR_STATE_MS,
+  } = window.RecipeDictation;
 
   // The label of the microphone popup for each state.
   const MIC_LABELS = {
@@ -67,19 +67,6 @@
   };
 
   const ICON_ATTRIBUTES = {};
-
-  // Dictation only works on a secure connection; the site is served over
-  // HTTPS by a local reverse proxy, so the protocol of the page decides.
-  const isSecurePage = () => window.location?.protocol === "https:";
-
-  const canRecord = () =>
-    Boolean(window.MediaRecorder) && Boolean(navigator.mediaDevices?.getUserMedia);
-
-  const supportedMimeType = () => {
-    if (!window.MediaRecorder) return "";
-
-    return MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type)) || "";
-  };
 
   function createElement(tag, className, text) {
     const element = document.createElement(tag);
@@ -185,9 +172,12 @@
       this.dictationSource = null;
       this.dictationViaHold = false;
       this.pillState = "idle";
-      this.mediaRecorder = null;
-      this.micStream = null;
-      this.chunks = [];
+      this.recorder = createRecorder({
+        onStop: (blob) => {
+          this.transcribeDictation(blob);
+        },
+        onError: () => this.dictationError("Unable to access the microphone."),
+      });
     }
 
     async start() {
@@ -719,13 +709,7 @@
 
     cancelDictationCapture() {
       this.dictationCancelled = true;
-      this.stopMicStream();
-    }
-
-    stopMicStream() {
-      this.micStream?.getTracks().forEach((track) => track.stop());
-      this.micStream = null;
-      this.mediaRecorder = null;
+      this.recorder.cancel();
     }
 
     beginDictation(source, viaHold) {
@@ -743,122 +727,49 @@
 
       if (source === "bubble") {
         this.wrapper.classList.add("ai-assistant--dictating");
-        // The press target is now the release of the press; it must not be
-        // hidden by the scroll behavior.
         this.wrapper.classList.remove("ai-assistant--hidden");
       }
 
       this.showPill("preparing");
-      this.startRecording();
-    }
-
-    async startRecording() {
-      const mimeType = supportedMimeType();
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        if (this.dictationCancelled || !this.dictating) {
-          // The user already let go before the microphone came up.
-          stream.getTracks().forEach((track) => track.stop());
-          this.hidePill();
-          return;
+      this.recorder.start().then((started) => {
+        if (started) {
+          this.pillState = "recording";
+          this.showPill("recording");
         }
-
-        this.micStream = stream;
-
-        const recorder = mimeType
-          ? new MediaRecorder(stream, { mimeType })
-          : new MediaRecorder(stream);
-        this.mediaRecorder = recorder;
-        this.chunks = [];
-
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            this.chunks.push(event.data);
-          }
-        };
-
-        recorder.onstop = () => {
-          const blob = new Blob(this.chunks, {
-            type: recorder.mimeType || this.chunks[0]?.type || "",
-          });
-          this.stopMicStream();
-          this.transcribeDictation(blob);
-        };
-
-        recorder.onerror = (event) => {
-          console.error("Recording error:", event.error);
-          this.dictationError("Recording failed. Try again.");
-        };
-
-        recorder.start();
-        this.pillState = "recording";
-        this.showPill("recording");
-      } catch (error) {
-        console.error("Unable to start recording:", error);
-        this.dictationError("Unable to access the microphone.");
-      }
+      });
     }
 
     stopDictation() {
-      if (this.mediaRecorder?.state === "recording") {
+      if (this.recorder.isRecording()) {
         this.pillState = "transcribing";
         this.showPill("transcribing");
-        this.mediaRecorder.stop();
+        this.recorder.stop();
         return;
       }
 
       // The release happened before the microphone was ready (or the
-      // recorder was already gone): cancel quietly. The trailing click is
-      // still swallowed because the press was a dictation press.
+      // recorder was already gone): cancel quietly.
       this.cancelDictationCapture();
       this.hidePill();
     }
 
     async transcribeDictation(blob) {
-      if (!blob.size) {
-        this.dictationError("Nothing was heard. Try again.");
-        return;
-      }
-
-      this.pillState = "transcribing";
-      this.showPill("transcribing");
-
-      let text = "";
       try {
-        const result = await window.RecipeApi.requestJson(TRANSCRIBE_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": blob.type || "application/octet-stream",
-          },
-          body: blob,
-          fallbackMessage: "Transcription failed",
-        });
+        const text = await transcribe(blob);
+        // The transcript goes out exactly like a typed message: open the
+        // panel, load it into the composer, send it.
+        this.setOpen(true);
+        this.input.value = text;
+        this.autoResize();
 
-        text = String(result?.text || "").trim();
+        this.pillState = "complete";
+        this.showPill("complete");
+        this.hidePill(COMPLETE_STATE_MS);
+        this.send();
       } catch (error) {
         console.error("Transcription failed:", error);
         this.dictationError(error.message || "Transcribing failed. Try again.");
-        return;
       }
-
-      if (!text) {
-        this.dictationError("Nothing was heard. Try again.");
-        return;
-      }
-
-      // The transcript goes out exactly like a typed message: open the
-      // panel, load it into the composer, send it.
-      this.setOpen(true);
-      this.input.value = text;
-      this.autoResize();
-
-      this.pillState = "complete";
-      this.showPill("complete");
-      this.hidePill(COMPLETE_STATE_MS);
-
-      this.send();
     }
 
     // ----- Conversation ----- //

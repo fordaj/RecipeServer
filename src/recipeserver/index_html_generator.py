@@ -40,6 +40,7 @@ API_JS_PATH = "/assets/api.js"
 PAGE_PATH_JS_PATH = "/assets/page-path.js"
 DATE_LABELS_JS_PATH = "/assets/date-labels.js"
 KATEX_LOADER_JS_PATH = "/assets/katex-loader.js"
+DICTATION_JS_PATH = "/assets/dictation.js"
 
 # ----- Asset paths and URLs ----- #
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
@@ -796,6 +797,7 @@ class IndexHTMLGenerator:
             "page_path_js": PAGE_PATH_JS_PATH,
             "date_labels_js": DATE_LABELS_JS_PATH,
             "katex_loader_js": KATEX_LOADER_JS_PATH,
+            "dictation_js": DICTATION_JS_PATH,
             "recipe_editor_css": RECIPE_EDITOR_CSS_PATH,
             "recipe_editor_js": RECIPE_EDITOR_JS_PATH,
             "fields_js": FIELDS_JS_PATH,
@@ -860,6 +862,7 @@ class IndexHTMLGenerator:
     <script src="{urls['page_path_js']}" defer></script>
     <script src="{urls['icons_js']}" defer></script>
     <script src="{urls['sse_js']}" defer></script>
+    <script src="{urls['dictation_js']}" defer></script>
     <script src="{urls['katex_loader_js']}" defer></script>
     <script src="{urls['ai_assistant_js']}" defer></script>
     <script src="{urls['dialogs_js']}" defer></script>
