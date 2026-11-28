@@ -17,7 +17,8 @@ from bs4 import BeautifulSoup, Tag
 
 from .._logger import logger
 from ..config import Configuration
-from ..image_handler import DEFAULT_TITLE, ImageToColorConverter, get_first_image_in_dir
+from ..config_defaults import DEFAULT_FOOD_COLOR
+from ..image_handler import ImageToColorConverter, get_first_image_in_dir
 from ..metadata_linter import lint_recipe_metadata
 from ..recipe_utils import as_list, first_heading, is_finite_rating_score, json_default, slug_to_title
 from . import extras, feedback, overview, page, quantities
@@ -28,7 +29,7 @@ class MarkdownToHTMLConverter:
         self.cfg = cfg
         self.metadata: dict[str, object] = {}
         self.metadata_json: str = ""
-        self.heading_color: str = getattr(cfg, "food_color", None) or DEFAULT_TITLE
+        self.heading_color: str = getattr(cfg, "food_color", None) or DEFAULT_FOOD_COLOR
         self.title: str = ""
         # Read the scaler markup once so convert() performs no hidden file I/O.
         self._recipe_scaler_html = page.RECIPE_SCALER_HTML.read_text(encoding="utf-8", newline="\n")
@@ -100,7 +101,7 @@ class MarkdownToHTMLConverter:
         Falls back to the configured food color when there is no usable
         hero image.
         """
-        fallback = getattr(self.cfg, "food_color", None) or DEFAULT_TITLE
+        fallback = getattr(self.cfg, "food_color", None) or DEFAULT_FOOD_COLOR
         image = get_first_image_in_dir(recipe_directory)
         if not image:
             return fallback

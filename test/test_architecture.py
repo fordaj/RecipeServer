@@ -78,6 +78,28 @@ def test_both_streaming_endpoints_share_the_sse_framing(relative_path: str):
         assert "_send_sse_event" in calls
 
 
+@pytest.mark.parametrize(
+    ("relative_path", "names"),
+    [
+        ("config.py", ("DEFAULT_SERVER_PORT", "DEFAULT_KEEP_ALIVE_MINUTES", "DEFAULT_DICTATION_ENABLED", "DEFAULT_FOOD_COLOR")),
+        ("ai_recipe.py", ("DEFAULT_KEEP_ALIVE_MINUTES",)),
+        ("server.py", ("DEFAULT_DICTATION_ENABLED", "DEFAULT_KEEP_ALIVE_MINUTES", "DEFAULT_TRANSCRIPTION_MODEL")),
+        ("index_html_generator.py", ("DEFAULT_DICTATION_ENABLED", "DEFAULT_FOOD_COLOR")),
+        ("tray.py", ("DEFAULT_SERVER_PORT",)),
+        ("markdown_to_html/converter.py", ("DEFAULT_FOOD_COLOR",)),
+    ],
+)
+def test_configuration_defaults_have_one_leaf_definition(relative_path: str, names: tuple[str, ...]):
+    tree = _tree(relative_path)
+    assert set(names) <= _imported_names(tree)
+    if relative_path == "ai_recipe.py":
+        assert "0" not in _string_literals(tree), "duplicated keep-alive default in ai_recipe.py"
+
+
+def test_config_defaults_is_a_leaf_module():
+    assert not (_imported_names(_tree("config_defaults.py")) & {"config", "server", "core", "retention"})
+
+
 def test_configuration_and_retention_share_a_leaf_policy_module():
     config_imports = _imported_names(_tree("config.py"))
     retention_imports = _imported_names(_tree("retention.py"))

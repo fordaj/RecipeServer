@@ -5,7 +5,7 @@ from PIL import Image
 
 from .server import LOCALHOST, WILDCARD_BIND_ADDRESSES, Server
 from ._logger import logger
-from .config import DEFAULT_SERVER_PORT
+from .config_defaults import DEFAULT_SERVER_PORT
 
 FILE_PATH = Path(__file__)
 LOGO_PNG = FILE_PATH.parent / "assets" / "logo.png"

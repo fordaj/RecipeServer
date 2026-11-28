@@ -237,6 +237,17 @@ config, history, and architecture tests (142 passed for the wider set).
 Clean full suite with no edits during execution: **664 passed, 20 skipped** in
 446 s. Formatting and documentation generation clean.
 
+### Batch 18 — one definition of configuration defaults (pending commit)
+
+`config_defaults.py` is the leaf owner of server, appearance, dictation,
+transcription, and keep-alive defaults. `config.py` re-exports them for its
+public API; `ai_recipe.py`, `server.py`, `index_html_generator.py`, `tray.py`,
+and the recipe renderer import them directly. Removed the last independent
+copies: keep-alive `"0"` in the AI drafter/config placeholders, the dictation
+`True` fallbacks, tray port `8000`, and the renderer's blue accent fallback.
+AST tests enforce the single definition. Evidence: `207 passed` for the
+affected config, AI, rendering, tray, speech, and architecture tests.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -272,3 +283,4 @@ the rest.
 | 15    | focused 62 + 64 passed; final clean full 661 passed, 20 skipped               | clean      | generated, no broken local links | `94ccca1` |
 | 16    | focused 143 passed; final clean full 662 passed, 20 skipped                   | clean      | generated, no broken local links | `c6322c9` |
 | 17    | focused 65 + 142 passed; final clean full 664 passed, 20 skipped              | clean      | generated, no broken local links | `56716ec` |
+| 18    | focused 207 passed; clean full run pending                                    | clean      | generated                        | pending   |

@@ -33,6 +33,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 - [**main**.py](__main__.py.md) — `python -m recipeserver`
 - [core.py](core.py.md) — startup, site regeneration, parallel conversion
 - [config.py](config.py.md) — the TOML configuration, legacy migration, Tk folder picker, prompt loading
+- [config_defaults.py](config_defaults.py.md) — authoritative default values shared by config, AI, server, renderers, and tray
 - [_logger.py](_logger.py.md) — loguru setup (`setup_logger`, `LogLevel`)
 - [_version.py](_version.py.md) — `PACKAGE_VERSION`, `versioned_asset_url`
 

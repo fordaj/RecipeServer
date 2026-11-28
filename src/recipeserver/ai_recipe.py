@@ -21,6 +21,7 @@ from PIL import Image, UnidentifiedImageError
 
 from ._logger import logger
 from ._version import PACKAGE_VERSION
+from .config_defaults import DEFAULT_KEEP_ALIVE_MINUTES
 from .recipe_metadata import STRING_LIST_FIELDS
 from .recipe_utils import (
     SOURCE_FORMAT_LABELS,
@@ -140,8 +141,8 @@ class AIConfigView:
     new_recipe_prompt: str
     new_recipe_from_image_prompt: str
     # Minutes before unload, as configured ("-1"/"0"/"<N>"); blank means unset.
-    all_purpose_model_keep_alive: str = "0"
-    image_analysis_model_keep_alive: str = "0"
+    all_purpose_model_keep_alive: str = DEFAULT_KEEP_ALIVE_MINUTES
+    image_analysis_model_keep_alive: str = DEFAULT_KEEP_ALIVE_MINUTES
 
     @property
     def is_configured(self) -> bool:
@@ -171,8 +172,8 @@ def resolve_ai_config(config: object | None) -> AIConfigView:
         image_analysis_model=_read_config_text(config, "image_analysis_model"),
         new_recipe_prompt=_read_config_text(config, "new_recipe_prompt"),
         new_recipe_from_image_prompt=_read_config_text(config, "new_recipe_from_image_prompt"),
-        all_purpose_model_keep_alive=_read_config_text(config, "all_purpose_model_keep_alive") or "0",
-        image_analysis_model_keep_alive=_read_config_text(config, "image_analysis_model_keep_alive") or "0",
+        all_purpose_model_keep_alive=_read_config_text(config, "all_purpose_model_keep_alive") or DEFAULT_KEEP_ALIVE_MINUTES,
+        image_analysis_model_keep_alive=_read_config_text(config, "image_analysis_model_keep_alive") or DEFAULT_KEEP_ALIVE_MINUTES,
     )
 
 

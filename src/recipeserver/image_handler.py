@@ -3,8 +3,6 @@ import colorsys
 from collections import Counter
 from pathlib import Path
 
-DEFAULT_TITLE = "#4169E1"
-
 IMAGE_EXTENSIONS = {
     ".jpg",
     ".jpeg",

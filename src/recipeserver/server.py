@@ -44,14 +44,17 @@ from ._logger import logger
 from .archive import ARCHIVE_KINDS, archive_filename, create_archive, resolve_archive_date
 from .config import (
     Configuration,
+    _validate_keep_alive_minutes,
+    _validate_transcription_endpoint,
+    _validate_transcription_model,
+)
+from .config_defaults import (
+    DEFAULT_DICTATION_ENABLED,
     DEFAULT_KEEP_ALIVE_MINUTES,
     DEFAULT_SERVER_BIND_ADDRESS,
     DEFAULT_SERVER_PORT,
     DEFAULT_TRANSCRIPTION_ENDPOINT,
     DEFAULT_TRANSCRIPTION_MODEL,
-    _validate_keep_alive_minutes,
-    _validate_transcription_endpoint,
-    _validate_transcription_model,
 )
 from .image_handler import IMAGE_EXTENSIONS
 from .metadata_options import collect_metadata_options
@@ -1105,7 +1108,7 @@ class RecipeRequestHandler(SimpleHTTPRequestHandler):
 
     def _dictation_enabled(self) -> bool:
         """Report whether dictation is enabled in the saved configuration."""
-        return getattr(self.config, "dictation_enabled", True) if self.config is not None else True
+        return getattr(self.config, "dictation_enabled", DEFAULT_DICTATION_ENABLED) if self.config is not None else DEFAULT_DICTATION_ENABLED
 
     @staticmethod
     def _transcription_settings(config) -> dict:

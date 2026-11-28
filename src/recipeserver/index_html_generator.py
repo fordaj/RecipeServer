@@ -15,6 +15,7 @@ from ._logger import logger
 from ._version import PACKAGE_VERSION as VERSION, versioned_asset_url
 from .color_utils import accent_color_declarations
 from .config import DEFAULT_FOOD_COLOR, DEFAULT_RECIPE_SERVER_NAME, Configuration
+from .config_defaults import DEFAULT_DICTATION_ENABLED
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
@@ -834,7 +835,9 @@ class IndexHTMLGenerator:
         return "\n".join(self._build_filter_menu_html(field, filter_values[field.key], total_count=total_count) for field in FILTER_FIELDS)
 
     @staticmethod
-    def _page_head_html(server_name_html: str, food_color_style: str, urls: dict[str, str], dictation_enabled: bool = True) -> str:
+    def _page_head_html(
+        server_name_html: str, food_color_style: str, urls: dict[str, str], dictation_enabled: bool = DEFAULT_DICTATION_ENABLED
+    ) -> str:
         dictation_assets = (
             f"""    <link rel="stylesheet" href="{urls['speech_button_css']}">
 """
@@ -941,7 +944,7 @@ class IndexHTMLGenerator:
 </details>
 """).rstrip("\n")
 
-    def _toolbar_html(self, filter_menus_html: str, reviewer_options_html: str, dictation_enabled: bool = True) -> str:
+    def _toolbar_html(self, filter_menus_html: str, reviewer_options_html: str, dictation_enabled: bool = DEFAULT_DICTATION_ENABLED) -> str:
         if dictation_enabled:
             search_field_html = f"""    <div class="speech-input">
         <label class="search-control">
@@ -1079,7 +1082,7 @@ class IndexHTMLGenerator:
         food_color_style = f"<style>\n{accent_color_declarations(food_color)}\n</style>"
         filter_menus_html = self._filter_menus_html(filter_values)
         asset_urls = self._versioned_asset_urls()
-        dictation_enabled = getattr(self.cfg, "dictation_enabled", True)
+        dictation_enabled = getattr(self.cfg, "dictation_enabled", DEFAULT_DICTATION_ENABLED)
 
         return dedent(f"""\
 <!DOCTYPE html>
