@@ -467,6 +467,11 @@ Clean full suite with no deselection and no edits during execution:
 **738 passed, 20 skipped** in 458 s. Formatting and docs generation clean.
 Every `TASK_POOL.md` deviation is now `done` or `rejected`.
 
+PR #243 CI: both test jobs passed on macOS and Windows. Both formatting jobs
+failed because CI installs Prettier 3.10.1 while the local binary was 3.9.10;
+the 12 affected JS files were reformatted with the CI version and the node test
+suite re-run (`43 passed`).
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python

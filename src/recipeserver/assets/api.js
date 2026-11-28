@@ -8,7 +8,8 @@
   "use strict";
 
   function responseError(response, result, fallbackMessage) {
-    const message = result && result.error ? result.error : `${fallbackMessage} (HTTP ${response.status})`;
+    const message =
+      result && result.error ? result.error : `${fallbackMessage} (HTTP ${response.status})`;
     const error = new Error(message);
     error.status = response.status;
     return error;

@@ -7,7 +7,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const DATE_LABELS_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "date-labels.js");
+const DATE_LABELS_JS = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "recipeserver",
+  "assets",
+  "date-labels.js",
+);
 
 global.window = {};
 vm.runInThisContext(fs.readFileSync(DATE_LABELS_JS, "utf8"), { filename: DATE_LABELS_JS });

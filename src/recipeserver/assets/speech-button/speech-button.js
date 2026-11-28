@@ -142,7 +142,8 @@
       const suffix = originalValue.slice(originalSelectionEnd);
 
       const needsPrefixSpace = prefix.length > 0 && !/\s$/.test(prefix) && !/^[.,!?;:]/.test(text);
-      const needsSuffixSpace = suffix.length > 0 && !/^\s/.test(suffix) && !/[.,!?;:]\s*$/.test(text);
+      const needsSuffixSpace =
+        suffix.length > 0 && !/^\s/.test(suffix) && !/[.,!?;:]\s*$/.test(text);
       const inserted = (needsPrefixSpace ? " " : "") + text + (needsSuffixSpace ? " " : "");
 
       input.value = prefix + inserted + suffix;
@@ -273,7 +274,9 @@
 
   const initialize = () => {
     if (!isSecurePage()) {
-      document.querySelectorAll(`${SELECTOR} ${BUTTON_SELECTOR}`).forEach((button) => button.remove());
+      document
+        .querySelectorAll(`${SELECTOR} ${BUTTON_SELECTOR}`)
+        .forEach((button) => button.remove());
       return;
     }
     document.querySelectorAll(SELECTOR).forEach(initializeSpeechInput);

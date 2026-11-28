@@ -144,21 +144,29 @@ Try this
   }
 
   async function requestRecipeFolders() {
-    const result = await window.RecipeApi.requestJson(new URL(RECIPE_FOLDERS_API, window.location.origin), {
-      cache: "no-store",
-    });
+    const result = await window.RecipeApi.requestJson(
+      new URL(RECIPE_FOLDERS_API, window.location.origin),
+      {
+        cache: "no-store",
+      },
+    );
     return result.folders;
   }
 
   async function requestMetadataOptions() {
-    const result = await window.RecipeApi.requestJson(new URL(METADATA_OPTIONS_API, window.location.origin), {
-      cache: "no-store",
-    });
+    const result = await window.RecipeApi.requestJson(
+      new URL(METADATA_OPTIONS_API, window.location.origin),
+      {
+        cache: "no-store",
+      },
+    );
     return result.options ?? {};
   }
 
   async function requestAiStatus() {
-    return window.RecipeApi.requestJson(new URL(AI_STATUS_API, window.location.origin), { cache: "no-store" });
+    return window.RecipeApi.requestJson(new URL(AI_STATUS_API, window.location.origin), {
+      cache: "no-store",
+    });
   }
 
   async function createRecipe(folder, createFolder, content, metadata, images) {
@@ -207,7 +215,10 @@ Try this
     const url = new URL(MAKES_METADATA_API, window.location.origin);
     url.searchParams.set("path", path);
     try {
-      const result = await window.RecipeApi.requestJson(url, { cache: "no-store", fallbackMessage: "Unable to load makes count" });
+      const result = await window.RecipeApi.requestJson(url, {
+        cache: "no-store",
+        fallbackMessage: "Unable to load makes count",
+      });
       return normalizeMakes(result.value);
     } catch (error) {
       // No makes value yet is a valid empty state, not an error.
@@ -217,11 +228,14 @@ Try this
   }
 
   async function saveMakes(path, makes) {
-    const result = await window.RecipeApi.requestJson(new URL(MAKES_METADATA_API, window.location.origin), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path, value: makes }),
-    });
+    const result = await window.RecipeApi.requestJson(
+      new URL(MAKES_METADATA_API, window.location.origin),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path, value: makes }),
+      },
+    );
     if (result.success !== true) {
       throw new Error(result.error || "Unable to save makes count");
     }

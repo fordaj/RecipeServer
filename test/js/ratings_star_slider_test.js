@@ -10,7 +10,15 @@ const path = require("node:path");
 const { createDocument } = require("./dom_stub.js");
 const { tick } = require("./test_helpers.js");
 const API_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "api.js");
-const PAGE_PATH_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "page-path.js");
+const PAGE_PATH_JS = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "recipeserver",
+  "assets",
+  "page-path.js",
+);
 
 const RATINGS_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "ratings.js");
 const RECIPE_FEEDBACK_JS = path.join(

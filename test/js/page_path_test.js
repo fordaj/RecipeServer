@@ -8,11 +8,21 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const PAGE_PATH_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "page-path.js");
+const PAGE_PATH_JS = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "recipeserver",
+  "assets",
+  "page-path.js",
+);
 
 global.window = { location: { pathname: "/desserts/chocolate%20cake/recipe.html" } };
 let onRecipePage = true;
-global.document = { getElementById: (id) => (onRecipePage && id === "recipe-metadata" ? {} : null) };
+global.document = {
+  getElementById: (id) => (onRecipePage && id === "recipe-metadata" ? {} : null),
+};
 vm.runInThisContext(fs.readFileSync(PAGE_PATH_JS, "utf8"), { filename: PAGE_PATH_JS });
 const { markdownPathFromLocation, recipePathFromLocation } = global.window.RecipePagePath;
 

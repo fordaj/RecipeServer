@@ -11,7 +11,6 @@
   const TIMELINE_CSS_ID = "recipe-history-timeline-css";
   const RESTORE_CONFIRM_WINDOW_MS = 4000;
 
-
   function ensureStylesheet() {
     if (document.getElementById(TIMELINE_CSS_ID)) return;
     const link = document.createElement("link");
@@ -237,7 +236,9 @@
     const refresh = async () => {
       setStatus("Loading versions…");
       try {
-        const result = await window.RecipeApi.requestJson(`${LIST_API}?path=${encodeURIComponent(markdownPath)}`);
+        const result = await window.RecipeApi.requestJson(
+          `${LIST_API}?path=${encodeURIComponent(markdownPath)}`,
+        );
         state.snapshots = Array.isArray(result.snapshots) ? result.snapshots : [];
         if (state.selected && !state.snapshots.some((snapshot) => snapshot.id === state.selected)) {
           state.selected = null;

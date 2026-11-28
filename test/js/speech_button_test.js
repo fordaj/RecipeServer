@@ -22,7 +22,15 @@ const SPEECH_JS = path.join(
   "speech-button",
   "speech-button.js",
 );
-const DICTATION_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "dictation.js");
+const DICTATION_JS = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "recipeserver",
+  "assets",
+  "dictation.js",
+);
 
 // The DOM stub copies the properties of the event it is given, so a plain
 // object works better here than the browser's Event class.

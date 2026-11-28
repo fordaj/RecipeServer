@@ -8,7 +8,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const DICTATION_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "dictation.js");
+const DICTATION_JS = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "recipeserver",
+  "assets",
+  "dictation.js",
+);
 const API_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "api.js");
 
 class FakeRecorder {
@@ -42,7 +50,15 @@ Object.defineProperty(globalThis, "navigator", {
   value: {
     mediaDevices: {
       async getUserMedia() {
-        return { getTracks: () => [{ stop() { stoppedTracks.push(true); } }] };
+        return {
+          getTracks: () => [
+            {
+              stop() {
+                stoppedTracks.push(true);
+              },
+            },
+          ],
+        };
       },
     },
   },
@@ -74,7 +90,11 @@ async function main() {
   assert.ok(stopped, "the recorded blob is handed to onStop");
   assert.equal(stoppedTracks.length, 1, "the microphone is released on stop");
 
-  const cancelled = dictation.createRecorder({ onStop: () => { throw new Error("must not fire"); } });
+  const cancelled = dictation.createRecorder({
+    onStop: () => {
+      throw new Error("must not fire");
+    },
+  });
   assert.equal(await cancelled.start(), true);
   cancelled.cancel();
   assert.equal(cancelled.isRecording(), false);

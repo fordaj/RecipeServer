@@ -26,7 +26,10 @@
       // later call can retry with a fresh request.
       if (existing && existing.dataset.loaded === "false") existing.remove?.();
 
-      const script = existing && existing.dataset.loaded !== "false" ? existing : document.createElement("script");
+      const script =
+        existing && existing.dataset.loaded !== "false"
+          ? existing
+          : document.createElement("script");
       let timeout = 0;
       const cleanup = () => window.clearTimeout(timeout);
       const fail = (message) => {
@@ -48,7 +51,8 @@
         fail(`Timed out loading ${url}`);
       }, SCRIPT_LOAD_TIMEOUT_MS);
 
-      const needsAppend = script !== existing || (existing !== null && existing.dataset.loaded === "false");
+      const needsAppend =
+        script !== existing || (existing !== null && existing.dataset.loaded === "false");
       if (needsAppend) {
         script.src = url;
         script.defer = true;
@@ -66,7 +70,10 @@
   }
 
   function ready(autoRender) {
-    return typeof window.katex?.render === "function" && (!autoRender || typeof window.renderMathInElement === "function");
+    return (
+      typeof window.katex?.render === "function" &&
+      (!autoRender || typeof window.renderMathInElement === "function")
+    );
   }
 
   function ensureKatex(options = {}) {
@@ -77,7 +84,8 @@
     pending = (async () => {
       ensureStylesheet();
       if (typeof window.katex?.render !== "function") await loadScript(JS_URL);
-      if (autoRender && typeof window.renderMathInElement !== "function") await loadScript(AUTO_RENDER_URL);
+      if (autoRender && typeof window.renderMathInElement !== "function")
+        await loadScript(AUTO_RENDER_URL);
     })().catch((error) => {
       pending = null;
       throw error;

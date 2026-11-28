@@ -8,7 +8,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-const LOADER_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "katex-loader.js");
+const LOADER_JS = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "recipeserver",
+  "assets",
+  "katex-loader.js",
+);
 
 function resetEnvironment() {
   const children = [];
@@ -60,7 +68,11 @@ function resetEnvironment() {
       const match = /^(script|link)\[src="([^"]+)"\]$|^link\[href="([^"]+)"\]$/.exec(selector);
       if (!match) return null;
       const value = match[2] || match[3];
-      return children.find((node) => node.tag === match[1] && (node.src === value || node.href === value)) || null;
+      return (
+        children.find(
+          (node) => node.tag === match[1] && (node.src === value || node.href === value),
+        ) || null
+      );
     },
   };
 
@@ -78,7 +90,11 @@ async function main() {
   const { ensureKatex } = global.window.RecipeKatexLoader;
 
   await ensureKatex({ autoRender: false });
-  assert.equal(env.children.filter((node) => node.tag === "script").length, 1, "shopping list loads only katex.min.js");
+  assert.equal(
+    env.children.filter((node) => node.tag === "script").length,
+    1,
+    "shopping list loads only katex.min.js",
+  );
   assert.equal(env.children.filter((node) => node.tag === "link").length, 1);
 
   // Already loaded: no further assets, and no new promise needed.
