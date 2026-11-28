@@ -433,6 +433,11 @@ the dropdown value. A first extraction removed too much of
 verification. Evidence: `35 passed` for metadata-value, index, and
 metadata-options tests.
 
+### Batch 30 verification (final)
+
+Clean full suite with no deselection and no edits during execution:
+**730 passed, 20 skipped** in 449 s. Formatting and docs generation clean.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -480,4 +485,4 @@ the rest.
 | 27    | focused 89 passed; final clean full 717 passed, 20 skipped                             | clean      | generated, no broken local links | `ae97984` |
 | 28    | focused 71 passed; final clean full 722 passed, 20 skipped                             | clean      | generated, no broken local links | `ff90fc7` |
 | 29    | focused 66 passed; final clean full 726 passed, 20 skipped                             | clean      | generated, no broken local links | `1ad09b0` |
-| 30    | focused 35 passed; full run pending                                                    | clean      | generated                        | pending   |
+| 30    | focused 35 passed; final clean full 730 passed, 20 skipped                             | clean      | generated, no broken local links | `4d7d768` |
