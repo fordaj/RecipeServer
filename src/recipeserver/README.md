@@ -33,6 +33,7 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 - [**main**.py](__main__.py.md) — `python -m recipeserver`
 - [core.py](core.py.md) — startup, site regeneration, parallel conversion
 - [config.py](config.py.md) — the TOML configuration, legacy migration, Tk folder picker, prompt loading
+- [config_defaults.py](config_defaults.py.md) — authoritative default values shared by config, AI, server, renderers, and tray
 - [_logger.py](_logger.py.md) — loguru setup (`setup_logger`, `LogLevel`)
 - [_version.py](_version.py.md) — `PACKAGE_VERSION`, `versioned_asset_url`
 
@@ -60,8 +61,17 @@ Looking for the big picture? Start with the root [README.md](../../README.md) an
 ## HTTP and editing
 
 - [server.py](server.py.md) — `ThreadingHTTPServer`, the `/api/*` routes
+- [recipe_paths.py](recipe_paths.py.md) — canonical library-relative path rules and recipe filename constants
+- [recipe_images.py](recipe_images.py.md) — image-reference rewriting in recipe Markdown
+- [recipe_metadata.py](recipe_metadata.py.md) — front-matter field registry and validation
+- [request_payload.py](request_payload.py.md) — request body parsing and image upload staging
+- [recipe_history_api.py](recipe_history_api.py.md) — history payloads, diffs and script-free previews
+- [ai_streaming.py](ai_streaming.py.md) — shared SSE framing and stream endpoint lifecycle
+- [config_endpoints.py](config_endpoints.py.md) — configuration payloads, model probes and live settings
+- [auth_endpoints.py](auth_endpoints.py.md) — OIDC login/callback/logout flow decisions
 - [history.py](history.py.md) — recipe revision history (immutable snapshots in the user-data directory)
 - [retention.py](retention.py.md) — timeline revision retention policies (GFS / Unlimited) that prune snapshots
+- [retention_policy.py](retention_policy.py.md) — leaf vocabulary and live-value provider shared by config and retention
 - [transcriber.py](transcriber.py.md) — Ollama Qwen3-ASR transcription for the dictation button
 - [ai_recipe.py](ai_recipe.py.md) — optional Ollama integration, recipe drafting
 - [ai_assistant.py](ai_assistant.py.md) — optional Ollama chat assistant behind the floating bubble

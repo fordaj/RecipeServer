@@ -11,13 +11,6 @@
   const TIMELINE_CSS_ID = "recipe-history-timeline-css";
   const RESTORE_CONFIRM_WINDOW_MS = 4000;
 
-  // The recipe this page renders; the markdown path is the page URL with the
-  // extension swapped, matching the other page scripts.
-  function markdownPathFromLocation() {
-    const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
-    return page.replace(/\.html$/i, ".md");
-  }
-
   function ensureStylesheet() {
     if (document.getElementById(TIMELINE_CSS_ID)) return;
     const link = document.createElement("link");
@@ -35,36 +28,13 @@
     return `${(kilobytes / 1024).toFixed(1)} MB`;
   }
 
-  function fullDate(iso) {
-    const date = new Date(iso);
-    return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
-  }
-
   function dateLabel(iso) {
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return { date: iso, time: "" };
-    const currentYear = new Date().getFullYear();
-    const dateOptions = { month: "short", day: "numeric" };
-    if (date.getFullYear() !== currentYear) dateOptions.year = "numeric";
-    const timeOptions = { hour: "numeric", minute: "2-digit" };
     return {
-      date: date.toLocaleDateString(undefined, dateOptions),
-      time: date.toLocaleTimeString(undefined, timeOptions),
+      date: window.RecipeDates.formatShortDate(date),
+      time: window.RecipeDates.formatTime(date),
     };
-  }
-
-  function fetchJson(url, options) {
-    return fetch(url, options).then((response) =>
-      response
-        .json()
-        .catch(() => ({}))
-        .then((body) => {
-          if (!response.ok) {
-            throw new Error(body.error || `Request failed (HTTP ${response.status})`);
-          }
-          return body;
-        }),
-    );
   }
 
   function buildDialog() {
@@ -136,7 +106,7 @@
     const diffElement = dialog.querySelector(".recipe-history__diff");
     const emptyState = dialog.querySelector(".recipe-history__empty");
     const status = dialog.querySelector(".recipe-history__status");
-    const markdownPath = markdownPathFromLocation();
+    const markdownPath = window.RecipePagePath.markdownPathFromLocation();
 
     const state = {
       snapshots: [],
@@ -183,7 +153,7 @@
         return;
       }
 
-      toolbarTitle.textContent = fullDate(snapshot.created);
+      toolbarTitle.textContent = window.RecipeDates.formatFullDate(snapshot.created);
       toolbarTitle.title = `Snapshot ${snapshot.id} · ${formatSize(snapshot.size)}`;
       if (state.mode === "preview") {
         previewFrame.src = `${PREVIEW_API}?path=${encodeURIComponent(markdownPath)}&snapshot=${encodeURIComponent(snapshot.id)}`;
@@ -219,7 +189,7 @@
         button.className = "recipe-history__item";
         button.dataset.snapshotId = snapshot.id;
         button.setAttribute("aria-pressed", String(snapshot.id === state.selected));
-        button.title = fullDate(snapshot.created);
+        button.title = window.RecipeDates.formatFullDate(snapshot.created);
         const dateChip = document.createElement("span");
         dateChip.className = "recipe-history__date";
         dateChip.append(labels.date);
@@ -249,7 +219,7 @@
       if (!snapshot) return;
       setStatus("Building the diff…");
       try {
-        const result = await fetchJson(
+        const result = await window.RecipeApi.requestJson(
           `${COMPARE_API}?path=${encodeURIComponent(markdownPath)}&snapshot=${encodeURIComponent(snapshot.id)}`,
         );
         renderDiff(diffElement, result.diff || "");
@@ -266,7 +236,9 @@
     const refresh = async () => {
       setStatus("Loading versions…");
       try {
-        const result = await fetchJson(`${LIST_API}?path=${encodeURIComponent(markdownPath)}`);
+        const result = await window.RecipeApi.requestJson(
+          `${LIST_API}?path=${encodeURIComponent(markdownPath)}`,
+        );
         state.snapshots = Array.isArray(result.snapshots) ? result.snapshots : [];
         if (state.selected && !state.snapshots.some((snapshot) => snapshot.id === state.selected)) {
           state.selected = null;
@@ -319,7 +291,7 @@
       restoreButton.disabled = true;
       setStatus("Restoring…");
       try {
-        await fetchJson(RESTORE_API, {
+        await window.RecipeApi.requestJson(RESTORE_API, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ path: markdownPath, snapshot: snapshot.id }),

@@ -53,7 +53,7 @@
 }
 
 .ai-assistant__button:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 3px;
 }
 
@@ -164,26 +164,26 @@
 
 .ai-assistant__mic[data-state="recording"],
 .ai-assistant__field-status[data-state="recording"] {
-  color: var(--danger-color);
-  border-color: color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
+  color: var(--status-recording-color);
+  border-color: var(--status-recording-border);
 }
 
 .ai-assistant__mic[data-state="transcribing"],
 .ai-assistant__field-status[data-state="transcribing"] {
-  color: var(--food-color);
-  border-color: var(--hover-border-color);
+  color: var(--status-progress-color);
+  border-color: var(--status-progress-border);
 }
 
 .ai-assistant__mic[data-state="complete"],
 .ai-assistant__field-status[data-state="complete"] {
-  color: var(--food-color);
-  border-color: var(--hover-border-color);
+  color: var(--status-progress-color);
+  border-color: var(--status-progress-border);
 }
 
 .ai-assistant__mic[data-state="error"],
 .ai-assistant__field-status[data-state="error"] {
-  color: var(--danger-color);
-  border-color: color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
+  color: var(--status-recording-color);
+  border-color: var(--status-recording-border);
 }
 
 @keyframes ai-assistant-mic-pulse {
@@ -299,7 +299,7 @@
 }
 
 .ai-assistant__close:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 /* ---------- Conversation ---------- */
@@ -345,7 +345,7 @@
 .ai-assistant__message--error {
   align-self: flex-start;
   background: color-mix(in srgb, var(--danger-color) 12%, var(--card-bg));
-  border: 1px solid color-mix(in srgb, var(--danger-color) 45%, var(--card-bg));
+  border: 1px solid var(--status-recording-border);
   color: var(--danger-color);
   border-bottom-left-radius: 4px;
 }
@@ -391,7 +391,7 @@
 }
 
 .ai-assistant__notice-button:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 /* ---------- Status line ---------- */
@@ -472,7 +472,7 @@
 }
 
 .ai-assistant__input:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 .ai-assistant__send {
@@ -501,7 +501,7 @@
 }
 
 .ai-assistant__send:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -545,7 +545,7 @@
 }
 
 .ai-assistant__mic-button:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 

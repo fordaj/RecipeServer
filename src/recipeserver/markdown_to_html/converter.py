@@ -10,7 +10,6 @@ live in their own modules; this module orchestrates them.
 from pathlib import Path
 
 import json
-import re
 
 import frontmatter
 import markdown
@@ -18,9 +17,10 @@ from bs4 import BeautifulSoup, Tag
 
 from .._logger import logger
 from ..config import Configuration
-from ..image_handler import DEFAULT_TITLE, ImageToColorConverter, get_first_image_in_dir
+from ..config_defaults import DEFAULT_FOOD_COLOR
+from ..image_handler import ImageToColorConverter, get_first_image_in_dir
 from ..metadata_linter import lint_recipe_metadata
-from ..recipe_utils import as_list, is_finite_rating_score, json_default, slug_to_title
+from ..recipe_utils import as_list, first_heading, is_finite_rating_score, json_default, slug_to_title
 from . import extras, feedback, overview, page, quantities
 
 
@@ -29,31 +29,10 @@ class MarkdownToHTMLConverter:
         self.cfg = cfg
         self.metadata: dict[str, object] = {}
         self.metadata_json: str = ""
-        self.heading_color: str = getattr(cfg, "food_color", None) or DEFAULT_TITLE
+        self.heading_color: str = getattr(cfg, "food_color", None) or DEFAULT_FOOD_COLOR
         self.title: str = ""
         # Read the scaler markup once so convert() performs no hidden file I/O.
         self._recipe_scaler_html = page.RECIPE_SCALER_HTML.read_text(encoding="utf-8", newline="\n")
-
-    @staticmethod
-    def _get_title_from_markdown_content(content: list[str]) -> str | None:
-        """Return the first level-one heading, ignoring fenced code blocks."""
-        in_fence = False
-
-        for line in content:
-            stripped = line.lstrip()
-
-            if stripped.startswith(("```", "~~~")):
-                in_fence = not in_fence
-                continue
-
-            if in_fence:
-                continue
-
-            match = re.match(r"^ {0,3}#\s+(.*?)\s*#*\s*$", line)
-            if match and match.group(1).strip():
-                return match.group(1).strip()
-
-        return None
 
     def convert(self, markdown_file: Path, html_file: Path):
         logger.file(f"Converting {markdown_file.relative_to(self.cfg.source_directory)}")
@@ -69,11 +48,7 @@ class MarkdownToHTMLConverter:
         # directory name. The raw source title is used for the HTML <title>
         # element; _postprocess returns the rendered heading text, which the
         # caller stores on self.title.
-        source_title = (
-            self._get_title_from_markdown_content(post.content.splitlines())
-            or str(post.metadata.get("title") or "").strip()
-            or slug_to_title(markdown_file.parent.name)
-        )
+        source_title = first_heading(post.content) or str(post.metadata.get("title") or "").strip() or slug_to_title(markdown_file.parent.name)
         self.title = source_title
 
         # ----- Resolve appearance and metadata ----- #
@@ -85,13 +60,17 @@ class MarkdownToHTMLConverter:
         has_comments = self._has_comments(self.metadata)
 
         # ----- Render Markdown body ----- #
+        # Generic arithmatex output is what the vendored KaTeX auto-render
+        # understands (\(…\) / \[…\]). The chat renderer uses the same settings;
+        # test_math_rendering.py keeps the two in agreement.
         markdown_renderer = markdown.Markdown(
             extensions=[
                 "pymdownx.extra",
                 "pymdownx.blocks.html",
                 "pymdownx.tasklist",
                 "pymdownx.arithmatex",
-            ]
+            ],
+            extension_configs={"pymdownx.arithmatex": {"generic": True}},
         )
         body = markdown_renderer.convert(post.content)
 
@@ -122,7 +101,7 @@ class MarkdownToHTMLConverter:
         Falls back to the configured food color when there is no usable
         hero image.
         """
-        fallback = getattr(self.cfg, "food_color", None) or DEFAULT_TITLE
+        fallback = getattr(self.cfg, "food_color", None) or DEFAULT_FOOD_COLOR
         image = get_first_image_in_dir(recipe_directory)
         if not image:
             return fallback

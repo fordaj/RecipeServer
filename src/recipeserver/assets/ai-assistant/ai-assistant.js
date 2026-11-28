@@ -24,14 +24,10 @@
   const AI_STATUS_API = "/api/ai-status";
   const ASSISTANT_API = "/api/ai-assistant";
   const ASSISTANT_MARKDOWN_API = "/api/assistant-markdown";
-  const TRANSCRIBE_URL = "/api/transcribe";
   const AI_ICON_URL = "/assets/ai.svg";
   const SEND_ICON_URL = "/assets/send.svg";
   const MICROPHONE_ICON_URL = "/assets/microphone.svg";
   const CHECKMARK_ICON_URL = "/assets/checkmark.svg";
-  const KATEX_CSS_URL = "/assets/katex/dist/katex.min.css";
-  const KATEX_JS_URL = "/assets/katex/dist/katex.min.js";
-  const KATEX_AUTO_RENDER_URL = "/assets/katex/dist/contrib/auto-render.min.js";
   // Give the browser a moment to show the assistant's reply before the
   // open_recipe redirect navigates the page away.
   const OPEN_REDIRECT_DELAY_MS = 1200;
@@ -47,17 +43,18 @@
   const TOP_OF_PAGE_PX = 10;
   const MOBILE_MEDIA_QUERY = "(max-width: 600px)";
 
-  // How long a press has to be held to be treated as dictation (a shorter
-  // press is a normal tap on the bubble) and how far a pointer may drift
-  // before the long press is cancelled.
-  const LONG_PRESS_MS = 450;
-  const MOVE_TOLERANCE_PX = 10;
-  // How long the "complete" and "error" microphone states stay visible.
-  const COMPLETE_STATE_MS = 1200;
-  const ERROR_STATE_MS = 2500;
-
-  // Containers the browser can record, most preferred first.
-  const MIME_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+  // Microphone capability, MediaRecorder lifecycle and transcription are
+  // shared with the search-field dictation button.
+  const {
+    isSecurePage,
+    canRecord,
+    transcribe,
+    createRecorder,
+    LONG_PRESS_MS,
+    MOVE_TOLERANCE_PX,
+    COMPLETE_STATE_MS,
+    ERROR_STATE_MS,
+  } = window.RecipeDictation;
 
   // The label of the microphone popup for each state.
   const MIC_LABELS = {
@@ -71,28 +68,6 @@
 
   const ICON_ATTRIBUTES = {};
 
-  // Dictation only works on a secure connection; the site is served over
-  // HTTPS by a local reverse proxy, so the protocol of the page decides.
-  const isSecurePage = () => window.location?.protocol === "https:";
-
-  const canRecord = () =>
-    Boolean(window.MediaRecorder) && Boolean(navigator.mediaDevices?.getUserMedia);
-
-  const supportedMimeType = () => {
-    if (!window.MediaRecorder) return "";
-
-    return MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type)) || "";
-  };
-
-  function recipePathFromLocation() {
-    // A recipe page embeds the metadata JSON; the index does not.
-    if (!document.getElementById("recipe-metadata")) {
-      return null;
-    }
-    const page = decodeURIComponent(window.location.pathname.replace(/^\/+/, ""));
-    return page.replace(/\.html$/i, ".md");
-  }
-
   function createElement(tag, className, text) {
     const element = document.createElement(tag);
     if (className) element.className = className;
@@ -104,87 +79,14 @@
   // The recipe pages ship KaTeX on every page; the index does not, so the
   // bubble loads it on first rendered message instead of every page view.
 
-  let katexPromise = null;
-
-  function loadScript(url) {
-    return new Promise((resolve, reject) => {
-      const SCRIPT_LOAD_TIMEOUT_MS = 8000;
-      const existing = document.querySelector(`script[src="${url}"]`);
-      if (existing && existing.dataset.loaded === "true") {
-        resolve();
-        return;
-      }
-
-      const script = existing ?? document.createElement("script");
-      let timeout = 0;
-      const cleanup = () => window.clearTimeout(timeout);
-      script.addEventListener("load", () => {
-        cleanup();
-        script.dataset.loaded = "true";
-        resolve();
-      });
-      script.addEventListener("error", () => {
-        cleanup();
-        reject(new Error(`Unable to load ${url}`));
-      });
-      timeout = window.setTimeout(() => {
-        // The tag exists but its load event already fired (eagerly loaded,
-        // e.g. on a recipe page, and failed there). Bounded wait, then fall back.
-        reject(new Error(`Timed out loading ${url}`));
-      }, SCRIPT_LOAD_TIMEOUT_MS);
-      if (!existing) {
-        script.src = url;
-        script.defer = true;
-        document.head.append(script);
-      }
-    });
-  }
-
-  function loadKatex() {
-    if (
-      typeof window.katex?.render === "function" &&
-      typeof window.renderMathInElement === "function"
-    ) {
-      return Promise.resolve();
-    }
-    if (katexPromise) {
-      return katexPromise;
-    }
-
-    katexPromise = (async () => {
-      if (!document.querySelector(`link[href="${KATEX_CSS_URL}"]`)) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = KATEX_CSS_URL;
-        document.head.append(link);
-      }
-
-      if (typeof window.katex?.render !== "function") {
-        await loadScript(KATEX_JS_URL);
-      }
-      if (typeof window.renderMathInElement !== "function") {
-        await loadScript(KATEX_AUTO_RENDER_URL);
-      }
-    })().catch((error) => {
-      katexPromise = null;
-      throw error;
-    });
-
-    return katexPromise;
-  }
-
   // Server-side Markdown rendering (same pipeline as the recipe bodies).
   async function fetchRenderedMarkdown(text) {
-    const response = await fetch(ASSISTANT_MARKDOWN_API, {
+    const result = await window.RecipeApi.requestJson(ASSISTANT_MARKDOWN_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ markdown: text }),
+      fallbackMessage: "Unable to render the message",
     });
-
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result?.error || `Unable to render the message (HTTP ${response.status})`);
-    }
     return typeof result?.html === "string" ? result.html : "";
   }
 
@@ -226,7 +128,7 @@
 
   async function renderMathInBubble(bubble) {
     try {
-      await loadKatex();
+      await window.RecipeKatexLoader.ensureKatex({ autoRender: true });
     } catch (error) {
       // The page still shows the amounts as plain fractions; not fatal.
       console.warn("KaTeX could not be loaded for the chat message.", error);
@@ -252,7 +154,7 @@
       this.conversation = [];
       this.busy = false;
       this.open = false;
-      this.recipePath = recipePathFromLocation();
+      this.recipePath = window.RecipePagePath.recipePathFromLocation();
       this.mobileMedia = window.matchMedia(MOBILE_MEDIA_QUERY);
       this.lastScrollY = window.scrollY;
       this.scrollTicking = false;
@@ -270,9 +172,12 @@
       this.dictationSource = null;
       this.dictationViaHold = false;
       this.pillState = "idle";
-      this.mediaRecorder = null;
-      this.micStream = null;
-      this.chunks = [];
+      this.recorder = createRecorder({
+        onStop: (blob) => {
+          this.transcribeDictation(blob);
+        },
+        onError: () => this.dictationError("Unable to access the microphone."),
+      });
     }
 
     async start() {
@@ -804,13 +709,7 @@
 
     cancelDictationCapture() {
       this.dictationCancelled = true;
-      this.stopMicStream();
-    }
-
-    stopMicStream() {
-      this.micStream?.getTracks().forEach((track) => track.stop());
-      this.micStream = null;
-      this.mediaRecorder = null;
+      this.recorder.cancel();
     }
 
     beginDictation(source, viaHold) {
@@ -828,127 +727,49 @@
 
       if (source === "bubble") {
         this.wrapper.classList.add("ai-assistant--dictating");
-        // The press target is now the release of the press; it must not be
-        // hidden by the scroll behavior.
         this.wrapper.classList.remove("ai-assistant--hidden");
       }
 
       this.showPill("preparing");
-      this.startRecording();
-    }
-
-    async startRecording() {
-      const mimeType = supportedMimeType();
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-        if (this.dictationCancelled || !this.dictating) {
-          // The user already let go before the microphone came up.
-          stream.getTracks().forEach((track) => track.stop());
-          this.hidePill();
-          return;
+      this.recorder.start().then((started) => {
+        if (started) {
+          this.pillState = "recording";
+          this.showPill("recording");
         }
-
-        this.micStream = stream;
-
-        const recorder = mimeType
-          ? new MediaRecorder(stream, { mimeType })
-          : new MediaRecorder(stream);
-        this.mediaRecorder = recorder;
-        this.chunks = [];
-
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            this.chunks.push(event.data);
-          }
-        };
-
-        recorder.onstop = () => {
-          const blob = new Blob(this.chunks, {
-            type: recorder.mimeType || this.chunks[0]?.type || "",
-          });
-          this.stopMicStream();
-          this.transcribeDictation(blob);
-        };
-
-        recorder.onerror = (event) => {
-          console.error("Recording error:", event.error);
-          this.dictationError("Recording failed. Try again.");
-        };
-
-        recorder.start();
-        this.pillState = "recording";
-        this.showPill("recording");
-      } catch (error) {
-        console.error("Unable to start recording:", error);
-        this.dictationError("Unable to access the microphone.");
-      }
+      });
     }
 
     stopDictation() {
-      if (this.mediaRecorder?.state === "recording") {
+      if (this.recorder.isRecording()) {
         this.pillState = "transcribing";
         this.showPill("transcribing");
-        this.mediaRecorder.stop();
+        this.recorder.stop();
         return;
       }
 
       // The release happened before the microphone was ready (or the
-      // recorder was already gone): cancel quietly. The trailing click is
-      // still swallowed because the press was a dictation press.
+      // recorder was already gone): cancel quietly.
       this.cancelDictationCapture();
       this.hidePill();
     }
 
     async transcribeDictation(blob) {
-      if (!blob.size) {
-        this.dictationError("Nothing was heard. Try again.");
-        return;
-      }
-
-      this.pillState = "transcribing";
-      this.showPill("transcribing");
-
-      let text = "";
       try {
-        const response = await fetch(TRANSCRIBE_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": blob.type || "application/octet-stream",
-          },
-          body: blob,
-        });
+        const text = await transcribe(blob);
+        // The transcript goes out exactly like a typed message: open the
+        // panel, load it into the composer, send it.
+        this.setOpen(true);
+        this.input.value = text;
+        this.autoResize();
 
-        const result = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          throw new Error(result?.error || "Transcription failed");
-        }
-
-        text = String(result?.text || "").trim();
+        this.pillState = "complete";
+        this.showPill("complete");
+        this.hidePill(COMPLETE_STATE_MS);
+        this.send();
       } catch (error) {
         console.error("Transcription failed:", error);
         this.dictationError(error.message || "Transcribing failed. Try again.");
-        return;
       }
-
-      if (!text) {
-        this.dictationError("Nothing was heard. Try again.");
-        return;
-      }
-
-      // The transcript goes out exactly like a typed message: open the
-      // panel, load it into the composer, send it.
-      this.setOpen(true);
-      this.input.value = text;
-      this.autoResize();
-
-      this.pillState = "complete";
-      this.showPill("complete");
-      this.hidePill(COMPLETE_STATE_MS);
-
-      this.send();
     }
 
     // ----- Conversation ----- //
@@ -1074,49 +895,11 @@
     }
 
     async readEventStream(body) {
-      const reader = body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) {
-          break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-
-        let boundary;
-        while ((boundary = buffer.indexOf("\n\n")) !== -1) {
-          const block = buffer.slice(0, boundary);
-          buffer = buffer.slice(boundary + 2);
-          await this.handleEventBlock(block);
-        }
-      }
+      await window.RecipeSSE.readEventStream(body, (event) => this.handleEventBlock(event));
     }
 
-    async handleEventBlock(block) {
-      let event = "message";
-      const dataLines = [];
-
-      for (const line of block.split("\n")) {
-        if (line.startsWith("event:")) {
-          event = line.slice(6).trim();
-        } else if (line.startsWith("data:")) {
-          dataLines.push(line.slice(5).replace(/^ /, ""));
-        }
-      }
-
-      if (!dataLines.length) {
-        return;
-      }
-
-      let data;
-      try {
-        data = JSON.parse(dataLines.join("\n"));
-      } catch {
-        return;
-      }
+    async handleEventBlock(data) {
+      const event = data.type;
 
       if (event === "status") {
         this.setStatus(data?.message || "", true);

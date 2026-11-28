@@ -10,6 +10,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { createDocument } = require("./dom_stub.js");
+const API_JS = path.join(__dirname, "..", "..", "src", "recipeserver", "assets", "api.js");
 
 const SPEECH_JS = path.join(
   __dirname,
@@ -20,6 +21,15 @@ const SPEECH_JS = path.join(
   "assets",
   "speech-button",
   "speech-button.js",
+);
+const DICTATION_JS = path.join(
+  __dirname,
+  "..",
+  "..",
+  "src",
+  "recipeserver",
+  "assets",
+  "dictation.js",
 );
 
 // The DOM stub copies the properties of the event it is given, so a plain
@@ -143,6 +153,8 @@ async function main() {
   };
   globalThis.document = document;
 
+  require(API_JS);
+  require(DICTATION_JS);
   require(SPEECH_JS);
 
   // ----- Without HTTPS there is no dictation button ----- //

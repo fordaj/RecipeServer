@@ -42,6 +42,7 @@ def test_recipe_page_without_image_uses_configured_food_color(tmp_path: Path):
     raw_html = html_file.read_text(encoding="utf-8")
     assert converter.heading_color == "#123456"
     assert "--food-color: #123456" in raw_html
+    assert "--food-color-hover: color-mix(in srgb, #123456 82%, black)" in raw_html
 
 
 def test_index_page_uses_configured_food_color(tmp_path: Path):
@@ -55,3 +56,4 @@ def test_index_page_uses_configured_food_color(tmp_path: Path):
 
     index_html = (tmp_path / "index.html").read_text(encoding="utf-8")
     assert "--food-color: #123456" in index_html
+    assert "--food-color-hover: color-mix(in srgb, #123456 82%, black)" in index_html

@@ -45,7 +45,7 @@
 }
 
 .create-recipe:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 3px;
 }
 
@@ -179,7 +179,7 @@
 
 .filter-menu[open] summary,
 .filter-menu summary:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-color: var(--food-color);
 }
 
@@ -246,7 +246,7 @@
 .recipe-toolbar select:focus-visible,
 .view-switcher button:focus-visible,
 .card-zoom__slider:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-color: var(--food-color);
 }
 
@@ -272,7 +272,7 @@
 
 .metadata-status-toggle input:focus-visible,
 .select-all-control input:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -329,7 +329,7 @@
 
 .bulk-controls button:focus-visible,
 #clear-filters:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 /* Bulk Edit and Shopping List use the same filled style as the recipe
@@ -439,7 +439,7 @@
 }
 
 .recipe-select__checkbox:focus-visible + .recipe-select__box {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -503,7 +503,7 @@
 }
 
 .recipe-advanced > summary:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-radius: 2px;
 }
 
@@ -665,7 +665,7 @@
 }
 
 .recipe-card__link:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-radius: 10px;
 }
 

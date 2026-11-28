@@ -24,6 +24,17 @@ LEGACY_CATEGORY_FIELD = "category"
 # Identity never depends on the file path, so renames and moves keep history.
 RECIPE_ID_FIELD = "recipe_id"
 
+# Windows device names may not be used as a file or folder name, with or
+# without an extension. Shared by recipe folder naming and image validation.
+WINDOWS_RESERVED_FILENAMES = frozenset(
+    {"CON", "PRN", "AUX", "NUL"} | {f"COM{number}" for number in range(1, 10)} | {f"LPT{number}" for number in range(1, 10)}
+)
+
+
+def is_windows_reserved_name(stem: str) -> bool:
+    return stem.upper() in WINDOWS_RESERVED_FILENAMES
+
+
 # Source fields the editor and the AI drafts know how to render and save.
 SOURCE_FIELDS = ("author", "title", "format", "url")
 # Canonical labels for the source format, keyed by its lower-cased spelling.
@@ -78,6 +89,11 @@ def parse_metadata_datetime(value: object) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def utc_now_iso() -> str:
+    """Current UTC time as a millisecond ISO string ending in ``Z``."""
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def is_finite_rating_score(score: object) -> bool:
     """Return True when *score* is a usable numeric rating value."""
     return isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(score)
@@ -120,10 +136,15 @@ def is_date_only(value: object) -> bool:
     return False
 
 
-def display_date(value: datetime) -> str:
-    """Format a UTC datetime for server-rendered fallback text."""
+def display_date(value: datetime, now: datetime | None = None) -> str:
+    """Format a UTC datetime for server-rendered fallback text.
+
+    The browser's `assets/date-labels.js` applies the same month/day rule, with
+    an injectable ``now`` so the shared contract can be tested on both sides.
+    """
     text = f"{value:%b} {value.day}"
-    if datetime.now(timezone.utc).year != value.year:
+    current = now or datetime.now(timezone.utc)
+    if current.year != value.year:
         text += f", {value.year}"
     return text
 
@@ -145,6 +166,33 @@ def read_categories(metadata: Mapping[str, object]) -> object:
     if is_missing_metadata_value(value):
         return metadata.get(LEGACY_CATEGORY_FIELD)
     return value
+
+
+def collect_metadata_values(metadata: Mapping, *keys: str) -> list[str]:
+    """Return the non-empty string values of *keys*, stripped and deduplicated.
+
+    One rule for both the index filter options and the editor dropdowns: scalar
+    strings count as one value, legacy singular ``category`` is read through
+    ``categories``, and a recipe contributes each distinct value once.
+    """
+    values: list[str] = []
+    seen: set[str] = set()
+    for key in keys:
+        value = read_categories(metadata) if key == CATEGORIES_FIELD else metadata.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, (list, tuple)):
+            continue
+        for item in value:
+            if item is None:
+                continue
+            text = str(item).strip()
+            if text and text not in seen:
+                seen.add(text)
+                values.append(text)
+    return values
 
 
 def normalize_legacy_category(metadata: dict) -> None:
@@ -215,6 +263,30 @@ def meta_time_html(raw_value: object, text_prefix: str = "") -> str | None:
 def slug_to_title(slug: str) -> str:
     """Fallback title from a recipe directory slug."""
     return slug.replace("-", " ").replace("_", " ").title()
+
+
+_FIRST_HEADING_RE = re.compile(r"^ {0,3}#\s+(.*?)\s*#*\s*$")
+
+
+def first_heading(text: str) -> str | None:
+    """Return the first level-one Markdown heading, ignoring fenced code.
+
+    The title of a recipe page, its index card, and the assistant's tool output
+    all come from this one rule: first ``#`` heading outside a fence, otherwise
+    the caller falls back to front matter or the directory slug.
+    """
+    in_fence = False
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = _FIRST_HEADING_RE.match(line)
+        if match and match.group(1).strip():
+            return match.group(1).strip()
+    return None
 
 
 # ----- Recipe identity (``recipe_id``) ----- #

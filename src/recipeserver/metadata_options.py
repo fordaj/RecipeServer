@@ -20,7 +20,8 @@ from pathlib import Path
 import frontmatter
 
 from ._logger import logger
-from .recipe_utils import normalize_reviewer_name, normalize_source_dict, read_categories
+from .recipe_paths import iter_recipe_files
+from .recipe_utils import collect_metadata_values, normalize_reviewer_name, normalize_source_dict
 
 # Fields the editor fills from a dropdown. Multi-value fields hold a list of
 # values; single-value fields hold exactly one.
@@ -42,30 +43,6 @@ FEEDBACK_OPTION_FIELDS = {
     "commenters": ("comments", "author"),
     "raters": ("ratings", "name"),
 }
-
-
-def _field_values(metadata: dict, field: str) -> list[str]:
-    """Return the non-empty values one recipe stores for a single field."""
-    value = metadata.get(field)
-    if field == "categories":
-        # Older recipes may use the singular field name.
-        value = read_categories(metadata)
-
-    if value is None:
-        return []
-    if isinstance(value, str):
-        value = [value]
-    if not isinstance(value, (list, tuple)):
-        return []
-
-    values = []
-    for item in value:
-        if item is None:
-            continue
-        text = str(item).strip()
-        if text:
-            values.append(text)
-    return values
 
 
 def _feedback_names(metadata: dict, field: str) -> list[str]:
@@ -97,14 +74,6 @@ def _source_values(metadata: dict, key: str) -> list[str]:
     return [value] if value else []
 
 
-def _recipe_files(root: Path) -> list[Path]:
-    """Return the recipe Markdown files in the source tree."""
-    if not root.is_dir():
-        return []
-
-    return [recipe_file for recipe_file in sorted(root.rglob("recipe.md")) if not recipe_file.is_symlink() and recipe_file.is_file()]
-
-
 def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str, object]]]:
     """Return the values used by each dropdown field and how many recipes use them.
 
@@ -118,7 +87,7 @@ def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str,
     counts: dict[str, dict[str, int]] = {field: {} for field in (*OPTION_FIELDS, *FEEDBACK_OPTION_FIELDS, *SOURCE_OPTION_FIELDS)}
     root = Path(source_directory)
 
-    for recipe_file in _recipe_files(root):
+    for recipe_file in iter_recipe_files(root):
         try:
             metadata = frontmatter.loads(recipe_file.read_text(encoding="utf-8")).metadata
         except Exception:
@@ -130,7 +99,7 @@ def collect_metadata_options(source_directory: Path) -> dict[str, list[dict[str,
 
         for field in OPTION_FIELDS:
             # A recipe counts once for every value it uses.
-            for value in dict.fromkeys(_field_values(metadata, field)):
+            for value in collect_metadata_values(metadata, field):
                 counts[field][value] = counts[field].get(value, 0) + 1
 
         for field, key in SOURCE_OPTION_FIELDS.items():

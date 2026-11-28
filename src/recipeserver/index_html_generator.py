@@ -13,12 +13,15 @@ from bs4 import BeautifulSoup
 
 from ._logger import logger
 from ._version import PACKAGE_VERSION as VERSION, versioned_asset_url
-from .color_utils import dark_mode_color
+from .color_utils import accent_color_declarations
 from .config import DEFAULT_FOOD_COLOR, DEFAULT_RECIPE_SERVER_NAME, Configuration
+from .config_defaults import DEFAULT_DICTATION_ENABLED
 from .image_handler import get_first_image_in_dir
 from .menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .metadata_linter import lint_recipe_metadata
+from .recipe_paths import MARKDOWN_FILE_SUFFIX
 from .recipe_utils import (
+    collect_metadata_values,
     iter_valid_rating_entries,
     meta_time_html,
     normalize_reviewer_name,
@@ -32,6 +35,12 @@ ASSETS_DIR = FILE_PATH.parent / "assets"
 
 TIME_JS_PATH = "/assets/time.js"
 ICONS_JS_PATH = "/assets/icons.js"
+SSE_JS_PATH = "/assets/sse.js"
+API_JS_PATH = "/assets/api.js"
+PAGE_PATH_JS_PATH = "/assets/page-path.js"
+DATE_LABELS_JS_PATH = "/assets/date-labels.js"
+KATEX_LOADER_JS_PATH = "/assets/katex-loader.js"
+DICTATION_JS_PATH = "/assets/dictation.js"
 
 # ----- Asset paths and URLs ----- #
 DEFINITIONS_CSS_PATH = "/assets/definitions.css"
@@ -104,9 +113,6 @@ _DETAIL_ICON_PATHS = {
     "archived": ARCHIVE_SVG,
     "status": INFO_SVG,
 }
-
-# Weight of the food color in the hover/dark-mode color-mix() declarations.
-FOOD_COLOR_HOVER_MIX_PERCENT = 82
 
 # Maximum number of reviewers shown in the review filter.
 MAX_REVIEW_FILTER_OPTIONS = 30
@@ -204,29 +210,6 @@ class IndexHTMLGenerator:
         self.recipes.append(recipe)
 
     # ----- Metadata helpers ----- #
-
-    @staticmethod
-    def collect_metadata_values(metadata: dict, *keys: str) -> list[str]:
-        """Return metadata values consistently as a deduplicated string list."""
-        collected: list[str] = []
-        seen: set[str] = set()
-
-        for key in keys:
-            value = metadata.get(key, [])
-            if isinstance(value, str):
-                value = [value]
-            if not isinstance(value, list):
-                continue
-
-            for item in value:
-                if item is None:
-                    continue
-                text = str(item)
-                if text not in seen:
-                    seen.add(text)
-                    collected.append(text)
-
-        return collected
 
     @staticmethod
     def serialize_for_html_attribute(value: list[object]) -> str:
@@ -388,7 +371,7 @@ class IndexHTMLGenerator:
                 f'<span class="recipe-rating" role="img" '
                 f'aria-label="Rated {average_rating:.1f} out of 10 '
                 f'from {rating_count} ratings">'
-                f'<span class="recipe-rating__star" aria-hidden="true">★</span>'
+                f'<span class="recipe-rating__star" aria-hidden="true">â˜…</span>'
                 f'<span class="recipe-rating__score">{average_rating:.1f}/10</span>'
                 f'<span class="recipe-rating__count">({rating_count})</span>'
                 "</span>"
@@ -425,7 +408,7 @@ class IndexHTMLGenerator:
         # Production callers always build Recipe with the converter's title,
         # which is the rendered <h1> text. Tests construct Recipe objects
         # directly without a title, so fall back to the generated page's
-        # heading — the same text the converter would have stored — before
+        # heading â€” the same text the converter would have stored â€” before
         # the front matter title and the directory name.
         if html_path.exists():
             recipe_page = BeautifulSoup(html_path.read_text(encoding="UTF-8"), "html.parser")
@@ -451,14 +434,14 @@ class IndexHTMLGenerator:
         exception shared with the browser's ``data-source-titles`` attribute.
         """
         source_titles = [source_title for source in sources if (source_title := self._source_title(source))]
-        contributors = [value.strip() for value in self.collect_metadata_values(metadata, "contributor") if value.strip()]
+        contributors = [value.strip() for value in collect_metadata_values(metadata, "contributor") if value.strip()]
         return {
-            "meals": self.collect_metadata_values(metadata, "meals"),
-            "categories": self.collect_metadata_values(metadata, "categories", "category"),
-            "tags": self.collect_metadata_values(metadata, "tags"),
-            "cuisine": self.collect_metadata_values(metadata, "cuisine"),
+            "meals": collect_metadata_values(metadata, "meals"),
+            "categories": collect_metadata_values(metadata, "categories", "category"),
+            "tags": collect_metadata_values(metadata, "tags"),
+            "cuisine": collect_metadata_values(metadata, "cuisine"),
             # Status is a single string value; only the first value is used.
-            "status": self.collect_metadata_values(metadata, "status")[:1],
+            "status": collect_metadata_values(metadata, "status")[:1],
             "contributors": contributors,
             "sourceTitles": source_titles,
         }
@@ -485,7 +468,7 @@ class IndexHTMLGenerator:
 
         relative_path = html_path.relative_to(self.cfg.site_directory)
         url = "/" + relative_path.as_posix()
-        markdown_path = relative_path.with_suffix(".md").as_posix()
+        markdown_path = relative_path.with_suffix(MARKDOWN_FILE_SUFFIX).as_posix()
 
         title = self._resolve_title(recipe, html_path, metadata)
         hero_url = self._hero_image_url(html_path)
@@ -794,24 +777,6 @@ class IndexHTMLGenerator:
     # ----- Page section builders ----- #
 
     @staticmethod
-    def _food_color_style(food_color: str) -> str:
-        dark_food_color = dark_mode_color(food_color)
-        return dedent(f"""\
-<style>
-    :root {{
-        --food-color: {food_color};
-        --food-color-hover: color-mix(in srgb, {food_color} {FOOD_COLOR_HOVER_MIX_PERCENT}%, black);
-    }}
-    @media (prefers-color-scheme: dark) {{
-        :root {{
-            --food-color: {dark_food_color};
-            --food-color-hover: color-mix(in srgb, {dark_food_color} {FOOD_COLOR_HOVER_MIX_PERCENT}%, white);
-        }}
-    }}
-</style>
-""").rstrip("\n")
-
-    @staticmethod
     def _versioned_asset_urls() -> dict[str, str]:
         """Content-hash every local asset the page references, keyed by template name."""
         paths = {
@@ -827,6 +792,12 @@ class IndexHTMLGenerator:
             "index_css": INDEX_CSS_PATH,
             "index_js": INDEX_JS_PATH,
             "icons_js": ICONS_JS_PATH,
+            "sse_js": SSE_JS_PATH,
+            "api_js": API_JS_PATH,
+            "page_path_js": PAGE_PATH_JS_PATH,
+            "date_labels_js": DATE_LABELS_JS_PATH,
+            "katex_loader_js": KATEX_LOADER_JS_PATH,
+            "dictation_js": DICTATION_JS_PATH,
             "recipe_editor_css": RECIPE_EDITOR_CSS_PATH,
             "recipe_editor_js": RECIPE_EDITOR_JS_PATH,
             "fields_js": FIELDS_JS_PATH,
@@ -852,7 +823,9 @@ class IndexHTMLGenerator:
         return "\n".join(self._build_filter_menu_html(field, filter_values[field.key], total_count=total_count) for field in FILTER_FIELDS)
 
     @staticmethod
-    def _page_head_html(server_name_html: str, food_color_style: str, urls: dict[str, str], dictation_enabled: bool = True) -> str:
+    def _page_head_html(
+        server_name_html: str, food_color_style: str, urls: dict[str, str], dictation_enabled: bool = DEFAULT_DICTATION_ENABLED
+    ) -> str:
         dictation_assets = (
             f"""    <link rel="stylesheet" href="{urls['speech_button_css']}">
 """
@@ -885,7 +858,12 @@ class IndexHTMLGenerator:
 {dictation_assets}    <link rel="stylesheet" href="{urls['config_editor_css']}">
     <link rel="stylesheet" href="{urls['pull_down_page_refresh_css']}">
     <script src="{MENU_JS_URL}" defer></script>
+    <script src="{urls['api_js']}" defer></script>
+    <script src="{urls['page_path_js']}" defer></script>
     <script src="{urls['icons_js']}" defer></script>
+    <script src="{urls['sse_js']}" defer></script>
+    <script src="{urls['dictation_js']}" defer></script>
+    <script src="{urls['katex_loader_js']}" defer></script>
     <script src="{urls['ai_assistant_js']}" defer></script>
     <script src="{urls['dialogs_js']}" defer></script>
     <script src="{urls['index_js']}" defer></script>
@@ -958,7 +936,7 @@ class IndexHTMLGenerator:
 </details>
 """).rstrip("\n")
 
-    def _toolbar_html(self, filter_menus_html: str, reviewer_options_html: str, dictation_enabled: bool = True) -> str:
+    def _toolbar_html(self, filter_menus_html: str, reviewer_options_html: str, dictation_enabled: bool = DEFAULT_DICTATION_ENABLED) -> str:
         if dictation_enabled:
             search_field_html = f"""    <div class="speech-input">
         <label class="search-control">
@@ -1093,10 +1071,10 @@ class IndexHTMLGenerator:
     ) -> str:
         server_name_html = html.escape(self._server_name())
         food_color = getattr(self.cfg, "food_color", None) or DEFAULT_FOOD_COLOR
-        food_color_style = self._food_color_style(food_color)
+        food_color_style = f"<style>\n{accent_color_declarations(food_color)}\n</style>"
         filter_menus_html = self._filter_menus_html(filter_values)
         asset_urls = self._versioned_asset_urls()
-        dictation_enabled = getattr(self.cfg, "dictation_enabled", True)
+        dictation_enabled = getattr(self.cfg, "dictation_enabled", DEFAULT_DICTATION_ENABLED)
 
         return dedent(f"""\
 <!DOCTYPE html>
@@ -1112,6 +1090,7 @@ class IndexHTMLGenerator:
 </ul>
 {self._version_footer_html()}
 </main>
+<script defer src="{asset_urls['date_labels_js']}"></script>
 <script defer src="{asset_urls['time_js']}"></script>
 <script defer src="{asset_urls['pull_down_page_refresh_js']}"></script>
 </body>

@@ -72,7 +72,7 @@
 }
 
 .recipe-editor__made-this:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -159,7 +159,7 @@
 
 .recipe-editor__location select:focus-visible,
 .recipe-editor__location input:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-color: var(--food-color);
 }
 
@@ -186,7 +186,7 @@
 }
 
 .recipe-editor__images:focus-within {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -207,7 +207,7 @@
 }
 
 .recipe-editor__images input:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -248,7 +248,7 @@
 }
 
 .recipe-editor__image-main:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-color: var(--food-color);
 }
 
@@ -329,7 +329,7 @@
 }
 
 .recipe-editor__rename-field:focus-within {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-color: var(--food-color);
 }
 
@@ -514,7 +514,7 @@
 
 .recipe-editor__ai-field textarea:focus-visible,
 .recipe-editor__ai-field input:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-color: var(--food-color);
 }
 
@@ -604,7 +604,7 @@
 
 .recipe-editor__metadata input:focus-visible,
 .recipe-editor__metadata select:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-color: var(--food-color);
 }
 
@@ -720,7 +720,7 @@
 }
 
 .recipe-editor__picker-add:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -789,7 +789,7 @@
 }
 
 .recipe-editor__picker-chip-remove:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -857,7 +857,7 @@
 }
 
 .recipe-editor__source:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   border-color: var(--food-color);
 }
 
@@ -1034,7 +1034,7 @@
 .recipe-editor__image-remove:focus-visible,
 .recipe-editor__ai-field button:focus-visible,
 .recipe-editor__ai-cancel:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 /* ---------- Reduced motion ---------- */

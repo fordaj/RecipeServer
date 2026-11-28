@@ -285,7 +285,7 @@ input[type="checkbox"]:checked::before {
 
 /* Keyboard accessibility */
 input[type="checkbox"]:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 /* ---------- Recipe overview ---------- */
@@ -379,7 +379,7 @@ input[type="checkbox"]:focus-visible {
 }
 
 .recipe-overview__makes:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -596,7 +596,7 @@ h2.collapsible-heading[aria-expanded="false"] {
 }
 
 .recipe-sections__toggle:focus-visible {
-  outline: 2px solid var(--food-color);
+  outline: var(--focus-ring);
 }
 
 /* The icon is a mask of the shared chevrons, so it follows the color of the

@@ -2,6 +2,7 @@
   "title": "RecipeServer",
   "exclude": [
     "tools",
+    "architecture",
     "dist",
     "test",
     "src/recipeserver/assets/katex",

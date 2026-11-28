@@ -13,7 +13,18 @@ from urllib.parse import urlsplit
 
 from ._logger import logger
 from .auth_config import AUTH_TOML_KEYS
-from .retention import DEFAULT_RETENTION_POLICY, RETENTION_POLICIES, RETENTION_POLICY_LABELS, normalize_retention_policy
+from .config_defaults import (
+    DEFAULT_DICTATION_ENABLED,
+    DEFAULT_FOOD_COLOR,
+    DEFAULT_KEEP_ALIVE_MINUTES,
+    DEFAULT_RECIPE_SERVER_NAME,
+    DEFAULT_SERVER_BIND_ADDRESS,
+    DEFAULT_SERVER_PORT,
+    DEFAULT_TRANSCRIPTION_ENDPOINT,
+    DEFAULT_TRANSCRIPTION_MODEL,
+    MAX_PORT,
+)
+from .retention_policy import DEFAULT_RETENTION_POLICY, RETENTION_POLICIES, RETENTION_POLICY_LABELS, normalize_retention_policy
 
 MODEL_ENDPOINT_KEY = "model_endpoint"
 MODEL_NAME_KEY = "model_name"  # Legacy key, read-only compatibility for the all-purpose model.
@@ -34,31 +45,14 @@ TIMELINE_RETENTION_KEY = "timeline_retention"
 SOURCE_DIRECTORY_KEY = "source_directory"
 CONFIG_FILENAME = "recipe-server-cfg.toml"
 LEGACY_CONFIG_FILENAME = "config.txt"
-DEFAULT_RECIPE_SERVER_NAME = "My Recipe Server"
-DEFAULT_SERVER_PORT = 8000
-# Accepts connections on every IPv4 interface, matching the documented
-# default in SERVER_BIND_ADDRESS. Restrict with server_bind_address = "127.0.0.1".
-DEFAULT_SERVER_BIND_ADDRESS = "0.0.0.0"
-# Dictation records a clip in the browser and transcribes it with the
-# Qwen3-ASR model on an externally managed Ollama server. It is on by
-# default; the switch only decides whether the app offers the feature at
-# all. RecipeServer never downloads, installs, launches, or manages the
-# Ollama server or its models.
-DEFAULT_DICTATION_ENABLED = True
-DEFAULT_TRANSCRIPTION_ENDPOINT = "http://localhost:11434"
-DEFAULT_TRANSCRIPTION_MODEL = "hf.co/ggml-org/Qwen3-ASR-0.6B-GGUF:Q8_0"
-# Keep-alive for every supported model, in minutes before unload:
-# 0 = unload immediately (the default), -1 = never unload, any other
-# positive whole number of minutes. Stored as text in the TOML file,
-# mirroring server_port.
-DEFAULT_KEEP_ALIVE_MINUTES = "0"
+# Defaults are defined once in `config_defaults` and re-exported here for the
+# public `recipeserver.config` API. Consumers that should not import the
+# Tk-using configuration module import them from the leaf directly.
+
 # Timeline revision retention: how historical snapshots are pruned. GFS is
 # the default for new and existing installations; "unlimited" keeps every
 # revision, preserving the historical behavior.
 DEFAULT_TIMELINE_RETENTION = DEFAULT_RETENTION_POLICY
-MAX_PORT = 65535
-# Matches the --food-color default in assets/definitions.css.
-DEFAULT_FOOD_COLOR = "#8d5542"
 NEW_RECIPE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipePrompt.md"
 NEW_RECIPE_FROM_IMAGE_PROMPT_PATH = Path(__file__).resolve().parent / "NewRecipeFromImagePrompt.md"
 _MAX_MODEL_NAME_LENGTH = 256
@@ -312,7 +306,7 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         " Kept disabled while the model cannot be verified on the configured endpoint.",
         _validate_keep_alive_minutes,
         input_type="number",
-        placeholder="0",
+        placeholder=DEFAULT_KEEP_ALIVE_MINUTES,
         min_value=-1,
     ),
     ConfigField(
@@ -329,7 +323,7 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         " Kept disabled while the model cannot be verified on the configured endpoint.",
         _validate_keep_alive_minutes,
         input_type="number",
-        placeholder="0",
+        placeholder=DEFAULT_KEEP_ALIVE_MINUTES,
         min_value=-1,
     ),
     ConfigField(
@@ -402,7 +396,7 @@ CONFIG_FIELDS: tuple[ConfigField, ...] = (
         " Kept disabled while the model cannot be verified on the configured endpoint.",
         _validate_keep_alive_minutes,
         input_type="number",
-        placeholder="0",
+        placeholder=DEFAULT_KEEP_ALIVE_MINUTES,
         min_value=-1,
     ),
     ConfigField(

@@ -24,17 +24,13 @@
 
   // POST a bulk-delete request. Throws with the server's message on any
   // failure, including a transport or parse error.
-  async function postBulkDelete(paths) {
-    const response = await fetch(new URL("/api/bulk-delete", window.location.origin), {
+  function postBulkDelete(paths) {
+    return window.RecipeApi.requestJson(new URL("/api/bulk-delete", window.location.origin), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paths }),
+      expectSuccess: true,
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || result.success !== true) {
-      throw new Error(result.error || `Request failed (HTTP ${response.status})`);
-    }
-    return result;
   }
 
   window.RecipeDialogs = { installClickOutsideClose, postBulkDelete };

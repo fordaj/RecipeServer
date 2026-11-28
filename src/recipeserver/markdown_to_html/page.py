@@ -10,7 +10,7 @@ from html import escape
 from textwrap import dedent
 
 from .._version import versioned_asset_url
-from ..color_utils import dark_mode_color
+from ..color_utils import accent_color_declarations
 from ..menu import MENU_CSS_URL, MENU_JS_URL, sandwich_menu_html
 from .icons import ASSETS_DIR, NOTEBOOK_SVG, icon_html
 
@@ -50,6 +50,12 @@ RECIPE_FEEDBACK_JS = "/assets/recipe-feedback.js"
 TIMELINE_JS = "/assets/recipe-history/timeline.js"
 TIME_JS = "/assets/time.js"
 ICONS_JS = "/assets/icons.js"
+SSE_JS = "/assets/sse.js"
+API_JS = "/assets/api.js"
+PAGE_PATH_JS = "/assets/page-path.js"
+DATE_LABELS_JS = "/assets/date-labels.js"
+KATEX_LOADER_JS = "/assets/katex-loader.js"
+DICTATION_JS = "/assets/dictation.js"
 AUTH_CSS = "/assets/auth/auth.css"
 AUTH_JS = "/assets/auth/auth.js"
 PULL_DOWN_PAGE_REFRESH_JS = "/assets/pull-down-page-refresh.js"
@@ -77,14 +83,7 @@ def doc_specific_overrides(heading_color: str) -> str:
     """Return the per-page CSS that applies the recipe's accent color."""
     return dedent(f"""
         <style>
-            :root {{
-                --food-color: {heading_color};
-            }}
-            @media (prefers-color-scheme: dark) {{
-                :root {{
-                    --food-color: {dark_mode_color(heading_color)};
-                }}
-            }}
+            {accent_color_declarations(heading_color)}
 
             .recipe-icon {{
                 color: var(--food-color);
@@ -119,6 +118,12 @@ def _versioned_assets() -> dict[str, str]:
             "katex_init_js": "/assets/katex-init.js",
             "time_js": TIME_JS,
             "icons_js": ICONS_JS,
+            "sse_js": SSE_JS,
+            "api_js": API_JS,
+            "page_path_js": PAGE_PATH_JS,
+            "date_labels_js": DATE_LABELS_JS,
+            "katex_loader_js": KATEX_LOADER_JS,
+            "dictation_js": DICTATION_JS,
             "recipe_js": RECIPE_JS,
             "recipe_scaler_js": RECIPE_SCALER_JS,
             "pull_down_page_refresh_js": PULL_DOWN_PAGE_REFRESH_JS,
@@ -184,8 +189,14 @@ def build_recipe_html(
             {comments_html}
         </main>
         <script defer src="{MENU_JS_URL}"></script>
+        <script defer src="{assets["api_js"]}"></script>
+        <script defer src="{assets["page_path_js"]}"></script>
+        <script defer src="{assets["date_labels_js"]}"></script>
         <script defer src="{assets["time_js"]}"></script>
         <script defer src="{assets["icons_js"]}"></script>
+        <script defer src="{assets["sse_js"]}"></script>
+        <script defer src="{assets["dictation_js"]}"></script>
+        <script defer src="{assets["katex_loader_js"]}"></script>
         <script defer src="{assets["ai_assistant_js"]}"></script>
         <script defer src="{assets["recipe_js"]}"></script>
         <script defer src="{assets["recipe_scaler_js"]}"></script>

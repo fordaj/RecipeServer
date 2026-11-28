@@ -231,13 +231,3 @@ def read_snapshot(recipe_id: str, snapshot_id: str) -> str:
     directory = recipe_history_directory(recipe_id)
     path = _snapshot_path(directory, snapshot_id)
     return path.read_text(encoding="utf-8")
-
-
-def snapshot_exists(recipe_id: str, snapshot_id: str) -> bool:
-    """Return True when *snapshot_id* names a stored snapshot."""
-    try:
-        directory = recipe_history_directory(recipe_id)
-        path = _snapshot_path(directory, snapshot_id)
-    except HistoryError:
-        return False
-    return path.is_file()

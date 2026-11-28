@@ -40,19 +40,25 @@ from threading import Event, Lock, Thread
 from typing import Callable, Iterable
 
 from ._logger import logger
-from . import history
+from .history import (
+    HistoryError,
+    RECIPES_DIR_NAME,
+    SNAPSHOT_SUFFIX,
+    SnapshotInfo,
+    history_directory,
+    list_snapshots,
+    recipe_history_directory,
+)
 from .recipe_utils import is_valid_recipe_id
-
-RETENTION_POLICY_GFS = "gfs"
-RETENTION_POLICY_UNLIMITED = "unlimited"
-DEFAULT_RETENTION_POLICY = RETENTION_POLICY_GFS
-RETENTION_POLICIES = (RETENTION_POLICY_GFS, RETENTION_POLICY_UNLIMITED)
-
-# Human-readable labels for the configuration UI, keyed by policy.
-RETENTION_POLICY_LABELS = {
-    RETENTION_POLICY_GFS: "GFS (recommended)",
-    RETENTION_POLICY_UNLIMITED: "Unlimited",
-}
+from .retention_policy import (
+    DEFAULT_RETENTION_POLICY,
+    RETENTION_POLICY_GFS,
+    RETENTION_POLICIES,
+    RETENTION_POLICY_LABELS,
+    RETENTION_POLICY_UNLIMITED,
+    normalize_retention_policy,
+    policy_provider,
+)
 
 # ----- The GFS schedule ----------------------------------------------------
 # The single place to adjust the tiered Grandfather-Father-Son schedule.
@@ -94,21 +100,6 @@ FULL_SCAN_MIN_INTERVAL_SECONDS = 60 * 60
 RECIPE_PRUNE_MIN_INTERVAL_SECONDS = 60 * 5
 
 
-def normalize_retention_policy(value: object) -> str:
-    """Normalize a retention policy value to ``gfs`` or ``unlimited``.
-
-    Unrecognized or blank values fall back to the documented default (GFS),
-    so an existing installation with no policy key in its configuration
-    migrates to GFS.
-    """
-    text = str(value or "").strip().lower()
-    if text in RETENTION_POLICIES:
-        return text
-    if text:
-        logger.warning(f"Unrecognized timeline retention policy {value!r}; using {DEFAULT_RETENTION_POLICY!r}")
-    return DEFAULT_RETENTION_POLICY
-
-
 def _as_utc(moment: datetime) -> datetime:
     if moment.tzinfo is None:
         return moment.replace(tzinfo=timezone.utc)
@@ -136,7 +127,7 @@ def _tier_for_age(age: timedelta) -> RetentionTier:
     raise AssertionError("GFS_SCHEDULE has no unbounded tier")  # pragma: no cover
 
 
-def plan_retention(snapshots: Iterable[history.SnapshotInfo], now: datetime | None = None) -> set[str]:
+def plan_retention(snapshots: Iterable[SnapshotInfo], now: datetime | None = None) -> set[str]:
     """Return the ids of the snapshots that GFS would prune.
 
     The newest revision is always kept, and every tier keeps its newest
@@ -150,7 +141,7 @@ def plan_retention(snapshots: Iterable[history.SnapshotInfo], now: datetime | No
         return set()
 
     keep: set[str] = {ordered[-1].id}
-    buckets: dict[tuple[str, str], list[history.SnapshotInfo]] = {}
+    buckets: dict[tuple[str, str], list[SnapshotInfo]] = {}
     for snapshot in ordered:
         created = _as_utc(snapshot.created)
         tier = _tier_for_age(now - created)
@@ -200,11 +191,7 @@ class RetentionManager:
 
     def configure(self, config) -> None:
         """Read the retention policy from a Configuration-like object."""
-
-        def provider(cfg=config):
-            return getattr(cfg, "timeline_retention", DEFAULT_RETENTION_POLICY)
-
-        self._policy_provider = provider
+        self._policy_provider = policy_provider(config)
 
     def policy(self) -> str:
         try:
@@ -242,7 +229,7 @@ class RetentionManager:
             return outcome
         try:
             try:
-                snapshots = history.list_snapshots(recipe_id)
+                snapshots = list_snapshots(recipe_id)
             except Exception:
                 logger.exception(f"Unable to list snapshots for recipe {recipe_id}")
                 outcome.errors += 1
@@ -253,8 +240,8 @@ class RetentionManager:
             outcome.kept = outcome.scanned - len(prune_ids)
 
             try:
-                directory = history.recipe_history_directory(recipe_id)
-            except history.HistoryError:
+                directory = recipe_history_directory(recipe_id)
+            except HistoryError:
                 logger.exception(f"Unable to resolve the history directory for recipe {recipe_id}")
                 outcome.errors += 1
                 return outcome
@@ -262,7 +249,7 @@ class RetentionManager:
             for snapshot in snapshots:
                 if snapshot.id not in prune_ids:
                     continue
-                path = directory / f"{snapshot.id}{history.SNAPSHOT_SUFFIX}"
+                path = directory / f"{snapshot.id}{SNAPSHOT_SUFFIX}"
                 try:
                     path.unlink()
                     outcome.pruned += 1
@@ -303,7 +290,7 @@ class RetentionManager:
         return outcomes
 
     def _list_recipe_ids(self) -> list[str]:
-        recipes = history.history_directory() / history.RECIPES_DIR_NAME
+        recipes = history_directory() / RECIPES_DIR_NAME
         try:
             entries = list(recipes.iterdir())
         except OSError:

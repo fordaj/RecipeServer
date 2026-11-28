@@ -9,7 +9,8 @@ import pytest
 
 import frontmatter
 
-from recipeserver.server import RecipeRequestHandler, _validate_ratings
+from recipeserver.recipe_metadata import validate_ratings
+from recipeserver.server import RecipeRequestHandler
 
 
 def valid_rating(name="Kailey Ford", rating=8.5, rating_id="rating-1"):
@@ -25,7 +26,7 @@ def valid_rating(name="Kailey Ford", rating=8.5, rating_id="rating-1"):
 def test_validate_ratings_accepts_example_shape_and_decimal_score():
     ratings = [valid_rating()]
 
-    assert _validate_ratings(ratings) == ratings
+    assert validate_ratings(ratings) == ratings
 
 
 @pytest.mark.parametrize(
@@ -43,7 +44,7 @@ def test_validate_ratings_accepts_example_shape_and_decimal_score():
 )
 def test_validate_ratings_rejects_invalid_data(ratings):
     with pytest.raises(ValueError):
-        _validate_ratings(ratings)
+        validate_ratings(ratings)
 
 
 def test_ratings_metadata_endpoint_reads_saves_and_rejects_duplicate_names(tmp_path):

@@ -369,8 +369,8 @@ def test_speech_button_script_only_works_over_https():
     assert "speech button checks passed" in result.stdout
 
 
-def test_server_binds_to_the_loopback_interface():
-    # The site has no authentication, so it only listens on the loopback
-    # interface and is served over HTTPS through a local reverse proxy.
-    assert server_module.SERVER_BIND_ADDRESS == "0.0.0.0"
+def test_server_bind_address_default_matches_configuration():
+    # The server has no independent bind-address default; it uses the one the
+    # configuration module owns. LOCALHOST remains the loopback probe address.
+    assert server_module.DEFAULT_SERVER_BIND_ADDRESS == "0.0.0.0"
     assert server_module.LOCALHOST == "127.0.0.1"

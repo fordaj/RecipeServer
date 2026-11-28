@@ -24,7 +24,7 @@ from platformdirs import user_data_path
 from ._logger import logger
 from .auth_config import AuthSettings
 from .oidc import OIDCError, OIDCClient, new_login_flow, read_login_flow
-from .session import FLOW_COOKIE, SESSION_COOKIE, Session, create_session, read_session
+from .session import SESSION_COOKIE, Session, create_session, read_session
 
 ACCESS_SETTINGS_FILENAME = "access-settings.json"
 MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -210,6 +210,26 @@ class AuthManager:
             if not supplied or not hmac.compare_digest(supplied, identity.csrf_token(self.secret)):
                 return False
         return True
+
+    @staticmethod
+    def disabled_status() -> dict:
+        """The status payload when authentication is not configured.
+
+        The browser reads the same keys in both cases, so the shape lives with
+        the status producer rather than being restated in the HTTP handler.
+        """
+        return {
+            "enabled": False,
+            "authenticated": False,
+            "permission": "edit",
+            "canEdit": True,
+            "isOwner": False,
+            "name": None,
+            "csrfToken": None,
+            "loginUrl": "/api/auth/login",
+            "logoutUrl": "/api/auth/logout",
+            "callbackPath": "/api/auth/callback",
+        }
 
     def status(self, identity: Session | None) -> dict:
         """The only auth information exposed to the browser (no secrets)."""

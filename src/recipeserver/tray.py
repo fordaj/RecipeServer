@@ -1,10 +1,11 @@
 import webbrowser
 from pathlib import Path
 import pystray
-from PIL import Image, ImageDraw
+from PIL import Image
 
-from .server import Server
+from .server import LOCALHOST, WILDCARD_BIND_ADDRESSES, Server
 from ._logger import logger
+from .config_defaults import DEFAULT_SERVER_PORT
 
 FILE_PATH = Path(__file__)
 LOGO_PNG = FILE_PATH.parent / "assets" / "logo.png"
@@ -50,13 +51,13 @@ class Tray:
             return image.convert("RGBA")
 
     def _open_recipes(self, icon, item):
-        port = getattr(self.server, "port", 8000)
-        bind = getattr(self.server, "bind_address", "127.0.0.1")
+        port = getattr(self.server, "port", DEFAULT_SERVER_PORT)
+        bind = getattr(self.server, "bind_address", LOCALHOST)
         # A wildcard bind listens on every interface, loopback included, so
         # the browser can use the loopback address. A specific non-loopback
         # bind would not answer on loopback, so open that address instead.
-        if bind in {"0.0.0.0", "::"}:
-            host = "127.0.0.1"
+        if bind in WILDCARD_BIND_ADDRESSES:
+            host = LOCALHOST
         elif ":" in bind:
             host = f"[{bind}]"
         else:

@@ -14,11 +14,8 @@ from bs4 import BeautifulSoup
 
 from recipeserver.index_html_generator import IndexHTMLGenerator, Recipe
 from recipeserver.markdown_to_html.overview import build_recipe_overview
-from recipeserver.server import (
-    RecipeRequestHandler,
-    _editor_metadata,
-    _validate_editor_metadata,
-)
+from recipeserver.recipe_metadata import editor_metadata, validate_editor_metadata
+from recipeserver.server import RecipeRequestHandler
 
 
 def _write_recipe(path: Path, metadata: str):
@@ -53,16 +50,16 @@ def _post(url, payload):
 
 
 def test_editor_metadata_defaults_archived_to_false():
-    assert _editor_metadata({})["archived"] is False
-    assert _editor_metadata({"archived": True})["archived"] is True
-    assert _editor_metadata({"archived": "yes"})["archived"] is False
+    assert editor_metadata({})["archived"] is False
+    assert editor_metadata({"archived": True})["archived"] is True
+    assert editor_metadata({"archived": "yes"})["archived"] is False
 
 
 def test_validate_editor_metadata_rejects_non_boolean_archived():
-    assert _validate_editor_metadata({"archived": True})["archived"] is True
-    assert _validate_editor_metadata({"archived": False})["archived"] is False
+    assert validate_editor_metadata({"archived": True})["archived"] is True
+    assert validate_editor_metadata({"archived": False})["archived"] is False
     with pytest.raises(ValueError, match="archived.*boolean"):
-        _validate_editor_metadata({"archived": "true"})
+        validate_editor_metadata({"archived": "true"})
 
 
 def test_index_marks_archived_and_has_unchecked_show_archived(tmp_path):

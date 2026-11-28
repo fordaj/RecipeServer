@@ -220,13 +220,12 @@ async function testTranscription() {
   setStatus("Testing the transcription model…");
 
   try {
-    const response = await fetch(TRANSCRIPTION_TEST_API, {
+    const data = await window.RecipeApi.requestJson(TRANSCRIPTION_TEST_API, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(values),
+      fallbackMessage: "The transcription test failed.",
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "The transcription test failed.");
 
     const seconds = typeof data.seconds === "number" ? `${data.seconds}s — ` : "";
     const text = String(data.text || "").trim();
@@ -252,9 +251,10 @@ async function openEditor() {
   setStatus("");
 
   try {
-    const response = await fetch(CONFIG_EDITOR_API, { headers: { Accept: "application/json" } });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Unable to load configuration.");
+    const data = await window.RecipeApi.requestJson(CONFIG_EDITOR_API, {
+      headers: { Accept: "application/json" },
+      fallbackMessage: "Unable to load configuration.",
+    });
 
     buildFields(data.fields || [], data.values || {}, data.models || {});
     dialog.showModal();
@@ -281,13 +281,12 @@ async function saveEditor(event) {
   setStatus("");
 
   try {
-    const response = await fetch(CONFIG_EDITOR_API, {
+    await window.RecipeApi.requestJson(CONFIG_EDITOR_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ values }),
+      fallbackMessage: "Unable to save configuration.",
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Unable to save configuration.");
 
     // The server regenerates the site on save; reload to show it.
     window.location.reload();

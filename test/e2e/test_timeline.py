@@ -12,7 +12,7 @@ from selenium.common.exceptions import NoSuchElementException, StaleElementRefer
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-from test.e2e.helpers import open_page, wait_clickable, wait_visible, wait_hidden
+from test.e2e.helpers import open_page, wait_clickable, wait_hidden, wait_text, wait_visible
 
 RECIPE_PAGE = "/waffles/recipe.html"
 RECIPE_API_PATH = "waffles/recipe.md"
@@ -83,18 +83,26 @@ def test_timeline_preview_compare_and_restore(driver, recipe_server):
     # Compare renders a diff against the current recipe.
     driver.find_element(By.CSS_SELECTOR, '.recipe-history__mode[data-mode="compare"]').click()
     wait_visible(driver, ".recipe-history__diff:not([hidden])")
+    # The diff is filled asynchronously from /api/history/compare; waiting only
+    # for visibility can read an empty element on a busy full-suite run.
+    wait_text(driver, ".recipe-history__diff", "+Version two.", 20)
     diff_text = driver.find_element(By.CSS_SELECTOR, ".recipe-history__diff").text
     assert "+Version two." in diff_text
 
     # Restore is a two-step confirm; confirming reloads the page with the restored recipe.
-    restore = driver.find_element(By.CSS_SELECTOR, ".recipe-history__restore")
+    restore = wait_clickable(driver, ".recipe-history__restore", 20)
     restore.click()
-    assert restore.text == "Confirm restore"
-    restore.click()
+    # The first click arms a two-step confirm, which can re-render the button.
+    wait_text(driver, ".recipe-history__restore", "Confirm restore", 20)
+    wait_clickable(driver, ".recipe-history__restore", 20).click()
 
+    # Restoring triggers a page reload; under a busy full-suite run that reload
+    # can take longer than the default ten seconds. Wait for the document to
+    # finish loading before asserting the restored body.
+    WebDriverWait(driver, 25).until(lambda d: d.execute_script("return document.readyState") == "complete")
     WebDriverWait(
         driver,
-        10,
+        25,
         ignored_exceptions=(NoSuchElementException, StaleElementReferenceException),
     ).until(lambda d: "Version two" not in d.find_element(By.CSS_SELECTOR, "main").text)
     assert "Version two" not in _markdown(recipe_server.url)

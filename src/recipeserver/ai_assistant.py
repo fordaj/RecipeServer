@@ -44,14 +44,15 @@ from .ai_recipe import (
     USER_AGENT,
     ModelRequestError,
     ModelUnavailable,
-    _metrics_from_ollama_payload,
-    _read_response,
+    metrics_from_ollama_payload,
+    read_response,
     keep_alive_seconds,
     ollama_chat_url,
     resolve_ai_config,
     resolve_model_name,
 )
-from .recipe_utils import slug_to_title
+from .recipe_paths import MARKDOWN_FILE_SUFFIX, display_path, iter_recipe_files, resolve_recipe_file
+from .recipe_utils import first_heading, slug_to_title
 
 # Conversation management. The browser keeps its own copy; these caps keep
 # the prompt stable even if a caller sends a huge history.
@@ -98,8 +99,6 @@ EVENT_STATUS = "status"
 EVENT_METRICS = "metrics"
 EVENT_ERROR = "error"
 EVENT_RESULT = "result"
-
-_HEADING_RE = re.compile(r"^\s{0,3}#\s+(.+?)\s*#*\s*$", re.MULTILINE)
 
 _TOOLS = [
     {
@@ -228,38 +227,8 @@ def sanitize_message(message: object) -> str:
 
 
 def _resolve_recipe_path(source_directory: Path, requested_path: object) -> Path:
-    """Validate a library-relative recipe path; mirrors the server's rules."""
-    if isinstance(requested_path, str):
-        requested_path = requested_path.strip()
-    if not isinstance(requested_path, str) or not requested_path:
-        raise ValueError("Expected a recipe path")
-    if "\\" in requested_path or "\x00" in requested_path:
-        raise ValueError("Invalid file path")
-
-    relative_path = Path(requested_path)
-    if relative_path.is_absolute() or ".." in relative_path.parts:
-        raise ValueError("Path must stay inside the source directory")
-    if relative_path.suffix.lower() != ".md":
-        raise ValueError("Only Markdown (.md) files can be read")
-
-    root = Path(source_directory).resolve()
-    file_path = (root / relative_path).resolve()
-    if not file_path.is_relative_to(root):
-        raise ValueError("Path must stay inside the source directory")
-    return file_path
-
-
-def display_path(source_directory: Path, file_path: Path) -> str:
-    """Return the library-relative POSIX path used for prompts and replies."""
-    return Path(file_path).resolve().relative_to(Path(source_directory).resolve()).as_posix()
-
-
-def _heading_title(text: str) -> str | None:
-    match = _HEADING_RE.search(text)
-    if not match:
-        return None
-    heading = match.group(1).strip()
-    return heading or None
+    """Validate a library-relative recipe path for a read-only tool call."""
+    return resolve_recipe_file(source_directory, requested_path, action="read")
 
 
 def _list_recipes(source_directory: Path) -> dict[str, Any]:
@@ -270,16 +239,14 @@ def _list_recipes(source_directory: Path) -> dict[str, Any]:
     if not root.is_dir():
         return {"recipes": recipes, "truncated": False}
 
-    for recipe_file in sorted(root.rglob("recipe.md")):
-        if recipe_file.is_symlink() or not recipe_file.is_file():
-            continue
+    for recipe_file in iter_recipe_files(root):
         try:
             head = recipe_file.read_text(encoding="utf-8", errors="replace")[:8192]
         except OSError:
             logger.warning(f"Could not read recipe while listing the library: {recipe_file}")
             continue
 
-        title = _heading_title(head) or slug_to_title(recipe_file.parent.name)
+        title = first_heading(head) or slug_to_title(recipe_file.parent.name)
         recipes.append({"path": recipe_file.relative_to(root).as_posix(), "title": title})
         if len(recipes) >= MAX_LIST_RECIPES:
             truncated = True
@@ -376,7 +343,7 @@ def _best_recipe_match(query: str, recipes: list[dict[str, str]]) -> tuple[float
 
 
 def _open_recipe_url(display_path: str) -> str:
-    if display_path.lower().endswith(".md"):
+    if display_path.lower().endswith(MARKDOWN_FILE_SUFFIX):
         return "/" + display_path[:-3] + ".html"
     return "/" + display_path
 
@@ -499,7 +466,7 @@ def _chat_message(
 
     try:
         with response:
-            body = _read_response(response, MAX_MODEL_RESPONSE_BYTES)
+            body = read_response(response, MAX_MODEL_RESPONSE_BYTES)
     except (OSError, TimeoutError) as exc:
         logger.error(f"Assistant model response from {chat_url} was interrupted: {exc}")
         raise ModelRequestError(f"The model response was interrupted: {exc}") from exc
@@ -519,7 +486,7 @@ def _chat_message(
     if not isinstance(message, dict):
         raise ModelRequestError("The model returned a response without a message")
 
-    return message, _metrics_from_ollama_payload(payload)
+    return message, metrics_from_ollama_payload(payload)
 
 
 def _parse_tool_calls(message: dict[str, Any]) -> list[dict[str, Any]]:

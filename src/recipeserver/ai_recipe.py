@@ -21,6 +21,8 @@ from PIL import Image, UnidentifiedImageError
 
 from ._logger import logger
 from ._version import PACKAGE_VERSION
+from .config_defaults import DEFAULT_KEEP_ALIVE_MINUTES
+from .recipe_metadata import STRING_LIST_FIELDS
 from .recipe_utils import (
     SOURCE_FORMAT_LABELS,
     clean_source_fields,
@@ -87,8 +89,6 @@ IMAGE_MIME_TYPES = {
     ".tif": "image/tiff",
 }
 
-LIST_FIELDS = ("tags", "cuisine", "categories", "meals")
-
 _CODE_FENCE_RE = re.compile(
     r"^\s*```(?:markdown|md)?\s*\n(?P<body>.*)\n```\s*$",
     re.DOTALL | re.IGNORECASE,
@@ -141,8 +141,8 @@ class AIConfigView:
     new_recipe_prompt: str
     new_recipe_from_image_prompt: str
     # Minutes before unload, as configured ("-1"/"0"/"<N>"); blank means unset.
-    all_purpose_model_keep_alive: str = "0"
-    image_analysis_model_keep_alive: str = "0"
+    all_purpose_model_keep_alive: str = DEFAULT_KEEP_ALIVE_MINUTES
+    image_analysis_model_keep_alive: str = DEFAULT_KEEP_ALIVE_MINUTES
 
     @property
     def is_configured(self) -> bool:
@@ -172,8 +172,8 @@ def resolve_ai_config(config: object | None) -> AIConfigView:
         image_analysis_model=_read_config_text(config, "image_analysis_model"),
         new_recipe_prompt=_read_config_text(config, "new_recipe_prompt"),
         new_recipe_from_image_prompt=_read_config_text(config, "new_recipe_from_image_prompt"),
-        all_purpose_model_keep_alive=_read_config_text(config, "all_purpose_model_keep_alive") or "0",
-        image_analysis_model_keep_alive=_read_config_text(config, "image_analysis_model_keep_alive") or "0",
+        all_purpose_model_keep_alive=_read_config_text(config, "all_purpose_model_keep_alive") or DEFAULT_KEEP_ALIVE_MINUTES,
+        image_analysis_model_keep_alive=_read_config_text(config, "image_analysis_model_keep_alive") or DEFAULT_KEEP_ALIVE_MINUTES,
     )
 
 
@@ -260,7 +260,7 @@ def ollama_tags_url(endpoint: str) -> str:
     return f"{normalize_ollama_base_url(endpoint)}{OLLAMA_TAGS_PATH}"
 
 
-def _read_response(response, limit: int) -> bytes:
+def read_response(response, limit: int) -> bytes:
     content_length = response.headers.get("Content-Length")
     if content_length is not None:
         try:
@@ -332,21 +332,17 @@ def _fetch_model_names(
         if not 200 <= response.status < 300:
             logger.log(http_error_level, f"{description} to {url} returned HTTP {response.status}")
             return []
-        payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
+        payload = json.loads(read_response(response, MAX_MODEL_RESPONSE_BYTES))
 
     return _model_names_from_payload(payload, name_keys)
 
 
 def list_models(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS) -> list[str]:
+    """Return the installed model names, using the same /api/tags reader as model_info."""
     models_url = ollama_tags_url(endpoint)
     logger.debug(f"Listing models from {models_url}")
-    names = _fetch_model_names(
-        models_url,
-        name_keys=("id", "name", "model"),
-        timeout=timeout,
-        description="Model list request",
-        http_error_level="WARNING",
-    )
+    catalog = _model_catalog(endpoint, timeout=timeout)
+    names = [name for name in (_entry_name(entry) for entry in catalog) if name]
     logger.debug(f"Models reported by {models_url}: {names}")
     return names
 
@@ -365,7 +361,7 @@ def _model_catalog(endpoint: str, timeout: float = AVAILABILITY_TIMEOUT_SECONDS)
     with urlopen(request, timeout=timeout) as response:
         if not 200 <= response.status < 300:
             raise ModelRequestError(f"Model list request to {tags_url} returned HTTP {response.status}")
-        payload = json.loads(_read_response(response, MAX_MODEL_RESPONSE_BYTES))
+        payload = json.loads(read_response(response, MAX_MODEL_RESPONSE_BYTES))
     if not isinstance(payload, dict):
         raise ModelRequestError("Model list response was not a JSON object")
     entries = payload.get("models")
@@ -771,7 +767,7 @@ def _duration_seconds(payload: dict[str, Any], key: str) -> float | None:
     return value / 1_000_000_000
 
 
-def _metrics_from_ollama_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def metrics_from_ollama_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Normalize Ollama's nanosecond timings into display-friendly metrics."""
     load_seconds = _duration_seconds(payload, "load_duration")
     generation_seconds = _duration_seconds(payload, "eval_duration")
@@ -866,7 +862,7 @@ def _parse_chat_payload(payload: object) -> ChatResult:
     return ChatResult(
         content=content,
         thinking=thinking,
-        metrics=_metrics_from_ollama_payload(payload),
+        metrics=metrics_from_ollama_payload(payload),
         finish_reason=payload.get("done_reason"),
     )
 
@@ -919,7 +915,7 @@ def _read_chat_stream(
 
         if payload.get("done"):
             finish_reason = payload.get("done_reason")
-            metrics = _metrics_from_ollama_payload(payload)
+            metrics = metrics_from_ollama_payload(payload)
             break
 
     final_content, final_thinking = filter_.finish()
@@ -989,7 +985,7 @@ def _ollama_chat(
             if stream:
                 result = _read_chat_stream(response, on_thinking=on_thinking, on_content=on_content)
             else:
-                body = _read_response(response, MAX_MODEL_RESPONSE_BYTES)
+                body = read_response(response, MAX_MODEL_RESPONSE_BYTES)
                 logger.debug(f"Received {len(body)} bytes from the model")
                 try:
                     response_payload = json.loads(body)
@@ -1037,7 +1033,7 @@ def _ollama_chat(
 
 def _normalize_list_fields(normalized: dict[str, Any]) -> None:
     """Split comma-separated strings into lists for the multi-value fields."""
-    for field in LIST_FIELDS:
+    for field in STRING_LIST_FIELDS:
         value = normalized.get(field)
         if isinstance(value, str):
             normalized[field] = [item.strip() for item in value.split(",") if item.strip()]
