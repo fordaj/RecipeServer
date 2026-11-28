@@ -283,6 +283,19 @@ It passes in isolation (`3 passed` for the file) and with the whole e2e suite
 `685 passed, 20 skipped, 1 deselected`. The failure is a 10-second UI wait
 under full-suite load, not a regression in the extracted code.
 
+### Batch 21 — history API operations leave the handler (pending commit)
+
+`recipe_history_api.py` owns query parsing, snapshot payload shaping, snapshot
+reads with domain-specific errors, unified diffs, and the script-free scratch
+directory preview. The handler keeps routing, path validation, and status-code
+mapping. Evidence: `71 passed` for the new history API, history, and
+architecture tests.
+
+Separately, `test/e2e/test_timeline.py` now waits for the restore button's
+confirm text and for `document.readyState === "complete"` with longer
+timeouts, so the order-dependent full-suite failure is addressed rather than
+deselected (`1e36769`).
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -321,3 +334,4 @@ the rest.
 | 18    | focused 207 passed; covered by the final 680-passed run                                | clean      | generated, no broken local links | `7645f6b` |
 | 19    | focused 75 + 69 passed; final clean full 680 passed, 20 skipped                        | clean      | generated, no broken local links | `16b053c` |
 | 20    | focused 5 + 125 passed; full 685 passed, 1 known order-flaky e2e; deselected run clean | clean      | generated, no broken links       | `091d286` |
+| 21    | focused 71 passed; full run pending                                                    | clean      | generated                        | pending   |

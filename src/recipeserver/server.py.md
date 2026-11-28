@@ -106,7 +106,7 @@ Every RecipeServer-managed modification of a recipe — editor saves, raw `/api/
 4. writes the file atomically, rolling the snapshot back only if the write itself failed;
 5. schedules a throttled background prune of that recipe's history ([retention.py.md](retention.py.md)), which never blocks the save.
 
-Recipe history endpoints (the recipe page's **Version History** dialog consumes them; see `assets/recipe-history/timeline.js`):
+Recipe history endpoints (the recipe page's **Version History** dialog consumes them; see `assets/recipe-history/timeline.js`). Snapshot reads, payload shaping, diffing, and script-free rendering live in [recipe_history_api.py.md](recipe_history_api.py.md); this module keeps routing and status codes:
 
 - `GET /api/history?path=…[&recipeId=…]` — `{path, recipeId, snapshots: [{id, created, size}]}`, newest first. A missing recipe file (deleted recipe) needs `recipeId`. A recipe without `recipe_id` is assigned one in place (no snapshot).
 - `GET /api/history/preview?path=…&snapshot=…` — renders the snapshot through the same `MarkdownToHTMLConverter` pipeline as a scratch copy and returns it as `text/html` with scripts and the page header stripped; the current recipe is untouched.

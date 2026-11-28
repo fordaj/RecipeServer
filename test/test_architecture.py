@@ -100,6 +100,13 @@ def test_config_defaults_is_a_leaf_module():
     assert not (_imported_names(_tree("config_defaults.py")) & {"config", "server", "core", "retention"})
 
 
+def test_history_api_operations_are_not_implemented_in_the_handler():
+    server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
+    for name in ("_history_query", "_snapshot_payload", "_history_snapshot_for", "_render_history_preview", "_sanitize_preview_html"):
+        assert f"def {name}" not in server_source
+    assert "from .recipe_history_api import" in server_source
+
+
 def test_request_parsing_is_not_implemented_in_the_handler():
     server_source = (SOURCE / "server.py").read_text(encoding="utf-8")
     for name in ("_read_body", "_read_json_payload", "_parse_multipart_message", "_validate_uploaded_images", "_write_uploaded_images"):
