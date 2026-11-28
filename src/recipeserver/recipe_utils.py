@@ -217,6 +217,30 @@ def slug_to_title(slug: str) -> str:
     return slug.replace("-", " ").replace("_", " ").title()
 
 
+_FIRST_HEADING_RE = re.compile(r"^ {0,3}#\s+(.*?)\s*#*\s*$")
+
+
+def first_heading(text: str) -> str | None:
+    """Return the first level-one Markdown heading, ignoring fenced code.
+
+    The title of a recipe page, its index card, and the assistant's tool output
+    all come from this one rule: first ``#`` heading outside a fence, otherwise
+    the caller falls back to front matter or the directory slug.
+    """
+    in_fence = False
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = _FIRST_HEADING_RE.match(line)
+        if match and match.group(1).strip():
+            return match.group(1).strip()
+    return None
+
+
 # ----- Recipe identity (``recipe_id``) ----- #
 #
 # The helpers here work textually on the Markdown source instead of rounding

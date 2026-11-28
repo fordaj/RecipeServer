@@ -397,7 +397,9 @@ Body.
 
 
 def test_title_extraction_ignores_fenced_code_blocks():
-    title = MarkdownToHTMLConverter._get_title_from_markdown_content(["```markdown", "# Not the title", "```", "", "# Actual Title ###"])
+    from recipeserver.recipe_utils import first_heading
+
+    title = first_heading("```markdown\n# Not the title\n```\n\n# Actual Title ###")
 
     assert title == "Actual Title"
 

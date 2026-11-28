@@ -52,7 +52,7 @@ from .ai_recipe import (
     resolve_model_name,
 )
 from .recipe_paths import MARKDOWN_FILE_SUFFIX, RECIPE_FILENAME, display_path, resolve_recipe_file
-from .recipe_utils import slug_to_title
+from .recipe_utils import first_heading, slug_to_title
 
 # Conversation management. The browser keeps its own copy; these caps keep
 # the prompt stable even if a caller sends a huge history.
@@ -99,8 +99,6 @@ EVENT_STATUS = "status"
 EVENT_METRICS = "metrics"
 EVENT_ERROR = "error"
 EVENT_RESULT = "result"
-
-_HEADING_RE = re.compile(r"^\s{0,3}#\s+(.+?)\s*#*\s*$", re.MULTILINE)
 
 _TOOLS = [
     {
@@ -233,14 +231,6 @@ def _resolve_recipe_path(source_directory: Path, requested_path: object) -> Path
     return resolve_recipe_file(source_directory, requested_path, action="read")
 
 
-def _heading_title(text: str) -> str | None:
-    match = _HEADING_RE.search(text)
-    if not match:
-        return None
-    heading = match.group(1).strip()
-    return heading or None
-
-
 def _list_recipes(source_directory: Path) -> dict[str, Any]:
     root = Path(source_directory)
     recipes: list[dict[str, str]] = []
@@ -258,7 +248,7 @@ def _list_recipes(source_directory: Path) -> dict[str, Any]:
             logger.warning(f"Could not read recipe while listing the library: {recipe_file}")
             continue
 
-        title = _heading_title(head) or slug_to_title(recipe_file.parent.name)
+        title = first_heading(head) or slug_to_title(recipe_file.parent.name)
         recipes.append({"path": recipe_file.relative_to(root).as_posix(), "title": title})
         if len(recipes) >= MAX_LIST_RECIPES:
             truncated = True

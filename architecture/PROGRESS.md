@@ -101,6 +101,15 @@ the stylesheet's brown hover color. Tests assert the hover declaration on
 both generated page types. Evidence: `27 passed` for config-values and index
 tests, `54 passed` for the wider rendering test set.
 
+### Batch 7 — one fence-aware title rule (pending commit)
+
+`recipe_utils.first_heading` now owns title extraction from Markdown. The
+renderer and the assistant's `list_recipes` both use it, so a `#` line inside
+a fenced code block can no longer become a recipe title in one path but not
+the other. The converter's private duplicate is deleted. Evidence:
+`83 passed, 1 skipped` across architecture, conversion, assistant, and path
+tests.
+
 ## Verification record
 
 | Batch | Tests                                                                         | Formatting | Docs                             | Commit    |
@@ -112,4 +121,5 @@ tests, `54 passed` for the wider rendering test set.
 | 3     | focused 82 passed + 35 passed; final full run pending                         | clean      | generated                        | `9d616fc` |
 | 4     | focused 5 passed; final full run pending                                      | clean      | generated                        | `1d7532f` |
 | 5     | focused 87 passed, 3 skipped; final full run pending                          | clean      | generated                        | `404fb12` |
-| 6     | focused 27 passed + 54 passed; final full run pending                         | clean      | generated                        | pending   |
+| 6     | focused 27 passed + 54 passed; final full run pending                         | clean      | generated                        | `db61f8c` |
+| 7     | focused 83 passed, 1 skipped; final full run pending                          | clean      | generated                        | pending   |
