@@ -417,6 +417,11 @@ no-duplicate loads, and retry after failure; AST/load-order tests prevent the
 copies returning. Evidence: `66 passed` for loader, architecture, service
 worker, and AI progress tests.
 
+### Batch 29 verification (final)
+
+Clean full suite with no deselection and no edits during execution:
+**726 passed, 20 skipped** in 452 s. Formatting and docs generation clean.
+
 ## Programme diff summary
 
 From `f802330` to `HEAD`: 48 files, +1061/−255 lines overall. Source Python
@@ -463,4 +468,4 @@ the rest.
 | 26    | focused 61 passed; final clean full 716 passed, 20 skipped                             | clean      | generated, no broken local links | `b186f7b` |
 | 27    | focused 89 passed; final clean full 717 passed, 20 skipped                             | clean      | generated, no broken local links | `ae97984` |
 | 28    | focused 71 passed; final clean full 722 passed, 20 skipped                             | clean      | generated, no broken local links | `ff90fc7` |
-| 29    | focused 66 passed; full run pending                                                    | clean      | generated                        | pending   |
+| 29    | focused 66 passed; final clean full 726 passed, 20 skipped                             | clean      | generated, no broken local links | `1ad09b0` |
